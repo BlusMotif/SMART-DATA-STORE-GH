@@ -13,6 +13,10 @@ import CheckoutPage from "@/pages/checkout";
 import CheckoutSuccessPage from "@/pages/checkout-success";
 import AgentRegisterPage from "@/pages/agent/register";
 import AgentDashboard from "@/pages/agent/dashboard";
+import AgentTransactions from "@/pages/agent/transactions";
+import AgentWithdrawals from "@/pages/agent/withdrawals";
+import AgentStorefront from "@/pages/agent/storefront";
+import AgentSettings from "@/pages/agent/settings";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDataBundles from "@/pages/admin/data-bundles";
 import AdminResultCheckers from "@/pages/admin/result-checkers";
@@ -32,6 +36,10 @@ function Router() {
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/agent/register" component={AgentRegisterPage} />
       <Route path="/agent" component={AgentDashboard} />
+      <Route path="/agent/transactions" component={AgentTransactions} />
+      <Route path="/agent/withdrawals" component={AgentWithdrawals} />
+      <Route path="/agent/storefront" component={AgentStorefront} />
+      <Route path="/agent/settings" component={AgentSettings} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/admin/data-bundles" component={AdminDataBundles} />
       <Route path="/admin/result-checkers" component={AdminResultCheckers} />

@@ -28,11 +28,13 @@ import AdminSettings from "@/pages/admin/settings";
 import StorefrontPage from "@/pages/storefront";
 import NetworkProductsPage from "@/pages/products/network";
 import ResultCheckersPage from "@/pages/products/result-checkers";
+import DataBundlesPage from "@/pages/data-bundles";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
+      <Route path="/data-bundles" component={DataBundlesPage} />
       <Route path="/products/result-checkers" component={ResultCheckersPage} />
       <Route path="/products/:network" component={NetworkProductsPage} />
       <Route path="/login" component={LoginPage} />

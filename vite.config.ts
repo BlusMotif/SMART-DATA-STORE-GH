@@ -23,7 +23,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "@assets": path.resolve(import.meta.dirname, "client", "assets"),
     },
   },
   root: path.resolve(import.meta.dirname, "client"),
@@ -32,6 +32,10 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    host: '0.0.0.0',
+    hmr: {
+      host: '0.0.0.0'
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

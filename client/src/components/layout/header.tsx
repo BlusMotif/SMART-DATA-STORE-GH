@@ -70,9 +70,9 @@ export function Header() {
               Data Bundles
             </Link>
             <Link
-              href="/result-checkers"
+              href="/products/result-checkers"
               className={`text-sm font-medium transition-colors hover:text-primary ${
-                location === "/result-checkers" ? "text-primary" : "text-muted-foreground"
+                location === "/products/result-checkers" ? "text-primary" : "text-muted-foreground"
               }`}
               data-testid="link-result-checkers"
             >

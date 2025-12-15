@@ -22,7 +22,6 @@ export async function setupVite(server: Server, app: Express) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
       },
     },
     server: serverOptions,
@@ -33,6 +32,11 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
+
+    // Skip serving index.html for asset requests
+    if (req.path.startsWith('/src') || req.path.startsWith('/@') || req.path.startsWith('/node_modules') || req.path.includes('.')) {
+      return next();
+    }
 
     try {
       const clientTemplate = path.resolve(

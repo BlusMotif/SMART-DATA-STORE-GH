@@ -18,16 +18,19 @@ export default function CheckoutSuccessPage() {
   const params = new URLSearchParams(search);
   const reference = params.get("reference");
 
-  const { data: transaction, isLoading, error } = useQuery<Transaction>({
-    queryKey: ["/api/transactions/verify", reference],
+  const { data: verifyResult, isLoading, error } = useQuery<{ success: boolean; transaction: Transaction }>({
+    queryKey: [`/api/transactions/verify/${reference}`],
     enabled: !!reference,
-    refetchInterval: (data) => {
-      if (data?.status === "pending") {
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data?.transaction?.status === "pending") {
         return 3000;
       }
       return false;
     },
   });
+
+  const transaction = verifyResult?.transaction;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

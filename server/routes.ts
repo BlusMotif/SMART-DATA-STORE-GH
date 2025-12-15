@@ -202,6 +202,18 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/products/data-bundles/:id", async (req, res) => {
+    try {
+      const bundle = await storage.getDataBundle(req.params.id);
+      if (!bundle || !bundle.isActive) {
+        return res.status(404).json({ error: "Data bundle not found" });
+      }
+      res.json(bundle);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch data bundle" });
+    }
+  });
+
   // ============================================
   // PRODUCTS - RESULT CHECKERS (Stock info)
   // ============================================
@@ -210,7 +222,7 @@ export async function registerRoutes(
       const currentYear = new Date().getFullYear();
       const years = [currentYear, currentYear - 1, currentYear - 2];
       
-      const stock: { type: string; year: number; available: number; price: string }[] = [];
+      const stock: { type: string; year: number; available: number; stock: number; price: number }[] = [];
       
       for (const year of years) {
         for (const type of ["bece", "wassce"]) {
@@ -221,7 +233,8 @@ export async function registerRoutes(
               type,
               year,
               available,
-              price: checker?.basePrice || "0.00",
+              stock: available,
+              price: parseFloat(checker?.basePrice || "0"),
             });
           }
         }
@@ -230,6 +243,28 @@ export async function registerRoutes(
       res.json(stock);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch result checker stock" });
+    }
+  });
+
+  app.get("/api/products/result-checkers/info/:type/:year", async (req, res) => {
+    try {
+      const type = req.params.type;
+      const year = parseInt(req.params.year);
+      
+      const available = await storage.getResultCheckerStock(type, year);
+      if (available === 0) {
+        return res.status(404).json({ error: "No stock available" });
+      }
+      
+      const checker = await storage.getAvailableResultChecker(type, year);
+      res.json({
+        type,
+        year,
+        price: parseFloat(checker?.basePrice || "0"),
+        stock: available,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch result checker info" });
     }
   });
 

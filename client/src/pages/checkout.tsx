@@ -42,12 +42,12 @@ export default function CheckoutPage() {
   const isResultChecker = productType === "result-checker";
 
   const { data: bundle, isLoading: bundleLoading } = useQuery<DataBundle>({
-    queryKey: ["/api/products/data-bundles", productId],
+    queryKey: [`/api/products/data-bundles/${productId}`],
     enabled: isDataBundle && !!productId,
   });
 
   const { data: checkerInfo, isLoading: checkerLoading } = useQuery<{ type: string; year: number; price: number; stock: number }>({
-    queryKey: ["/api/products/result-checkers/info", productId, year],
+    queryKey: [`/api/products/result-checkers/info/${productId}/${year}`],
     enabled: isResultChecker && !!productId && !!year,
   });
 
@@ -63,17 +63,20 @@ export default function CheckoutPage() {
     mutationFn: async (data: CheckoutFormData) => {
       const payload = {
         productType: isDataBundle ? "data_bundle" : "result_checker",
-        productId: isDataBundle ? productId : productId,
-        year: isResultChecker ? parseInt(year!) : undefined,
+        productId: isResultChecker ? `${productId}-${year}` : productId,
         customerPhone: data.customerPhone,
         customerEmail: data.customerEmail || undefined,
       };
 
-      const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-      return response.json() as Promise<CheckoutResult>;
+      const response = await apiRequest("/api/checkout/initialize", { 
+        method: "POST", 
+        body: JSON.stringify(payload) 
+      });
+      return response as { transaction: { id: string; reference: string; amount: string; productName: string }; paymentUrl: string };
     },
     onSuccess: (data) => {
-      window.location.href = data.authorizationUrl;
+      // Redirect to success page (simulating instant payment for demo)
+      window.location.href = data.paymentUrl;
     },
     onError: (error: any) => {
       toast({

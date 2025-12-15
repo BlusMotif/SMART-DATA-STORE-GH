@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, X } from "lucide-react";
+import { X } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -82,45 +82,40 @@ export function PWAInstallPrompt() {
 
   return (
     <div 
-      className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-card border rounded-lg shadow-lg p-4 z-50"
+      className="fixed top-0 left-0 right-0 bg-card border-b shadow-md p-3 z-50"
       data-testid="pwa-install-prompt"
     >
-      <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-          <Download className="w-5 h-5 text-primary" />
+      <div className="container mx-auto max-w-7xl flex items-center gap-3">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden">
+          <img 
+            src="/pwa-192x192.png" 
+            alt="App Icon" 
+            className="w-full h-full object-contain"
+          />
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm" data-testid="text-install-title">Install App</h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Install SMART DATA STORE GH for quick access and offline use.
+          <p className="text-xs text-muted-foreground">
+            Install for quick access and offline use.
           </p>
-          <div className="flex items-center gap-2 mt-3">
-            <Button 
-              size="sm" 
-              onClick={handleInstallClick}
-              data-testid="button-install-app"
-            >
-              Install
-            </Button>
-            <Button 
-              size="sm" 
-              variant="ghost" 
-              onClick={handleDismiss}
-              data-testid="button-dismiss-install"
-            >
-              Not now
-            </Button>
-          </div>
         </div>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="flex-shrink-0 h-6 w-6"
-          onClick={handleDismiss}
-          data-testid="button-close-install"
-        >
-          <X className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button 
+            size="sm" 
+            onClick={handleInstallClick}
+            data-testid="button-install-app"
+          >
+            Install
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleDismiss}
+            data-testid="button-close-install"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

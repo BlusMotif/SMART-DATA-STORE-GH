@@ -14,6 +14,12 @@ import CheckoutSuccessPage from "@/pages/checkout-success";
 import AgentRegisterPage from "@/pages/agent/register";
 import AgentDashboard from "@/pages/agent/dashboard";
 import AdminDashboard from "@/pages/admin/dashboard";
+import AdminDataBundles from "@/pages/admin/data-bundles";
+import AdminResultCheckers from "@/pages/admin/result-checkers";
+import AdminTransactions from "@/pages/admin/transactions";
+import AdminAgents from "@/pages/admin/agents";
+import AdminWithdrawals from "@/pages/admin/withdrawals";
+import AdminSettings from "@/pages/admin/settings";
 import StorefrontPage from "@/pages/storefront";
 
 function Router() {
@@ -27,6 +33,12 @@ function Router() {
       <Route path="/agent/register" component={AgentRegisterPage} />
       <Route path="/agent" component={AgentDashboard} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/data-bundles" component={AdminDataBundles} />
+      <Route path="/admin/result-checkers" component={AdminResultCheckers} />
+      <Route path="/admin/transactions" component={AdminTransactions} />
+      <Route path="/admin/agents" component={AdminAgents} />
+      <Route path="/admin/withdrawals" component={AdminWithdrawals} />
+      <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/store/:slug" component={StorefrontPage} />
       <Route component={NotFound} />
     </Switch>

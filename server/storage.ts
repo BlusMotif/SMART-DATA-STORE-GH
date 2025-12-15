@@ -37,6 +37,7 @@ export interface IStorage {
   getAvailableResultChecker(type: string, year: number): Promise<ResultChecker | undefined>;
   getResultCheckerStock(type: string, year: number): Promise<number>;
   getResultCheckers(filters?: { type?: string; year?: number; isSold?: boolean }): Promise<ResultChecker[]>;
+  getResultCheckerSummary(): Promise<{ type: string; year: number; total: number; available: number; sold: number }[]>;
   createResultChecker(checker: InsertResultChecker): Promise<ResultChecker>;
   createResultCheckersBulk(checkers: InsertResultChecker[]): Promise<ResultChecker[]>;
   markResultCheckerSold(id: string, transactionId: string, phone: string): Promise<ResultChecker | undefined>;

@@ -684,15 +684,51 @@ export async function registerRoutes(
 
   app.post("/api/admin/result-checkers/bulk", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const { checkers } = req.body;
-      if (!Array.isArray(checkers) || checkers.length === 0) {
-        return res.status(400).json({ error: "No checkers provided" });
+      const { type, year, basePrice, costPrice, checkers: checkersStr } = req.body;
+      
+      if (!type || !year || !basePrice || !costPrice || !checkersStr) {
+        return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const created = await storage.createResultCheckersBulk(checkers);
-      res.json({ created: created.length });
+      const lines = checkersStr.split("\n").filter((line: string) => line.trim());
+      const checkersData = lines.map((line: string) => {
+        const [serialNumber, pin] = line.split(",").map((s: string) => s.trim());
+        return {
+          type,
+          year: parseInt(year),
+          serialNumber,
+          pin,
+          basePrice,
+          costPrice,
+        };
+      }).filter((c: any) => c.serialNumber && c.pin);
+
+      if (checkersData.length === 0) {
+        return res.status(400).json({ error: "No valid checkers provided" });
+      }
+
+      const created = await storage.createResultCheckersBulk(checkersData);
+      res.json({ added: created.length });
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Failed to create result checkers" });
+    }
+  });
+
+  app.get("/api/admin/result-checkers/summary", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const summary = await storage.getResultCheckerSummary();
+      res.json(summary);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load summary" });
+    }
+  });
+
+  app.get("/api/admin/transactions/recent", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const transactions = await storage.getTransactions({ limit: 10 });
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load recent transactions" });
     }
   });
 

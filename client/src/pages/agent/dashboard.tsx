@@ -1,0 +1,199 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { AgentSidebar } from "@/components/layout/agent-sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { StatCard } from "@/components/ui/stat-card";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatCurrency, formatDate } from "@/lib/constants";
+import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight } from "lucide-react";
+import type { Transaction, Agent } from "@shared/schema";
+
+interface AgentStats {
+  balance: number;
+  totalProfit: number;
+  totalSales: number;
+  totalTransactions: number;
+  todayProfit: number;
+  todayTransactions: number;
+}
+
+export default function AgentDashboard() {
+  const { data: agent } = useQuery<Agent>({
+    queryKey: ["/api/agent/profile"],
+  });
+
+  const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
+    queryKey: ["/api/agent/stats"],
+  });
+
+  const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
+    queryKey: ["/api/agent/transactions/recent"],
+  });
+
+  return (
+    <div className="flex h-screen bg-background">
+      <AgentSidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
+          <h1 className="text-xl font-semibold">Agent Dashboard</h1>
+          <div className="flex items-center gap-2">
+            {agent && (
+              <a href={`/store/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="sm" className="gap-2" data-testid="button-view-store">
+                  <ExternalLink className="h-4 w-4" />
+                  View Store
+                </Button>
+              </a>
+            )}
+            <ThemeToggle />
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {statsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Card key={i} className="animate-pulse">
+                    <CardContent className="pt-6">
+                      <div className="h-4 bg-muted rounded w-1/2 mb-4" />
+                      <div className="h-8 bg-muted rounded w-3/4" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard
+                  title="Available Balance"
+                  value={formatCurrency(stats?.balance || 0)}
+                  icon={Wallet}
+                  description="Profit available for withdrawal"
+                />
+                <StatCard
+                  title="Total Profit"
+                  value={formatCurrency(stats?.totalProfit || 0)}
+                  icon={TrendingUp}
+                  description="All time earnings"
+                />
+                <StatCard
+                  title="Total Sales"
+                  value={formatCurrency(stats?.totalSales || 0)}
+                  icon={DollarSign}
+                  description="Revenue generated"
+                />
+                <StatCard
+                  title="Total Orders"
+                  value={stats?.totalTransactions || 0}
+                  icon={ShoppingCart}
+                  description="Completed transactions"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Card className="lg:col-span-2">
+                <CardHeader className="flex flex-row items-center justify-between gap-2">
+                  <CardTitle className="text-lg">Recent Sales</CardTitle>
+                  <Link href="/agent/transactions">
+                    <Button variant="ghost" size="sm" className="gap-1">
+                      View All <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </CardHeader>
+                <CardContent>
+                  {transactionsLoading ? (
+                    <TableSkeleton rows={5} />
+                  ) : recentTransactions && recentTransactions.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Profit</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {recentTransactions.slice(0, 5).map((tx) => (
+                          <TableRow key={tx.id}>
+                            <TableCell className="max-w-[200px] truncate">{tx.productName}</TableCell>
+                            <TableCell className="font-medium tabular-nums">{formatCurrency(tx.amount)}</TableCell>
+                            <TableCell className="text-green-600 font-medium tabular-nums">
+                              +{formatCurrency(tx.agentProfit || 0)}
+                            </TableCell>
+                            <TableCell><StatusBadge status={tx.status} /></TableCell>
+                            <TableCell className="text-muted-foreground text-sm">{formatDate(tx.createdAt)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No sales yet. Share your storefront link to start earning!
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Withdraw Profits</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="text-center py-4">
+                    <p className="text-3xl font-bold text-primary tabular-nums" data-testid="text-withdrawable">
+                      {formatCurrency(stats?.balance || 0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">Available for withdrawal</p>
+                  </div>
+                  <Link href="/agent/withdrawals">
+                    <Button className="w-full" disabled={(stats?.balance || 0) <= 0} data-testid="button-withdraw">
+                      Request Withdrawal
+                    </Button>
+                  </Link>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Withdrawals require admin approval
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {agent && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Your Storefront</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <p className="font-medium">{agent.businessName}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Share this link with your customers:
+                      </p>
+                      <code className="text-sm bg-background px-2 py-1 rounded mt-2 inline-block">
+                        {window.location.origin}/store/{agent.storefrontSlug}
+                      </code>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/store/${agent.storefrontSlug}`)}
+                      data-testid="button-copy-link"
+                    >
+                      Copy Link
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

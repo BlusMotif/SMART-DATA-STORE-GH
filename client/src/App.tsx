@@ -3,14 +3,31 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
+
+import HomePage from "@/pages/home";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import CheckoutPage from "@/pages/checkout";
+import CheckoutSuccessPage from "@/pages/checkout-success";
+import AgentRegisterPage from "@/pages/agent/register";
+import AgentDashboard from "@/pages/agent/dashboard";
+import AdminDashboard from "@/pages/admin/dashboard";
+import StorefrontPage from "@/pages/storefront";
 
 function Router() {
   return (
     <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
+      <Route path="/" component={HomePage} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
+      <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />
+      <Route path="/checkout/success" component={CheckoutSuccessPage} />
+      <Route path="/agent/register" component={AgentRegisterPage} />
+      <Route path="/agent" component={AgentDashboard} />
+      <Route path="/admin" component={AdminDashboard} />
+      <Route path="/store/:slug" component={StorefrontPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -19,10 +36,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <ThemeProvider defaultTheme="light" storageKey="clectech-theme">
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

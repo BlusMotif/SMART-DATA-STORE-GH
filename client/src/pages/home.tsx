@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NoDataBundles, NoResultCheckers } from "@/components/ui/empty-state";
 import { APP_NAME, NETWORKS, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Smartphone, FileCheck, Users, Shield, Zap, ArrowRight } from "lucide-react";
+import { Smartphone, FileCheck, ArrowRight } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 
 interface ResultCheckerStock {
@@ -70,50 +70,6 @@ export default function HomePage() {
                   Become an Agent
                 </Button>
               </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* Features */}
-        <section className="py-12 px-4 border-b">
-          <div className="container mx-auto max-w-6xl">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card className="text-center">
-                <CardContent className="pt-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mx-auto mb-4">
-                    <Zap className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Instant Delivery</h3>
-                  <p className="text-sm text-muted-foreground">Get your data bundle or PIN instantly after payment</p>
-                </CardContent>
-              </Card>
-              <Card className="text-center">
-                <CardContent className="pt-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mx-auto mb-4">
-                    <Shield className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Secure Payments</h3>
-                  <p className="text-sm text-muted-foreground">All transactions secured by Paystack</p>
-                </CardContent>
-              </Card>
-              <Card className="text-center">
-                <CardContent className="pt-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mx-auto mb-4">
-                    <Smartphone className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">All Networks</h3>
-                  <p className="text-sm text-muted-foreground">MTN, Telecel, and AirtelTigo supported</p>
-                </CardContent>
-              </Card>
-              <Card className="text-center">
-                <CardContent className="pt-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mx-auto mb-4">
-                    <Users className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-semibold mb-2">Agent Program</h3>
-                  <p className="text-sm text-muted-foreground">Earn commissions as a reseller agent</p>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </section>

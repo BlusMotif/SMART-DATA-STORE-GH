@@ -1,6 +1,6 @@
 {
-  "name": "CLECTECH - Data & Result Checker",
-  "short_name": "CLECTECH",
+  "name": "SMART DATA STORE GH - Data & Result Checker",
+  "short_name": "SMART DATA STORE GH",
   "description": "Buy data bundles and WAEC result checkers instantly",
   "start_url": "/",
   "display": "standalone",

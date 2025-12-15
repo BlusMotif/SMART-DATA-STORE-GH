@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NoDataBundles, NoResultCheckers } from "@/components/ui/empty-state";
 import { APP_NAME, NETWORKS, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Smartphone, FileCheck, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Smartphone, FileCheck, ArrowRight } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
@@ -106,22 +106,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-
-            {/* Navigation Arrows */}
-            <button
-              onClick={prevBanner}
-              className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-              data-testid="button-banner-prev"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={nextBanner}
-              className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-              data-testid="button-banner-next"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
 
             {/* Dot Indicators */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">

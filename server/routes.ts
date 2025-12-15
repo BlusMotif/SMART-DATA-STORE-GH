@@ -7,6 +7,7 @@ import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
 } from "@shared/schema";
+import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured } from "./paystack";
 
 // Simple session-based auth middleware
 declare module "express-session" {
@@ -318,6 +319,16 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // PAYSTACK CONFIG
+  // ============================================
+  app.get("/api/paystack/config", (req, res) => {
+    res.json({
+      publicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
+      isConfigured: isPaystackConfigured(),
+    });
+  });
+
+  // ============================================
   // CHECKOUT / TRANSACTIONS
   // ============================================
   app.post("/api/checkout/initialize", async (req, res) => {
@@ -384,17 +395,40 @@ export async function registerRoutes(
         agentProfit: agentProfit.toFixed(2),
       });
 
-      // In production, initialize Paystack here
-      // For now, return the transaction for simulated payment
-      res.json({
-        transaction: {
-          id: transaction.id,
-          reference: transaction.reference,
-          amount: transaction.amount,
-          productName: transaction.productName,
-        },
-        paymentUrl: `/checkout/success?reference=${reference}`,
-      });
+      // Initialize Paystack payment
+      const customerEmail = data.customerEmail || `${data.customerPhone}@clectech.com`;
+      const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success`;
+
+      try {
+        const paystackResponse = await initializePayment({
+          email: customerEmail,
+          amount: amount,
+          reference: reference,
+          callbackUrl: callbackUrl,
+          metadata: {
+            transactionId: transaction.id,
+            productName: productName,
+            customerPhone: data.customerPhone,
+          },
+        });
+
+        res.json({
+          transaction: {
+            id: transaction.id,
+            reference: transaction.reference,
+            amount: transaction.amount,
+            productName: transaction.productName,
+          },
+          paymentUrl: paystackResponse.data.authorization_url,
+          accessCode: paystackResponse.data.access_code,
+        });
+      } catch (paystackError: any) {
+        // If Paystack fails, clean up the transaction
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.FAILED,
+        });
+        throw new Error(paystackError.message || "Payment initialization failed");
+      }
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Checkout failed" });
     }
@@ -421,9 +455,19 @@ export async function registerRoutes(
         });
       }
 
-      // Simulate payment verification success
-      // In production, verify with Paystack API
+      // Verify payment with Paystack API
+      const paystackVerification = await verifyPayment(req.params.reference);
       
+      if (paystackVerification.data.status !== "success") {
+        // Payment not successful yet
+        return res.json({
+          success: false,
+          status: paystackVerification.data.status,
+          message: paystackVerification.data.gateway_response,
+        });
+      }
+
+      // Payment successful - fulfill the order
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
 
@@ -442,6 +486,7 @@ export async function registerRoutes(
         completedAt: new Date(),
         deliveredPin,
         deliveredSerial,
+        paymentReference: paystackVerification.data.reference,
       });
 
       // Credit agent if applicable
@@ -461,7 +506,72 @@ export async function registerRoutes(
         },
       });
     } catch (error: any) {
+      console.error("Payment verification error:", error);
       res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // Paystack Webhook Handler
+  app.post("/api/paystack/webhook", async (req, res) => {
+    try {
+      const signature = req.headers["x-paystack-signature"] as string;
+      const body = JSON.stringify(req.body);
+
+      // Validate webhook signature
+      if (!validateWebhookSignature(body, signature)) {
+        console.error("Invalid Paystack webhook signature");
+        return res.status(400).json({ error: "Invalid signature" });
+      }
+
+      const event = req.body;
+
+      if (event.event === "charge.success") {
+        const data = event.data;
+        const reference = data.reference;
+
+        const transaction = await storage.getTransactionByReference(reference);
+        if (!transaction) {
+          console.error("Transaction not found for webhook:", reference);
+          return res.sendStatus(200); // Return 200 to acknowledge receipt
+        }
+
+        if (transaction.status === TransactionStatus.COMPLETED) {
+          return res.sendStatus(200); // Already processed
+        }
+
+        // Fulfill the order
+        let deliveredPin: string | undefined;
+        let deliveredSerial: string | undefined;
+
+        if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
+          const checker = await storage.getResultChecker(transaction.productId);
+          if (checker && !checker.isSold) {
+            await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+            deliveredPin = checker.pin;
+            deliveredSerial = checker.serialNumber;
+          }
+        }
+
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.COMPLETED,
+          completedAt: new Date(),
+          deliveredPin,
+          deliveredSerial,
+          paymentReference: data.reference,
+        });
+
+        // Credit agent if applicable
+        if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
+          await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+        }
+
+        console.log("Payment processed via webhook:", reference);
+      }
+
+      res.sendStatus(200);
+    } catch (error: any) {
+      console.error("Webhook processing error:", error);
+      res.sendStatus(200); // Always return 200 to prevent Paystack retries
     }
   });
 

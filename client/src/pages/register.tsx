@@ -10,8 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { APP_NAME } from "@/lib/constants";
-import { Loader2, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft, Home, Smartphone, FileCheck } from "lucide-react";
-import loginBg from "@assets/L_bg_1765777658195.jpeg";
+import { Loader2, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import siteLogo from "@assets/logo_1765774201026.png";
 
 const registerSchema = z.object({
@@ -67,42 +66,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <div 
-      className="min-h-screen flex flex-col bg-background px-4 py-6"
-      style={{
-        backgroundImage: `url(${loginBg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }}
-    >
-      <nav className="flex flex-wrap items-center justify-between gap-4 mb-6 px-2">
+    <div className="min-h-screen flex flex-col bg-background px-4 py-6">
+      <nav className="mb-6 px-2">
         <Link href="/" data-testid="link-back-home">
-          <Button variant="outline" size="sm" className="gap-2 bg-white/90 backdrop-blur-sm">
+          <Button variant="outline" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Home
           </Button>
         </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/" data-testid="nav-products">
-            <Button variant="ghost" size="sm" className="gap-1 bg-white/80 backdrop-blur-sm">
-              <Home className="h-4 w-4" />
-              Products
-            </Button>
-          </Link>
-          <Link href="/data-bundles" data-testid="nav-data-bundles">
-            <Button variant="ghost" size="sm" className="gap-1 bg-white/80 backdrop-blur-sm">
-              <Smartphone className="h-4 w-4" />
-              Data Bundles
-            </Button>
-          </Link>
-          <Link href="/result-checkers" data-testid="nav-result-checkers">
-            <Button variant="ghost" size="sm" className="gap-1 bg-white/80 backdrop-blur-sm">
-              <FileCheck className="h-4 w-4" />
-              Result Checkers
-            </Button>
-          </Link>
-        </div>
       </nav>
       
       <div className="flex-1 flex items-center justify-center">

@@ -63,71 +63,78 @@ export default function HomePage() {
       <Header />
       
       <main className="flex-1">
-        {/* Hero Section */}
-        <section className="py-16 px-4 bg-gradient-to-b from-primary/5 to-background">
-          <div className="container mx-auto max-w-6xl text-center">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight" data-testid="text-hero-title">
-              Your Trusted Platform for
-              <span className="text-primary"> Digital Products</span>
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-              Purchase data bundles and WAEC result checkers instantly. Fast, secure, and reliable service for all networks.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4 mb-10">
-              <Link href="#products">
-                <Button size="lg" className="gap-2" data-testid="button-browse-products">
-                  Browse Products
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href="/agent/register">
-                <Button size="lg" variant="outline" data-testid="button-become-agent">
-                  Become an Agent
-                </Button>
-              </Link>
+        {/* Hero Section with Banner */}
+        <section className="relative" data-testid="banner-carousel">
+          {/* Banner Images */}
+          <div className="relative h-[500px] md:h-[600px]">
+            {bannerImages.map((img, index) => (
+              <img
+                key={index}
+                src={img}
+                alt={`Banner ${index + 1}`}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                  index === currentBanner ? "opacity-100" : "opacity-0"
+                }`}
+                data-testid={`img-banner-${index + 1}`}
+              />
+            ))}
+            {/* Dark overlay for text readability */}
+            <div className="absolute inset-0 bg-black/50" />
+            
+            {/* Text Content */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="container mx-auto max-w-6xl text-center px-4">
+                <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight text-white" data-testid="text-hero-title">
+                  Your Trusted Platform for
+                  <span className="text-blue-400"> Digital Products</span>
+                </h1>
+                <p className="text-lg text-white/90 max-w-2xl mx-auto mb-8">
+                  Purchase data bundles and WAEC result checkers instantly. Fast, secure, and reliable service for all networks.
+                </p>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Link href="#products">
+                    <Button size="lg" className="gap-2" data-testid="button-browse-products">
+                      Browse Products
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link href="/agent/register">
+                    <Button size="lg" variant="outline" className="bg-white/10 border-white text-white hover:bg-white/20" data-testid="button-become-agent">
+                      Become an Agent
+                    </Button>
+                  </Link>
+                </div>
+              </div>
             </div>
 
-            {/* Banner Carousel */}
-            <div className="relative w-full max-w-4xl mx-auto rounded-lg overflow-hidden" data-testid="banner-carousel">
-              <div className="relative aspect-[16/9]">
-                {bannerImages.map((img, index) => (
-                  <img
-                    key={index}
-                    src={img}
-                    alt={`Banner ${index + 1}`}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-                      index === currentBanner ? "opacity-100" : "opacity-0"
-                    }`}
-                    data-testid={`img-banner-${index + 1}`}
-                  />
-                ))}
-              </div>
-              <button
-                onClick={prevBanner}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                data-testid="button-banner-prev"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <button
-                onClick={nextBanner}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-                data-testid="button-banner-next"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
-                {bannerImages.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentBanner(index)}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      index === currentBanner ? "bg-white" : "bg-white/50"
-                    }`}
-                    data-testid={`button-banner-dot-${index + 1}`}
-                  />
-                ))}
-              </div>
+            {/* Navigation Arrows */}
+            <button
+              onClick={prevBanner}
+              className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+              data-testid="button-banner-prev"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              onClick={nextBanner}
+              className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+              data-testid="button-banner-next"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+
+            {/* Dot Indicators */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {bannerImages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentBanner(index)}
+                  className={`w-3 h-3 rounded-full transition-colors ${
+                    index === currentBanner ? "bg-white" : "bg-white/50"
+                  }`}
+                  data-testid={`button-banner-dot-${index + 1}`}
+                />
+              ))}
             </div>
           </div>
         </section>

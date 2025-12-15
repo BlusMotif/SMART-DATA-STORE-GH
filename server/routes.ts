@@ -767,5 +767,46 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // SEED PRODUCTS (for initial setup - admin only)
+  // ============================================
+  app.post("/api/seed/products", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const existingBundles = await storage.getDataBundles({});
+      if (existingBundles.length > 0) {
+        return res.json({ message: "Products already exist", count: existingBundles.length });
+      }
+
+      const sampleBundles = [
+        { name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50" },
+        { name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", costPrice: "2.80" },
+        { name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", costPrice: "6.50" },
+        { name: "Weekly Pro", network: "mtn", dataAmount: "5GB", validity: "7 Days", basePrice: "15.00", costPrice: "12.00" },
+        { name: "Monthly Starter", network: "mtn", dataAmount: "10GB", validity: "30 Days", basePrice: "25.00", costPrice: "20.00" },
+        { name: "Monthly Premium", network: "mtn", dataAmount: "20GB", validity: "30 Days", basePrice: "45.00", costPrice: "38.00" },
+        { name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50" },
+        { name: "Daily Plus", network: "telecel", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", costPrice: "2.80" },
+        { name: "Weekly Basic", network: "telecel", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", costPrice: "8.00" },
+        { name: "Weekly Pro", network: "telecel", dataAmount: "6GB", validity: "7 Days", basePrice: "18.00", costPrice: "14.50" },
+        { name: "Monthly Basic", network: "telecel", dataAmount: "8GB", validity: "30 Days", basePrice: "22.00", costPrice: "18.00" },
+        { name: "Monthly Plus", network: "telecel", dataAmount: "15GB", validity: "30 Days", basePrice: "38.00", costPrice: "32.00" },
+        { name: "Daily Bundle", network: "airteltigo", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", costPrice: "1.90" },
+        { name: "Daily Max", network: "airteltigo", dataAmount: "1.5GB", validity: "1 Day", basePrice: "4.00", costPrice: "3.20" },
+        { name: "Weekly Bundle", network: "airteltigo", dataAmount: "4GB", validity: "7 Days", basePrice: "12.00", costPrice: "9.50" },
+        { name: "Weekly Max", network: "airteltigo", dataAmount: "7GB", validity: "7 Days", basePrice: "20.00", costPrice: "16.00" },
+        { name: "Monthly Value", network: "airteltigo", dataAmount: "12GB", validity: "30 Days", basePrice: "30.00", costPrice: "25.00" },
+        { name: "Monthly Max", network: "airteltigo", dataAmount: "25GB", validity: "30 Days", basePrice: "50.00", costPrice: "42.00" },
+      ];
+
+      for (const bundle of sampleBundles) {
+        await storage.createDataBundle(bundle);
+      }
+
+      res.json({ message: "Products seeded successfully", count: sampleBundles.length });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to seed products" });
+    }
+  });
+
   return httpServer;
 }

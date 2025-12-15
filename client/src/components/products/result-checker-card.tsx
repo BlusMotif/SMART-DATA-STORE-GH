@@ -43,54 +43,53 @@ export function ResultCheckerCard({
 
   return (
     <Card className="group overflow-visible transition-all duration-200 hover-elevate" data-testid={`card-checker-${type}-${year}`}>
-      <div className="w-full h-32 overflow-hidden rounded-t-xl">
+      <div className="w-full h-20 overflow-hidden rounded-t-xl">
         <img 
           src={resultImage} 
           alt="Result Checker" 
           className="w-full h-full object-cover"
         />
       </div>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <Badge variant="outline" className={info.color}>
-            <Icon className="h-4 w-4 mr-1" />
+      <CardHeader className="pb-2 pt-2 px-3">
+        <div className="flex items-center justify-between gap-1">
+          <Badge variant="outline" className={`${info.color} text-xs`}>
+            <Icon className="h-3 w-3 mr-0.5" />
             {info.name}
           </Badge>
-          <Badge variant="secondary" className="font-mono">
+          <Badge variant="secondary" className="font-mono text-xs">
             {year}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-2 px-3 pb-3">
         <div>
-          <h3 className="font-semibold text-lg leading-tight mb-1" data-testid={`text-checker-name-${type}-${year}`}>
-            {info.name} Result Checker
+          <h3 className="font-semibold text-sm leading-tight mb-0.5" data-testid={`text-checker-name-${type}-${year}`}>
+            {info.name} Checker
           </h3>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground line-clamp-1">
             {info.fullName}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className={`text-sm font-medium ${isOutOfStock ? "text-red-600" : "text-green-600"}`}>
-            {isOutOfStock ? "Out of Stock" : `${stock} in stock`}
+        <div className="flex items-center gap-1">
+          <span className={`text-xs font-medium ${isOutOfStock ? "text-red-600" : "text-green-600"}`}>
+            {isOutOfStock ? "Out of Stock" : `${stock} available`}
           </span>
         </div>
 
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-2xl font-bold text-primary tabular-nums" data-testid={`text-checker-price-${type}-${year}`}>
-              {formatCurrency(price)}
-            </p>
-          </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-lg font-bold text-primary tabular-nums" data-testid={`text-checker-price-${type}-${year}`}>
+            {formatCurrency(price)}
+          </p>
           <Button
+            size="sm"
             onClick={onPurchase}
             disabled={isOutOfStock || isPurchasing}
-            className="gap-2"
+            className="gap-1 text-xs"
             data-testid={`button-buy-checker-${type}-${year}`}
           >
-            <ShoppingCart className="h-4 w-4" />
-            {isOutOfStock ? "Out of Stock" : "Buy Now"}
+            <ShoppingCart className="h-3 w-3" />
+            {isOutOfStock ? "N/A" : "Buy"}
           </Button>
         </div>
       </CardContent>

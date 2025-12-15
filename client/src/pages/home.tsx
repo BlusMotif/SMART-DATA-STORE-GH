@@ -167,13 +167,13 @@ export default function HomePage() {
 
                 {/* Bundle Cards */}
                 {bundlesLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Array.from({ length: 6 }).map((_, i) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {Array.from({ length: 10 }).map((_, i) => (
                       <DataBundleCardSkeleton key={i} />
                     ))}
                   </div>
                 ) : filteredBundles && filteredBundles.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {filteredBundles.map((bundle) => (
                       <DataBundleCard
                         key={bundle.id}
@@ -189,13 +189,13 @@ export default function HomePage() {
 
               <TabsContent value="result-checkers" className="space-y-6">
                 {checkersLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Array.from({ length: 4 }).map((_, i) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {Array.from({ length: 10 }).map((_, i) => (
                       <ResultCheckerCardSkeleton key={i} />
                     ))}
                   </div>
                 ) : resultCheckerStock && resultCheckerStock.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {resultCheckerStock.map((item) => (
                       <ResultCheckerCard
                         key={`${item.type}-${item.year}`}

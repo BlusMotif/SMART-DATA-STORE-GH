@@ -4,6 +4,15 @@ import { NetworkBadge } from "./network-badge";
 import { formatCurrency } from "@/lib/constants";
 import { Wifi, Clock, ShoppingCart } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
+import mtnImage from "@assets/mtn_1765780772203.jpg";
+import telecelImage from "@assets/telecel_1765780772206.jpg";
+import airteltigoImage from "@assets/at_1765780772206.jpg";
+
+const networkImages: Record<string, string> = {
+  mtn: mtnImage,
+  telecel: telecelImage,
+  airteltigo: airteltigoImage,
+};
 
 interface DataBundleCardProps {
   bundle: DataBundle;
@@ -20,8 +29,19 @@ export function DataBundleCard({
 }: DataBundleCardProps) {
   const displayPrice = customPrice ?? parseFloat(bundle.basePrice);
 
+  const networkImage = networkImages[bundle.network.toLowerCase()];
+
   return (
     <Card className="group overflow-visible transition-all duration-200 hover-elevate" data-testid={`card-bundle-${bundle.id}`}>
+      {networkImage && (
+        <div className="w-full h-32 overflow-hidden rounded-t-xl">
+          <img 
+            src={networkImage} 
+            alt={bundle.network} 
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <NetworkBadge network={bundle.network} size="md" />

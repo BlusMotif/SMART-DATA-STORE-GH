@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/constants";
 import { FileCheck, GraduationCap, ShoppingCart } from "lucide-react";
+import resultImage from "@assets/result_1765780772205.jpg";
 
 interface ResultCheckerTypeInfo {
   type: "bece" | "wassce";
@@ -42,6 +43,13 @@ export function ResultCheckerCard({
 
   return (
     <Card className="group overflow-visible transition-all duration-200 hover-elevate" data-testid={`card-checker-${type}-${year}`}>
+      <div className="w-full h-32 overflow-hidden rounded-t-xl">
+        <img 
+          src={resultImage} 
+          alt="Result Checker" 
+          className="w-full h-full object-cover"
+        />
+      </div>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
           <Badge variant="outline" className={info.color}>

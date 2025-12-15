@@ -25,11 +25,15 @@ import AdminAgents from "@/pages/admin/agents";
 import AdminWithdrawals from "@/pages/admin/withdrawals";
 import AdminSettings from "@/pages/admin/settings";
 import StorefrontPage from "@/pages/storefront";
+import NetworkProductsPage from "@/pages/products/network";
+import ResultCheckersPage from "@/pages/products/result-checkers";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={HomePage} />
+      <Route path="/products/result-checkers" component={ResultCheckersPage} />
+      <Route path="/products/:network" component={NetworkProductsPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />

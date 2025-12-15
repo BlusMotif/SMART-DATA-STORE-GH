@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { APP_NAME } from "@/lib/constants";
+import logoImg from "@assets/logo_1765774201026.png";
 
 export function Header() {
   const { user, isAuthenticated, logout, isLoggingOut } = useAuth();
@@ -38,12 +39,12 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between gap-4 px-4 mx-auto max-w-7xl">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-sm">
-            CT
-          </div>
-          <span className="font-semibold text-xl tracking-tight" data-testid="text-app-name">
-            {APP_NAME}
-          </span>
+          <img 
+            src={logoImg} 
+            alt={APP_NAME} 
+            className="h-10 w-auto"
+            data-testid="img-logo"
+          />
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">

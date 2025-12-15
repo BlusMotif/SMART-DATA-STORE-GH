@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
@@ -6,12 +6,16 @@ import { Footer } from "@/components/layout/footer";
 import { DataBundleCard, DataBundleCardSkeleton } from "@/components/products/data-bundle-card";
 import { ResultCheckerCard, ResultCheckerCardSkeleton } from "@/components/products/result-checker-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NoDataBundles, NoResultCheckers } from "@/components/ui/empty-state";
 import { APP_NAME, NETWORKS, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Smartphone, FileCheck, ArrowRight } from "lucide-react";
+import { Smartphone, FileCheck, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
+import banner1 from "@assets/banner1_1765774201032.jpeg";
+import banner2 from "@assets/banner2_1765774201033.jpeg";
+import banner3 from "@assets/banner3_1765774201030.jpeg";
+
+const bannerImages = [banner1, banner2, banner3];
 
 interface ResultCheckerStock {
   type: string;
@@ -22,6 +26,17 @@ interface ResultCheckerStock {
 
 export default function HomePage() {
   const [selectedNetwork, setSelectedNetwork] = useState<string>("all");
+  const [currentBanner, setCurrentBanner] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const nextBanner = () => setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
+  const prevBanner = () => setCurrentBanner((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
 
   const { data: dataBundles, isLoading: bundlesLoading } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],
@@ -58,7 +73,7 @@ export default function HomePage() {
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
               Purchase data bundles and WAEC result checkers instantly. Fast, secure, and reliable service for all networks.
             </p>
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-wrap justify-center gap-4 mb-10">
               <Link href="#products">
                 <Button size="lg" className="gap-2" data-testid="button-browse-products">
                   Browse Products
@@ -70,6 +85,49 @@ export default function HomePage() {
                   Become an Agent
                 </Button>
               </Link>
+            </div>
+
+            {/* Banner Carousel */}
+            <div className="relative w-full max-w-4xl mx-auto rounded-lg overflow-hidden" data-testid="banner-carousel">
+              <div className="relative aspect-[16/9]">
+                {bannerImages.map((img, index) => (
+                  <img
+                    key={index}
+                    src={img}
+                    alt={`Banner ${index + 1}`}
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                      index === currentBanner ? "opacity-100" : "opacity-0"
+                    }`}
+                    data-testid={`img-banner-${index + 1}`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={prevBanner}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                data-testid="button-banner-prev"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                onClick={nextBanner}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                data-testid="button-banner-next"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+                {bannerImages.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentBanner(index)}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      index === currentBanner ? "bg-white" : "bg-white/50"
+                    }`}
+                    data-testid={`button-banner-dot-${index + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </section>

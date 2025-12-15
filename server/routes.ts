@@ -515,10 +515,10 @@ export async function registerRoutes(
   app.post("/api/paystack/webhook", async (req, res) => {
     try {
       const signature = req.headers["x-paystack-signature"] as string;
-      const body = JSON.stringify(req.body);
+      const rawBody = req.rawBody as Buffer;
 
-      // Validate webhook signature
-      if (!validateWebhookSignature(body, signature)) {
+      // Validate webhook signature using raw body
+      if (!rawBody || !validateWebhookSignature(rawBody, signature)) {
         console.error("Invalid Paystack webhook signature");
         return res.status(400).json({ error: "Invalid signature" });
       }

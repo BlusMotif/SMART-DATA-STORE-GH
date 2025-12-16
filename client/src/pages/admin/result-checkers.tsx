@@ -35,50 +35,16 @@ export default function AdminResultCheckers() {
 
   const { data: checkers, isLoading } = useQuery<ResultChecker[]>({
     queryKey: ["/api/admin/result-checkers"],
-    refetchInterval: 60000, // Refetch every minute for stock data
-    refetchOnWindowFocus: true,
   });
 
   const { data: stockSummary } = useQuery<StockSummary[]>({
     queryKey: ["/api/admin/result-checkers/summary"],
-    refetchInterval: 60000, // Refetch every minute for stock summary
-    refetchOnWindowFocus: true,
   });
 
-  const bulkAddMutation = useMutation<{ added: number }, Error, { type: string; year: number; basePrice: string; costPrice: string; checkers: string; file?: File }>({
-    mutationFn: async (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string; file?: File }) => {
-      if (data.file) {
-        // Handle file upload
-        const formData = new FormData();
-        formData.append('type', data.type);
-        formData.append('year', data.year.toString());
-        formData.append('basePrice', data.basePrice);
-        formData.append('costPrice', data.costPrice);
-        formData.append('file', data.file);
-
-        const response = await fetch('/api/admin/result-checkers/bulk-upload', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
-          throw new Error(errorData.message || 'Upload failed');
-        }
-
-        return response.json();
-      } else {
-        // Handle text input
-        const response = await apiRequest("POST", "/api/admin/result-checkers/bulk", {
-          type: data.type,
-          year: data.year,
-          basePrice: data.basePrice,
-          costPrice: data.costPrice,
-          checkers: data.checkers,
-        });
-        return response;
-      }
+  const bulkAddMutation = useMutation<{ added: number }, Error, { type: string; year: number; basePrice: string; costPrice: string; checkers: string }>({
+    mutationFn: async (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string }) => {
+      const response = await apiRequest("POST", "/api/admin/result-checkers/bulk", data);
+      return response.json();
     },
     onSuccess: (data: { added: number }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers"] });
@@ -290,7 +256,7 @@ function BulkAddForm({
   onSubmit,
   isLoading,
 }: {
-  onSubmit: (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string; file?: File }) => void;
+  onSubmit: (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string }) => void;
   isLoading: boolean;
 }) {
   const currentYear = new Date().getFullYear();
@@ -301,24 +267,13 @@ function BulkAddForm({
     costPrice: "",
     checkers: "",
   });
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
       year: parseInt(formData.year),
-      file: uploadedFile || undefined,
     });
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
-      // Clear manual input when file is selected
-      setFormData({ ...formData, checkers: "" });
-    }
   };
 
   return (
@@ -399,32 +354,12 @@ function BulkAddForm({
           onChange={(e) => setFormData({ ...formData, checkers: e.target.value })}
           placeholder="Enter one per line in format: SERIAL,PIN&#10;e.g.,&#10;ABC123456,1234567890&#10;DEF789012,0987654321"
           rows={8}
-          required={!uploadedFile}
-          disabled={!!uploadedFile}
+          required
           data-testid="input-checker-pairs"
         />
         <p className="text-xs text-muted-foreground">
-          Format: SERIAL,PIN (one per line) - OR upload a CSV file below
+          Format: SERIAL,PIN (one per line)
         </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="file">Upload CSV File (Optional)</Label>
-        <Input
-          id="file"
-          type="file"
-          accept=".csv"
-          onChange={handleFileChange}
-          data-testid="input-checker-file"
-        />
-        <p className="text-xs text-muted-foreground">
-          CSV format: SERIAL,PIN (one pair per line, no headers)
-        </p>
-        {uploadedFile && (
-          <p className="text-sm text-green-600">
-            File selected: {uploadedFile.name}
-          </p>
-        )}
       </div>
 
       <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-submit-checkers">

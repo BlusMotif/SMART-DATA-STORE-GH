@@ -20,8 +20,6 @@ export default function AdminTransactions() {
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
-    refetchInterval: 15000, // Refetch every 15 seconds for transactions
-    refetchOnWindowFocus: true,
   });
 
   const filteredTransactions = transactions?.filter((tx) => {

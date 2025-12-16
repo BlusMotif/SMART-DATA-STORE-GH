@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   path: string;
-  component: React.ComponentType<any>;
+  component: React.ComponentType;
   requiredRole?: string;
   fallbackPath?: string;
 }
@@ -26,7 +26,7 @@ export function ProtectedRoute({
       return;
     }
 
-    if (requiredRole && user.role !== requiredRole) {
+    if (requiredRole && user.user_metadata?.role !== requiredRole) {
       // If user doesn't have required role, redirect to home
       setLocation("/");
       return;
@@ -34,9 +34,9 @@ export function ProtectedRoute({
   }, [user, isLoading, requiredRole, setLocation, fallbackPath]);
 
   // Don't render if still loading or not authorized
-  if (isLoading || !user || (requiredRole && user.role !== requiredRole)) {
+  if (isLoading || !user || (requiredRole && user.user_metadata?.role !== requiredRole)) {
     return null;
   }
 
-  return <Route path={path}>{(params) => <Component {...params} />}</Route>;
+  return <Route path={path} component={Component} />;
 }

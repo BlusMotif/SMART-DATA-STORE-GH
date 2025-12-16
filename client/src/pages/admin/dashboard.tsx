@@ -22,14 +22,12 @@ interface DashboardStats {
 export default function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
-    refetchInterval: 30000, // Refetch every 30 seconds
-    refetchOnWindowFocus: true,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions/recent"],
-    refetchInterval: 30000, // Refetch every 30 seconds
-    refetchOnWindowFocus: true,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   return (

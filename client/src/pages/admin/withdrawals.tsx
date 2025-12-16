@@ -31,8 +31,6 @@ export default function AdminWithdrawals() {
 
   const { data: withdrawals, isLoading } = useQuery<WithdrawalWithAgent[]>({
     queryKey: ["/api/admin/withdrawals"],
-    refetchInterval: 20000, // Refetch every 20 seconds for withdrawals
-    refetchOnWindowFocus: true,
   });
 
   const processMutation = useMutation({
@@ -40,7 +38,6 @@ export default function AdminWithdrawals() {
       apiRequest("PATCH", `/api/admin/withdrawals/${id}`, { status, adminNote }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] }); // Update stats when withdrawal is processed
       setProcessingWithdrawal(null);
       setAdminNote("");
       toast({ title: "Withdrawal processed successfully" });

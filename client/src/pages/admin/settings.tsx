@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,9 +8,44 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Bell, CreditCard, Shield, Smartphone } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { Settings, Bell, CreditCard, Shield, Smartphone, Upload, Image as ImageIcon, Save, X } from "lucide-react";
 
 export default function AdminSettings() {
+  const { toast } = useToast();
+  const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: string}>({});
+
+  const { data: paystackConfig } = useQuery({
+    queryKey: ["/api/paystack/config"],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async ({ file, type }: { file: File; type: string }) => {
+      const formData = new FormData();
+      formData.append(type, file);
+      return apiRequest("POST", `/api/admin/upload/${type}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    },
+    onSuccess: (data: { url: string; filename: string }, { type }) => {
+      setUploadedFiles(prev => ({ ...prev, [type]: data.url }));
+      toast({ title: "File uploaded successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      uploadMutation.mutate({ file, type });
+    }
+  };
+
   return (
     <div className="flex h-screen bg-background">
       <AdminSidebar />
@@ -78,6 +115,30 @@ export default function AdminSettings() {
                     placeholder="pk_live_..."
                     data-testid="input-paystack-key"
                   />
+                </div>
+                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                  <div className="space-y-1">
+                    <Label>Paystack Status</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {paystackConfig?.isConfigured 
+                        ? (paystackConfig.isTestMode ? "Test Mode Active" : "Live Mode Active")
+                        : "Not Configured"
+                      }
+                    </p>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    paystackConfig?.isConfigured 
+                      ? (paystackConfig.isTestMode 
+                          ? "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+                          : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                        )
+                      : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                  }`}>
+                    {paystackConfig?.isConfigured 
+                      ? (paystackConfig.isTestMode ? "TEST" : "LIVE")
+                      : "ERROR"
+                    }
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -195,6 +256,104 @@ export default function AdminSettings() {
                     defaultValue="5000"
                     data-testid="input-max-withdrawal"
                   />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" />
+                  Media Uploads
+                </CardTitle>
+                <CardDescription>
+                  Upload logos, banners, and network images
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Site Logo</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, "logo")}
+                      className="flex-1"
+                      disabled={uploadMutation.isPending}
+                    />
+                    {uploadedFiles.logo && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-green-600">✓ Uploaded</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(uploadedFiles.logo, '_blank')}
+                        >
+                          View
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Home Page Banners</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, "banner")}
+                      className="flex-1"
+                      disabled={uploadMutation.isPending}
+                    />
+                    {uploadedFiles.banner && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-green-600">✓ Uploaded</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(uploadedFiles.banner, '_blank')}
+                        >
+                          View
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Upload banner images for the home page (recommended: 1200x400px)
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Network Provider Logos</Label>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, "network-logo")}
+                      className="flex-1"
+                      disabled={uploadMutation.isPending}
+                    />
+                    {uploadedFiles["network-logo"] && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-green-600">✓ Uploaded</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(uploadedFiles["network-logo"], '_blank')}
+                        >
+                          View
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Upload logos for network providers (MTN, Telecel, AirtelTigo)
+                  </p>
                 </div>
               </CardContent>
             </Card>

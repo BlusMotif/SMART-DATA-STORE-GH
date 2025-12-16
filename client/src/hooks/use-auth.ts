@@ -1,44 +1,58 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { User } from "@shared/schema";
+import { supabase } from "@/lib/supabaseClient";
+
+interface User {
+  id: string;
+  email: string;
+  user_metadata?: {
+    name?: string;
+    role?: string;
+  };
+}
 
 export function useAuth() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const { data: authData, isLoading, refetch } = useQuery<{
-    user: User | null;
-    agent?: any;
-  }>({
-    queryKey: ["/api/auth/me"],
-    retry: false,
-  });
+  // Check session on mount
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    };
+    getSession();
 
-  const user = authData?.user ?? null;
-  const agent = authData?.agent;
+    // Listen to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = async ({ email, password }: { email: string; password: string }) => {
     setIsLoginLoading(true);
     setLoginError(null);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password }),
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        setLoginError(data.error || 'Login failed');
-        return { error: data.error || 'Login failed' };
+      if (error) {
+        setLoginError(error.message);
+        return { error: error.message };
       }
-      await refetch(); // Refresh user data
+      setUser(data.user);
       return { user: data.user };
     } catch (error: any) {
-      const errorMessage = error.message || "Login failed";
+      const errorMessage = "Login failed";
       setLoginError(errorMessage);
       return { error: errorMessage };
     } finally {
@@ -50,21 +64,23 @@ export function useAuth() {
     setIsRegisterLoading(true);
     setRegisterError(null);
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password, name }),
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
       });
-      const data = await response.json();
-      if (!response.ok) {
-        setRegisterError(data.error || 'Registration failed');
-        return { error: data.error || 'Registration failed' };
+      if (error) {
+        setRegisterError(error.message);
+        return { error: error.message };
       }
-      await refetch(); // Refresh user data
+      setUser(data.user);
       return { user: data.user };
     } catch (error: any) {
-      const errorMessage = error.message || "Registration failed";
+      const errorMessage = "Registration failed";
       setRegisterError(errorMessage);
       return { error: errorMessage };
     } finally {
@@ -75,15 +91,12 @@ export function useAuth() {
   const logout = async () => {
     setIsLoggingOut(true);
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        console.error("Logout failed");
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Logout failed:", error);
       }
-      await refetch(); // Refresh user data
-    } catch (error: any) {
+      setUser(null);
+    } catch (error) {
       console.error("Logout failed:", error);
     } finally {
       setIsLoggingOut(false);
@@ -94,7 +107,6 @@ export function useAuth() {
 
   return {
     user,
-    agent,
     login,
     register,
     logout,

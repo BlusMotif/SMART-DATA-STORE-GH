@@ -25,8 +25,6 @@ export default function AdminAgents() {
 
   const { data: agents, isLoading } = useQuery<AgentWithUser[]>({
     queryKey: ["/api/admin/agents"],
-    refetchInterval: 30000, // Refetch every 30 seconds
-    refetchOnWindowFocus: true,
   });
 
   const approveMutation = useMutation({
@@ -34,7 +32,6 @@ export default function AdminAgents() {
       apiRequest("PATCH", `/api/admin/agents/${id}/approve`, { isApproved }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/agents"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] }); // Update stats when agent status changes
       toast({ title: "Agent status updated" });
     },
     onError: (error: Error) => {

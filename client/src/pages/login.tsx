@@ -38,7 +38,7 @@ export default function LoginPage() {
   useEffect(() => {
     console.log("User after login:", user);
     if (user) {
-      const role = user.role;
+      const role = user.user_metadata?.role;
       if (role === "admin") {
         setLocation("/admin");
       } else if (role === "agent") {

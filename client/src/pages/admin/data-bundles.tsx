@@ -25,8 +25,6 @@ export default function AdminDataBundles() {
 
   const { data: bundles, isLoading } = useQuery<DataBundle[]>({
     queryKey: ["/api/admin/data-bundles"],
-    refetchInterval: 60000, // Refetch every minute for product data
-    refetchOnWindowFocus: true,
   });
 
   const createMutation = useMutation({

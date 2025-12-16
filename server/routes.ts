@@ -74,7 +74,7 @@ export async function registerRoutes(
   app.post("/api/auth/register", async (req, res) => {
     try {
       const data = registerSchema.parse(req.body);
-      
+
       const existing = await storage.getUserByEmail(data.email);
       if (existing) {
         return res.status(400).json({ error: "Email already registered" });
@@ -92,33 +92,9 @@ export async function registerRoutes(
 
       res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (error: any) {
-      console.error("Database error during registration, using mock auth:", error.message);
-      // Mock registration for development
-      const { email, password, name } = req.body;
-
-      // Check if user already exists in mock data
-      const existingMockUsers = [
-        { id: "1", email: "admin@example.com", name: "Admin User" },
-        { id: "2", email: "agent@example.com", name: "Agent User" },
-        { id: "3", email: "user@example.com", name: "Regular User" },
-      ];
-
-      if (existingMockUsers.find(u => u.email === email)) {
-        return res.status(400).json({ error: "Email already registered" });
-      }
-
-      // Create mock user
-      const mockUser = {
-        id: Date.now().toString(),
-        email,
-        name,
-        role: "user"
-      };
-
-      req.session.userId = mockUser.id;
-      req.session.userRole = mockUser.role;
-
-      res.json({ user: mockUser });
+      console.error("Database error during registration:", error.message);
+      console.error("Full error details:", error);
+      return res.status(500).json({ error: "Registration service temporarily unavailable" });
     }
   });
 
@@ -126,14 +102,14 @@ export async function registerRoutes(
     try {
       const data = loginSchema.parse(req.body);
       console.log("Login attempt for:", data.email);
-      
+
       const user = await storage.getUserByEmail(data.email);
       if (!user) {
         console.log("User not found:", data.email);
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
-      console.log("User found:", user.email, "role:", user.role);
+      console.log("User found:", user.email, "role:", user.role, "isActive:", user.isActive);
       const validPassword = await bcrypt.compare(data.password, user.password);
       if (!validPassword) {
         console.log("Invalid password for:", data.email);
@@ -147,33 +123,13 @@ export async function registerRoutes(
 
       req.session.userId = user.id;
       req.session.userRole = user.role;
-      console.log("Login successful for:", data.email, "session:", req.session.userId);
+      console.log("Login successful for:", data.email, "session:", req.session.userId, "role:", req.session.userRole);
 
       res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (error: any) {
-      console.error("Database error during login, using mock auth:", error.message);
-      console.error("Full error:", error);
-      // Mock authentication for development
-      const { email, password } = req.body;
-
-      // Simple mock users for testing
-      const mockUsers = [
-        { id: "1", email: "admin@example.com", password: "password123", name: "Admin User", role: "admin", isActive: true },
-        { id: "2", email: "agent@example.com", password: "password123", name: "Agent User", role: "agent", isActive: true },
-        { id: "3", email: "user@example.com", password: "password123", name: "Regular User", role: "user", isActive: true },
-      ];
-
-      const mockUser = mockUsers.find(u => u.email === email && u.password === password);
-      if (!mockUser) {
-        console.log("Mock user not found for:", email);
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      req.session.userId = mockUser.id;
-      req.session.userRole = mockUser.role;
-      console.log("Mock login successful for:", email, "session set:", req.session.userId);
-
-      res.json({ user: { id: mockUser.id, email: mockUser.email, name: mockUser.name, role: mockUser.role } });
+      console.error("Database error during login:", error.message);
+      console.error("Full error details:", error);
+      return res.status(500).json({ error: "Authentication service temporarily unavailable" });
     }
   });
 
@@ -201,7 +157,7 @@ export async function registerRoutes(
         return res.json({ user: null });
       }
 
-      console.log("User found:", user.email, "role:", user.role);
+      console.log("User found:", user.email, "role:", user.role, "isActive:", user.isActive);
       let agent = null;
       if (user.role === UserRole.AGENT) {
         agent = await storage.getAgentByUserId(user.id);
@@ -214,38 +170,16 @@ export async function registerRoutes(
           businessName: agent.businessName,
           storefrontSlug: agent.storefrontSlug,
           balance: agent.balance,
-        totalSales: agent.totalSales,
-        totalProfit: agent.totalProfit,
-        isApproved: agent.isApproved,
-      } : null,
-    });
+          totalSales: agent.totalSales,
+          totalProfit: agent.totalProfit,
+          isApproved: agent.isApproved,
+        } : null,
+      });
     } catch (error: any) {
-      console.error("Database error during auth check, using mock auth:", error.message);
-      // Mock authentication for development
-      const mockUsers = [
-        { id: "1", email: "admin@example.com", name: "Admin User", role: "admin", phone: null },
-        { id: "2", email: "agent@example.com", name: "Agent User", role: "agent", phone: null },
-        { id: "3", email: "user@example.com", name: "Regular User", role: "user", phone: null },
-      ];
-
-      const mockUser = mockUsers.find(u => u.id === req.session.userId);
-      if (mockUser) {
-        res.json({
-          user: mockUser,
-          agent: mockUser.role === "agent" ? {
-            id: "1",
-            businessName: "Mock Agent",
-            storefrontSlug: "mock-agent",
-            balance: 0,
-            totalSales: 0,
-            totalProfit: 0,
-            isApproved: true,
-          } : null,
-        });
-      } else {
-        req.session.destroy(() => {});
-        res.json({ user: null });
-      }
+      console.error("Database error during auth check:", error.message);
+      console.error("Full error details:", error);
+      req.session.destroy(() => {});
+      return res.status(500).json({ error: "Authentication service temporarily unavailable" });
     }
   });
 

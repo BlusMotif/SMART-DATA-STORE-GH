@@ -5,39 +5,6 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import cors from "cors";
-import { storage } from "./storage";
-import bcrypt from "bcryptjs";
-
-async function initializeDatabase() {
-  try {
-    log("Initializing database...");
-
-    // Check if admin user exists, create if not
-    const existingAdmin = await storage.getUserByEmail("admin@smartdatastoregh.com");
-    if (!existingAdmin) {
-      log("Creating admin user...");
-      const hashedPassword = await bcrypt.hash("admin123", 10);
-      await storage.createUser({
-        email: "admin@smartdatastoregh.com",
-        password: hashedPassword,
-        name: "Administrator",
-        role: "admin",
-        isActive: true,
-      });
-      log("Admin user created successfully!");
-    } else {
-      log("Admin user already exists");
-    }
-
-    log("Database initialization complete");
-  } catch (error) {
-    log(`Database initialization error: ${error}`);
-    // Don't throw error in production - let the app start anyway
-    if (process.env.NODE_ENV !== "production") {
-      throw error;
-    }
-  }
-}
 
 const app = express();
 const httpServer = createServer(app);
@@ -122,7 +89,6 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await initializeDatabase();
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

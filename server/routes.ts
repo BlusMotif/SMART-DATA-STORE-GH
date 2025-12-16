@@ -125,23 +125,29 @@ export async function registerRoutes(
   app.post("/api/auth/login", async (req, res) => {
     try {
       const data = loginSchema.parse(req.body);
+      console.log("Login attempt for:", data.email);
       
       const user = await storage.getUserByEmail(data.email);
       if (!user) {
+        console.log("User not found:", data.email);
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
+      console.log("User found:", user.email, "role:", user.role);
       const validPassword = await bcrypt.compare(data.password, user.password);
       if (!validPassword) {
+        console.log("Invalid password for:", data.email);
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
       if (!user.isActive) {
+        console.log("User account disabled:", data.email);
         return res.status(403).json({ error: "Account is disabled" });
       }
 
       req.session.userId = user.id;
       req.session.userRole = user.role;
+      console.log("Login successful for:", data.email, "session:", req.session.userId);
 
       res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (error: any) {
@@ -178,17 +184,21 @@ export async function registerRoutes(
   });
 
   app.get("/api/auth/me", async (req, res) => {
+    console.log("Auth check - session:", req.session?.userId, "role:", req.session?.userRole);
     if (!req.session?.userId) {
+      console.log("No session userId");
       return res.json({ user: null });
     }
 
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user) {
+        console.log("User not found in database:", req.session.userId);
         req.session.destroy(() => {});
         return res.json({ user: null });
       }
 
+      console.log("User found:", user.email, "role:", user.role);
       let agent = null;
       if (user.role === UserRole.AGENT) {
         agent = await storage.getAgentByUserId(user.id);

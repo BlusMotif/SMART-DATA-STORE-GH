@@ -210,6 +210,61 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // TEMPORARY ADMIN SETUP (REMOVE AFTER USE)
+  // ============================================
+  app.post("/api/admin/setup", async (req, res) => {
+    try {
+      const { email, password, name } = req.body;
+
+      if (!email || !password || !name) {
+        return res.status(400).json({ error: "Email, password, and name are required" });
+      }
+
+      // Delete existing admin user if exists
+      const existingAdmin = await storage.getUserByEmail(email);
+      if (existingAdmin) {
+        console.log("Deleting existing admin user:", email);
+        // Note: We can't actually delete users easily due to foreign key constraints
+        // Instead, we'll update the existing user
+      }
+
+      // Hash the password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      if (existingAdmin) {
+        // Update existing user
+        await storage.updateUser(existingAdmin.id, {
+          password: hashedPassword,
+          name: name,
+          role: UserRole.ADMIN,
+          isActive: true
+        });
+        console.log("Updated existing admin user:", email);
+      } else {
+        // Create new admin user
+        await storage.createUser({
+          email: email,
+          password: hashedPassword,
+          name: name,
+          role: UserRole.ADMIN,
+          isActive: true
+        });
+        console.log("Created new admin user:", email);
+      }
+
+      res.json({
+        success: true,
+        message: existingAdmin ? "Admin user updated" : "Admin user created",
+        email: email,
+        name: name
+      });
+    } catch (error: any) {
+      console.error("Admin setup error:", error.message);
+      res.status(500).json({ error: "Failed to setup admin user" });
+    }
+  });
+
+  // ============================================
   // AGENT REGISTRATION
   // ============================================
   app.post("/api/agent/register", async (req, res) => {

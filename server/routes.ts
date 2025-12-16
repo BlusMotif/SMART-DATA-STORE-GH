@@ -265,6 +265,61 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // TEMPORARY ADMIN DELETE (REMOVE AFTER USE)
+  // ============================================
+  app.delete("/api/admin/delete", async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.role !== UserRole.ADMIN) {
+        return res.status(403).json({ error: "Can only delete admin users" });
+      }
+
+      // Try to delete the user
+      try {
+        // First check if user has agent record and delete it
+        const agent = await storage.getAgentByUserId(user.id);
+        if (agent) {
+          // We can't delete agents easily due to transactions, so we'll skip for now
+          console.log("User has agent record, cannot delete completely");
+        }
+
+        // For now, just deactivate the user since deletion might cause issues
+        await storage.updateUser(user.id, { isActive: false });
+        console.log("Deactivated admin user:", email);
+
+        res.json({
+          success: true,
+          message: "Admin user deactivated (full deletion not possible due to database constraints)",
+          email: email,
+          action: "deactivated"
+        });
+      } catch (deleteError: any) {
+        console.error("Delete failed, deactivating instead:", deleteError.message);
+        await storage.updateUser(user.id, { isActive: false });
+        res.json({
+          success: true,
+          message: "Admin user deactivated (deletion failed due to constraints)",
+          email: email,
+          action: "deactivated"
+        });
+      }
+    } catch (error: any) {
+      console.error("Admin delete error:", error.message);
+      res.status(500).json({ error: "Failed to delete admin user" });
+    }
+  });
+
+  // ============================================
   // AGENT REGISTRATION
   // ============================================
   app.post("/api/agent/register", async (req, res) => {

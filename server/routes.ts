@@ -249,6 +249,44 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/debug/users", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      // This is a temporary debug endpoint - remove in production
+      const users = await storage.getAllUsers();
+      const userList = users.map(u => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        isActive: u.isActive
+      }));
+      res.json({ users: userList });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/debug/check-user/:email", async (req, res) => {
+    try {
+      // Temporary debug endpoint to check if user exists
+      const email = req.params.email;
+      const user = await storage.getUserByEmail(email);
+      if (user) {
+        res.json({
+          exists: true,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          isActive: user.isActive
+        });
+      } else {
+        res.json({ exists: false });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: "Database error" });
+    }
+  });
+
   // ============================================
   // AGENT REGISTRATION
   // ============================================

@@ -95,10 +95,42 @@ A full-stack web application for managing data bundles and result checkers, buil
 
 ## Deployment
 
-The application can be deployed to any platform that supports Node.js and PostgreSQL, such as:
+### Render Deployment
 
+1. **Connect to GitHub:**
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Click "New" → "Web Service"
+   - Connect your GitHub repository: `https://github.com/BlusMotif/SMART-DATA-STORE-GH.git`
+
+2. **Configure Build Settings:**
+   - **Runtime:** Node
+   - **Build Command:** `npm run build`
+   - **Start Command:** `npm start`
+
+3. **Environment Variables:**
+   ```
+   DATABASE_URL=postgresql://[your-supabase-connection-string]
+   SUPABASE_URL=https://[your-project-ref].supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=[your-service-role-key]
+   SESSION_SECRET=[generate-a-secure-random-string]
+   PAYSTACK_SECRET_KEY=[your-paystack-secret-key]
+   PAYSTACK_PUBLIC_KEY=[your-paystack-public-key]
+   NODE_ENV=production
+   ```
+
+4. **Database Setup:**
+   - Ensure your Supabase database is set up and accessible
+   - Run database migrations if needed: `npm run db:push`
+
+5. **Deploy:**
+   - Click "Create Web Service"
+   - Wait for deployment to complete
+   - Your app will be available at the generated URL
+
+### Alternative Platforms
+
+The application can also be deployed to:
 - Vercel + Railway/PlanetScale
-- Render
 - Heroku
 - DigitalOcean App Platform
 

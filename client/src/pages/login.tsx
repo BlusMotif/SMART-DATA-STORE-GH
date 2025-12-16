@@ -156,7 +156,7 @@ export default function LoginPage() {
               </Button>
               {loginError && (
                 <div className="text-red-500 text-sm mt-2">
-                  {loginError.message || 'Login failed. Please try again.'}
+                  {loginError}
                 </div>
               )}
             </form>

@@ -29,7 +29,7 @@ export default function AdminDataBundles() {
 
   const createMutation = useMutation({
     mutationFn: (data: Partial<DataBundle>) =>
-      apiRequest("/api/admin/data-bundles", { method: "POST", body: JSON.stringify(data) }),
+      apiRequest("POST", "/api/admin/data-bundles", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/data-bundles"] });
       setIsCreateOpen(false);
@@ -42,7 +42,7 @@ export default function AdminDataBundles() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<DataBundle> }) =>
-      apiRequest(`/api/admin/data-bundles/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+      apiRequest("PATCH", `/api/admin/data-bundles/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/data-bundles"] });
       setEditingBundle(null);
@@ -55,7 +55,7 @@ export default function AdminDataBundles() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) =>
-      apiRequest(`/api/admin/data-bundles/${id}`, { method: "DELETE" }),
+      apiRequest("DELETE", `/api/admin/data-bundles/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/data-bundles"] });
       toast({ title: "Data bundle deleted successfully" });

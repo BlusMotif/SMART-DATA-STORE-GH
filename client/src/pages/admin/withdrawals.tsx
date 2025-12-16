@@ -35,10 +35,7 @@ export default function AdminWithdrawals() {
 
   const processMutation = useMutation({
     mutationFn: ({ id, status, adminNote }: { id: string; status: string; adminNote: string }) =>
-      apiRequest(`/api/admin/withdrawals/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status, adminNote }),
-      }),
+      apiRequest("PATCH", `/api/admin/withdrawals/${id}`, { status, adminNote }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
       setProcessingWithdrawal(null);

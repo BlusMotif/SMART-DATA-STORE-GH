@@ -41,9 +41,11 @@ export default function AdminResultCheckers() {
     queryKey: ["/api/admin/result-checkers/summary"],
   });
 
-  const bulkAddMutation = useMutation({
-    mutationFn: (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string }) =>
-      apiRequest("/api/admin/result-checkers/bulk", { method: "POST", body: JSON.stringify(data) }),
+  const bulkAddMutation = useMutation<{ added: number }, Error, { type: string; year: number; basePrice: string; costPrice: string; checkers: string }>({
+    mutationFn: async (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string }) => {
+      const response = await apiRequest("POST", "/api/admin/result-checkers/bulk", data);
+      return response.json();
+    },
     onSuccess: (data: { added: number }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers/summary"] });

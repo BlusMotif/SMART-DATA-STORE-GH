@@ -45,7 +45,7 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      await register({ email: data.email, password: data.password });
+      await register({ email: data.email, password: data.password, name: data.name });
       toast({
         title: "Account created!",
         description: "Welcome to " + APP_NAME,
@@ -220,7 +220,7 @@ export default function RegisterPage() {
                 {isRegisterLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {registerError && (
                               <div className="text-red-500 text-sm mt-2">
-                                {registerError.message || 'Registration failed. Please try again.'}
+                                {registerError}
                               </div>
                             )}
                 Create account

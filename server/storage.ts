@@ -12,7 +12,6 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
 
@@ -91,11 +90,6 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
-    return result[0];
-  }
-
-  async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid)).limit(1);
     return result[0];
   }
 
@@ -263,6 +257,21 @@ export class DatabaseStorage implements IStorage {
       transactionId,
     }).where(eq(resultCheckers.id, id)).returning();
     return checker;
+  }
+
+  async getResultCheckerSummary(): Promise<{ type: string; year: number; total: number; available: number; sold: number }[]> {
+    const result = await db.select({
+      type: resultCheckers.type,
+      year: resultCheckers.year,
+      total: sql<number>`count(*)`,
+      available: sql<number>`count(case when ${resultCheckers.isSold} = false then 1 end)`,
+      sold: sql<number>`count(case when ${resultCheckers.isSold} = true then 1 end)`,
+    })
+    .from(resultCheckers)
+    .groupBy(resultCheckers.type, resultCheckers.year)
+    .orderBy(resultCheckers.type, resultCheckers.year);
+
+    return result;
   }
 
   // ============================================

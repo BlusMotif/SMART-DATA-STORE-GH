@@ -74,10 +74,7 @@ export default function AgentSettings() {
 
   const updateProfileMutation = useMutation({
     mutationFn: (data: ProfileFormData) =>
-      apiRequest("/api/agent/profile", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("PATCH", "/api/agent/profile", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/profile"] });
       toast({ title: "Profile updated successfully" });
@@ -89,10 +86,7 @@ export default function AgentSettings() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: (data: PasswordFormData) =>
-      apiRequest("/api/agent/password", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", "/api/agent/password", data),
     onSuccess: () => {
       passwordForm.reset();
       toast({ title: "Password updated successfully" });

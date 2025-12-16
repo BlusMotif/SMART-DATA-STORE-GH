@@ -56,7 +56,7 @@ export const api = {
 };
 
 // API request utility
-export async function apiRequest(endpoint: string, options: RequestInit = {}) {
+export async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = api.buildUrl(endpoint);
   const response = await fetch(url, {
     headers: {
@@ -67,7 +67,8 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}) {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+    throw new Error(errorData.message || `API request failed: ${response.status} ${response.statusText}`);
   }
 
   return response.json();

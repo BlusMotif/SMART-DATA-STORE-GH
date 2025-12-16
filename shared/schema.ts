@@ -64,13 +64,11 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   phone: text("phone"),
   role: text("role").notNull().default("guest"),
-  firebaseUid: text("firebase_uid").unique(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   emailIdx: index("users_email_idx").on(table.email),
   roleIdx: index("users_role_idx").on(table.role),
-  firebaseIdx: index("users_firebase_idx").on(table.firebaseUid),
 }));
 
 // ============================================

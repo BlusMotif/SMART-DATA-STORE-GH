@@ -68,11 +68,8 @@ export default function CheckoutPage() {
         customerEmail: data.customerEmail || undefined,
       };
 
-      const response = await apiRequest("/api/checkout/initialize", { 
-        method: "POST", 
-        body: JSON.stringify(payload) 
-      });
-      return response as { transaction: { id: string; reference: string; amount: string; productName: string }; paymentUrl: string };
+      const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+      return response.json();
     },
     onSuccess: (data) => {
       // Redirect to success page (simulating instant payment for demo)

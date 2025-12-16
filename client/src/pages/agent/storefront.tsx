@@ -77,10 +77,7 @@ export default function AgentStorefront() {
 
   const updateStoreMutation = useMutation({
     mutationFn: (data: StorefrontFormData) =>
-      apiRequest("/api/agent/storefront", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("PATCH", "/api/agent/storefront", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/profile"] });
       toast({ title: "Store details updated successfully" });
@@ -92,10 +89,7 @@ export default function AgentStorefront() {
 
   const updatePricingMutation = useMutation({
     mutationFn: (prices: Record<string, string>) =>
-      apiRequest("/api/agent/pricing", {
-        method: "POST",
-        body: JSON.stringify({ prices }),
-      }),
+      apiRequest("POST", "/api/agent/pricing", { prices }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/pricing"] });
       toast({ title: "Pricing updated successfully" });

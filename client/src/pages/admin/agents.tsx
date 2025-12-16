@@ -29,10 +29,7 @@ export default function AdminAgents() {
 
   const approveMutation = useMutation({
     mutationFn: ({ id, isApproved }: { id: string; isApproved: boolean }) =>
-      apiRequest(`/api/admin/agents/${id}/approve`, {
-        method: "PATCH",
-        body: JSON.stringify({ isApproved }),
-      }),
+      apiRequest("PATCH", `/api/admin/agents/${id}/approve`, { isApproved }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/agents"] });
       toast({ title: "Agent status updated" });

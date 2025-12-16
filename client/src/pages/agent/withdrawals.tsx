@@ -53,10 +53,7 @@ export default function AgentWithdrawals() {
 
   const requestMutation = useMutation({
     mutationFn: (data: WithdrawalFormData) =>
-      apiRequest("/api/agent/withdrawals", {
-        method: "POST",
-        body: JSON.stringify({ ...data, amount: parseFloat(data.amount) }),
-      }),
+      apiRequest("POST", "/api/agent/withdrawals", { ...data, amount: parseFloat(data.amount) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/withdrawals"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/profile"] });

@@ -287,6 +287,31 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/debug/reset-admin-password", async (req, res) => {
+    try {
+      // Temporary endpoint to reset admin password - remove in production
+      const { password, email } = req.body;
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user || user.role !== UserRole.ADMIN) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await storage.updateUser(user.id, { password: hashedPassword });
+
+      res.json({ success: true, message: "Admin password reset successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
   // ============================================
   // AGENT REGISTRATION
   // ============================================

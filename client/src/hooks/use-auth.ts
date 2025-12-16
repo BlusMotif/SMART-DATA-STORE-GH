@@ -24,7 +24,9 @@ export function useAuth() {
 
   const fetchUser = async () => {
     try {
-      const response = await fetch(api.auth.me());
+      const response = await fetch(api.auth.me(), {
+        credentials: 'include',
+      });
       const data = await response.json();
       setUser(data.user);
     } catch (error) {
@@ -42,6 +44,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
+        credentials: 'include',
       });
       const data = await response.json();
       if (data.error) {
@@ -67,6 +70,7 @@ export function useAuth() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),
+        credentials: 'include',
       });
       const data = await response.json();
       if (data.error) {
@@ -87,7 +91,10 @@ export function useAuth() {
   const logout = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch(api.auth.logout(), { method: "POST" });
+      await fetch(api.auth.logout(), { 
+        method: "POST",
+        credentials: 'include',
+      });
       setUser(null);
     } catch (error) {
       console.error("Logout failed:", error);

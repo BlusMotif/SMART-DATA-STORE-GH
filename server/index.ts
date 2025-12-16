@@ -4,6 +4,7 @@ import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import cors from "cors";
 
 const app = express();
 const httpServer = createServer(app);
@@ -23,6 +24,14 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.NODE_ENV === "production" 
+    ? false // Same domain in production
+    : "http://localhost:5173", // Vite dev server
+  credentials: true,
+}));
 
 // Session configuration
 const SessionStore = MemoryStore(session);

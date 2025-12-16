@@ -1,18 +1,20 @@
 // API configuration for different environments
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// In production (Render), frontend and backend are on the same domain
+// In development, they might be on different ports
+const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:5000' : '';
 
 export const api = {
-  // In development, use relative URLs (same origin)
-  // In production, use the configured API URL
+  // In development, use localhost:5000
+  // In production (Render), use relative URLs (same domain)
   baseURL: API_BASE_URL,
 
   // Helper to build full API URLs
   buildUrl: (endpoint: string) => {
     if (API_BASE_URL) {
-      // Production: use full URL
+      // Development: use full URL with localhost
       return `${API_BASE_URL}${endpoint}`;
     } else {
-      // Development: use relative URLs
+      // Production: use relative URLs (same domain)
       return endpoint;
     }
   },

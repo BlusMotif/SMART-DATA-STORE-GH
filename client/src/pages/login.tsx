@@ -50,12 +50,21 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      await login({ email: data.email, password: data.password });
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      // Navigation will happen automatically when user is loaded
+      const result = await login({ email: data.email, password: data.password });
+      if (result.user) {
+        toast({
+          title: "Welcome back!",
+          description: "You have successfully logged in.",
+        });
+        // Redirect based on role
+        if (result.user.role === "admin") {
+          setLocation("/admin");
+        } else if (result.user.role === "agent") {
+          setLocation("/agent");
+        } else {
+          setLocation("/");
+        }
+      }
     } catch (error) {
       // Error is handled by the mutation
     }

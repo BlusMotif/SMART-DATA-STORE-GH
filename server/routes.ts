@@ -249,69 +249,6 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/debug/users", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      // This is a temporary debug endpoint - remove in production
-      const users = await storage.getAllUsers();
-      const userList = users.map(u => ({
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        isActive: u.isActive
-      }));
-      res.json({ users: userList });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to fetch users" });
-    }
-  });
-
-  app.get("/api/debug/check-user/:email", async (req, res) => {
-    try {
-      // Temporary debug endpoint to check if user exists
-      const email = req.params.email;
-      const user = await storage.getUserByEmail(email);
-      if (user) {
-        res.json({
-          exists: true,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isActive: user.isActive
-        });
-      } else {
-        res.json({ exists: false });
-      }
-    } catch (error: any) {
-      res.status(500).json({ error: "Database error" });
-    }
-  });
-
-  app.post("/api/debug/reset-admin-password", async (req, res) => {
-    try {
-      // Temporary endpoint to reset admin password - remove in production
-      const { password, email } = req.body;
-      if (!password || password.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters" });
-      }
-      if (!email) {
-        return res.status(400).json({ error: "Email is required" });
-      }
-
-      const user = await storage.getUserByEmail(email);
-      if (!user || user.role !== UserRole.ADMIN) {
-        return res.status(404).json({ error: "Admin user not found" });
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-      await storage.updateUser(user.id, { password: hashedPassword });
-
-      res.json({ success: true, message: "Admin password reset successfully" });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to reset password" });
-    }
-  });
-
   // ============================================
   // AGENT REGISTRATION
   // ============================================

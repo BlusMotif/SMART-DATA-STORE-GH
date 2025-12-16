@@ -79,15 +79,6 @@ export default function AdminSettings() {
                     data-testid="input-paystack-key"
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Test Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Enable test mode for payment processing
-                    </p>
-                  </div>
-                  <Switch data-testid="switch-test-mode" />
-                </div>
               </CardContent>
             </Card>
 

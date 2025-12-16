@@ -13,7 +13,6 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { APP_NAME } from "@/lib/constants";
 import logoImg from "@assets/logo_1765774201026.png";
-import { TestModeBanner } from "./test-mode-banner";
 
 export function Header() {
   const { user, isAuthenticated, logout, isLoggingOut } = useAuth();
@@ -37,9 +36,7 @@ export function Header() {
   };
 
   return (
-    <>
-      <TestModeBanner />
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between gap-4 px-4 mx-auto max-w-7xl">
           <Link href="/" className="flex items-center gap-2">
             <img 
@@ -143,6 +140,5 @@ export function Header() {
           </div>
         </div>
       </header>
-    </>
   );
 }

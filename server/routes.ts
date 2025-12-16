@@ -8,6 +8,7 @@ import {
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
 } from "@shared/schema";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured } from "./paystack";
+import { supabaseServer } from "./supabase";
 
 // Simple session-based auth middleware
 declare module "express-session" {
@@ -225,78 +226,55 @@ export async function registerRoutes(
   app.post("/api/agent/register", async (req, res) => {
     try {
       const data = agentRegisterSchema.parse(req.body);
-      
-      const existingUser = await storage.getUserByEmail(data.email);
-      if (existingUser) {
-        return res.status(400).json({ error: "Email already registered" });
-      }
 
+      // Check if storefront slug is taken
       const existingSlug = await storage.getAgentBySlug(data.storefrontSlug);
       if (existingSlug) {
         return res.status(400).json({ error: "Storefront URL already taken" });
       }
 
-      const hashedPassword = await bcrypt.hash(data.password, 10);
-      const user = await storage.createUser({
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
         email: data.email,
-        password: hashedPassword,
-        name: data.name,
-        phone: data.phone,
-        role: UserRole.AGENT,
+        password: data.password,
+        user_metadata: {
+          name: data.name,
+          phone: data.phone,
+          role: 'agent'
+        },
+        email_confirm: true
       });
 
+      if (authError) {
+        return res.status(400).json({ error: authError.message });
+      }
+
+      // Create agent record in database
       const agent = await storage.createAgent({
-        userId: user.id,
+        userId: authData.user.id,
         storefrontSlug: data.storefrontSlug,
         businessName: data.businessName,
         isApproved: false,
       });
 
-      req.session.userId = user.id;
-      req.session.userRole = user.role;
-
       res.json({
-        user: { id: user.id, email: user.email, name: user.name, role: user.role },
-        agent: { id: agent.id, businessName: agent.businessName, storefrontSlug: agent.storefrontSlug, isApproved: false },
+        user: { 
+          id: authData.user.id, 
+          email: authData.user.email, 
+          name: data.name, 
+          role: 'agent',
+          phone: data.phone
+        },
+        agent: { 
+          id: agent.id, 
+          businessName: agent.businessName, 
+          storefrontSlug: agent.storefrontSlug, 
+          isApproved: false 
+        },
       });
     } catch (error: any) {
-      console.error("Database error during agent registration, using mock auth:", error.message);
-      // Mock agent registration for development
-      const { email, password, name, phone, storefrontSlug, businessName } = req.body;
-
-      // Check if email already exists in mock data
-      const existingMockUsers = [
-        { email: "admin@example.com" },
-        { email: "agent@example.com" },
-        { email: "user@example.com" },
-      ];
-
-      if (existingMockUsers.find(u => u.email === email)) {
-        return res.status(400).json({ error: "Email already registered" });
-      }
-
-      // Create mock user and agent
-      const mockUser = {
-        id: Date.now().toString(),
-        email,
-        name,
-        role: "agent"
-      };
-
-      const mockAgent = {
-        id: Date.now().toString(),
-        businessName,
-        storefrontSlug,
-        isApproved: false
-      };
-
-      req.session.userId = mockUser.id;
-      req.session.userRole = mockUser.role;
-
-      res.json({
-        user: mockUser,
-        agent: mockAgent,
-      });
+      console.error("Error during agent registration:", error.message);
+      res.status(500).json({ error: "Registration failed" });
     }
   });
 

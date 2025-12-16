@@ -54,7 +54,7 @@ export default function AgentRegisterPage() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: AgentRegisterFormData) => {
-      const response = await apiRequest("POST", "/api/auth/register/agent", data);
+      const response = await apiRequest("POST", "/api/agent/register", data);
       return response.json();
     },
     onSuccess: () => {

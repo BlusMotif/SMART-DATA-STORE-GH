@@ -225,7 +225,13 @@ export async function registerRoutes(
   // ============================================
   app.post("/api/agent/register", async (req, res) => {
     try {
+      if (!supabaseServer) {
+        console.error('Supabase server client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
+        return res.status(500).json({ error: "Server configuration error" });
+      }
+
       const data = agentRegisterSchema.parse(req.body);
+      console.log("Agent registration data:", data);
 
       // Check if storefront slug is taken
       const existingSlug = await storage.getAgentBySlug(data.storefrontSlug);
@@ -233,6 +239,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Storefront URL already taken" });
       }
 
+      console.log("Creating user in Supabase Auth");
       // Create user in Supabase Auth
       const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
         email: data.email,
@@ -246,9 +253,13 @@ export async function registerRoutes(
       });
 
       if (authError) {
+        console.error("Supabase auth error:", authError);
         return res.status(400).json({ error: authError.message });
       }
 
+      console.log("Supabase user created:", authData.user.id);
+
+      console.log("Creating agent in database");
       // Create agent record in database
       const agent = await storage.createAgent({
         userId: authData.user.id,
@@ -256,6 +267,8 @@ export async function registerRoutes(
         businessName: data.businessName,
         isApproved: false,
       });
+
+      console.log("Agent created:", agent.id);
 
       res.json({
         user: { 

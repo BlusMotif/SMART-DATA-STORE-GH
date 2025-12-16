@@ -29,7 +29,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const { register, isRegistering } = useAuth();
+  const { register, isRegisterLoading, registerError } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<RegisterFormData>({
@@ -45,12 +45,7 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      await register({
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        password: data.password,
-      });
+      await register({ email: data.email, password: data.password });
       toast({
         title: "Account created!",
         description: "Welcome to " + APP_NAME,
@@ -219,10 +214,15 @@ export default function RegisterPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isRegistering}
+                disabled={isRegisterLoading}
                 data-testid="button-submit-register"
               >
-                {isRegistering && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isRegisterLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {registerError && (
+                              <div className="text-red-500 text-sm mt-2">
+                                {registerError.message || 'Registration failed. Please try again.'}
+                              </div>
+                            )}
                 Create account
               </Button>
             </form>

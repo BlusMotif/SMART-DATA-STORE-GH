@@ -85,31 +85,31 @@ export class DatabaseStorage implements IStorage {
   // USERS
   // ============================================
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return user;
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
-    return user;
+    const result = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    return result[0];
   }
 
   async getUserByFirebaseUid(firebaseUid: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid)).limit(1);
-    return user;
+    const result = await db.select().from(users).where(eq(users.firebaseUid, firebaseUid)).limit(1);
+    return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values({
+    const result = await db.insert(users).values({
       ...insertUser,
       email: insertUser.email.toLowerCase(),
     }).returning();
-    return user;
+    return result[0];
   }
 
   async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
-    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
-    return user;
+    const result = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return result[0];
   }
 
   // ============================================

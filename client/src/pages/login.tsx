@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,7 +23,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoggingIn, loginError } = useAuth();
+  const { login, isLoginLoading, loginError, user } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<LoginFormData>({
@@ -34,27 +34,30 @@ export default function LoginPage() {
     },
   });
 
-  const onSubmit = async (data: LoginFormData) => {
-    try {
-      const result = await login(data);
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      
-      if (result.user?.role === "admin") {
+  // Navigate based on user role when user is loaded
+  useEffect(() => {
+    console.log("User after login:", user);
+    if (user) {
+      if (user.role === "admin") {
         setLocation("/admin");
-      } else if (result.user?.role === "agent") {
+      } else if (user.role === "agent") {
         setLocation("/agent");
       } else {
         setLocation("/");
       }
-    } catch (error: any) {
+    }
+  }, [user, setLocation]);
+
+  const onSubmit = async (data: LoginFormData) => {
+    try {
+      await login({ email: data.email, password: data.password });
       toast({
-        title: "Login failed",
-        description: error.message || "Invalid email or password",
-        variant: "destructive",
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
       });
+      // Navigation will happen automatically when user is loaded
+    } catch (error) {
+      // Error is handled by the mutation
     }
   };
 
@@ -145,14 +148,21 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isLoggingIn}
+                disabled={isLoginLoading}
                 data-testid="button-submit-login"
               >
-                {isLoggingIn && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoginLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign in
               </Button>
+              {loginError && (
+                <div className="text-red-500 text-sm mt-2">
+                  {loginError.message || 'Login failed. Please try again.'}
+                </div>
+              )}
             </form>
           </Form>
+
+
 
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>

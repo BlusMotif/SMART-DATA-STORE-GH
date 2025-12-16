@@ -2,8 +2,13 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
+import dotenv from "dotenv";
 
 const { Pool } = pg;
+
+if (!process.env.DATABASE_URL) {
+  dotenv.config();
+}
 
 if (!process.env.DATABASE_URL) {
   if (process.env.NODE_ENV === "production") {

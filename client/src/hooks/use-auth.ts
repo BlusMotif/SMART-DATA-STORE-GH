@@ -1,101 +1,109 @@
-import { useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useState, useEffect } from "react";
 
-interface AuthUser {
+interface User {
   id: string;
   email: string;
   name: string;
   role: string;
-  phone?: string | null;
-}
-
-interface AuthResponse {
-  user: AuthUser | null;
-  agent?: {
-    id: string;
-    businessName: string;
-    storefrontSlug: string;
-    balance: string;
-    totalSales: string;
-    totalProfit: string;
-    isApproved: boolean;
-  } | null;
 }
 
 export function useAuth() {
-  const queryClient = useQueryClient();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isRegisterLoading, setIsRegisterLoading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery<AuthResponse>({
-    queryKey: ["/api/auth/me"],
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
+  // Fetch user on mount
+  useEffect(() => {
+    fetchUser();
+  }, []);
 
-  const user = data?.user ?? null;
+  const fetchUser = async () => {
+    try {
+      const response = await fetch("/api/auth/me");
+      const data = await response.json();
+      setUser(data.user);
+    } catch (error) {
+      console.error("Failed to fetch user:", error);
+    }
+  };
 
-  const loginMutation = useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
-      const response = await apiRequest("POST", "/api/auth/login", credentials);
-      return response.json();
-    },
-    onSuccess: (responseData) => {
-      queryClient.setQueryData(["/api/auth/me"], { user: responseData.user, agent: null });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
+  const login = async ({ email, password }: { email: string; password: string }) => {
+    setIsLoginLoading(true);
+    setLoginError(null);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        setLoginError(data.error);
+        return { error: data.error };
+      }
+      setUser(data.user);
+      return { user: data.user };
+    } catch (error) {
+      const errorMessage = "Login failed";
+      setLoginError(errorMessage);
+      return { error: errorMessage };
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
 
-  const registerMutation = useMutation({
-    mutationFn: async (formData: { email: string; password: string; name: string; phone?: string }) => {
-      const response = await apiRequest("POST", "/api/auth/register", formData);
-      return response.json();
-    },
-    onSuccess: (responseData) => {
-      queryClient.setQueryData(["/api/auth/me"], { user: responseData.user, agent: null });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
+  const register = async ({ email, password, name }: { email: string; password: string; name: string }) => {
+    setIsRegisterLoading(true);
+    setRegisterError(null);
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        setRegisterError(data.error);
+        return { error: data.error };
+      }
+      setUser(data.user);
+      return { user: data.user };
+    } catch (error) {
+      const errorMessage = "Registration failed";
+      setRegisterError(errorMessage);
+      return { error: errorMessage };
+    } finally {
+      setIsRegisterLoading(false);
+    }
+  };
 
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("POST", "/api/auth/logout", {});
-    },
-    onSuccess: () => {
-      queryClient.setQueryData(["/api/auth/me"], { user: null, agent: null });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    },
-  });
+  const logout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setUser(null);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
-  const login = useCallback(
-    (credentials: { email: string; password: string }) => {
-      return loginMutation.mutateAsync(credentials);
-    },
-    [loginMutation]
-  );
-
-  const register = useCallback(
-    (data: { email: string; password: string; name: string; phone?: string }) => {
-      return registerMutation.mutateAsync(data);
-    },
-    [registerMutation]
-  );
-
-  const logout = useCallback(() => {
-    return logoutMutation.mutateAsync();
-  }, [logoutMutation]);
+  const isAuthenticated = !!user;
 
   return {
     user,
-    agent: data?.agent ?? null,
-    isLoading,
-    isAuthenticated: !!user,
     login,
     register,
     logout,
-    loginError: loginMutation.error,
-    registerError: registerMutation.error,
-    isLoggingIn: loginMutation.isPending,
-    isRegistering: registerMutation.isPending,
-    isLoggingOut: logoutMutation.isPending,
+    isLoginLoading,
+    isRegisterLoading,
+    isLoggingOut,
+    loginError,
+    registerError,
+    isAuthenticated,
   };
 }

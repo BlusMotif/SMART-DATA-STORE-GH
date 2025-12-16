@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+// import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -16,39 +17,42 @@ import resultLogo from "@assets/result_1765780772205.jpg";
 
 const bannerImages = [banner1, banner2, banner3];
 
-const products = [
-  {
-    id: "mtn",
-    name: "MTN Data",
-    logo: mtnLogo,
-    href: "/products/mtn",
-    description: "MTN Data Bundles",
-  },
-  {
-    id: "telecel",
-    name: "Telecel Data",
-    logo: telecelLogo,
-    href: "/products/telecel",
-    description: "Telecel Data Bundles",
-  },
-  {
-    id: "airteltigo",
-    name: "AirtelTigo Data",
-    logo: airteltigoLogo,
-    href: "/products/airteltigo",
-    description: "AirtelTigo Data Bundles",
-  },
-  {
-    id: "result-checkers",
-    name: "Result Checkers",
-    logo: resultLogo,
-    href: "/products/result-checkers",
-    description: "BECE & WASSCE",
-  },
-];
 
+// Fetch data bundles from backend
 export default function HomePage() {
   const [currentBanner, setCurrentBanner] = useState(0);
+
+  // Product categories for homepage
+  const productCategories = [
+    {
+      id: "mtn",
+      name: "MTN Data Bundles",
+      description: "Buy MTN data bundles.",
+      image: mtnLogo,
+      href: "/products/mtn"
+    },
+    {
+      id: "telecel",
+      name: "Telecel Data Bundles",
+      description: "Buy Telecel data bundles.",
+      image: telecelLogo,
+      href: "/products/telecel"
+    },
+    {
+      id: "airteltigo",
+      name: "AirtelTigo Data Bundles",
+      description: "Buy AirtelTigo data bundles.",
+      image: airteltigoLogo,
+      href: "/products/airteltigo"
+    },
+    {
+      id: "waec-result-checker",
+      name: "WAEC Result Checker",
+      description: "Purchase BECE & WASSCE result checkers.",
+      image: resultLogo,
+      href: "/products/result-checkers"
+    },
+  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -105,27 +109,21 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Products Section - Logo Grid */}
+        {/* Product Categories Section */}
         <section id="products" className="py-12 px-4">
           <div className="container mx-auto max-w-4xl">
-            <h2 className="text-2xl font-bold text-center mb-8">Select a Product</h2>
-            
+            <h2 className="text-2xl font-bold text-center mb-8">Product Categories</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {products.map((product) => (
-                <Link key={product.id} href={product.href}>
-                  <Card 
-                    className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
-                    data-testid={`card-product-${product.id}`}
-                  >
+              {productCategories.map((cat) => (
+                <Link key={cat.id} href={cat.href}>
+                  <Card className="p-4 aspect-square flex flex-col items-center justify-center gap-3 cursor-pointer hover-elevate transition-all">
                     <img
-                      src={product.logo}
-                      alt={product.name}
+                      src={cat.image}
+                      alt={cat.name}
                       className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
-                      data-testid={`img-product-${product.id}`}
                     />
-                    <p className="text-sm font-medium text-center text-muted-foreground">
-                      {product.description}
-                    </p>
+                    <p className="text-lg font-semibold text-center">{cat.name}</p>
+                    <p className="text-sm text-center text-muted-foreground">{cat.description}</p>
                   </Card>
                 </Link>
               ))}

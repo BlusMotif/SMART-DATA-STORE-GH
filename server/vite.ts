@@ -33,8 +33,8 @@ export async function setupVite(server: Server, app: Express) {
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
-    // Skip serving index.html for asset requests
-    if (req.path.startsWith('/src') || req.path.startsWith('/@') || req.path.startsWith('/node_modules') || req.path.includes('.')) {
+    // Skip API routes and other non-SPA routes
+    if (req.path.startsWith('/api') || req.path.startsWith('/vite-hmr')) {
       return next();
     }
 

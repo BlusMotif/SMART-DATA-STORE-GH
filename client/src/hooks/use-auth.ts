@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 
 interface User {
   id: string;
   email: string;
-  name: string;
-  role: string;
+  user_metadata?: {
+    name?: string;
+    role?: string;
+  };
 }
 
 export function useAuth() {
@@ -17,43 +19,39 @@ export function useAuth() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
-  // Fetch user on mount
+  // Check session on mount
   useEffect(() => {
-    fetchUser();
-  }, []);
-
-  const fetchUser = async () => {
-    try {
-      const response = await fetch(api.auth.me(), {
-        credentials: 'include',
-      });
-      const data = await response.json();
-      setUser(data.user);
-    } catch (error) {
-      console.error("Failed to fetch user:", error);
-    } finally {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
       setIsLoading(false);
-    }
-  };
+    };
+    getSession();
+
+    // Listen to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = async ({ email, password }: { email: string; password: string }) => {
     setIsLoginLoading(true);
     setLoginError(null);
     try {
-      const response = await fetch(api.auth.login(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      const data = await response.json();
-      if (data.error) {
-        setLoginError(data.error);
-        return { error: data.error };
+      if (error) {
+        setLoginError(error.message);
+        return { error: error.message };
       }
       setUser(data.user);
       return { user: data.user };
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = "Login failed";
       setLoginError(errorMessage);
       return { error: errorMessage };
@@ -66,20 +64,22 @@ export function useAuth() {
     setIsRegisterLoading(true);
     setRegisterError(null);
     try {
-      const response = await fetch(api.auth.register(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
-        credentials: 'include',
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+        },
       });
-      const data = await response.json();
-      if (data.error) {
-        setRegisterError(data.error);
-        return { error: data.error };
+      if (error) {
+        setRegisterError(error.message);
+        return { error: error.message };
       }
       setUser(data.user);
       return { user: data.user };
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = "Registration failed";
       setRegisterError(errorMessage);
       return { error: errorMessage };
@@ -91,10 +91,10 @@ export function useAuth() {
   const logout = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch(api.auth.logout(), { 
-        method: "POST",
-        credentials: 'include',
-      });
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Logout failed:", error);
+      }
       setUser(null);
     } catch (error) {
       console.error("Logout failed:", error);

@@ -38,9 +38,10 @@ export default function LoginPage() {
   useEffect(() => {
     console.log("User after login:", user);
     if (user) {
-      if (user.role === "admin") {
+      const role = user.user_metadata?.role;
+      if (role === "admin") {
         setLocation("/admin");
-      } else if (user.role === "agent") {
+      } else if (role === "agent") {
         setLocation("/agent");
       } else {
         setLocation("/");
@@ -57,9 +58,10 @@ export default function LoginPage() {
           description: "You have successfully logged in.",
         });
         // Redirect based on role
-        if (result.user.role === "admin") {
+        const role = result.user.user_metadata?.role;
+        if (role === "admin") {
           setLocation("/admin");
-        } else if (result.user.role === "agent") {
+        } else if (role === "agent") {
           setLocation("/agent");
         } else {
           setLocation("/");

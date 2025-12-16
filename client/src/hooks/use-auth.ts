@@ -10,6 +10,7 @@ interface User {
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -28,6 +29,8 @@ export function useAuth() {
       setUser(data.user);
     } catch (error) {
       console.error("Failed to fetch user:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -100,6 +103,7 @@ export function useAuth() {
     login,
     register,
     logout,
+    isLoading,
     isLoginLoading,
     isRegisterLoading,
     isLoggingOut,

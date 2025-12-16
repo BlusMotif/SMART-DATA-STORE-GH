@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import NotFound from "@/pages/not-found";
 
 import HomePage from "@/pages/home";
@@ -42,18 +43,18 @@ function Router() {
       <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/agent/register" component={AgentRegisterPage} />
-      <Route path="/agent" component={AgentDashboard} />
-      <Route path="/agent/transactions" component={AgentTransactions} />
-      <Route path="/agent/withdrawals" component={AgentWithdrawals} />
-      <Route path="/agent/storefront" component={AgentStorefront} />
-      <Route path="/agent/settings" component={AgentSettings} />
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/admin/data-bundles" component={AdminDataBundles} />
-      <Route path="/admin/result-checkers" component={AdminResultCheckers} />
-      <Route path="/admin/transactions" component={AdminTransactions} />
-      <Route path="/admin/agents" component={AdminAgents} />
-      <Route path="/admin/withdrawals" component={AdminWithdrawals} />
-      <Route path="/admin/settings" component={AdminSettings} />
+      <ProtectedRoute path="/agent" component={AgentDashboard} requiredRole="agent" />
+      <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
+      <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />
+      <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRole="agent" />
+      <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRole="agent" />
+      <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
+      <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />
+      <ProtectedRoute path="/admin/result-checkers" component={AdminResultCheckers} requiredRole="admin" />
+      <ProtectedRoute path="/admin/transactions" component={AdminTransactions} requiredRole="admin" />
+      <ProtectedRoute path="/admin/agents" component={AdminAgents} requiredRole="admin" />
+      <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
+      <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
       <Route path="/store/:slug" component={StorefrontPage} />
       <Route component={NotFound} />
     </Switch>

@@ -184,6 +184,32 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // TEMPORARY PASSWORD RESET (REMOVE AFTER USE)
+  // ============================================
+  app.post("/api/admin/reset-password", async (req, res) => {
+    try {
+      const { email, newPassword } = req.body;
+      if (!email || !newPassword || newPassword.length < 6) {
+        return res.status(400).json({ error: "Email and password (min 6 chars) required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      if (!user || user.role !== UserRole.ADMIN) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await storage.updateUser(user.id, { password: hashedPassword });
+
+      console.log("Admin password reset for:", email);
+      res.json({ success: true, message: "Password reset successful" });
+    } catch (error: any) {
+      console.error("Password reset error:", error.message);
+      res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
+  // ============================================
   // AGENT REGISTRATION
   // ============================================
   app.post("/api/agent/register", async (req, res) => {

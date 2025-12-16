@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
 
 interface User {
   id: string;
@@ -22,7 +23,7 @@ export function useAuth() {
 
   const fetchUser = async () => {
     try {
-      const response = await fetch("/api/auth/me");
+      const response = await fetch(api.auth.me());
       const data = await response.json();
       setUser(data.user);
     } catch (error) {
@@ -34,7 +35,7 @@ export function useAuth() {
     setIsLoginLoading(true);
     setLoginError(null);
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(api.auth.login(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -59,7 +60,7 @@ export function useAuth() {
     setIsRegisterLoading(true);
     setRegisterError(null);
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch(api.auth.register(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),
@@ -83,7 +84,7 @@ export function useAuth() {
   const logout = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch(api.auth.logout(), { method: "POST" });
       setUser(null);
     } catch (error) {
       console.error("Logout failed:", error);

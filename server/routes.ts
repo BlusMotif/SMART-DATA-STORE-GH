@@ -152,6 +152,7 @@ export async function registerRoutes(
       res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (error: any) {
       console.error("Database error during login, using mock auth:", error.message);
+      console.error("Full error:", error);
       // Mock authentication for development
       const { email, password } = req.body;
 
@@ -164,11 +165,13 @@ export async function registerRoutes(
 
       const mockUser = mockUsers.find(u => u.email === email && u.password === password);
       if (!mockUser) {
+        console.log("Mock user not found for:", email);
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
       req.session.userId = mockUser.id;
       req.session.userRole = mockUser.role;
+      console.log("Mock login successful for:", email, "session set:", req.session.userId);
 
       res.json({ user: { id: mockUser.id, email: mockUser.email, name: mockUser.name, role: mockUser.role } });
     }

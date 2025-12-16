@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
+import multer from "multer";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
@@ -46,6 +47,21 @@ function generateReference(): string {
   const random = randomUUID().split("-")[0].toUpperCase();
   return `CLEC-${timestamp}-${random}`;
 }
+
+// Multer configuration for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -986,6 +1002,46 @@ export async function registerRoutes(
       res.json({ added: created.length });
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Failed to create result checkers" });
+    }
+  });
+
+  app.post("/api/admin/result-checkers/bulk-upload", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      const { type, year, basePrice, costPrice } = req.body;
+      
+      if (!type || !year || !basePrice || !costPrice) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // Parse CSV content
+      const csvContent = req.file.buffer.toString('utf-8');
+      const lines = csvContent.split('\n').filter((line: string) => line.trim());
+      
+      const checkersData = lines.map((line: string) => {
+        const [serialNumber, pin] = line.split(',').map((s: string) => s.trim());
+        return {
+          type,
+          year: parseInt(year),
+          serialNumber,
+          pin,
+          basePrice,
+          costPrice,
+        };
+      }).filter((c: any) => c.serialNumber && c.pin);
+
+      if (checkersData.length === 0) {
+        return res.status(400).json({ error: "No valid checkers found in CSV file" });
+      }
+
+      const created = await storage.createResultCheckersBulk(checkersData);
+      res.json({ added: created.length });
+    } catch (error: any) {
+      console.error("File upload error:", error);
+      res.status(400).json({ error: error.message || "Failed to process uploaded file" });
     }
   });
 

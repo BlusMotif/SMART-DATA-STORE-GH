@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "seed:admin": "npx tsx script/seed-admin.ts",
+    "create:admin": "npx tsx script/create-admin.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

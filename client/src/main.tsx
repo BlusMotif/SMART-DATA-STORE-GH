@@ -2,6 +2,12 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+// Global error handler for debugging
+window.onerror = function (msg, src, line, col, err) {
+  console.error("GLOBAL ERROR:", msg, src, line, col, err);
+  return false; // Let the error propagate
+};
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')

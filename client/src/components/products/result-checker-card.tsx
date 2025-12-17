@@ -42,7 +42,7 @@ export function ResultCheckerCard({
   const isOutOfStock = stock === 0;
 
   return (
-    <Card className="group overflow-visible transition-all duration-200 hover-elevate" data-testid={`card-checker-${type}-${year}`}>
+    <Card className="group overflow-visible transition-all duration-200 hover-elevate h-full flex flex-col" data-testid={`card-checker-${type}-${year}`}>
       <div className="w-full h-20 overflow-hidden rounded-t-xl">
         <img 
           src={resultImage} 

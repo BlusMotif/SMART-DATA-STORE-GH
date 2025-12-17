@@ -90,28 +90,30 @@ export default function AdminDashboard() {
                   {transactionsLoading ? (
                     <TableSkeleton rows={5} />
                   ) : recentTransactions && recentTransactions.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Reference</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Date</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {recentTransactions.slice(0, 10).map((tx) => (
-                          <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                            <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
-                            <TableCell className="max-w-[200px] truncate">{tx.productName}</TableCell>
-                            <TableCell className="font-medium tabular-nums">{formatCurrency(tx.amount)}</TableCell>
-                            <TableCell><StatusBadge status={tx.status} /></TableCell>
-                            <TableCell className="text-muted-foreground text-sm">{formatDate(tx.createdAt)}</TableCell>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Reference</TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Date</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {recentTransactions.slice(0, 10).map((tx) => (
+                            <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
+                              <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
+                              <TableCell className="max-w-[200px] truncate">{tx.productName}</TableCell>
+                              <TableCell className="font-medium tabular-nums">{formatCurrency(tx.amount)}</TableCell>
+                              <TableCell><StatusBadge status={tx.status} /></TableCell>
+                              <TableCell className="text-muted-foreground text-sm">{formatDate(tx.createdAt)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       No transactions yet

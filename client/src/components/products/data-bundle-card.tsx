@@ -32,7 +32,7 @@ export function DataBundleCard({
   const networkImage = networkImages[bundle.network.toLowerCase()];
 
   return (
-    <Card className="group overflow-visible transition-all duration-200 hover-elevate" data-testid={`card-bundle-${bundle.id}`}>
+    <Card className="group overflow-visible transition-all duration-200 hover-elevate h-full flex flex-col" data-testid={`card-bundle-${bundle.id}`}>
       {networkImage && (
         <div className="w-full h-20 overflow-hidden rounded-t-xl">
           <img 

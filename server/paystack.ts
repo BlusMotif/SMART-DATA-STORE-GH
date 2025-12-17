@@ -3,10 +3,6 @@ import crypto from "crypto";
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "";
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
-export function isPaystackConfigured(): boolean {
-  return !!PAYSTACK_SECRET_KEY && PAYSTACK_SECRET_KEY.startsWith("sk_live_");
-}
-
 export function isPaystackTestMode(): boolean {
   return PAYSTACK_SECRET_KEY.startsWith("sk_test_");
 }
@@ -110,4 +106,8 @@ export function validateWebhookSignature(rawBody: string | Buffer, signature: st
     .digest("hex");
 
   return hash === signature;
+}
+
+export function isPaystackConfigured(): boolean {
+  return !!PAYSTACK_SECRET_KEY;
 }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -7,7 +8,8 @@ import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package } from "lucide-react";
+import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Transaction } from "@shared/schema";
 
 interface DashboardStats {
@@ -20,6 +22,7 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -32,20 +35,44 @@ export default function AdminDashboard() {
 
   return (
     <div className="flex h-screen bg-background">
-      <AdminSidebar />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AdminSidebar onClose={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <AdminSidebar />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
-          <h1 className="text-xl font-semibold">Dashboard</h1>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">Dashboard</h1>
+          </div>
           <ThemeToggle />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto space-y-4 lg:space-y-6">
             {statsLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Card key={i} className="animate-pulse">
-                    <CardContent className="pt-6">
+                    <CardContent className="pt-4 lg:pt-6">
                       <div className="h-4 bg-muted rounded w-1/2 mb-4" />
                       <div className="h-8 bg-muted rounded w-3/4" />
                     </CardContent>
@@ -53,7 +80,7 @@ export default function AdminDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                 <StatCard
                   title="Total Revenue"
                   value={formatCurrency(stats?.totalRevenue || 0)}

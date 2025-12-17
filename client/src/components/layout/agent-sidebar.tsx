@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   ExternalLink,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ const sidebarNavItems = [
   },
 ];
 
-export function AgentSidebar() {
+export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut } = useAuth();
 
@@ -53,8 +54,15 @@ export function AgentSidebar() {
   });
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-background">
-      <div className="flex h-16 items-center gap-2 border-b px-6">
+    <div className="flex h-screen w-64 flex-col border-r bg-background relative">
+      {onClose && (
+        <div className="absolute top-4 right-4 lg:hidden z-10">
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+      <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
           CT
         </div>

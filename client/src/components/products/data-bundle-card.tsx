@@ -43,45 +43,45 @@ export function DataBundleCard({
         </div>
       )}
       <CardHeader className="pb-2 pt-2 px-3">
-        <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center justify-between gap-1 min-h-[24px]">
           <NetworkBadge network={bundle.network} size="sm" />
           {!bundle.isActive && (
-            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
               N/A
             </span>
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3">
-        <div>
-          <h3 className="font-semibold text-sm leading-tight mb-0.5" data-testid={`text-bundle-name-${bundle.id}`}>
+      <CardContent className="space-y-2 px-3 pb-3 flex-1 flex flex-col">
+        <div className="flex-1">
+          <h3 className="font-semibold text-sm leading-tight mb-0.5 line-clamp-2" data-testid={`text-bundle-name-${bundle.id}`}>
             {bundle.name}
           </h3>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-0.5 flex-shrink-0">
               <Wifi className="h-3 w-3" />
-              <span>{bundle.dataAmount}</span>
+              <span className="truncate">{bundle.dataAmount}</span>
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-0.5 flex-shrink-0">
               <Clock className="h-3 w-3" />
-              <span>{bundle.validity}</span>
+              <span className="truncate">{bundle.validity}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-lg font-bold text-primary tabular-nums" data-testid={`text-bundle-price-${bundle.id}`}>
+        <div className="flex items-center justify-between gap-2 mt-auto">
+          <p className="text-lg font-bold text-primary tabular-nums flex-shrink-0" data-testid={`text-bundle-price-${bundle.id}`}>
             {formatCurrency(displayPrice)}
           </p>
           <Button
             size="sm"
             onClick={() => onPurchase(bundle)}
             disabled={!bundle.isActive || isPurchasing}
-            className="gap-1 text-xs"
+            className="gap-1 text-xs flex-shrink-0"
             data-testid={`button-buy-bundle-${bundle.id}`}
           >
             <ShoppingCart className="h-3 w-3" />
-            Buy
+            <span className="hidden sm:inline">Buy</span>
           </Button>
         </div>
       </CardContent>

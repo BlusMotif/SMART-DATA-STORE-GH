@@ -10,34 +10,90 @@ import {
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack";
 import { supabaseServer } from "./supabase";
 
-// Simple session-based auth middleware
-declare module "express-session" {
-  interface SessionData {
-    userId?: string;
-    userRole?: string;
+// Supabase JWT auth middleware
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string;
+        user_metadata?: {
+          name?: string;
+          role?: string;
+        };
+      };
+    }
   }
 }
 
-// Auth middleware
-const requireAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.userId) {
-    return res.status(401).json({ error: "Unauthorized" });
+// Auth middleware using Supabase JWT
+const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    res.status(401).json({ error: "Unauthorized" });
   }
-  next();
 };
 
-const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.userId || req.session.userRole !== UserRole.ADMIN) {
-    return res.status(403).json({ error: "Admin access required" });
+const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const token = authHeader.substring(7);
+
+    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+
+    if (error || !user || user.user_metadata?.role !== UserRole.ADMIN) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Admin auth middleware error:', error);
+    res.status(403).json({ error: "Admin access required" });
   }
-  next();
 };
 
-const requireAgent = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.userId || req.session.userRole !== UserRole.AGENT) {
-    return res.status(403).json({ error: "Agent access required" });
+const requireAgent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(403).json({ error: "Agent access required" });
+    }
+
+    const token = authHeader.substring(7);
+
+    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+
+    if (error || !user || user.user_metadata?.role !== UserRole.AGENT) {
+      return res.status(403).json({ error: "Agent access required" });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Agent auth middleware error:', error);
+    res.status(403).json({ error: "Agent access required" });
   }
-  next();
 };
 
 // Generate unique transaction reference
@@ -106,51 +162,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const data = loginSchema.parse(req.body);
-      
-      const user = await storage.getUserByEmail(data.email);
-      if (!user) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
 
-      const validPassword = await bcrypt.compare(data.password, user.password);
-      if (!validPassword) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      if (!user.isActive) {
-        return res.status(403).json({ error: "Account is disabled" });
-      }
-
-      req.session.userId = user.id;
-      req.session.userRole = user.role;
-
-      res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
-    } catch (error: any) {
-      console.error("Database error during login, using mock auth:", error.message);
-      // Mock authentication for development
-      const { email, password } = req.body;
-
-      // Simple mock users for testing
-      const mockUsers = [
-        { id: "1", email: "admin@example.com", password: "password123", name: "Admin User", role: "admin", isActive: true },
-        { id: "2", email: "agent@example.com", password: "password123", name: "Agent User", role: "agent", isActive: true },
-        { id: "3", email: "user@example.com", password: "password123", name: "Regular User", role: "user", isActive: true },
-      ];
-
-      const mockUser = mockUsers.find(u => u.email === email && u.password === password);
-      if (!mockUser) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
-
-      req.session.userId = mockUser.id;
-      req.session.userRole = mockUser.role;
-
-      res.json({ user: { id: mockUser.id, email: mockUser.email, name: mockUser.name, role: mockUser.role } });
-    }
-  });
 
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {

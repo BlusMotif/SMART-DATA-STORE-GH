@@ -1,29 +1,29 @@
 import 'dotenv/config';
-import { supabaseServer } from '../server/supabase';
+import { db } from '../server/db';
+import { users } from '@shared/schema';
+import bcrypt from 'bcryptjs';
 
 async function createAdminUser() {
-  if (!supabaseServer) {
-    console.error('Supabase server client not initialized. Check environment variables.');
-    return;
-  }
-
   try {
-    const { data, error } = await supabaseServer.auth.admin.createUser({
+    // The user already exists in Supabase Auth with this ID
+    const userId = 'dd0dfb4e-530e-4813-a7ef-f11b24bc1b49';
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash('NUNANA123', 10);
+
+    const userData = {
+      id: userId,
       email: 'eleblununana@gmail.com',
-      password: 'NUNANA123',
-      user_metadata: {
-        name: 'Admin User',
-        role: 'admin'
-      },
-      email_confirm: true // Auto-confirm email
-    });
+      password: hashedPassword,
+      name: 'Admin User',
+      role: 'admin',
+      isActive: true,
+    };
 
-    if (error) {
-      console.error('Error creating admin user:', error);
-      return;
-    }
+    // Insert into database
+    await db.insert(users).values(userData);
 
-    console.log('Admin user created successfully:', data.user);
+    console.log('Admin user inserted into database successfully');
   } catch (error) {
     console.error('Failed to create admin user:', error);
   }

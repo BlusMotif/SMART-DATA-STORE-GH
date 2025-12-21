@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, NETWORKS } from "@/lib/constants";
-import { Store, ExternalLink, Copy, Save, Smartphone } from "lucide-react";
+import { Store, ExternalLink, Copy, Save, Smartphone, Menu } from "lucide-react";
 import type { Agent, DataBundle } from "@shared/schema";
 
 const storefrontSchema = z.object({
@@ -33,6 +33,7 @@ interface AgentPricing {
 
 export default function AgentStorefront() {
   const { toast } = useToast();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: agent } = useQuery<Agent>({
     queryKey: ["/api/agent/profile"],
@@ -123,14 +124,38 @@ export default function AgentStorefront() {
 
   return (
     <div className="flex h-screen bg-background">
-      <AgentSidebar />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AgentSidebar onClose={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <AgentSidebar />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
-          <h1 className="text-xl font-semibold">My Storefront</h1>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">My Storefront</h1>
+          </div>
           <ThemeToggle />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-4xl mx-auto space-y-6">
             <Card>
               <CardHeader>

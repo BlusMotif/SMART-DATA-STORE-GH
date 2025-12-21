@@ -63,15 +63,7 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light" storageKey="clectech-theme">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-          <PWAInstallPrompt />
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <div>Hello World</div>
   );
 }
 

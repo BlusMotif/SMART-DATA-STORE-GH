@@ -16,7 +16,7 @@ import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Plus, FileCheck, Package, AlertCircle } from "lucide-react";
+import { Plus, FileCheck, Package, AlertCircle, Menu } from "lucide-react";
 import type { ResultChecker } from "@shared/schema";
 
 interface StockSummary {
@@ -32,19 +32,54 @@ export default function AdminResultCheckers() {
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: checkers, isLoading } = useQuery<ResultChecker[]>({
     queryKey: ["/api/admin/result-checkers"],
+    refetchInterval: 60000, // Refetch every minute for stock data
+    refetchOnWindowFocus: true,
   });
 
   const { data: stockSummary } = useQuery<StockSummary[]>({
     queryKey: ["/api/admin/result-checkers/summary"],
+    refetchInterval: 60000, // Refetch every minute for stock summary
+    refetchOnWindowFocus: true,
   });
 
-  const bulkAddMutation = useMutation<{ added: number }, Error, { type: string; year: number; basePrice: string; costPrice: string; checkers: string }>({
-    mutationFn: async (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string }) => {
-      const response = await apiRequest("POST", "/api/admin/result-checkers/bulk", data);
-      return response.json();
+  const bulkAddMutation = useMutation<{ added: number }, Error, { type: string; year: number; basePrice: string; costPrice: string; checkers: string; file?: File }>({
+    mutationFn: async (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string; file?: File }) => {
+      if (data.file) {
+        // Handle file upload
+        const formData = new FormData();
+        formData.append('type', data.type);
+        formData.append('year', data.year.toString());
+        formData.append('basePrice', data.basePrice);
+        formData.append('costPrice', data.costPrice);
+        formData.append('file', data.file);
+
+        const response = await fetch('/api/admin/result-checkers/bulk-upload', {
+          method: 'POST',
+          body: formData,
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
+          throw new Error(errorData.message || 'Upload failed');
+        }
+
+        return response.json();
+      } else {
+        // Handle text input
+        const response = await apiRequest("POST", "/api/admin/result-checkers/bulk", {
+          type: data.type,
+          year: data.year,
+          basePrice: data.basePrice,
+          costPrice: data.costPrice,
+          checkers: data.checkers,
+        });
+        return response;
+      }
     },
     onSuccess: (data: { added: number }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers"] });
@@ -72,10 +107,34 @@ export default function AdminResultCheckers() {
 
   return (
     <div className="flex h-screen bg-background">
-      <AdminSidebar />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AdminSidebar onClose={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <AdminSidebar />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
-          <h1 className="text-xl font-semibold">Result Checkers</h1>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">Result Checkers</h1>
+          </div>
           <div className="flex items-center gap-4">
             <Dialog open={isBulkAddOpen} onOpenChange={setIsBulkAddOpen}>
               <DialogTrigger asChild>
@@ -98,7 +157,7 @@ export default function AdminResultCheckers() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
@@ -256,7 +315,7 @@ function BulkAddForm({
   onSubmit,
   isLoading,
 }: {
-  onSubmit: (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string }) => void;
+  onSubmit: (data: { type: string; year: number; basePrice: string; costPrice: string; checkers: string; file?: File }) => void;
   isLoading: boolean;
 }) {
   const currentYear = new Date().getFullYear();
@@ -267,13 +326,24 @@ function BulkAddForm({
     costPrice: "",
     checkers: "",
   });
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
       year: parseInt(formData.year),
+      file: uploadedFile || undefined,
     });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+      // Clear manual input when file is selected
+      setFormData({ ...formData, checkers: "" });
+    }
   };
 
   return (
@@ -354,12 +424,32 @@ function BulkAddForm({
           onChange={(e) => setFormData({ ...formData, checkers: e.target.value })}
           placeholder="Enter one per line in format: SERIAL,PIN&#10;e.g.,&#10;ABC123456,1234567890&#10;DEF789012,0987654321"
           rows={8}
-          required
+          required={!uploadedFile}
+          disabled={!!uploadedFile}
           data-testid="input-checker-pairs"
         />
         <p className="text-xs text-muted-foreground">
-          Format: SERIAL,PIN (one per line)
+          Format: SERIAL,PIN (one per line) - OR upload a CSV file below
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="file">Upload CSV File (Optional)</Label>
+        <Input
+          id="file"
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+          data-testid="input-checker-file"
+        />
+        <p className="text-xs text-muted-foreground">
+          CSV format: SERIAL,PIN (one pair per line, no headers)
+        </p>
+        {uploadedFile && (
+          <p className="text-sm text-green-600">
+            File selected: {uploadedFile.name}
+          </p>
+        )}
       </div>
 
       <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-submit-checkers">

@@ -10,16 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search } from "lucide-react";
+import { BarChart3, Search, Menu } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Transaction } from "@shared/schema";
 
 export default function AdminTransactions() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
+    refetchInterval: 15000, // Refetch every 15 seconds for transactions
+    refetchOnWindowFocus: true,
   });
 
   const filteredTransactions = transactions?.filter((tx) => {
@@ -47,16 +51,40 @@ export default function AdminTransactions() {
 
   return (
     <div className="flex h-screen bg-background">
-      <AdminSidebar />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AdminSidebar onClose={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <AdminSidebar />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
-          <h1 className="text-xl font-semibold">Transactions</h1>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">Transactions</h1>
+          </div>
           <ThemeToggle />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-2xl font-bold">{stats.total}</div>

@@ -14,6 +14,7 @@ import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
 import resultLogo from "@assets/result_1765780772205.jpg";
+import { Truck, Shield, Headphones, DollarSign } from "lucide-react";
 
 const bannerImages = [banner1, banner2, banner3];
 
@@ -51,6 +52,34 @@ export default function HomePage() {
       description: "Purchase BECE & WASSCE result checkers.",
       image: resultLogo,
       href: "/products/result-checkers"
+    },
+  ];
+
+  // Features for homepage
+  const features = [
+    {
+      id: "fast-delivery",
+      title: "Fast Delivery",
+      description: "Faster data delivery for all networks.",
+      icon: Truck,
+    },
+    {
+      id: "secured-payment",
+      title: "Secured Payment",
+      description: "100% secured payment.",
+      icon: Shield,
+    },
+    {
+      id: "customer-support",
+      title: "Customer Support",
+      description: "24/7 Customer support.",
+      icon: Headphones,
+    },
+    {
+      id: "affordable-packages",
+      title: "Affordable Packages",
+      description: "Access cheap data bundles easily.",
+      icon: DollarSign,
     },
   ];
 
@@ -127,6 +156,29 @@ export default function HomePage() {
                   </Card>
                 </Link>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section className="py-16 px-4 bg-muted/30">
+          <div className="container mx-auto max-w-6xl">
+            <h2 className="text-3xl font-bold text-center mb-12">Why Choose Us?</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {features.map((feature) => {
+                const IconComponent = feature.icon;
+                return (
+                  <Card key={feature.id} className="p-6 text-center hover-elevate transition-all">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="p-3 bg-primary/10 rounded-full">
+                        <IconComponent className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="text-xl font-semibold">{feature.title}</h3>
+                      <p className="text-muted-foreground">{feature.description}</p>
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         </section>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabaseClient";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,14 @@ export default function AdminResultCheckers() {
           method: 'POST',
           body: formData,
           credentials: 'include',
+          headers: {
+            // Get access token from Supabase session
+            ...(await (async () => {
+              const { data } = await supabase.auth.getSession();
+              const token = data.session?.access_token;
+              return token ? { 'Authorization': `Bearer ${token}` } : {};
+            })()),
+          },
         });
 
         if (!response.ok) {

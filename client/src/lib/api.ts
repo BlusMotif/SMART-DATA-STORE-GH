@@ -1,6 +1,8 @@
 // API configuration for different environments
 // In production (Render), frontend and backend are on the same domain
 // In development, they might be on different ports
+import { supabase } from "./supabaseClient";
+
 const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:5000' : '';
 
 export const api = {
@@ -59,8 +61,9 @@ export const api = {
 export async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = api.buildUrl(endpoint);
 
-  // Get access token from localStorage
-  const token = localStorage.getItem('access_token');
+  // Get access token from Supabase session
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
 
   const response = await fetch(url, {
     headers: {

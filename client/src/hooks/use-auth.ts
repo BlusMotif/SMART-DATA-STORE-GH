@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 
 export function useAuth() {
@@ -9,7 +9,9 @@ export function useAuth() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const { data: authData, isLoading, refetch } = useQuery<{
+  const queryClient = useQueryClient();
+
+  const { data: authData, isLoading } = useQuery<{
     user: User | null;
     agent?: any;
   }>({
@@ -35,7 +37,8 @@ export function useAuth() {
         setLoginError(data.error || 'Login failed');
         return { error: data.error || 'Login failed' };
       }
-      await refetch(); // Refresh user data
+      // Update the query cache with the login response data
+      queryClient.setQueryData(["/api/auth/me"], data);
       return { user: data.user };
     } catch (error: any) {
       const errorMessage = error.message || "Login failed";
@@ -61,7 +64,8 @@ export function useAuth() {
         setRegisterError(data.error || 'Registration failed');
         return { error: data.error || 'Registration failed' };
       }
-      await refetch(); // Refresh user data
+      // Update the query cache with the registration response data
+      queryClient.setQueryData(["/api/auth/me"], data);
       return { user: data.user };
     } catch (error: any) {
       const errorMessage = error.message || "Registration failed";
@@ -82,7 +86,8 @@ export function useAuth() {
       if (!response.ok) {
         console.error("Logout failed");
       }
-      await refetch(); // Refresh user data
+      // Clear the user data from query cache
+      queryClient.setQueryData(["/api/auth/me"], { user: null });
     } catch (error: any) {
       console.error("Logout failed:", error);
     } finally {

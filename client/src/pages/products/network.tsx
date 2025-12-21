@@ -7,6 +7,16 @@ import { Button } from "@/components/ui/button";
 import { NoDataBundles } from "@/components/ui/empty-state";
 import { ArrowLeft, Clock, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { NetworkBadge } from "@/components/products/network-badge";
+import { formatCurrency } from "@/lib/constants";
+import { Wifi, ShoppingCart } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -29,6 +39,15 @@ export default function NetworkProductsPage() {
   const filteredBundles = dataBundles?.filter(
     (bundle) => bundle.network === network
   );
+
+  // Sort bundles by price (lowest to highest)
+  const sortedBundles = filteredBundles?.sort(
+    (a, b) => parseFloat(a.basePrice) - parseFloat(b.basePrice)
+  );
+
+  const [selectedBundleId, setSelectedBundleId] = useState<string>("");
+
+  const selectedBundle = sortedBundles?.find(bundle => bundle.id === selectedBundleId);
 
   const handlePurchaseBundle = (bundle: DataBundle) => {
     window.location.href = `/checkout/data-bundle/${bundle.id}`;
@@ -67,20 +86,85 @@ export default function NetworkProductsPage() {
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <DataBundleCardSkeleton key={i} />
-              ))}
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : filteredBundles && filteredBundles.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {filteredBundles.map((bundle) => (
-                <DataBundleCard
-                  key={bundle.id}
-                  bundle={bundle}
-                  onPurchase={handlePurchaseBundle}
-                />
-              ))}
+          ) : sortedBundles && sortedBundles.length > 0 ? (
+            <div className="space-y-6">
+              {/* Product Selection Dropdown */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Select a Data Bundle</h3>
+                <Select value={selectedBundleId} onValueChange={setSelectedBundleId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choose a data bundle..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedBundles.map((bundle) => (
+                      <SelectItem key={bundle.id} value={bundle.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center gap-2">
+                            <NetworkBadge network={bundle.network} size="sm" />
+                            <span className="font-medium">{bundle.name}</span>
+                            <span className="text-sm text-muted-foreground">({bundle.dataAmount})</span>
+                          </div>
+                          <span className="font-semibold text-primary ml-4">
+                            {formatCurrency(parseFloat(bundle.basePrice))}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Card>
+
+              {/* Selected Bundle Details */}
+              {selectedBundle && (
+                <Card className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-xl font-semibold">{selectedBundle.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <NetworkBadge network={selectedBundle.network} />
+                        {!selectedBundle.isActive && (
+                          <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
+                            Not Available
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary">
+                        {formatCurrency(parseFloat(selectedBundle.basePrice))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="flex items-center gap-2">
+                      <Wifi className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        <strong>Data:</strong> {selectedBundle.dataAmount}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">
+                        <strong>Validity:</strong> {selectedBundle.validity}
+                      </span>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => handlePurchaseBundle(selectedBundle)}
+                    disabled={!selectedBundle.isActive}
+                    className="w-full gap-2"
+                    size="lg"
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                    Purchase Bundle
+                  </Button>
+                </Card>
+              )}
             </div>
           ) : (
             <NoDataBundles />

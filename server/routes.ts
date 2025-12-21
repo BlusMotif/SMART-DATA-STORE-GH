@@ -132,33 +132,8 @@ export async function registerRoutes(
 
       res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (error: any) {
-      console.error("Database error during registration, using mock auth:", error.message);
-      // Mock registration for development
-      const { email, password, name } = req.body;
-
-      // Check if user already exists in mock data
-      const existingMockUsers = [
-        { id: "1", email: "admin@example.com", name: "Admin User" },
-        { id: "2", email: "agent@example.com", name: "Agent User" },
-        { id: "3", email: "user@example.com", name: "Regular User" },
-      ];
-
-      if (existingMockUsers.find(u => u.email === email)) {
-        return res.status(400).json({ error: "Email already registered" });
-      }
-
-      // Create mock user
-      const mockUser = {
-        id: Date.now().toString(),
-        email,
-        name,
-        role: "user"
-      };
-
-      req.session.userId = mockUser.id;
-      req.session.userRole = mockUser.role;
-
-      res.json({ user: mockUser });
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Registration failed" });
     }
   });
 
@@ -194,31 +169,8 @@ export async function registerRoutes(
           });
         }
       } catch (dbError) {
-        console.error("Database error during login, using mock auth:", dbError);
-      }
-
-      // Fallback to mock authentication
-      const mockUsers = [
-        { id: "1", email: "admin@example.com", name: "Admin User", role: "admin", password: "admin123" },
-        { id: "2", email: "agent@example.com", name: "Agent User", role: "agent", password: "agent123" },
-        { id: "3", email: "user@example.com", name: "Regular User", role: "user", password: "user123" },
-      ];
-
-      const mockUser = mockUsers.find(u => u.email === email && u.password === password);
-      if (mockUser) {
-        req.session.userId = mockUser.id;
-        req.session.userRole = mockUser.role;
-
-        return res.json({
-          user: { id: mockUser.id, email: mockUser.email, name: mockUser.name, role: mockUser.role },
-          agent: mockUser.role === "agent" ? {
-            id: mockUser.id,
-            businessName: "Mock Agent Store",
-            storefrontSlug: "mock-agent",
-            balance: 50000,
-            totalSales: 150000,
-          } : null
-        });
+        console.error("Database error during login:", dbError);
+        return res.status(500).json({ error: "Database connection failed" });
       }
 
       return res.status(401).json({ error: "Invalid email or password" });
@@ -267,32 +219,9 @@ export async function registerRoutes(
       } : null,
     });
     } catch (error: any) {
-      console.error("Database error during auth check, using mock auth:", error.message);
-      // Mock authentication for development
-      const mockUsers = [
-        { id: "1", email: "admin@example.com", name: "Admin User", role: "admin", phone: null },
-        { id: "2", email: "agent@example.com", name: "Agent User", role: "agent", phone: null },
-        { id: "3", email: "user@example.com", name: "Regular User", role: "user", phone: null },
-      ];
-
-      const mockUser = mockUsers.find(u => u.id === req.session.userId);
-      if (mockUser) {
-        res.json({
-          user: mockUser,
-          agent: mockUser.role === "agent" ? {
-            id: "1",
-            businessName: "Mock Agent",
-            storefrontSlug: "mock-agent",
-            balance: 0,
-            totalSales: 0,
-            totalProfit: 0,
-            isApproved: true,
-          } : null,
-        });
-      } else {
-        req.session.destroy(() => {});
-        res.json({ user: null });
-      }
+      console.error("Auth check error:", error);
+      req.session.destroy(() => {});
+      res.json({ user: null });
     }
   });
 
@@ -376,16 +305,8 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ network, isActive: true });
       res.json(bundles);
     } catch (error: any) {
-      console.error("Database error, returning mock data:", error.message);
-      // Return mock data for development
-      const mockBundles = [
-        { id: "1", name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50", isActive: true },
-        { id: "2", name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", costPrice: "2.80", isActive: true },
-        { id: "3", name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", costPrice: "6.50", isActive: true },
-        { id: "4", name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50", isActive: true },
-        { id: "5", name: "Daily Bundle", network: "airteltigo", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", costPrice: "1.90", isActive: true },
-      ].filter(b => !network || b.network === network);
-      res.json(mockBundles);
+      console.error("Database error:", error);
+      res.status(500).json({ error: "Failed to fetch data bundles" });
     }
   });
 
@@ -397,20 +318,8 @@ export async function registerRoutes(
       }
       res.json(bundle);
     } catch (error: any) {
-      console.error("Database error, returning mock data:", error.message);
-      // Return mock data for development
-      const mockBundles = [
-        { id: "1", name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50", isActive: true },
-        { id: "2", name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", costPrice: "2.80", isActive: true },
-        { id: "3", name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", costPrice: "6.50", isActive: true },
-        { id: "4", name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50", isActive: true },
-        { id: "5", name: "Daily Bundle", network: "airteltigo", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", costPrice: "1.90", isActive: true },
-      ];
-      const mockBundle = mockBundles.find(b => b.id === req.params.id);
-      if (!mockBundle) {
-        return res.status(404).json({ error: "Data bundle not found" });
-      }
-      res.json(mockBundle);
+      console.error("Database error:", error);
+      res.status(500).json({ error: "Failed to fetch data bundle" });
     }
   });
 
@@ -442,14 +351,8 @@ export async function registerRoutes(
       
       res.json(stock);
     } catch (error: any) {
-      console.error("Database error, returning mock data:", error.message);
-      // Return mock data for development
-      const currentYear = new Date().getFullYear();
-      const mockStock = [
-        { type: "bece", year: currentYear, available: 100, stock: 100, price: 10.00 },
-        { type: "wassce", year: currentYear, available: 50, stock: 50, price: 15.00 },
-      ];
-      res.json(mockStock);
+      console.error("Database error:", error);
+      res.status(500).json({ error: "Failed to fetch result checker stock" });
     }
   });
 

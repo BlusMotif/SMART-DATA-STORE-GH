@@ -44,7 +44,7 @@ function Router() {
       <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/agent/register" component={AgentRegisterPage} />
-      <ProtectedRoute path="/user/dashboard" component={UserDashboard} />
+      <Route path="/user/dashboard" component={UserDashboard} />
       <ProtectedRoute path="/agent" component={AgentDashboard} requiredRole="agent" />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />

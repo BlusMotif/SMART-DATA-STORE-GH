@@ -37,13 +37,18 @@ export default function LoginPage() {
   // Navigate based on user role when user is loaded
   useEffect(() => {
     console.log("User after login:", user);
+    console.log("User role:", user?.role);
     if (user) {
       const role = user.role;
+      console.log("Redirecting based on role:", role);
       if (role === "admin") {
+        console.log("Redirecting to /admin");
         setLocation("/admin");
       } else if (role === "agent") {
+        console.log("Redirecting to /agent");
         setLocation("/agent");
       } else {
+        console.log("Redirecting to /user/dashboard");
         setLocation("/user/dashboard");
       }
     }

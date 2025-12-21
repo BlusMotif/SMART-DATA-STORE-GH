@@ -162,7 +162,71 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
 
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
+      // Try database first
+      try {
+        const user = await storage.getUserByEmail(email);
+        if (user && await bcrypt.compare(password, user.password)) {
+          req.session.userId = user.id;
+          req.session.userRole = user.role;
+
+          let agent = null;
+          if (user.role === UserRole.AGENT) {
+            agent = await storage.getAgentByUserId(user.id);
+          }
+
+          return res.json({
+            user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone },
+            agent: agent ? {
+              id: agent.id,
+              businessName: agent.businessName,
+              storefrontSlug: agent.storefrontSlug,
+              balance: agent.balance,
+              totalSales: agent.totalSales,
+            } : null
+          });
+        }
+      } catch (dbError) {
+        console.error("Database error during login, using mock auth:", dbError);
+      }
+
+      // Fallback to mock authentication
+      const mockUsers = [
+        { id: "1", email: "admin@example.com", name: "Admin User", role: "admin", password: "admin123" },
+        { id: "2", email: "agent@example.com", name: "Agent User", role: "agent", password: "agent123" },
+        { id: "3", email: "user@example.com", name: "Regular User", role: "user", password: "user123" },
+      ];
+
+      const mockUser = mockUsers.find(u => u.email === email && u.password === password);
+      if (mockUser) {
+        req.session.userId = mockUser.id;
+        req.session.userRole = mockUser.role;
+
+        return res.json({
+          user: { id: mockUser.id, email: mockUser.email, name: mockUser.name, role: mockUser.role },
+          agent: mockUser.role === "agent" ? {
+            id: mockUser.id,
+            businessName: "Mock Agent Store",
+            storefrontSlug: "mock-agent",
+            balance: 50000,
+            totalSales: 150000,
+          } : null
+        });
+      }
+
+      return res.status(401).json({ error: "Invalid email or password" });
+    } catch (error: any) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
 
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {

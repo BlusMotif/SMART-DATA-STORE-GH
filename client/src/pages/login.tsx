@@ -36,26 +36,32 @@ export default function LoginPage() {
 
   // Navigate based on user role when user is loaded and auth is ready
   useEffect(() => {
-    // Don't log or redirect while auth is still loading
-    if (isLoading) return;
+    // Don't redirect while auth is still loading
+    if (isLoading) {
+      console.log("Auth still loading, waiting...");
+      return;
+    }
 
     if (user) {
-      console.log("User authenticated:", user);
+      console.log("User authenticated in login page:", user);
       console.log("User role:", user.role);
       const role = user.role;
       console.log("Redirecting based on role:", role);
+
       if (role === "admin") {
-        console.log("Redirecting to /admin");
+        console.log("Redirecting admin to /admin");
         setLocation("/admin");
       } else if (role === "agent") {
-        console.log("Redirecting to /agent");
+        console.log("Redirecting agent to /agent");
         setLocation("/agent");
       } else {
-        console.log("Redirecting to /user/dashboard");
-        setLocation("/user/dashboard");
+        console.log("Redirecting user to /");
+        setLocation("/");
       }
+    } else {
+      console.log("No user found, staying on login page");
     }
-  }, [user, setLocation]);
+  }, [user, isLoading, setLocation]);
 
   const onSubmit = async (data: LoginFormData) => {
     try {
@@ -65,15 +71,7 @@ export default function LoginPage() {
           title: "Welcome back!",
           description: "You have successfully logged in.",
         });
-        // Redirect based on role
-        const role = result.user.user_metadata?.role;
-        if (role === "admin") {
-          setLocation("/admin");
-        } else if (role === "agent") {
-          setLocation("/agent");
-        } else {
-          setLocation("/");
-        }
+        // Note: Redirection is handled by the useEffect below based on user role from database
       }
     } catch (error) {
       // Error is handled by the mutation

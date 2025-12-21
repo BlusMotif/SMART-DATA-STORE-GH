@@ -102,16 +102,9 @@ export default function NetworkProductsPage() {
                   <SelectContent>
                     {sortedBundles.map((bundle) => (
                       <SelectItem key={bundle.id} value={bundle.id}>
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center gap-2">
-                            <NetworkBadge network={bundle.network} size="sm" />
-                            <span className="font-medium">{bundle.name}</span>
-                            <span className="text-sm text-muted-foreground">({bundle.dataAmount})</span>
-                          </div>
-                          <span className="font-semibold text-primary ml-4">
-                            {formatCurrency(parseFloat(bundle.basePrice))}
-                          </span>
-                        </div>
+                        <span className="font-medium">
+                          {bundle.network.toUpperCase()} {bundle.name} {formatCurrency(parseFloat(bundle.basePrice))}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

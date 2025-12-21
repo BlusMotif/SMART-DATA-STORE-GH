@@ -1,6 +1,7 @@
 import { APP_NAME } from "@/lib/constants";
 import { SiVisa, SiMastercard } from "react-icons/si";
 import { Shield, Lock } from "lucide-react";
+import siteLogo from "@assets/logo_1765774201026.png";
 
 export function Footer() {
   return (
@@ -9,9 +10,11 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
-                CT
-              </div>
+              <img
+                src={siteLogo}
+                alt="Logo"
+                className="h-8 w-8 rounded-lg object-contain"
+              />
               <span className="font-semibold text-lg">{APP_NAME}</span>
             </div>
             <p className="text-sm text-muted-foreground">

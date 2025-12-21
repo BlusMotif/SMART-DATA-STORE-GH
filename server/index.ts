@@ -7,6 +7,10 @@ import { createServer } from "http";
 import cors from "cors";
 import multer from "multer";
 import path from "path";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);

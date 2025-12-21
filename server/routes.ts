@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
@@ -305,19 +306,49 @@ export async function registerRoutes(
       }
 
       console.log("Getting user from Supabase...");
-      const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+      console.log("Supabase server configured:", !!supabaseServer);
+      console.log("Token length:", token.length);
 
+      const { data: userData, error } = await supabaseServer.auth.getUser(token);
+
+      console.log("Supabase response:", { hasUser: !!userData?.user, hasError: !!error });
       if (error) {
         console.error("Supabase auth error:", error);
-        return res.json({ user: null });
+        console.error("Error details:", JSON.stringify(error, null, 2));
       }
 
-      if (!user) {
-        console.log("No user found in Supabase");
-        return res.json({ user: null });
+      if (userData?.user) {
+        console.log("User found via getUser");
+        var user = userData.user;
+      } else {
+        console.log("Trying admin API as fallback...");
+        // Try to decode JWT to get user ID
+        try {
+          const decoded = jwt.decode(token);
+          console.log("Decoded JWT payload:", decoded);
+
+          if (decoded?.sub) {
+            const { data: adminData, error: adminError } = await supabaseServer.auth.admin.getUserById(decoded.sub);
+            console.log("Admin API result:", { hasUser: !!adminData?.user, hasError: !!adminError });
+
+            if (adminData?.user) {
+              console.log("User found via admin API");
+              var user = adminData.user;
+            } else {
+              console.log("No user found via admin API either");
+              return res.json({ user: null });
+            }
+          } else {
+            console.log("No sub in JWT");
+            return res.json({ user: null });
+          }
+        } catch (jwtError) {
+          console.error("JWT processing error:", jwtError);
+          return res.json({ user: null });
+        }
       }
 
-      console.log("User found:", { id: user.id, email: user.email });
+      console.log("Final user object:", { id: user.id, email: user.email });
 
       // Get user role from database (required for proper role management)
       let role = 'user'; // Default role

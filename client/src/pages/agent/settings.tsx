@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Settings, User, Lock, Save, Menu } from "lucide-react";
+import { Settings, User, Lock, Save } from "lucide-react";
 import type { Agent, User as UserType } from "@shared/schema";
 
 const profileSchema = z.object({
@@ -39,7 +39,6 @@ interface AgentProfile extends Agent {
 
 export default function AgentSettings() {
   const { toast } = useToast();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: profile } = useQuery<AgentProfile>({
     queryKey: ["/api/agent/profile"],
@@ -107,38 +106,14 @@ export default function AgentSettings() {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
-            <AgentSidebar onClose={() => setSidebarOpen(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block">
-        <AgentSidebar />
-      </div>
-
+      <AgentSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <h1 className="text-lg lg:text-xl font-semibold">Settings</h1>
-          </div>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
+          <h1 className="text-xl font-semibold">Settings</h1>
           <ThemeToggle />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto space-y-6">
             <Card>
               <CardHeader>

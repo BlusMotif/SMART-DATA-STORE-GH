@@ -16,7 +16,7 @@ import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Plus, FileCheck, Package, AlertCircle, Menu } from "lucide-react";
+import { Plus, FileCheck, Package, AlertCircle } from "lucide-react";
 import type { ResultChecker } from "@shared/schema";
 
 interface StockSummary {
@@ -32,7 +32,6 @@ export default function AdminResultCheckers() {
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: checkers, isLoading } = useQuery<ResultChecker[]>({
     queryKey: ["/api/admin/result-checkers"],
@@ -107,34 +106,10 @@ export default function AdminResultCheckers() {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
-            <AdminSidebar onClose={() => setSidebarOpen(false)} />
-          </div>
-        </div>
-      )}
-
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block">
-        <AdminSidebar />
-      </div>
-
+      <AdminSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <h1 className="text-lg lg:text-xl font-semibold">Result Checkers</h1>
-          </div>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
+          <h1 className="text-xl font-semibold">Result Checkers</h1>
           <div className="flex items-center gap-4">
             <Dialog open={isBulkAddOpen} onOpenChange={setIsBulkAddOpen}>
               <DialogTrigger asChild>
@@ -157,7 +132,7 @@ export default function AdminResultCheckers() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard

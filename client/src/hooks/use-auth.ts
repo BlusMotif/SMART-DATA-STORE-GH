@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
+import { supabase } from "@/lib/supabaseClient";
 
 export function useAuth() {
   const [isLoginLoading, setIsLoginLoading] = useState(false);
@@ -11,8 +12,32 @@ export function useAuth() {
 
   const queryClient = useQueryClient();
 
-  // Get access token from localStorage
-  const getAccessToken = () => localStorage.getItem('access_token');
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("Auth event:", event);
+
+        if (session) {
+          console.log("Session restored:", session.user.id);
+          // Invalidate and refetch auth data when session changes
+          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+        } else {
+          console.log("Session cleared");
+          // Clear auth data when session is cleared
+          queryClient.setQueryData(["/api/auth/me"], { user: null });
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [queryClient]);
+
+  // Get access token from Supabase session
+  const getAccessToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  };
 
   const { data: authData, isLoading } = useQuery<{
     user: User | null;
@@ -21,7 +46,7 @@ export function useAuth() {
     queryKey: ["/api/auth/me"],
     retry: false,
     queryFn: async () => {
-      const token = getAccessToken();
+      const token = await getAccessToken();
       console.log("Auth check - token exists:", !!token);
       if (!token) {
         console.log("No token found, returning null user");
@@ -59,27 +84,19 @@ export function useAuth() {
     setIsLoginLoading(true);
     setLoginError(null);
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      const data = await response.json();
-      if (!response.ok) {
-        setLoginError(data.error || 'Login failed');
-        return { error: data.error || 'Login failed' };
+
+      if (error) {
+        setLoginError(error.message);
+        return { error: error.message };
       }
 
-      // Store tokens in localStorage
-      if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-      }
-      if (data.refresh_token) {
-        localStorage.setItem('refresh_token', data.refresh_token);
-      }
-
-      // Update the query cache with the login response data
-      queryClient.setQueryData(["/api/auth/me"], data);
+      // Supabase will automatically handle session storage
+      // The auth state change listener will trigger and update the query cache
+      console.log("Login successful, session created");
       return { user: data.user };
     } catch (error: any) {
       const errorMessage = error.message || "Login failed";
@@ -94,27 +111,24 @@ export function useAuth() {
     setIsRegisterLoading(true);
     setRegisterError(null);
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+          },
+        },
       });
-      const data = await response.json();
-      if (!response.ok) {
-        setRegisterError(data.error || 'Registration failed');
-        return { error: data.error || 'Registration failed' };
+
+      if (error) {
+        setRegisterError(error.message);
+        return { error: error.message };
       }
 
-      // Store tokens in localStorage
-      if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-      }
-      if (data.refresh_token) {
-        localStorage.setItem('refresh_token', data.refresh_token);
-      }
-
-      // Update the query cache with the registration response data
-      queryClient.setQueryData(["/api/auth/me"], data);
+      // For registration, we might not get a session immediately if email confirmation is required
+      // The auth state change listener will handle session updates
+      console.log("Registration successful");
       return { user: data.user };
     } catch (error: any) {
       const errorMessage = error.message || "Registration failed";
@@ -128,25 +142,14 @@ export function useAuth() {
   const logout = async () => {
     setIsLoggingOut(true);
     try {
-      const token = getAccessToken();
-      if (token) {
-        const response = await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        if (!response.ok) {
-          console.error("Logout failed");
-        }
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Logout failed:", error);
       }
 
-      // Clear tokens from localStorage
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-
-      // Clear the user data from query cache
-      queryClient.setQueryData(["/api/auth/me"], { user: null });
+      // Supabase will automatically clear the session
+      // The auth state change listener will handle clearing the query cache
+      console.log("Logout successful");
     } catch (error: any) {
       console.error("Logout failed:", error);
     } finally {

@@ -334,20 +334,31 @@ export async function registerRoutes(
 
       // Always try to get user from database for role and additional data
       try {
-        console.log("Looking up user in database:", user.email);
-        console.log("Looking up user in database:", user.email);
+        const dbUser = await storage.getUserByEmail(user.email!);
         if (dbUser) {
           role = dbUser.role;
-          console.log("User found in database with role:", role);
           if (dbUser.role === UserRole.AGENT) {
             agent = await storage.getAgentByUserId(dbUser.id);
-            console.log("Agent data loaded");
           }
         } else {
-          // User exists in Supabase but not in our database
-          // This shouldn't happen in normal flow, but handle gracefully
-          console.warn("User authenticated but not found in database:", user.email);
-          role = 'user'; // Default to user role
+          // User exists in Supabase but not in our database - create them
+          console.log("Creating user in database:", user.email);
+          try {
+            const newUser = await storage.createUser({
+              email: user.email!,
+              password: "", // Password not needed since auth is handled by Supabase
+              name: user.user_metadata?.name || user.email!.split('@')[0],
+              phone: user.phone || null,
+              role: 'user', // Default role for new users
+              isActive: true,
+            });
+            role = newUser.role;
+            console.log("User created in database with role:", role);
+          } catch (createError) {
+            console.error("Failed to create user in database:", createError);
+            // If we can't create the user, default to guest role
+            role = 'guest';
+          }
         }
       } catch (dbError) {
         console.error("Database error getting user data:", dbError);

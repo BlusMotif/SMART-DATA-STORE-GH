@@ -22,21 +22,33 @@ export function useAuth() {
     retry: false,
     queryFn: async () => {
       const token = getAccessToken();
+      console.log("Auth check - token exists:", !!token);
       if (!token) {
+        console.log("No token found, returning null user");
         return { user: null };
       }
 
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      try {
+        console.log("Fetching /api/auth/me with token");
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
 
-      if (!response.ok) {
+        console.log("Auth response status:", response.status);
+        if (!response.ok) {
+          console.log("Auth response not ok, returning null user");
+          return { user: null };
+        }
+
+        const data = await response.json();
+        console.log("Auth response data:", data);
+        return data;
+      } catch (error) {
+        console.error("Auth check error:", error);
         return { user: null };
       }
-
-      return response.json();
     },
   });
 

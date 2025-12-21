@@ -219,11 +219,11 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
-      // Get user role from user metadata or database
-      let role = data.user.user_metadata?.role || 'user';
+      // Get user role from database (required for proper role management)
+      let role = 'user'; // Default role
       let agent = null;
 
-      // Try to get user from database for additional data
+      // Always try to get user from database for role and additional data
       try {
         const dbUser = await storage.getUserByEmail(email);
         if (dbUser) {
@@ -231,10 +231,16 @@ export async function registerRoutes(
           if (dbUser.role === UserRole.AGENT) {
             agent = await storage.getAgentByUserId(dbUser.id);
           }
+        } else {
+          // User exists in Supabase but not in our database
+          // This shouldn't happen in normal flow, but handle gracefully
+          console.warn("User authenticated but not found in database:", email);
+          role = 'user'; // Default to user role
         }
       } catch (dbError) {
         console.error("Database error getting user data:", dbError);
-        // Continue with Supabase data if database fails
+        // If database is down, we can't determine role safely
+        return res.status(500).json({ error: "Database connection failed" });
       }
 
       res.json({
@@ -282,41 +288,65 @@ export async function registerRoutes(
 
   app.get("/api/auth/me", async (req, res) => {
     try {
+      console.log("Auth check request received");
       const authHeader = req.headers.authorization;
+      console.log("Auth header present:", !!authHeader);
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log("No valid auth header, returning null user");
         return res.json({ user: null });
       }
 
       const token = authHeader.substring(7);
+      console.log("Token extracted, length:", token.length);
 
       if (!supabaseServer) {
+        console.error("Supabase not configured");
         return res.status(500).json({ error: "Supabase not configured" });
       }
 
+      console.log("Getting user from Supabase...");
       const { data: { user }, error } = await supabaseServer.auth.getUser(token);
 
-      if (error || !user) {
+      if (error) {
+        console.error("Supabase auth error:", error);
         return res.json({ user: null });
       }
 
-      // Get user role from user metadata or database
-      let role = user.user_metadata?.role || 'user';
+      if (!user) {
+        console.log("No user found in Supabase");
+        return res.json({ user: null });
+      }
+
+      console.log("User found:", { id: user.id, email: user.email });
+
+      // Get user role from database (required for proper role management)
+      let role = 'user'; // Default role
       let agent = null;
 
-      // Try to get user from database for additional data
+      // Always try to get user from database for role and additional data
       try {
+        console.log("Looking up user in database:", user.email);
         const dbUser = await storage.getUserByEmail(user.email!);
         if (dbUser) {
           role = dbUser.role;
+          console.log("User found in database with role:", role);
           if (dbUser.role === UserRole.AGENT) {
             agent = await storage.getAgentByUserId(dbUser.id);
+            console.log("Agent data loaded");
           }
+        } else {
+          // User exists in Supabase but not in our database
+          // This shouldn't happen in normal flow, but handle gracefully
+          console.warn("User authenticated but not found in database:", user.email);
+          role = 'user'; // Default to user role
         }
       } catch (dbError) {
         console.error("Database error getting user data:", dbError);
-        // Continue with Supabase data if database fails
+        // If database is down, we can't determine role safely
+        return res.status(500).json({ error: "Database connection failed" });
       }
 
+      console.log("Final user data:", { id: user.id, email: user.email, role, hasAgent: !!agent });
       res.json({
         user: {
           id: user.id,

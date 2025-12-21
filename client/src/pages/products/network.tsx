@@ -5,7 +5,8 @@ import { Footer } from "@/components/layout/footer";
 import { DataBundleCard, DataBundleCardSkeleton } from "@/components/products/data-bundle-card";
 import { Button } from "@/components/ui/button";
 import { NoDataBundles } from "@/components/ui/empty-state";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Clock, AlertTriangle } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import type { DataBundle } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -84,6 +85,46 @@ export default function NetworkProductsPage() {
           ) : (
             <NoDataBundles />
           )}
+
+          {/* Data Delivery Information */}
+          <div className="mt-12 space-y-6">
+            <Card className="p-6">
+              <div className="flex items-start gap-3">
+                <Clock className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Data Delivery Time</h3>
+                  <p className="text-muted-foreground">
+                    Data takes between 10 to 30 minutes — maximum 60 minutes (1 hour) — to be credited.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-lg mb-2 text-orange-900 dark:text-orange-100">
+                    Our DATA REQUEST DOES NOT support:
+                  </h3>
+                  <ul className="text-muted-foreground space-y-1 ml-4">
+                    <li>• Turbonet SIM</li>
+                    <li>• Merchant SIM</li>
+                    <li>• EVD SIM</li>
+                    <li>• Broadband SIM</li>
+                    <li>• Blacklisted SIM</li>
+                    <li>• Roaming SIM</li>
+                    <li>• Different Network</li>
+                    <li>• Wrong Number</li>
+                    <li>• Inactive Number</li>
+                  </ul>
+                  <p className="text-orange-800 dark:text-orange-200 font-medium mt-3">
+                    Important Notice: Any data transferred to the above SIM types is burnt and irreversible.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       </main>
 

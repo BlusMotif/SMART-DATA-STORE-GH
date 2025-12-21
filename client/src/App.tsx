@@ -63,7 +63,15 @@ function Router() {
 
 function App() {
   return (
-    <div>Hello World</div>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <TooltipProvider>
+          <PWAInstallPrompt />
+          <Router />
+          <Toaster />
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

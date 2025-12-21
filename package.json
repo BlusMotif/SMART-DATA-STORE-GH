@@ -10,6 +10,7 @@
     "check": "tsc",
     "seed:admin": "npx tsx script/seed-admin.ts",
     "create:admin": "npx tsx script/create-admin.ts",
+    "create:admin:supabase": "npx tsx script/create-admin-supabase.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

@@ -1216,5 +1216,51 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // USER ROUTES
+  // ============================================
+  app.get("/api/transactions", requireAuth, async (req, res) => {
+    try {
+      // Get user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const transactions = await storage.getTransactions({
+        userId: dbUser.id,
+        limit: 50,
+      });
+
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load transactions" });
+    }
+  });
+
+  app.get("/api/user/stats", requireAuth, async (req, res) => {
+    try {
+      // Get user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const transactions = await storage.getTransactions({
+        userId: dbUser.id,
+      });
+
+      const totalOrders = transactions.length;
+      const totalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+      res.json({
+        totalOrders,
+        totalSpent: totalSpent.toFixed(2),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load user stats" });
+    }
+  });
+
   return httpServer;
 }

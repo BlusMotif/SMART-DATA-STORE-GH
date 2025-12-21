@@ -44,7 +44,7 @@ export default function LoginPage() {
       } else if (role === "agent") {
         setLocation("/agent");
       } else {
-        setLocation("/");
+        setLocation("/user/dashboard");
       }
     }
   }, [user, setLocation]);

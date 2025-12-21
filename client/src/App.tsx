@@ -30,6 +30,7 @@ import StorefrontPage from "@/pages/storefront";
 import NetworkProductsPage from "@/pages/products/network";
 import ResultCheckersPage from "@/pages/products/result-checkers";
 import DataBundlesPage from "@/pages/data-bundles";
+import UserDashboard from "@/pages/user/dashboard";
 
 function Router() {
   return (
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/agent/register" component={AgentRegisterPage} />
+      <ProtectedRoute path="/user/dashboard" component={UserDashboard} />
       <ProtectedRoute path="/agent" component={AgentDashboard} requiredRole="agent" />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />

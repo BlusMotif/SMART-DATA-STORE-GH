@@ -103,7 +103,7 @@ export default function NetworkProductsPage() {
                     {sortedBundles.map((bundle) => (
                       <SelectItem key={bundle.id} value={bundle.id}>
                         <span className="font-medium">
-                          {bundle.network.toUpperCase()} {bundle.name} {formatCurrency(parseFloat(bundle.basePrice))}
+                          {bundle.network.toUpperCase()} {bundle.dataAmount} {formatCurrency(parseFloat(bundle.basePrice))}
                         </span>
                       </SelectItem>
                     ))}

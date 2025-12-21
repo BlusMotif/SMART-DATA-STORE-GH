@@ -47,10 +47,41 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    // Get user role from database
+    let role = 'user'; // Default role
+    try {
+      const dbUser = await storage.getUserByEmail(user.email);
+      if (dbUser) {
+        role = dbUser.role;
+      } else {
+        // User exists in Supabase but not in our database - create them
+        console.log("Creating user in database:", user.email);
+        try {
+          const newUser = await storage.createUser({
+            email: user.email,
+            password: "", // Password not needed since auth is handled by Supabase
+            name: user.user_metadata?.name || user.email.split('@')[0],
+            phone: user.phone || null,
+            role: 'user', // Default role for new users
+            isActive: true,
+          });
+          role = newUser.role;
+          console.log("User created in database with role:", role);
+        } catch (createError) {
+          console.error("Failed to create user in database:", createError);
+          role = 'guest'; // Fallback role
+        }
+      }
+    } catch (dbError) {
+      console.error("Database error in auth middleware:", dbError);
+      return res.status(500).json({ error: "Database connection failed" });
+    }
+
     req.user = {
       id: user.id,
       email: user.email,
       user_metadata: user.user_metadata,
+      role: role,
     };
     next();
   } catch (error) {
@@ -61,62 +92,44 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
 
 const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // requireAuth should have already run and set req.user
+    if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    const token = authHeader.substring(7);
-
-    if (!supabaseServer) {
-      return res.status(500).json({ error: "Supabase not configured" });
-    }
-
-    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-
-    if (error || !user || !user.email || user.user_metadata?.role !== UserRole.ADMIN) {
+    // Get user role from database
+    const dbUser = await storage.getUserByEmail(req.user.email);
+    if (!dbUser || dbUser.role !== UserRole.ADMIN) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    req.user = {
-      id: user.id,
-      email: user.email,
-      user_metadata: user.user_metadata,
-    };
+    // Add role to req.user for use in route handlers
+    req.user.role = dbUser.role;
     next();
   } catch (error) {
-    console.error('Admin auth middleware error:', error);
+    console.error('Admin auth error:', error);
     res.status(403).json({ error: "Admin access required" });
   }
 };
 
 const requireAgent = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    // requireAuth should have already run and set req.user
+    if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Agent access required" });
     }
 
-    const token = authHeader.substring(7);
-
-    if (!supabaseServer) {
-      return res.status(500).json({ error: "Supabase not configured" });
-    }
-
-    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-
-    if (error || !user || !user.email || user.user_metadata?.role !== UserRole.AGENT) {
+    // Get user role from database
+    const dbUser = await storage.getUserByEmail(req.user.email);
+    if (!dbUser || dbUser.role !== UserRole.AGENT) {
       return res.status(403).json({ error: "Agent access required" });
     }
 
-    req.user = {
-      id: user.id,
-      email: user.email,
-      user_metadata: user.user_metadata,
-    };
+    // Add role to req.user for use in route handlers
+    req.user.role = dbUser.role;
     next();
   } catch (error) {
-    console.error('Agent auth middleware error:', error);
+    console.error('Agent auth error:', error);
     res.status(403).json({ error: "Agent access required" });
   }
 };

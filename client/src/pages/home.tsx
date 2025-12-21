@@ -145,14 +145,16 @@ export default function HomePage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {productCategories.map((cat) => (
                 <Link key={cat.id} href={cat.href}>
-                  <Card className="p-4 aspect-square flex flex-col items-center justify-center gap-3 cursor-pointer hover-elevate transition-all">
+                  <Card className="p-6 h-full flex flex-col items-center justify-center gap-4 cursor-pointer hover-elevate transition-all min-h-[200px]">
                     <img
                       src={cat.image}
                       alt={cat.name}
-                      className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                      className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg flex-shrink-0"
                     />
-                    <p className="text-lg font-semibold text-center">{cat.name}</p>
-                    <p className="text-sm text-center text-muted-foreground">{cat.description}</p>
+                    <div className="flex flex-col items-center gap-2 flex-1 justify-center">
+                      <p className="text-lg font-semibold text-center">{cat.name}</p>
+                      <p className="text-sm text-center text-muted-foreground leading-relaxed">{cat.description}</p>
+                    </div>
                   </Card>
                 </Link>
               ))}

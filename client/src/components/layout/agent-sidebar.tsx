@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { APP_NAME, formatCurrency } from "@/lib/constants";
 import type { Agent } from "@shared/schema";
+import siteLogo from "@assets/logo_1765774201026.png";
 
 const sidebarNavItems = [
   {
@@ -65,9 +66,11 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
           </div>
         )}
         <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
-            CT
-          </div>
+          <img
+            src={siteLogo}
+            alt="Logo"
+            className="h-8 w-8 rounded-lg object-contain"
+          />
           <div className="flex flex-col">
             <span className="font-semibold text-sm">{APP_NAME}</span>
             <span className="text-xs text-muted-foreground">Agent Portal</span>

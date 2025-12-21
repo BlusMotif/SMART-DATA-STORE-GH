@@ -36,13 +36,21 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
+    if (!supabaseServer) {
+      return res.status(500).json({ error: "Supabase not configured" });
+    }
+
     const { data: { user }, error } = await supabaseServer.auth.getUser(token);
 
-    if (error || !user) {
+    if (error || !user || !user.email) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata,
+    };
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -59,13 +67,21 @@ const requireAdmin = async (req: Request, res: Response, next: NextFunction) => 
 
     const token = authHeader.substring(7);
 
+    if (!supabaseServer) {
+      return res.status(500).json({ error: "Supabase not configured" });
+    }
+
     const { data: { user }, error } = await supabaseServer.auth.getUser(token);
 
-    if (error || !user || user.user_metadata?.role !== UserRole.ADMIN) {
+    if (error || !user || !user.email || user.user_metadata?.role !== UserRole.ADMIN) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata,
+    };
     next();
   } catch (error) {
     console.error('Admin auth middleware error:', error);
@@ -82,13 +98,21 @@ const requireAgent = async (req: Request, res: Response, next: NextFunction) => 
 
     const token = authHeader.substring(7);
 
+    if (!supabaseServer) {
+      return res.status(500).json({ error: "Supabase not configured" });
+    }
+
     const { data: { user }, error } = await supabaseServer.auth.getUser(token);
 
-    if (error || !user || user.user_metadata?.role !== UserRole.AGENT) {
+    if (error || !user || !user.email || user.user_metadata?.role !== UserRole.AGENT) {
       return res.status(403).json({ error: "Agent access required" });
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      email: user.email,
+      user_metadata: user.user_metadata,
+    };
     next();
   } catch (error) {
     console.error('Agent auth middleware error:', error);
@@ -114,23 +138,59 @@ export async function registerRoutes(
   app.post("/api/auth/register", async (req, res) => {
     try {
       const data = registerSchema.parse(req.body);
-      
-      const existing = await storage.getUserByEmail(data.email);
-      if (existing) {
-        return res.status(400).json({ error: "Email already registered" });
+
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Supabase not configured" });
       }
 
-      const hashedPassword = await bcrypt.hash(data.password, 10);
-      const user = await storage.createUser({
-        ...data,
-        password: hashedPassword,
-        role: UserRole.GUEST,
+      // Check if user already exists in database
+      try {
+        const existing = await storage.getUserByEmail(data.email);
+        if (existing) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+      } catch (dbError) {
+        console.error("Database error checking existing user:", dbError);
+        return res.status(500).json({ error: "Database connection failed" });
+      }
+
+      // Sign up with Supabase
+      const { data: supabaseData, error } = await supabaseServer.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            name: data.name,
+            role: UserRole.GUEST,
+            phone: data.phone || null,
+          }
+        }
       });
 
-      req.session.userId = user.id;
-      req.session.userRole = user.role;
+      if (error || !supabaseData.user) {
+        return res.status(400).json({ error: error?.message || "Registration failed" });
+      }
 
-      res.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+      // Create user in local database
+      try {
+        const hashedPassword = await bcrypt.hash(data.password, 10);
+        const user = await storage.createUser({
+          ...data,
+          password: hashedPassword,
+          role: UserRole.GUEST,
+        });
+
+        res.status(201).json({
+          user: { id: user.id, email: user.email, name: user.name, role: user.role },
+          access_token: supabaseData.session?.access_token,
+          refresh_token: supabaseData.session?.refresh_token,
+        });
+      } catch (dbError) {
+        console.error("Database error creating user:", dbError);
+        // If database creation fails, we should probably delete the Supabase user
+        // But for now, just return an error
+        return res.status(500).json({ error: "Failed to create user in database" });
+      }
     } catch (error: any) {
       console.error("Registration error:", error);
       res.status(500).json({ error: "Registration failed" });
@@ -145,82 +205,138 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email and password are required" });
       }
 
-      // Try database first
-      try {
-        const user = await storage.getUserByEmail(email);
-        if (user && await bcrypt.compare(password, user.password)) {
-          req.session.userId = user.id;
-          req.session.userRole = user.role;
-
-          let agent = null;
-          if (user.role === UserRole.AGENT) {
-            agent = await storage.getAgentByUserId(user.id);
-          }
-
-          return res.json({
-            user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone },
-            agent: agent ? {
-              id: agent.id,
-              businessName: agent.businessName,
-              storefrontSlug: agent.storefrontSlug,
-              balance: agent.balance,
-              totalSales: agent.totalSales,
-            } : null
-          });
-        }
-      } catch (dbError) {
-        console.error("Database error during login:", dbError);
-        return res.status(500).json({ error: "Database connection failed" });
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Supabase not configured" });
       }
 
-      return res.status(401).json({ error: "Invalid email or password" });
+      // Sign in with Supabase
+      const { data, error } = await supabaseServer.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error || !data.user) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Get user role from user metadata or database
+      let role = data.user.user_metadata?.role || 'user';
+      let agent = null;
+
+      // Try to get user from database for additional data
+      try {
+        const dbUser = await storage.getUserByEmail(email);
+        if (dbUser) {
+          role = dbUser.role;
+          if (dbUser.role === UserRole.AGENT) {
+            agent = await storage.getAgentByUserId(dbUser.id);
+          }
+        }
+      } catch (dbError) {
+        console.error("Database error getting user data:", dbError);
+        // Continue with Supabase data if database fails
+      }
+
+      res.json({
+        user: {
+          id: data.user.id,
+          email: data.user.email!,
+          name: data.user.user_metadata?.name || data.user.email!.split('@')[0],
+          role: role,
+          phone: data.user.phone || null
+        },
+        agent: agent ? {
+          id: agent.id,
+          businessName: agent.businessName,
+          storefrontSlug: agent.storefrontSlug,
+          balance: agent.balance,
+          totalSales: agent.totalSales,
+        } : null,
+        access_token: data.session?.access_token,
+        refresh_token: data.session?.refresh_token,
+      });
     } catch (error: any) {
       console.error("Login error:", error);
       res.status(500).json({ error: "Login failed" });
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: "Logout failed" });
+  app.post("/api/auth/logout", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+
+        if (supabaseServer) {
+          // Sign out from Supabase
+          await supabaseServer.auth.admin.signOut(token);
+        }
       }
+
       res.json({ success: true });
-    });
+    } catch (error: any) {
+      console.error("Logout error:", error);
+      res.status(500).json({ error: "Logout failed" });
+    }
   });
 
   app.get("/api/auth/me", async (req, res) => {
-    if (!req.session?.userId) {
-      return res.json({ user: null });
-    }
-
     try {
-      const user = await storage.getUser(req.session.userId);
-      if (!user) {
-        req.session.destroy(() => {});
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.json({ user: null });
       }
 
+      const token = authHeader.substring(7);
+
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Supabase not configured" });
+      }
+
+      const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+
+      if (error || !user) {
+        return res.json({ user: null });
+      }
+
+      // Get user role from user metadata or database
+      let role = user.user_metadata?.role || 'user';
       let agent = null;
-      if (user.role === UserRole.AGENT) {
-        agent = await storage.getAgentByUserId(user.id);
+
+      // Try to get user from database for additional data
+      try {
+        const dbUser = await storage.getUserByEmail(user.email!);
+        if (dbUser) {
+          role = dbUser.role;
+          if (dbUser.role === UserRole.AGENT) {
+            agent = await storage.getAgentByUserId(dbUser.id);
+          }
+        }
+      } catch (dbError) {
+        console.error("Database error getting user data:", dbError);
+        // Continue with Supabase data if database fails
       }
 
       res.json({
-        user: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone },
+        user: {
+          id: user.id,
+          email: user.email!,
+          name: user.user_metadata?.name || user.email!.split('@')[0],
+          role: role,
+          phone: user.phone || null
+        },
         agent: agent ? {
           id: agent.id,
           businessName: agent.businessName,
           storefrontSlug: agent.storefrontSlug,
           balance: agent.balance,
-        totalSales: agent.totalSales,
-        totalProfit: agent.totalProfit,
-        isApproved: agent.isApproved,
-      } : null,
-    });
+          totalSales: agent.totalSales,
+          totalProfit: agent.totalProfit,
+          isApproved: agent.isApproved,
+        } : null,
+      });
     } catch (error: any) {
       console.error("Auth check error:", error);
-      req.session.destroy(() => {});
       res.json({ user: null });
     }
   });
@@ -690,12 +806,18 @@ export async function registerRoutes(
   // ============================================
   app.get("/api/agent/profile", requireAuth, requireAgent, async (req, res) => {
     try {
-      const agent = await storage.getAgentByUserId(req.session.userId!);
+      // Get user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent profile not found" });
       }
 
-      const user = await storage.getUser(req.session.userId!);
+      const user = await storage.getUser(dbUser.id);
       const stats = await storage.getTransactionStats(agent.id);
 
       res.json({
@@ -712,7 +834,13 @@ export async function registerRoutes(
 
   app.get("/api/agent/transactions", requireAuth, requireAgent, async (req, res) => {
     try {
-      const agent = await storage.getAgentByUserId(req.session.userId!);
+      // Get user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
@@ -730,7 +858,13 @@ export async function registerRoutes(
 
   app.get("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
-      const agent = await storage.getAgentByUserId(req.session.userId!);
+      // Get user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
@@ -745,8 +879,14 @@ export async function registerRoutes(
   app.post("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
       const data = withdrawalRequestSchema.parse(req.body);
-      
-      const agent = await storage.getAgentByUserId(req.session.userId!);
+
+      // Get user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
@@ -855,7 +995,7 @@ export async function registerRoutes(
   app.patch("/api/admin/withdrawals/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { status, adminNote } = req.body;
-      
+
       const withdrawal = await storage.getWithdrawal(req.params.id);
       if (!withdrawal) {
         return res.status(404).json({ error: "Withdrawal not found" });
@@ -865,10 +1005,16 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Withdrawal already processed" });
       }
 
+      // Get admin user from database using email from JWT
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "Admin user not found" });
+      }
+
       const updated = await storage.updateWithdrawal(req.params.id, {
         status,
         adminNote,
-        processedBy: req.session.userId,
+        processedBy: dbUser.id,
         processedAt: new Date(),
       });
 

@@ -11,12 +11,33 @@ export function useAuth() {
 
   const queryClient = useQueryClient();
 
+  // Get access token from localStorage
+  const getAccessToken = () => localStorage.getItem('access_token');
+
   const { data: authData, isLoading } = useQuery<{
     user: User | null;
     agent?: any;
   }>({
     queryKey: ["/api/auth/me"],
     retry: false,
+    queryFn: async () => {
+      const token = getAccessToken();
+      if (!token) {
+        return { user: null };
+      }
+
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        return { user: null };
+      }
+
+      return response.json();
+    },
   });
 
   const user = authData?.user ?? null;
@@ -29,7 +50,6 @@ export function useAuth() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
@@ -37,6 +57,15 @@ export function useAuth() {
         setLoginError(data.error || 'Login failed');
         return { error: data.error || 'Login failed' };
       }
+
+      // Store tokens in localStorage
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+      }
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+
       // Update the query cache with the login response data
       queryClient.setQueryData(["/api/auth/me"], data);
       return { user: data.user };
@@ -56,7 +85,6 @@ export function useAuth() {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email, password, name }),
       });
       const data = await response.json();
@@ -64,6 +92,15 @@ export function useAuth() {
         setRegisterError(data.error || 'Registration failed');
         return { error: data.error || 'Registration failed' };
       }
+
+      // Store tokens in localStorage
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+      }
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+
       // Update the query cache with the registration response data
       queryClient.setQueryData(["/api/auth/me"], data);
       return { user: data.user };
@@ -79,13 +116,23 @@ export function useAuth() {
   const logout = async () => {
     setIsLoggingOut(true);
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        console.error("Logout failed");
+      const token = getAccessToken();
+      if (token) {
+        const response = await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) {
+          console.error("Logout failed");
+        }
       }
+
+      // Clear tokens from localStorage
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+
       // Clear the user data from query cache
       queryClient.setQueryData(["/api/auth/me"], { user: null });
     } catch (error: any) {

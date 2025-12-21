@@ -58,9 +58,14 @@ export const api = {
 // API request utility
 export async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
   const url = api.buildUrl(endpoint);
+
+  // Get access token from localStorage
+  const token = localStorage.getItem('access_token');
+
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
       ...options.headers,
     },
     ...options,

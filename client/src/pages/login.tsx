@@ -23,7 +23,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoginLoading, loginError, user } = useAuth();
+  const { login, isLoginLoading, loginError, user, isLoading } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<LoginFormData>({
@@ -34,11 +34,14 @@ export default function LoginPage() {
     },
   });
 
-  // Navigate based on user role when user is loaded
+  // Navigate based on user role when user is loaded and auth is ready
   useEffect(() => {
-    console.log("User after login:", user);
-    console.log("User role:", user?.role);
+    // Don't log or redirect while auth is still loading
+    if (isLoading) return;
+
     if (user) {
+      console.log("User authenticated:", user);
+      console.log("User role:", user.role);
       const role = user.role;
       console.log("Redirecting based on role:", role);
       if (role === "admin") {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { supabase } from "@/lib/supabaseClient";
@@ -11,49 +11,63 @@ export function useAuth() {
   const [registerError, setRegisterError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
+  const isFetchingUser = useRef(false);
 
-  // Listen for auth state changes
+  // Get current session for enabling the query
+  const [currentSession, setCurrentSession] = useState<any>(null);
+
+  // Update current session when auth state changes
   useEffect(() => {
+    const getInitialSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setCurrentSession(data.session);
+    };
+    getInitialSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth event:", event);
+        setCurrentSession(session);
 
-        if (session) {
+        if (event === "SIGNED_IN" && session) {
           console.log("Session restored:", session.user.id);
           // Invalidate and refetch auth data when session changes
           queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        } else {
-          console.log("Session cleared");
-          // Clear auth data when session is cleared
+        } else if (event === "SIGNED_OUT") {
+          console.log("User signed out");
+          // Clear auth data when user signs out
           queryClient.setQueryData(["/api/auth/me"], { user: null });
         }
+        // Don't clear user state on INITIAL_SESSION - this causes confusing logs
       }
     );
 
     return () => subscription.unsubscribe();
   }, [queryClient]);
 
-  // Get access token from Supabase session
-  const getAccessToken = async () => {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
-  };
-
   const { data: authData, isLoading } = useQuery<{
     user: User | null;
     agent?: any;
   }>({
     queryKey: ["/api/auth/me"],
+    enabled: !!currentSession?.access_token, // Only run when we have a session
     retry: false,
     queryFn: async () => {
-      const token = await getAccessToken();
-      console.log("Auth check - token exists:", !!token);
-      if (!token) {
-        console.log("No token found, returning null user");
+      // Prevent duplicate calls
+      if (isFetchingUser.current) {
+        console.log("Already fetching user, skipping duplicate call");
         return { user: null };
       }
+      isFetchingUser.current = true;
 
       try {
+        const token = currentSession?.access_token;
+        console.log("Auth check - token exists:", !!token);
+        if (!token) {
+          console.log("No token found, returning null user");
+          return { user: null };
+        }
+
         console.log("Fetching /api/auth/me with token");
         const response = await fetch('/api/auth/me', {
           headers: {
@@ -73,6 +87,8 @@ export function useAuth() {
       } catch (error) {
         console.error("Auth check error:", error);
         return { user: null };
+      } finally {
+        isFetchingUser.current = false;
       }
     },
   });

@@ -289,63 +289,41 @@ export async function registerRoutes(
 
   app.get("/api/auth/me", async (req, res) => {
     try {
-      console.log("Auth check request received");
       const authHeader = req.headers.authorization;
-      console.log("Auth header present:", !!authHeader);
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        console.log("No valid auth header, returning null user");
         return res.json({ user: null });
       }
 
       const token = authHeader.substring(7);
-      console.log("Token extracted, length:", token.length);
 
       if (!supabaseServer) {
         console.error("Supabase not configured");
         return res.status(500).json({ error: "Supabase not configured" });
       }
 
-      console.log("Getting user from Supabase...");
-      console.log("Supabase server configured:", !!supabaseServer);
-      console.log("Token length:", token.length);
-
       const { data: userData, error } = await supabaseServer.auth.getUser(token);
 
-      console.log("Supabase response:", { hasUser: !!userData?.user, hasError: !!error });
-      if (error) {
-        console.error("Supabase auth error:", error);
-        console.error("Error details:", JSON.stringify(error, null, 2));
-      }
-
-      if (userData?.user) {
-        console.log("User found via getUser");
-        var user = userData.user;
-      } else {
-        console.log("Trying admin API as fallback...");
-        // Try to decode JWT to get user ID
+      if (error || !userData?.user || !userData.user.email) {
+        console.log("Standard auth failed, trying admin API fallback...");
+        // Try to decode JWT to get user ID for admin API fallback
         try {
-          const decoded = jwt.decode(token);
-          console.log("Decoded JWT payload:", decoded);
-
+          const decoded = jwt.decode(token) as any;
           if (decoded?.sub) {
             const { data: adminData, error: adminError } = await supabaseServer.auth.admin.getUserById(decoded.sub);
-            console.log("Admin API result:", { hasUser: !!adminData?.user, hasError: !!adminError });
-
-            if (adminData?.user) {
-              console.log("User found via admin API");
-              var user = adminData.user;
-            } else {
-              console.log("No user found via admin API either");
+            if (adminError || !adminData?.user) {
+              console.error("Admin API fallback also failed:", adminError);
               return res.json({ user: null });
             }
+            var user = adminData.user;
           } else {
-            console.log("No sub in JWT");
             return res.json({ user: null });
           }
         } catch (jwtError) {
           console.error("JWT processing error:", jwtError);
           return res.json({ user: null });
         }
+      } else {
+        var user = userData.user;
       }
 
       console.log("Final user object:", { id: user.id, email: user.email });
@@ -357,7 +335,7 @@ export async function registerRoutes(
       // Always try to get user from database for role and additional data
       try {
         console.log("Looking up user in database:", user.email);
-        const dbUser = await storage.getUserByEmail(user.email!);
+        console.log("Looking up user in database:", user.email);
         if (dbUser) {
           role = dbUser.role;
           console.log("User found in database with role:", role);

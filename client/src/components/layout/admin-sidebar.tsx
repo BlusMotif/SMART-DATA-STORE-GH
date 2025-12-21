@@ -63,7 +63,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-background relative">
       {onClose && (
-        <div className="absolute top-4 right-4 lg:hidden">
+        <div className="absolute top-4 right-4 md:hidden">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -91,6 +91,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
                     "w-full justify-start gap-3 font-normal",
                     isActive && "bg-primary/10 text-primary font-medium"
                   )}
+                  onClick={onClose}
                   data-testid={`link-admin-${item.title.toLowerCase().replace(" ", "-")}`}
                 >
                   <item.icon className="h-4 w-4" />

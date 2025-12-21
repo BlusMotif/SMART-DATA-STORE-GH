@@ -86,6 +86,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
                       "w-full justify-start gap-3 font-normal",
                       isActive && "bg-primary/10 text-primary font-medium"
                     )}
+                    onClick={onClose}
                   >
                     <item.icon className="h-4 w-4" />
                     {item.title}

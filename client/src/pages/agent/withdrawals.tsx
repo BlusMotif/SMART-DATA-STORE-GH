@@ -17,7 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, WITHDRAWAL_STATUSES } from "@/lib/constants";
-import { Wallet, Plus, DollarSign, Clock, CheckCircle } from "lucide-react";
+import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu } from "lucide-react";
 import type { Withdrawal, Agent } from "@shared/schema";
 
 const withdrawalSchema = z.object({
@@ -31,6 +31,7 @@ type WithdrawalFormData = z.infer<typeof withdrawalSchema>;
 
 export default function AgentWithdrawals() {
   const { toast } = useToast();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
 
   const { data: agent } = useQuery<Agent>({
@@ -93,10 +94,34 @@ export default function AgentWithdrawals() {
 
   return (
     <div className="flex h-screen bg-background">
-      <AgentSidebar />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AgentSidebar onClose={() => setSidebarOpen(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden lg:block">
+        <AgentSidebar />
+      </div>
+
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-6">
-          <h1 className="text-xl font-semibold">Withdrawals</h1>
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">Withdrawals</h1>
+          </div>
           <div className="flex items-center gap-4">
             <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
               <DialogTrigger asChild>
@@ -206,7 +231,7 @@ export default function AgentWithdrawals() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <StatCard

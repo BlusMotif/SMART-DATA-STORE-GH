@@ -95,7 +95,7 @@ const TransactionCard = ({ transaction, showDetails = false }: { transaction: an
         </div>
 
         <div className="text-right">
-          <p className="font-medium text-lg">GH₵{transaction.amount}</p>
+          <p className="font-medium text-base">GH₵{transaction.amount}</p>
           {showDetails && transaction.profit && (
             <p className="text-sm text-gray-500">Profit: GH₵{transaction.profit}</p>
           )}
@@ -137,14 +137,14 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6">
         <div className="max-w-6xl mx-auto">
           {/* Welcome Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
               Welcome back, {user.name}!
             </h1>
-            <p className="text-gray-600">
+            <p className="text-sm text-gray-600">
               Manage your account and view your purchase history
             </p>
           </div>
@@ -158,18 +158,18 @@ export default function UserDashboard() {
               <TabsTrigger value="history">Order History</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
+            <TabsContent value="overview" className="space-y-4">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
                     <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-xl font-bold">
                       {statsLoading ? (
-                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (
                         stats?.totalOrders || 0
                       )}
@@ -183,9 +183,9 @@ export default function UserDashboard() {
                     <CreditCard className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <div className="text-xl font-bold">
                       {statsLoading ? (
-                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <Loader2 className="h-5 w-5 animate-spin" />
                       ) : (
                         `GH₵${stats?.totalSpent || 0}`
                       )}
@@ -226,7 +226,7 @@ export default function UserDashboard() {
                               <StatusIcon className={`h-5 w-5 ${statusConfig.color}`} />
                               <span className="font-medium text-sm">{statusConfig.label}</span>
                             </div>
-                            <p className="text-2xl font-bold">{count}</p>
+                            <p className="text-xl font-bold">{count}</p>
                           </div>
                         );
                       })}
@@ -236,7 +236,7 @@ export default function UserDashboard() {
               )}
 
               {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">

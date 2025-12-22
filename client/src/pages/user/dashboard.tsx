@@ -114,6 +114,12 @@ export default function UserDashboard() {
     queryFn: () => apiRequest("/api/transactions"),
   });
 
+  // Fetch user stats
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["/api/user/stats"],
+    queryFn: () => apiRequest("/api/user/stats"),
+  });
+
   // Calculate status counts
   const statusCounts = transactions ? transactions.reduce((acc, transaction) => {
     acc[transaction.status] = (acc[transaction.status] || 0) + 1;

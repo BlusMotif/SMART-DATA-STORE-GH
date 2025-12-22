@@ -1291,7 +1291,7 @@ export async function registerRoutes(
       }
 
       const transactions = await storage.getTransactions({
-        userId: dbUser.id,
+        customerEmail: req.user!.email,
         limit: 50,
       });
 
@@ -1310,7 +1310,7 @@ export async function registerRoutes(
       }
 
       const transactions = await storage.getTransactions({
-        userId: dbUser.id,
+        customerEmail: req.user!.email,
       });
 
       const totalOrders = transactions.length;

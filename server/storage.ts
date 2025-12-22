@@ -44,7 +44,7 @@ export interface IStorage {
   // Transactions
   getTransaction(id: string): Promise<Transaction | undefined>;
   getTransactionByReference(reference: string): Promise<Transaction | undefined>;
-  getTransactions(filters?: { agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
+  getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
   getTransactionStats(agentId?: string): Promise<{ total: number; completed: number; pending: number; revenue: number; profit: number }>;
@@ -287,8 +287,9 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
 
-  async getTransactions(filters?: { agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]> {
+  async getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]> {
     const conditions = [];
+    if (filters?.customerEmail) conditions.push(eq(transactions.customerEmail, filters.customerEmail));
     if (filters?.agentId) conditions.push(eq(transactions.agentId, filters.agentId));
     if (filters?.status) conditions.push(eq(transactions.status, filters.status));
     if (filters?.type) conditions.push(eq(transactions.type, filters.type));

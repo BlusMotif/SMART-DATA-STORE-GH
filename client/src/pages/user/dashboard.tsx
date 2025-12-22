@@ -5,12 +5,105 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { Loader2, ShoppingCart, CreditCard, History, User, Upload, MessageCircle, Phone, FileText } from "lucide-react";
+import { Loader2, ShoppingCart, CreditCard, History, User, Upload, MessageCircle, Phone, FileText, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BulkUploadSection } from "@/components/user/bulk-upload-section";
 import { SupportChat } from "@/components/user/support-chat";
+
+// Status display utility
+const getStatusConfig = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+      return {
+        variant: 'default' as const,
+        icon: CheckCircle,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+        label: 'Completed'
+      };
+    case 'pending':
+      return {
+        variant: 'secondary' as const,
+        icon: Clock,
+        color: 'text-yellow-600',
+        bgColor: 'bg-yellow-50',
+        label: 'Pending'
+      };
+    case 'failed':
+      return {
+        variant: 'destructive' as const,
+        icon: XCircle,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50',
+        label: 'Failed'
+      };
+    case 'refunded':
+      return {
+        variant: 'outline' as const,
+        icon: AlertCircle,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        label: 'Refunded'
+      };
+    default:
+      return {
+        variant: 'secondary' as const,
+        icon: Clock,
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-50',
+        label: status
+      };
+  }
+};
+
+const TransactionCard = ({ transaction, showDetails = false }: { transaction: any, showDetails?: boolean }) => {
+  const statusConfig = getStatusConfig(transaction.status);
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <div className={`p-4 border rounded-lg ${statusConfig.bgColor}`}>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <p className="font-medium">{transaction.productName}</p>
+            <Badge variant={statusConfig.variant} className="flex items-center gap-1">
+              <StatusIcon className="h-3 w-3" />
+              {statusConfig.label}
+            </Badge>
+          </div>
+
+          <div className="text-sm text-gray-600 space-y-1">
+            <p>Phone: {transaction.customerPhone}</p>
+            {transaction.network && <p>Network: {transaction.network.toUpperCase()}</p>}
+            <p>Reference: {transaction.reference}</p>
+            <p>
+              Created: {new Date(transaction.createdAt).toLocaleDateString()} at{' '}
+              {new Date(transaction.createdAt).toLocaleTimeString()}
+            </p>
+            {transaction.completedAt && (
+              <p className="text-green-600">
+                Completed: {new Date(transaction.completedAt).toLocaleDateString()} at{' '}
+                {new Date(transaction.completedAt).toLocaleTimeString()}
+              </p>
+            )}
+            {transaction.failureReason && (
+              <p className="text-red-600">Reason: {transaction.failureReason}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="text-right">
+          <p className="font-medium text-lg">GH₵{transaction.amount}</p>
+          {showDetails && transaction.profit && (
+            <p className="text-sm text-gray-500">Profit: GH₵{transaction.profit}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function UserDashboard() {
   const { user } = useAuth();
@@ -21,11 +114,11 @@ export default function UserDashboard() {
     queryFn: () => apiRequest("/api/transactions"),
   });
 
-  // Fetch user stats
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/user/stats"],
-    queryFn: () => apiRequest("/api/user/stats"),
-  });
+  // Calculate status counts
+  const statusCounts = transactions ? transactions.reduce((acc, transaction) => {
+    acc[transaction.status] = (acc[transaction.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>) : {};
 
   if (!user) {
     return (
@@ -107,6 +200,35 @@ export default function UserDashboard() {
                 </Card>
               </div>
 
+              {/* Order Status Summary */}
+              {transactions && transactions.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Order Status Summary</CardTitle>
+                    <CardDescription>
+                      Overview of your order statuses
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {Object.entries(statusCounts).map(([status, count]) => {
+                        const statusConfig = getStatusConfig(status);
+                        const StatusIcon = statusConfig.icon;
+                        return (
+                          <div key={status} className={`p-4 rounded-lg ${statusConfig.bgColor} border`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <StatusIcon className={`h-5 w-5 ${statusConfig.color}`} />
+                              <span className="font-medium text-sm">{statusConfig.label}</span>
+                            </div>
+                            <p className="text-2xl font-bold">{count}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Quick Actions */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
@@ -185,22 +307,7 @@ export default function UserDashboard() {
                   ) : transactions && transactions.length > 0 ? (
                     <div className="space-y-4">
                       {transactions.slice(0, 5).map((transaction: any) => (
-                        <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <p className="font-medium">{transaction.productName}</p>
-                            <p className="text-sm text-gray-600">
-                              {new Date(transaction.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">GH₵{transaction.amount}</p>
-                            <Badge
-                              variant={transaction.status === "completed" ? "default" : "secondary"}
-                            >
-                              {transaction.status}
-                            </Badge>
-                          </div>
-                        </div>
+                        <TransactionCard key={transaction.id} transaction={transaction} />
                       ))}
                     </div>
                   ) : (
@@ -227,7 +334,7 @@ export default function UserDashboard() {
                 <CardHeader>
                   <CardTitle>Order History</CardTitle>
                   <CardDescription>
-                    Complete history of all your purchases
+                    Complete history of all your purchases with detailed status tracking
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -238,22 +345,11 @@ export default function UserDashboard() {
                   ) : transactions && transactions.length > 0 ? (
                     <div className="space-y-4">
                       {transactions.map((transaction: any) => (
-                        <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <p className="font-medium">{transaction.productName}</p>
-                            <p className="text-sm text-gray-600">
-                              {new Date(transaction.createdAt).toLocaleDateString()} at {new Date(transaction.createdAt).toLocaleTimeString()}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">GH₵{transaction.amount}</p>
-                            <Badge
-                              variant={transaction.status === "completed" ? "default" : "secondary"}
-                            >
-                              {transaction.status}
-                            </Badge>
-                          </div>
-                        </div>
+                        <TransactionCard
+                          key={transaction.id}
+                          transaction={transaction}
+                          showDetails={true}
+                        />
                       ))}
                     </div>
                   ) : (

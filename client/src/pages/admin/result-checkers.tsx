@@ -205,6 +205,7 @@ export default function AdminResultCheckers() {
                         <span className="text-sm text-muted-foreground">/ {item.total} total</span>
                       </div>
                       <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+                        {/* eslint-disable-next-line react/forbid-dom-props */}
                         <div
                           className="h-full bg-primary transition-all"
                           style={{ width: `${Math.min((item.available / item.total) * 100, 100)}%` }}

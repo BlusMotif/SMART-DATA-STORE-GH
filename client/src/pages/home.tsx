@@ -131,6 +131,7 @@ export default function HomePage() {
                   className={`w-3 h-3 rounded-full transition-colors ${
                     index === currentBanner ? "bg-white" : "bg-white/50"
                   }`}
+                  aria-label={`Go to banner ${index + 1}`}
                   data-testid={`button-banner-dot-${index + 1}`}
                 />
               ))}

@@ -198,7 +198,7 @@ export default function AgentStorefront() {
                     <Copy className="h-4 w-4" />
                   </Button>
                   {agent && (
-                    <a href={`/store/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer">
+                    <a href={`/store/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" aria-label="Open storefront in new tab">
                       <Button variant="outline" size="icon" data-testid="button-open-store">
                         <ExternalLink className="h-4 w-4" />
                       </Button>

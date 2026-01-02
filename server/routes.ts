@@ -2108,7 +2108,7 @@ export async function registerRoutes(
   app.post("/api/support/chat/create", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
-      const userName = user.user_metadata?.fullName || user.user_metadata?.full_name || user.email.split('@')[0];
+      const userName = user.user_metadata?.name || user.email.split('@')[0];
 
       const chatId = await storage.createSupportChat(user.id, user.email, userName);
       res.json({ success: true, chatId });

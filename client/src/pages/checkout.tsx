@@ -37,6 +37,12 @@ interface CheckoutResult {
   accessCode: string;
 }
 
+interface UserStats {
+  totalOrders: number;
+  totalSpent: string;
+  walletBalance: string;
+}
+
 export default function CheckoutPage() {
   const { productType, productId, year } = useParams<{ productType: string; productId: string; year?: string }>();
   const [, setLocation] = useLocation();
@@ -58,7 +64,7 @@ export default function CheckoutPage() {
   });
 
   // Fetch user stats to get wallet balance
-  const { data: userStats, isLoading: statsLoading } = useQuery({
+  const { data: userStats, isLoading: statsLoading } = useQuery<UserStats>({
     queryKey: ["/api/user/stats"],
     enabled: !!user,
     refetchInterval: 10000, // Refresh every 10 seconds
@@ -70,7 +76,7 @@ export default function CheckoutPage() {
     : (checkerInfo?.price ? parseFloat(String(checkerInfo.price)) : 0);
   
   // Only check insufficient balance if we have valid data loaded
-  const hasInsufficientBalance = (
+  const hasInsufficientBalance: boolean = Boolean(
     !statsLoading && 
     userStats && 
     price > 0 && 

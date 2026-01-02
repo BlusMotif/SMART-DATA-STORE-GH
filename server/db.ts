@@ -6,9 +6,8 @@ import dotenv from "dotenv";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  dotenv.config();
-}
+console.log("DATABASE_URL loaded:", process.env.DATABASE_URL ? 
+  `${process.env.DATABASE_URL.substring(0, 50)}...` : 'NOT SET');
 
 if (!process.env.DATABASE_URL) {
   if (process.env.NODE_ENV === "production") {

@@ -46,11 +46,22 @@ export function BulkUploadSection() {
 
         return response.json();
       } else {
-        // Handle text input
-        return apiRequest("POST", "/api/user/bulk-upload", {
-          network: data.network,
-          data: data.data,
+        // Handle text input - Note: This endpoint may not exist yet
+        const response = await fetch('/api/user/bulk-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            network: data.network,
+            data: data.data,
+          }),
+          credentials: 'include',
         });
+        if (!response.ok) {
+          throw new Error('Upload failed');
+        }
+        return response.json();
       }
     },
     onSuccess: (data) => {

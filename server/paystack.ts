@@ -48,6 +48,19 @@ export async function initializePayment(params: {
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
+  
+  // Validate inputs
+  if (!params.email || typeof params.email !== 'string' || !params.email.includes('@')) {
+    throw new Error("Invalid email address");
+  }
+  
+  if (!params.amount || typeof params.amount !== 'number' || params.amount <= 0) {
+    throw new Error("Invalid amount");
+  }
+  
+  if (!params.reference || typeof params.reference !== 'string' || params.reference.length < 5) {
+    throw new Error("Invalid reference");
+  }
 
   const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/initialize`, {
     method: "POST",
@@ -57,7 +70,7 @@ export async function initializePayment(params: {
     },
     body: JSON.stringify({
       email: params.email,
-      amount: Math.round(params.amount * 100),
+      amount: Math.round(params.amount), // Amount already in pesewas from caller
       reference: params.reference,
       callback_url: params.callbackUrl,
       metadata: params.metadata,

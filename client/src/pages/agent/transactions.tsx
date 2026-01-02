@@ -12,8 +12,40 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu } from "lucide-react";
+import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, CheckCircle, Clock, XCircle, AlertCircle } from "lucide-react";
 import type { Transaction } from "@shared/schema";
+
+// Status display utility
+const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+    case 'delivered':
+      return 'default';
+    case 'confirmed':
+    case 'pending':
+      return 'secondary';
+    case 'cancelled':
+    case 'failed':
+      return 'destructive';
+    case 'refunded':
+      return 'outline';
+    default:
+      return 'secondary';
+  }
+};
+
+const getStatusLabel = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'completed': return 'Completed';
+    case 'delivered': return 'Delivered';
+    case 'confirmed': return 'Confirmed';
+    case 'pending': return 'Pending';
+    case 'cancelled': return 'Cancelled';
+    case 'failed': return 'Failed';
+    case 'refunded': return 'Refunded';
+    default: return status;
+  }
+};
 
 interface AgentTransactionStats {
   totalTransactions: number;
@@ -30,10 +62,14 @@ export default function AgentTransactions() {
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions"],
+    refetchInterval: 15000, // Refresh every 15 seconds for real-time updates
+    refetchOnWindowFocus: true,
   });
 
   const { data: stats } = useQuery<AgentTransactionStats>({
     queryKey: ["/api/agent/transactions/stats"],
+    refetchInterval: 15000, // Refresh every 15 seconds for real-time stats
+    refetchOnWindowFocus: true,
   });
 
   const filteredTransactions = transactions?.filter((tx) => {
@@ -142,9 +178,13 @@ export default function AgentTransactions() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="delivered">Delivered</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
                       <SelectItem value="failed">Failed</SelectItem>
+                      <SelectItem value="refunded">Refunded</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={typeFilter} onValueChange={setTypeFilter}>

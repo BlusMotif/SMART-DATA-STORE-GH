@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Menu, User, LogOut, LayoutDashboard, Store, ShoppingCart } from "lucide-react";
+import { Menu, User, LogOut, LayoutDashboard, Store, ShoppingCart, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
@@ -32,6 +32,7 @@ export function Header() {
     if (!user) return "/login";
     if (user.role === "admin") return "/admin";
     if (user.role === "agent") return "/agent";
+    if (user.role === "user") return "/user/dashboard";
     return "/";
   };
 
@@ -103,6 +104,14 @@ export function Header() {
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
+                  {user.role === "user" && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/user/wallet" className="cursor-pointer">
+                        <Wallet className="mr-2 h-4 w-4" />
+                        My Wallet
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   {user.role === "agent" && (
                     <DropdownMenuItem asChild>
                       <Link href="/agent/storefront" className="cursor-pointer">

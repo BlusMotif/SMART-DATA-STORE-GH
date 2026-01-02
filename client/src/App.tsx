@@ -1,10 +1,12 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
+import { ChatWidget } from "@/components/user/chat-widget";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import NotFound from "@/pages/not-found";
 
@@ -13,7 +15,9 @@ import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
 import CheckoutPage from "@/pages/checkout";
 import CheckoutSuccessPage from "@/pages/checkout-success";
+import WalletTopupSuccessPage from "@/pages/wallet-topup-success";
 import AgentRegisterPage from "@/pages/agent/register";
+import AgentActivationCompletePage from "@/pages/agent/activation-complete";
 import AgentDashboard from "@/pages/agent/dashboard";
 import AgentTransactions from "@/pages/agent/transactions";
 import AgentWithdrawals from "@/pages/agent/withdrawals";
@@ -23,18 +27,39 @@ import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDataBundles from "@/pages/admin/data-bundles";
 import AdminResultCheckers from "@/pages/admin/result-checkers";
 import AdminTransactions from "@/pages/admin/transactions";
+import AdminUsers from "@/pages/admin/users";
 import AdminAgents from "@/pages/admin/agents";
 import AdminWithdrawals from "@/pages/admin/withdrawals";
+import AdminChatSupport from "@/pages/admin/chat-support";
 import AdminSettings from "@/pages/admin/settings";
 import StorefrontPage from "@/pages/storefront";
 import NetworkProductsPage from "@/pages/products/network";
 import ResultCheckersPage from "@/pages/products/result-checkers";
 import DataBundlesPage from "@/pages/data-bundles";
 import UserDashboard from "@/pages/user/dashboard";
+import WalletDashboard from "@/pages/user/wallet";
+
+// Component to restrict agent store users to storefront only
+function StorefrontGuard({ children }: { children: React.ReactNode }) {
+  const [location, navigate] = useLocation();
+  
+  useEffect(() => {
+    const agentStore = localStorage.getItem("agentStore");
+    
+    // If user came from an agent store and tries to access main app routes
+    if (agentStore && !location.startsWith("/store/") && !location.startsWith("/checkout")) {
+      // Redirect them back to the store
+      navigate(`/store/${agentStore}`);
+    }
+  }, [location, navigate]);
+  
+  return <>{children}</>;
+}
 
 function Router() {
   return (
-    <Switch>
+    <StorefrontGuard>
+      <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/data-bundles" component={DataBundlesPage} />
       <Route path="/products/result-checkers" component={ResultCheckersPage} />
@@ -43,8 +68,11 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
+      <Route path="/wallet/topup/success" component={WalletTopupSuccessPage} />
       <Route path="/agent/register" component={AgentRegisterPage} />
+      <Route path="/agent/activation-complete" component={AgentActivationCompletePage} />
       <ProtectedRoute path="/user/dashboard" component={UserDashboard} />
+      <ProtectedRoute path="/user/wallet" component={WalletDashboard} />
       <ProtectedRoute path="/agent" component={AgentDashboard} requiredRole="agent" />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />
@@ -54,12 +82,15 @@ function Router() {
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />
       <ProtectedRoute path="/admin/result-checkers" component={AdminResultCheckers} requiredRole="admin" />
       <ProtectedRoute path="/admin/transactions" component={AdminTransactions} requiredRole="admin" />
+      <ProtectedRoute path="/admin/users" component={AdminUsers} requiredRole="admin" />
       <ProtectedRoute path="/admin/agents" component={AdminAgents} requiredRole="admin" />
       <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
+      <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
       <Route path="/store/:slug" component={StorefrontPage} />
       <Route component={NotFound} />
     </Switch>
+    </StorefrontGuard>
   );
 }
 
@@ -70,6 +101,7 @@ function App() {
         <TooltipProvider>
           <PWAInstallPrompt />
           <Router />
+          <ChatWidget />
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>

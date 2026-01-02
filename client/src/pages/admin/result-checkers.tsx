@@ -62,14 +62,15 @@ export default function AdminResultCheckers() {
           method: 'POST',
           body: formData,
           credentials: 'include',
-          headers: {
-            // Get access token from Supabase session
-            ...(await (async () => {
-              const { data } = await supabase.auth.getSession();
-              const token = data.session?.access_token;
-              return token ? { 'Authorization': `Bearer ${token}` } : {};
-            })()),
-          },
+          headers: await(async () => {
+            const { data } = await supabase.auth.getSession();
+            const token = data.session?.access_token;
+            const headers: Record<string, string> = {};
+            if (token) {
+              headers['Authorization'] = `Bearer ${token}`;
+            }
+            return headers;
+          })(),
         });
 
         if (!response.ok) {

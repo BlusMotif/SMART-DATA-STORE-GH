@@ -1,0 +1,451 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Header } from "@/components/layout/header";
+import { Footer } from "@/components/layout/footer";
+import { Loader2, Wallet, TrendingUp, Clock, CheckCircle, XCircle, ArrowUpRight, ArrowDownRight, Calendar, DollarSign, CreditCard } from "lucide-react";
+import { Link } from "wouter";
+import { apiRequest } from "@/lib/api";
+import { WalletTopup } from "@/components/user/wallet-topup";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface Transaction {
+  id: string;
+  reference: string;
+  type: string;
+  productName: string;
+  amount: string;
+  status: string;
+  paymentMethod: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+interface WalletStats {
+  walletBalance: string;
+  totalTopups: number;
+  totalTopupAmount: string;
+  totalSpent: string;
+  lastTopupDate: string | null;
+  lastTopupAmount: string | null;
+}
+
+const getStatusConfig = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'completed':
+    case 'delivered':
+      return {
+        variant: 'default' as const,
+        icon: CheckCircle,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50 dark:bg-green-900/20',
+        label: status === 'completed' ? 'Completed' : 'Delivered'
+      };
+    case 'confirmed':
+      return {
+        variant: 'secondary' as const,
+        icon: CheckCircle,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+        label: 'Confirmed'
+      };
+    case 'pending':
+      return {
+        variant: 'secondary' as const,
+        icon: Clock,
+        color: 'text-yellow-600',
+        bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+        label: 'Pending'
+      };
+    case 'cancelled':
+    case 'failed':
+      return {
+        variant: 'destructive' as const,
+        icon: XCircle,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50 dark:bg-red-900/20',
+        label: status === 'cancelled' ? 'Cancelled' : 'Failed'
+      };
+    default:
+      return {
+        variant: 'secondary' as const,
+        icon: Clock,
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-50 dark:bg-gray-900/20',
+        label: status
+      };
+  }
+};
+
+export default function WalletDashboard() {
+  const { user } = useAuth();
+  const [selectedTab, setSelectedTab] = useState("overview");
+
+  // Fetch wallet stats
+  const { data: stats, isLoading: statsLoading } = useQuery<WalletStats>({
+    queryKey: ["/api/wallet/stats"],
+    queryFn: () => apiRequest("/api/wallet/stats"),
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  // Fetch all transactions
+  const { data: allTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
+    queryKey: ["/api/transactions"],
+    queryFn: () => apiRequest("/api/transactions"),
+    refetchInterval: 10000,
+  });
+
+  // Filter wallet topups
+  const walletTopups = allTransactions?.filter(t => t.type === 'wallet_topup') || [];
+  
+  // Filter wallet payments
+  const walletPayments = allTransactions?.filter(t => t.paymentMethod === 'wallet') || [];
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <Header />
+      <main className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Page Header */}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Wallet className="h-7 w-7" />
+                My Wallet
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Manage your wallet balance and view transaction history
+              </p>
+            </div>
+            <WalletTopup />
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-blue-100">Current Balance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <div className="text-3xl font-bold">GH₵{stats?.walletBalance || '0.00'}</div>
+                  <p className="text-xs text-blue-100 mt-1">Available to spend</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Topups</CardTitle>
+              <ArrowUpRight className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">{stats?.totalTopups || 0}</div>
+                  <p className="text-xs text-muted-foreground">GH₵{stats?.totalTopupAmount || '0.00'} total</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
+              <ArrowDownRight className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">GH₵{stats?.totalSpent || '0.00'}</div>
+                  <p className="text-xs text-muted-foreground">Via wallet payments</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Topup</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {statsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    GH₵{stats?.lastTopupAmount || '0.00'}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats?.lastTopupDate 
+                      ? new Date(stats.lastTopupDate).toLocaleDateString()
+                      : 'No topups yet'
+                    }
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Transaction History Tabs */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Transaction History</CardTitle>
+            <CardDescription>View your wallet topups and payment history</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+              <TabsList className="grid w-full grid-cols-3 mb-4">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="topups">
+                  Topups ({walletTopups.length})
+                </TabsTrigger>
+                <TabsTrigger value="payments">
+                  Payments ({walletPayments.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4">
+                {transactionsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : allTransactions && allTransactions.length > 0 ? (
+                  <div className="space-y-3">
+                    {allTransactions.slice(0, 10).map((transaction) => {
+                      const statusConfig = getStatusConfig(transaction.status);
+                      const StatusIcon = statusConfig.icon;
+                      const isTopup = transaction.type === 'wallet_topup';
+                      const isWalletPayment = transaction.paymentMethod === 'wallet';
+
+                      return (
+                        <div
+                          key={transaction.id}
+                          className={`p-4 border rounded-lg ${statusConfig.bgColor}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                {isTopup ? (
+                                  <ArrowUpRight className="h-4 w-4 text-green-600 shrink-0" />
+                                ) : (
+                                  <ArrowDownRight className="h-4 w-4 text-blue-600 shrink-0" />
+                                )}
+                                <p className="font-medium text-sm break-words">
+                                  {transaction.productName}
+                                </p>
+                                <Badge variant={statusConfig.variant} className="ml-auto shrink-0">
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {statusConfig.label}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                <p>
+                                  {isTopup ? 'Topup' : isWalletPayment ? 'Paid with wallet' : 'Paystack'}
+                                  {' • '}
+                                  {new Date(transaction.createdAt).toLocaleDateString()}
+                                </p>
+                                <p className="text-xs font-mono break-all">Ref: {transaction.reference}</p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className={`text-lg font-bold ${isTopup ? 'text-green-600' : 'text-blue-600'}`}>
+                                {isTopup ? '+' : '-'}GH₵{transaction.amount}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Wallet className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                    <p className="text-gray-500">No transactions yet</p>
+                    <p className="text-sm text-gray-400 mt-1">Top up your wallet to get started</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="topups">
+                {transactionsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : walletTopups.length > 0 ? (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Reference</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {walletTopups.map((transaction) => {
+                          const statusConfig = getStatusConfig(transaction.status);
+                          const StatusIcon = statusConfig.icon;
+
+                          return (
+                            <TableRow key={transaction.id}>
+                              <TableCell className="font-medium">
+                                {new Date(transaction.createdAt).toLocaleDateString()}
+                                <br />
+                                <span className="text-xs text-gray-500">
+                                  {new Date(transaction.createdAt).toLocaleTimeString()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {transaction.reference}
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-green-600 font-bold">
+                                  +GH₵{transaction.amount}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={statusConfig.variant}>
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {statusConfig.label}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <ArrowUpRight className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                    <p className="text-gray-500">No topups yet</p>
+                    <p className="text-sm text-gray-400 mt-1">Click the "Top Up Wallet" button to add funds</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="payments">
+                {transactionsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : walletPayments.length > 0 ? (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {walletPayments.map((transaction) => {
+                          const statusConfig = getStatusConfig(transaction.status);
+                          const StatusIcon = statusConfig.icon;
+
+                          return (
+                            <TableRow key={transaction.id}>
+                              <TableCell className="font-medium">
+                                {new Date(transaction.createdAt).toLocaleDateString()}
+                                <br />
+                                <span className="text-xs text-gray-500">
+                                  {new Date(transaction.createdAt).toLocaleTimeString()}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{transaction.productName}</p>
+                                  <p className="text-xs text-gray-500 font-mono">
+                                    {transaction.reference}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-blue-600 font-bold">
+                                  -GH₵{transaction.amount}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={statusConfig.variant}>
+                                  <StatusIcon className="h-3 w-3 mr-1" />
+                                  {statusConfig.label}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <CreditCard className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+                    <p className="text-gray-500">No wallet payments yet</p>
+                    <p className="text-sm text-gray-400 mt-1">Use your wallet to pay for products and see your history here</p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Quick Actions */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Link href="/data-bundles">
+                <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                  <DollarSign className="h-6 w-6" />
+                  <span>Buy Data Bundles</span>
+                </Button>
+              </Link>
+              <Link href="/products/result-checkers">
+                <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                  <CreditCard className="h-6 w-6" />
+                  <span>Buy Result Checker</span>
+                </Button>
+              </Link>
+              <Link href="/user/dashboard">
+                <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
+                  <TrendingUp className="h-6 w-6" />
+                  <span>View Dashboard</span>
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+      <Footer />
+    </div>
+  );
+}

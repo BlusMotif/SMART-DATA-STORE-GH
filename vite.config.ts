@@ -24,9 +24,10 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5000,
+    port: 10000,
     hmr: {
-      host: '0.0.0.0'
+      host: 'localhost',
+      port: 10000,
     },
     fs: {
       strict: true,

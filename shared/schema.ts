@@ -14,7 +14,10 @@ export const UserRole = {
 // Transaction status enum
 export const TransactionStatus = {
   PENDING: "pending",
+  CONFIRMED: "confirmed",
   COMPLETED: "completed",
+  DELIVERED: "delivered",
+  CANCELLED: "cancelled",
   FAILED: "failed",
   REFUNDED: "refunded",
 } as const;
@@ -46,6 +49,18 @@ export const WithdrawalStatus = {
   COMPLETED: "completed",
 } as const;
 
+// Chat status enum
+export const ChatStatus = {
+  OPEN: "open",
+  CLOSED: "closed",
+} as const;
+
+// Chat sender type enum
+export const ChatSenderType = {
+  USER: "user",
+  ADMIN: "admin",
+} as const;
+
 // SMS status enum
 export const SmsStatus = {
   PENDING: "pending",
@@ -64,6 +79,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   phone: text("phone"),
   role: text("role").notNull().default("guest"),
+  walletBalance: decimal("wallet_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
@@ -147,6 +163,7 @@ export const transactions = pgTable("transactions", {
   profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),
+  paymentMethod: text("payment_method").notNull().default("paystack"), // "paystack" or "wallet"
   status: text("status").notNull().default("pending"),
   paymentReference: text("payment_reference"),
   agentId: varchar("agent_id", { length: 36 }),
@@ -229,6 +246,41 @@ export const auditLogs = pgTable("audit_logs", {
 }));
 
 // ============================================
+// SUPPORT CHATS TABLE
+// ============================================
+export const supportChats = pgTable("support_chats", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  userEmail: text("user_email").notNull(),
+  userName: text("user_name").notNull(),
+  status: text("status").notNull().default("open"), // open, closed
+  lastMessageAt: timestamp("last_message_at").notNull().defaultNow(),
+  assignedToAdminId: varchar("assigned_to_admin_id", { length: 36 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  closedAt: timestamp("closed_at"),
+}, (table) => ({
+  userIdx: index("support_chats_user_idx").on(table.userId),
+  statusIdx: index("support_chats_status_idx").on(table.status),
+  assignedAdminIdx: index("support_chats_assigned_admin_idx").on(table.assignedToAdminId),
+}));
+
+// ============================================
+// CHAT MESSAGES TABLE
+// ============================================
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  chatId: varchar("chat_id", { length: 36 }).notNull(),
+  senderId: varchar("sender_id", { length: 36 }).notNull(),
+  senderType: text("sender_type").notNull(), // user, admin
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  chatIdx: index("chat_messages_chat_idx").on(table.chatId),
+  senderIdx: index("chat_messages_sender_idx").on(table.senderId),
+}));
+
+// ============================================
 // SETTINGS TABLE
 // ============================================
 export const settings = pgTable("settings", {
@@ -272,12 +324,28 @@ export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
   }),
 }));
 
+export const supportChatsRelations = relations(supportChats, ({ many, one }) => ({
+  messages: many(chatMessages),
+  user: one(users, {
+    fields: [supportChats.userId],
+    references: [users.id],
+  }),
+}));
+
+export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
+  chat: one(supportChats, {
+    fields: [chatMessages.chatId],
+    references: [supportChats.id],
+  }),
+}));
+
 // ============================================
 // INSERT SCHEMAS
 // ============================================
 export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
   createdAt: true,
+}).extend({
+  id: z.string().optional(), // Allow optional id for Supabase user ID
 });
 
 export const insertAgentSchema = createInsertSchema(agents).omit({
@@ -326,6 +394,17 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   createdAt: true,
 });
 
+export const insertSupportChatSchema = createInsertSchema(supportChats).omit({
+  id: true,
+  createdAt: true,
+  lastMessageAt: true,
+});
+
+export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
 // ============================================
 // TYPES
 // ============================================
@@ -352,6 +431,12 @@ export type SmsLog = typeof smsLogs.$inferSelect;
 
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+export type InsertSupportChat = z.infer<typeof insertSupportChatSchema>;
+export type SupportChat = typeof supportChats.$inferSelect;
+
+export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
+export type ChatMessage = typeof chatMessages.$inferSelect;
 
 // ============================================
 // VALIDATION SCHEMAS

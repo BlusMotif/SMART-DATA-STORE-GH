@@ -10,7 +10,10 @@ interface StatusBadgeProps {
 
 const defaultStatusConfig: Record<string, { label: string; color: string; icon?: typeof CheckCircle }> = {
   pending: { label: "Pending", color: "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400", icon: Clock },
+  confirmed: { label: "Confirmed", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", icon: CheckCircle },
   completed: { label: "Completed", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400", icon: CheckCircle },
+  delivered: { label: "Delivered", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400", icon: CheckCircle },
+  cancelled: { label: "Cancelled", color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400", icon: XCircle },
   failed: { label: "Failed", color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400", icon: XCircle },
   refunded: { label: "Refunded", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", icon: RefreshCw },
   approved: { label: "Approved", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", icon: CheckCircle },

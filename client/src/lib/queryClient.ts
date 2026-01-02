@@ -3,8 +3,23 @@ import { supabase } from "./supabaseClient";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let errorMessage = res.statusText;
+    try {
+      const text = await res.text();
+      if (text) {
+        // Try to parse as JSON first
+        try {
+          const json = JSON.parse(text);
+          errorMessage = json.error || json.message || text;
+        } catch {
+          // If not JSON, use the raw text
+          errorMessage = text;
+        }
+      }
+    } catch (e) {
+      // If parsing fails, use statusText
+    }
+    throw new Error(errorMessage);
   }
 }
 

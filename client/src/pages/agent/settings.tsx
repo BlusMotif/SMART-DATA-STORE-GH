@@ -34,17 +34,22 @@ const passwordSchema = z.object({
 type ProfileFormData = z.infer<typeof profileSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
-interface AgentProfile extends Agent {
-  user: UserType;
+interface AgentProfileResponse {
+  agent: Agent & {
+    user: UserType;
+  };
+  stats: any;
 }
 
 export default function AgentSettings() {
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { data: profile } = useQuery<AgentProfile>({
+  const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
   });
+  
+  const profile = profileData?.agent;
 
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),

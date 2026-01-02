@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { Loader2, ShoppingCart, CreditCard, History, User, Upload, MessageCircle, Phone, FileText, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, ShoppingCart, CreditCard, History, User, Upload, MessageCircle, Phone, FileText, Clock, CheckCircle, XCircle, AlertCircle, Wallet } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BulkUploadSection } from "@/components/user/bulk-upload-section";
 import { SupportChat } from "@/components/user/support-chat";
+import { WalletTopup } from "@/components/user/wallet-topup";
 
 // Status display utility
 const getStatusConfig = (status: string) => {
@@ -23,6 +24,22 @@ const getStatusConfig = (status: string) => {
         bgColor: 'bg-green-50',
         label: 'Completed'
       };
+    case 'delivered':
+      return {
+        variant: 'default' as const,
+        icon: CheckCircle,
+        color: 'text-green-600',
+        bgColor: 'bg-green-50',
+        label: 'Delivered'
+      };
+    case 'confirmed':
+      return {
+        variant: 'secondary' as const,
+        icon: CheckCircle,
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50',
+        label: 'Confirmed'
+      };
     case 'pending':
       return {
         variant: 'secondary' as const,
@@ -30,6 +47,14 @@ const getStatusConfig = (status: string) => {
         color: 'text-yellow-600',
         bgColor: 'bg-yellow-50',
         label: 'Pending'
+      };
+    case 'cancelled':
+      return {
+        variant: 'destructive' as const,
+        icon: XCircle,
+        color: 'text-red-600',
+        bgColor: 'bg-red-50',
+        label: 'Cancelled'
       };
     case 'failed':
       return {
@@ -63,41 +88,41 @@ const TransactionCard = ({ transaction, showDetails = false }: { transaction: an
   const StatusIcon = statusConfig.icon;
 
   return (
-    <div className={`p-4 border rounded-lg ${statusConfig.bgColor}`}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <p className="font-medium">{transaction.productName}</p>
-            <Badge variant={statusConfig.variant} className="flex items-center gap-1">
+    <div className={`p-3 md:p-4 border rounded-lg ${statusConfig.bgColor}`}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <p className="font-medium text-sm md:text-base break-words">{transaction.productName}</p>
+            <Badge variant={statusConfig.variant} className="flex items-center gap-1 shrink-0">
               <StatusIcon className="h-3 w-3" />
               {statusConfig.label}
             </Badge>
           </div>
 
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>Phone: {transaction.customerPhone}</p>
+          <div className="text-xs md:text-sm text-gray-600 space-y-1">
+            <p className="break-all">Phone: {transaction.customerPhone}</p>
             {transaction.network && <p>Network: {transaction.network.toUpperCase()}</p>}
-            <p>Reference: {transaction.reference}</p>
-            <p>
-              Created: {new Date(transaction.createdAt).toLocaleDateString()} at{' '}
-              {new Date(transaction.createdAt).toLocaleTimeString()}
+            <p className="break-all text-xs">Ref: {transaction.reference}</p>
+            <p className="text-xs">
+              Created: {new Date(transaction.createdAt).toLocaleDateString()}
+              <span className="hidden sm:inline"> at {new Date(transaction.createdAt).toLocaleTimeString()}</span>
             </p>
             {transaction.completedAt && (
-              <p className="text-green-600">
-                Completed: {new Date(transaction.completedAt).toLocaleDateString()} at{' '}
-                {new Date(transaction.completedAt).toLocaleTimeString()}
+              <p className="text-green-600 text-xs">
+                Completed: {new Date(transaction.completedAt).toLocaleDateString()}
+                <span className="hidden sm:inline"> at {new Date(transaction.completedAt).toLocaleTimeString()}</span>
               </p>
             )}
             {transaction.failureReason && (
-              <p className="text-red-600">Reason: {transaction.failureReason}</p>
+              <p className="text-red-600 text-xs break-words">Reason: {transaction.failureReason}</p>
             )}
           </div>
         </div>
 
-        <div className="text-right">
-          <p className="font-medium text-base">GH₵{transaction.amount}</p>
+        <div className="text-left sm:text-right shrink-0">
+          <p className="font-medium text-base md:text-lg">GH₵{transaction.amount}</p>
           {showDetails && transaction.profit && (
-            <p className="text-sm text-gray-500">Profit: GH₵{transaction.profit}</p>
+            <p className="text-xs md:text-sm text-gray-500">Profit: GH₵{transaction.profit}</p>
           )}
         </div>
       </div>
@@ -112,16 +137,18 @@ export default function UserDashboard() {
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
     queryKey: ["/api/transactions"],
     queryFn: () => apiRequest("/api/transactions"),
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time data
   });
 
   // Fetch user stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/user/stats"],
     queryFn: () => apiRequest("/api/user/stats"),
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time data
   });
 
   // Calculate status counts
-  const statusCounts = transactions ? transactions.reduce((acc, transaction) => {
+  const statusCounts = transactions ? transactions.reduce((acc: Record<string, number>, transaction: any) => {
     acc[transaction.status] = (acc[transaction.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>) : {};
@@ -151,16 +178,40 @@ export default function UserDashboard() {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="bulk-upload">Bulk Upload</TabsTrigger>
-              <TabsTrigger value="support">Support</TabsTrigger>
-              <TabsTrigger value="history">Order History</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 mb-6">
+              <TabsTrigger value="overview" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Overview</TabsTrigger>
+              <TabsTrigger value="bulk-upload" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Bulk Upload</TabsTrigger>
+              <TabsTrigger value="support" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Support</TabsTrigger>
+              <TabsTrigger value="history" className="text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">History</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
+            <TabsContent value="overview" className="space-y-4 mt-0">
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">
+                      {statsLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        `GH₵${stats?.walletBalance || '0.00'}`
+                      )}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <WalletTopup />
+                      <Link href="/user/wallet">
+                        <Button variant="outline" size="sm" className="text-xs">
+                          View Wallet
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
@@ -210,23 +261,23 @@ export default function UserDashboard() {
               {transactions && transactions.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Order Status Summary</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="text-base md:text-lg">Order Status Summary</CardTitle>
+                    <CardDescription className="text-xs md:text-sm">
                       Overview of your order statuses
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                       {Object.entries(statusCounts).map(([status, count]) => {
                         const statusConfig = getStatusConfig(status);
                         const StatusIcon = statusConfig.icon;
                         return (
-                          <div key={status} className={`p-4 rounded-lg ${statusConfig.bgColor} border`}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <StatusIcon className={`h-5 w-5 ${statusConfig.color}`} />
-                              <span className="font-medium text-sm">{statusConfig.label}</span>
+                          <div key={status} className={`p-3 md:p-4 rounded-lg ${statusConfig.bgColor} border`}>
+                            <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2">
+                              <StatusIcon className={`h-4 w-4 md:h-5 md:w-5 ${statusConfig.color}`} />
+                              <span className="font-medium text-xs md:text-sm break-words">{statusConfig.label}</span>
                             </div>
-                            <p className="text-xl font-bold">{count}</p>
+                            <p className="text-lg md:text-xl font-bold">{String(count)}</p>
                           </div>
                         );
                       })}
@@ -236,39 +287,39 @@ export default function UserDashboard() {
               )}
 
               {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <ShoppingCart className="h-5 w-5" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                      <ShoppingCart className="h-4 w-4 md:h-5 md:w-5" />
                       Browse Products
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-xs md:text-sm">
                       Explore data bundles and result checkers
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-0">
                     <Link href="/data-bundles">
-                      <Button className="w-full">Shop Now</Button>
+                      <Button className="w-full text-sm">Shop Now</Button>
                     </Link>
                   </CardContent>
                 </Card>
 
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Upload className="h-5 w-5" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                      <Upload className="h-4 w-4 md:h-5 md:w-5" />
                       Bulk Upload
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-xs md:text-sm">
                       Upload multiple data bundles at once
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-0">
                     <Button
                       variant="outline"
-                      className="w-full"
-                      onClick={() => document.querySelector('[data-value="bulk-upload"]')?.click()}
+                      className="w-full text-sm"
+                      onClick={() => (document.querySelector('[data-value="bulk-upload"]') as HTMLElement)?.click()}
                     >
                       Upload Now
                     </Button>
@@ -276,20 +327,20 @@ export default function UserDashboard() {
                 </Card>
 
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MessageCircle className="h-5 w-5" />
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                      <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
                       Get Support
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="text-xs md:text-sm">
                       Chat, WhatsApp, or call our support team
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-0">
                     <Button
                       variant="outline"
-                      className="w-full"
-                      onClick={() => document.querySelector('[data-value="support"]')?.click()}
+                      className="w-full text-sm"
+                      onClick={() => (document.querySelector('[data-value="support"]') as HTMLElement)?.click()}
                     >
                       Contact Support
                     </Button>
@@ -300,8 +351,8 @@ export default function UserDashboard() {
               {/* Recent Transactions */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Transactions</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-base md:text-lg">Recent Transactions</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
                     Your latest purchase activity
                   </CardDescription>
                 </CardHeader>
@@ -327,19 +378,19 @@ export default function UserDashboard() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="bulk-upload">
+            <TabsContent value="bulk-upload" className="mt-0">
               <BulkUploadSection />
             </TabsContent>
 
-            <TabsContent value="support">
+            <TabsContent value="support" className="mt-0">
               <SupportChat />
             </TabsContent>
 
-            <TabsContent value="history">
+            <TabsContent value="history" className="mt-0">
               <Card>
                 <CardHeader>
-                  <CardTitle>Order History</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-base md:text-lg">Order History</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
                     Complete history of all your purchases with detailed status tracking
                   </CardDescription>
                 </CardHeader>

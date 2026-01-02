@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,7 +29,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const { register, isRegisterLoading, registerError } = useAuth();
+  const { register, isRegisterLoading, registerError, user, isLoading } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<RegisterFormData>({
@@ -43,6 +43,32 @@ export default function RegisterPage() {
     },
   });
 
+  // Navigate based on user role when user is loaded and auth is ready
+  useEffect(() => {
+    // Don't redirect while auth is still loading
+    if (isLoading) {
+      return;
+    }
+
+    if (user) {
+      const role = user.role;
+
+      // Only redirect normal users to user dashboard, not admins
+      if (role === "admin") {
+        // Admins shouldn't be registering, but if they somehow land here, redirect to admin
+        setLocation("/admin");
+      } else if (role === "agent") {
+        setLocation("/agent");
+      } else if (role === "user") {
+        // Regular users should go to user dashboard
+        setLocation("/user/dashboard");
+      } else {
+        // Fallback to home
+        setLocation("/");
+      }
+    }
+  }, [user, isLoading, setLocation]);
+
   const onSubmit = async (data: RegisterFormData) => {
     try {
       await register({ email: data.email, password: data.password, name: data.name });
@@ -50,7 +76,7 @@ export default function RegisterPage() {
         title: "Account created!",
         description: "Welcome to " + APP_NAME,
       });
-      setLocation("/");
+      // Note: Redirection is handled by the useEffect based on user role
     } catch (error: any) {
       toast({
         title: "Registration failed",

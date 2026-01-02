@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
+import { StorefrontAuthDialog } from "@/components/storefront-auth-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { DataBundleCard, DataBundleCardSkeleton } from "@/components/products/data-bundle-card";
 import { ResultCheckerCard, ResultCheckerCardSkeleton } from "@/components/products/result-checker-card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NoDataBundles, NoResultCheckers } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { NETWORKS } from "@/lib/constants";
-import { Smartphone, FileCheck, Store, Shield } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { Smartphone, FileCheck, Store, Shield, LogOut, User } from "lucide-react";
 import type { DataBundle, Agent } from "@shared/schema";
 
 interface StorefrontData {
@@ -23,28 +24,59 @@ interface StorefrontData {
 export default function StorefrontPage() {
   const { slug } = useParams<{ slug: string }>();
   const [selectedNetwork, setSelectedNetwork] = useState<string>("all");
+  const { user, logout } = useAuth();
+
+  // Store the agent slug in localStorage when visiting
+  useEffect(() => {
+    if (slug) {
+      localStorage.setItem("agentStore", slug);
+    }
+  }, [slug]);
 
   const { data, isLoading, error } = useQuery<StorefrontData>({
     queryKey: ["/api/store", slug],
     enabled: !!slug,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 
   const handlePurchaseBundle = (bundle: DataBundle & { customPrice: number }) => {
+    if (!user) {
+      alert("Please login or register to make a purchase");
+      return;
+    }
     window.location.href = `/checkout/data-bundle/${bundle.id}?agent=${slug}`;
   };
 
   const handlePurchaseChecker = (type: string, year: number) => {
+    if (!user) {
+      alert("Please login or register to make a purchase");
+      return;
+    }
     window.location.href = `/checkout/result-checker/${type}/${year}?agent=${slug}`;
+  };
+
+  const handleLogout = () => {
+    logout();
+    localStorage.removeItem("agentStore");
+    window.location.reload();
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <Header />
+        <header className="border-b">
+          <div className="container mx-auto flex items-center justify-between h-16 px-4">
+            <div className="flex items-center gap-2">
+              <Store className="h-6 w-6" />
+              <span className="font-semibold">Loading...</span>
+            </div>
+            <ThemeToggle />
+          </div>
+        </header>
         <main className="flex-1">
           <PageLoader text="Loading store..." />
         </main>
-        <Footer />
       </div>
     );
   }
@@ -52,18 +84,24 @@ export default function StorefrontPage() {
   if (error || !data) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <Header />
+        <header className="border-b">
+          <div className="container mx-auto flex items-center justify-between h-16 px-4">
+            <div className="flex items-center gap-2">
+              <Store className="h-6 w-6" />
+              <span className="font-semibold">Store Not Found</span>
+            </div>
+            <ThemeToggle />
+          </div>
+        </header>
         <main className="flex-1 flex items-center justify-center px-4">
           <Card className="max-w-md w-full">
             <CardContent className="pt-6 text-center">
               <Store className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h2 className="text-xl font-semibold mb-2">Store Not Found</h2>
               <p className="text-muted-foreground mb-4">This store doesn't exist or is not available.</p>
-              <Button onClick={() => window.location.href = "/"}>Browse Main Store</Button>
             </CardContent>
           </Card>
         </main>
-        <Footer />
       </div>
     );
   }
@@ -75,7 +113,37 @@ export default function StorefrontPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header />
+      {/* Storefront Header - Simple, no navigation to main app */}
+      <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto flex items-center justify-between h-16 px-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground text-lg font-bold">
+              {agent.businessName.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="font-semibold text-lg">{agent.businessName}</h1>
+              <p className="text-xs text-muted-foreground">Agent Store</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Button variant="ghost" size="sm" className="gap-2 hidden sm:flex">
+                  <User className="h-4 w-4" />
+                  {user.name}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </Button>
+              </>
+            ) : (
+              <StorefrontAuthDialog agentSlug={slug!} agentName={agent.businessName} />
+            )}
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
       
       <main className="flex-1">
         <section className="py-12 px-4 bg-gradient-to-b from-primary/5 to-background">
@@ -161,7 +229,18 @@ export default function StorefrontPage() {
         </section>
       </main>
 
-      <Footer />
+      {/* Simple Footer */}
+      <footer className="border-t py-8 px-4 bg-muted/30">
+        <div className="container mx-auto max-w-6xl text-center">
+          <p className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} {agent.businessName}. Powered by SmartDataStore
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
+            <Shield className="h-3 w-3" />
+            <span>Secure payments • Fast delivery • 24/7 support</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

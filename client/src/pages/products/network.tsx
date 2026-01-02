@@ -35,6 +35,8 @@ export default function NetworkProductsPage() {
 
   const { data: dataBundles, isLoading } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time pricing and availability
+    refetchOnWindowFocus: true,
   });
 
   const filteredBundles = dataBundles?.filter(

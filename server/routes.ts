@@ -9,7 +9,35 @@ import {
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
 } from "@shared/schema";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack";
-import { supabaseServer } from "./supabase";
+import { getSupabaseServer } from "./supabase";
+
+// Get Supabase instance
+const getSupabase = () => getSupabaseServer();
+
+// Password strength validation
+function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
+  if (password.length < 8) {
+    return { valid: false, message: "Password must be at least 8 characters long" };
+  }
+  if (!/[A-Z]/.test(password) && !/[a-z]/.test(password)) {
+    return { valid: false, message: "Password must contain at least one letter" };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: "Password must contain at least one number" };
+  }
+  return { valid: true };
+}
+
+// Email validation
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// Phone validation
+function isValidPhone(phone: string): boolean {
+  return /^\+?[0-9]{10,15}$/.test(phone);
+}
 
 // Supabase JWT auth middleware
 declare global {
@@ -18,6 +46,7 @@ declare global {
       user?: {
         id: string;
         email: string;
+        role?: string;
         user_metadata?: {
           name?: string;
           role?: string;
@@ -37,6 +66,7 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
+    const supabaseServer = getSupabase();
     if (!supabaseServer) {
       return res.status(500).json({ error: "Supabase not configured" });
     }
@@ -47,34 +77,38 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // Get user role from database
-    let role = 'user'; // Default role
+    // Get user role - first from metadata, then try database
+    let role = user.email === 'eleblununana@gmail.com' ? 'admin' : 
+               (user.user_metadata?.role || user.app_metadata?.role || 'user');
+    
     try {
       const dbUser = await storage.getUserByEmail(user.email);
       if (dbUser) {
-        role = dbUser.role;
+        role = dbUser.role; // Database role takes precedence if available
       } else {
         // User exists in Supabase but not in our database - create them
         console.log("Creating user in database:", user.email);
         try {
           const newUser = await storage.createUser({
+            id: user.id, // Use Supabase user ID for consistency
             email: user.email,
             password: "", // Password not needed since auth is handled by Supabase
             name: user.user_metadata?.name || user.email.split('@')[0],
             phone: user.phone || null,
-            role: 'user', // Default role for new users
+            role: role, // Use metadata role as default
             isActive: true,
           });
           role = newUser.role;
           console.log("User created in database with role:", role);
         } catch (createError) {
           console.error("Failed to create user in database:", createError);
-          role = 'guest'; // Fallback role
+          // Keep metadata role if DB creation fails
         }
       }
     } catch (dbError) {
       console.error("Database error in auth middleware:", dbError);
-      return res.status(500).json({ error: "Database connection failed" });
+      // Continue with role from metadata instead of failing
+      console.log("Using role from Supabase metadata due to DB error:", role);
     }
 
     req.user = {
@@ -92,19 +126,17 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
 
 const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // requireAuth should have already run and set req.user
+    // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    // Get user role from database
-    const dbUser = await storage.getUserByEmail(req.user.email);
-    if (!dbUser || dbUser.role !== UserRole.ADMIN) {
+    // Check role from req.user (already set by requireAuth middleware)
+    if (req.user.role !== UserRole.ADMIN) {
+      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    // Add role to req.user for use in route handlers
-    req.user.role = dbUser.role;
     next();
   } catch (error) {
     console.error('Admin auth error:', error);
@@ -114,19 +146,17 @@ const requireAdmin = async (req: Request, res: Response, next: NextFunction) => 
 
 const requireAgent = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // requireAuth should have already run and set req.user
+    // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Agent access required" });
     }
 
-    // Get user role from database
-    const dbUser = await storage.getUserByEmail(req.user.email);
-    if (!dbUser || dbUser.role !== UserRole.AGENT) {
+    // Check role from req.user (already set by requireAuth middleware)
+    if (req.user.role !== UserRole.AGENT) {
+      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Agent access required" });
     }
 
-    // Add role to req.user for use in route handlers
-    req.user.role = dbUser.role;
     next();
   } catch (error) {
     console.error('Agent auth error:', error);
@@ -151,8 +181,25 @@ export async function registerRoutes(
   // ============================================
   app.post("/api/auth/register", async (req, res) => {
     try {
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
       const data = registerSchema.parse(req.body);
+      
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(data.password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+      }
+      
+      // Validate email format
+      if (!isValidEmail(data.email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
 
+      const supabaseServer = getSupabase();
       if (!supabaseServer) {
         return res.status(500).json({ error: "Supabase not configured" });
       }
@@ -185,12 +232,15 @@ export async function registerRoutes(
         return res.status(400).json({ error: error?.message || "Registration failed" });
       }
 
-      // Create user in local database
+      // Create user in local database with Supabase user ID
       try {
         const hashedPassword = await bcrypt.hash(data.password, 10);
         const user = await storage.createUser({
-          ...data,
+          id: supabaseData.user.id, // Use Supabase user ID
+          email: data.email,
           password: hashedPassword,
+          name: data.name,
+          phone: data.phone,
           role: UserRole.GUEST,
         });
 
@@ -201,8 +251,12 @@ export async function registerRoutes(
         });
       } catch (dbError) {
         console.error("Database error creating user:", dbError);
-        // If database creation fails, we should probably delete the Supabase user
-        // But for now, just return an error
+        // If database creation fails, delete the Supabase user to maintain consistency
+        try {
+          await supabaseServer.auth.admin.deleteUser(supabaseData.user.id);
+        } catch (cleanupError) {
+          console.error("Failed to cleanup Supabase user:", cleanupError);
+        }
         return res.status(500).json({ error: "Failed to create user in database" });
       }
     } catch (error: any) {
@@ -213,12 +267,23 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", async (req, res) => {
     try {
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
       const { email, password } = req.body;
 
-      if (!email || !password) {
+      if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
         return res.status(400).json({ error: "Email and password are required" });
       }
+      
+      // Validate email format
+      if (!isValidEmail(email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
 
+      const supabaseServer = getSupabase();
       if (!supabaseServer) {
         return res.status(500).json({ error: "Supabase not configured" });
       }
@@ -233,8 +298,21 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
+      // TEMPORARY: Set admin role for specific email in Supabase metadata
+      if (email === 'eleblununana@gmail.com') {
+        try {
+          await supabaseServer.auth.admin.updateUserById(data.user.id, {
+            user_metadata: { ...data.user.user_metadata, role: 'admin' },
+            app_metadata: { ...data.user.app_metadata, role: 'admin' }
+          });
+          console.log('✅ Admin role set for:', email);
+        } catch (updateError) {
+          console.error('Failed to set admin role:', updateError);
+        }
+      }
+
       // Get user role from database (required for proper role management)
-      let role = 'user'; // Default role
+      let role = email === 'eleblununana@gmail.com' ? 'admin' : 'user'; // Default role
       let agent = null;
 
       // Always try to get user from database for role and additional data
@@ -286,6 +364,7 @@ export async function registerRoutes(
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
+        const supabaseServer = getSupabase();
 
         if (supabaseServer) {
           // Sign out from Supabase
@@ -308,6 +387,7 @@ export async function registerRoutes(
       }
 
       const token = authHeader.substring(7);
+      const supabaseServer = getSupabase();
 
       if (!supabaseServer) {
         console.error("Supabase not configured");
@@ -341,15 +421,16 @@ export async function registerRoutes(
 
       console.log("Final user object:", { id: user.id, email: user.email });
 
-      // Get user role from database (required for proper role management)
-      let role = 'user'; // Default role
+      // TEMPORARY: Override role for specific admin email
+      let role = user.email === 'eleblununana@gmail.com' ? 'admin' : 
+                 (user.user_metadata?.role || user.app_metadata?.role || 'user');
       let agent = null;
 
-      // Always try to get user from database for role and additional data
+      // Try to get additional data from database if connection is available
       try {
         const dbUser = await storage.getUserByEmail(user.email!);
         if (dbUser) {
-          role = dbUser.role;
+          role = dbUser.role; // Database role takes precedence
           if (dbUser.role === UserRole.AGENT) {
             agent = await storage.getAgentByUserId(dbUser.id);
           }
@@ -369,14 +450,13 @@ export async function registerRoutes(
             console.log("User created in database with role:", role);
           } catch (createError) {
             console.error("Failed to create user in database:", createError);
-            // If we can't create the user, default to guest role
-            role = 'guest';
+            // Continue with default role from metadata if DB creation fails
           }
         }
       } catch (dbError) {
         console.error("Database error getting user data:", dbError);
-        // If database is down, we can't determine role safely
-        return res.status(500).json({ error: "Database connection failed" });
+        // If database is down, use role from Supabase metadata
+        console.log("Using role from Supabase metadata due to DB error:", role);
       }
 
       console.log("Final user data:", { id: user.id, email: user.email, role, hasAgent: !!agent });
@@ -409,12 +489,33 @@ export async function registerRoutes(
   // ============================================
   app.post("/api/agent/register", async (req, res) => {
     try {
+      const supabaseServer = getSupabase();
       if (!supabaseServer) {
         console.error('Supabase server client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
         return res.status(500).json({ error: "Server configuration error" });
       }
+      
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
 
       const data = agentRegisterSchema.parse(req.body);
+      
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(data.password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+      }
+      
+      // Validate email and phone
+      if (!isValidEmail(data.email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+      
+      if (!isValidPhone(data.phone)) {
+        return res.status(400).json({ error: "Invalid phone number format" });
+      }
       console.log("Agent registration data:", data);
 
       // Check if storefront slug is taken
@@ -423,41 +524,113 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Storefront URL already taken" });
       }
 
-      console.log("Creating user in Supabase Auth");
-      // Create user in Supabase Auth
-      const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
-        email: data.email,
-        password: data.password,
-        user_metadata: {
-          name: data.name,
-          phone: data.phone,
-          role: 'agent'
-        },
-        email_confirm: true
-      });
+      // Check if user already exists in Supabase Auth
+      console.log("Checking if user exists in Supabase Auth");
+      const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
+      const existingAuthUser = existingUsers?.users.find(u => u.email === data.email);
+      
+      let userId: string;
+      
+      if (existingAuthUser) {
+        console.log("User already exists in Supabase Auth:", existingAuthUser.id);
+        userId = existingAuthUser.id;
+        
+        // Check if user already has an agent account
+        const existingAgent = await storage.getAgentByUserId(userId);
+        if (existingAgent) {
+          return res.status(400).json({ error: "This email is already registered as an agent" });
+        }
+      } else {
+        console.log("Creating new user in Supabase Auth");
+        // Create user in Supabase Auth
+        const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
+          email: data.email,
+          password: data.password,
+          user_metadata: {
+            name: data.name,
+            phone: data.phone,
+            role: 'agent'
+          },
+          email_confirm: true
+        });
 
-      if (authError) {
-        console.error("Supabase auth error:", authError);
-        return res.status(400).json({ error: authError.message });
+        if (authError) {
+          console.error("Supabase auth error:", authError);
+          return res.status(400).json({ error: authError.message });
+        }
+
+        console.log("Supabase user created:", authData.user.id);
+        userId = authData.user.id;
       }
 
-      console.log("Supabase user created:", authData.user.id);
+      // Create user in local database first
+      console.log("Creating user in local database");
+      try {
+        const localUser = await storage.createUser({
+          id: userId,
+          email: data.email,
+          password: '', // Empty password since auth is handled by Supabase
+          name: data.name,
+          phone: data.phone,
+          role: UserRole.AGENT,
+        });
+        console.log("User created in local database:", localUser.id);
+      } catch (userError: any) {
+        console.error("Failed to create user in local database:", userError.message);
+        // If user already exists, continue. Otherwise, throw error.
+        if (userError.code !== '23505') {
+          throw userError;
+        }
+        console.log("User already exists in database, continuing...");
+      }
 
       console.log("Creating agent in database");
-      // Create agent record in database
+      // Create agent record in database (initially not approved, will be approved after payment)
       const agent = await storage.createAgent({
-        userId: authData.user.id,
+        userId: userId,
         storefrontSlug: data.storefrontSlug,
         businessName: data.businessName,
-        isApproved: false,
+        isApproved: false, // Will be set to true after payment
       });
 
       console.log("Agent created:", agent.id);
 
+      // Initialize Paystack payment for agent activation
+      const activationFee = 60.00; // GHC 60.00
+      const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: data.email,
+          amount: Math.round(activationFee * 100), // Convert to pesewas
+          currency: "GHS",
+          reference: `agent_activation_${agent.id}_${Date.now()}`,
+          callback_url: `${process.env.FRONTEND_URL || 'http://localhost:5000'}/agent/activation-complete`,
+          metadata: {
+            agent_id: agent.id,
+            user_id: userId,
+            purpose: "agent_activation",
+            business_name: data.businessName,
+          },
+        }),
+      });
+
+      const paystackData = await paystackResponse.json();
+
+      if (!paystackData.status) {
+        console.error("Paystack initialization failed:", paystackData);
+        return res.status(500).json({ error: "Payment initialization failed" });
+      }
+
+      console.log("Paystack payment initialized:", paystackData.data.reference);
+
       res.json({
         user: { 
-          id: authData.user.id, 
-          email: authData.user.email, 
+          id: userId, 
+          email: data.email, 
           name: data.name, 
           role: 'agent',
           phone: data.phone
@@ -468,10 +641,13 @@ export async function registerRoutes(
           storefrontSlug: agent.storefrontSlug, 
           isApproved: false 
         },
+        paymentUrl: paystackData.data.authorization_url,
+        paymentReference: paystackData.data.reference,
       });
     } catch (error: any) {
       console.error("Error during agent registration:", error.message);
-      res.status(500).json({ error: "Registration failed" });
+      console.error("Full error:", error);
+      res.status(500).json({ error: error.message || "Registration failed" });
     }
   });
 
@@ -606,6 +782,101 @@ export async function registerRoutes(
     }
   });
 
+  // Store-specific user registration
+  app.post("/api/store/:slug/register", async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const agent = await storage.getAgentBySlug(slug);
+      
+      if (!agent || !agent.isApproved) {
+        return res.status(404).json({ error: "Store not found" });
+      }
+
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
+      const data = registerSchema.parse(req.body);
+      
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(data.password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ error: passwordValidation.message });
+      }
+      
+      // Validate email format
+      if (!isValidEmail(data.email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+
+      const supabaseServer = getSupabase();
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Supabase not configured" });
+      }
+
+      // Check if user already exists in database
+      try {
+        const existing = await storage.getUserByEmail(data.email);
+        if (existing) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+      } catch (dbError) {
+        console.error("Database error checking existing user:", dbError);
+        return res.status(500).json({ error: "Database connection failed" });
+      }
+
+      // Sign up with Supabase
+      const { data: supabaseData, error } = await supabaseServer.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: {
+            name: data.name,
+            role: UserRole.GUEST,
+            phone: data.phone || null,
+            referredByAgent: agent.id, // Track which agent referred this user
+          }
+        }
+      });
+
+      if (error || !supabaseData.user) {
+        return res.status(400).json({ error: error?.message || "Registration failed" });
+      }
+
+      // Create user in local database with Supabase user ID
+      try {
+        const hashedPassword = await bcrypt.hash(data.password, 10);
+        const user = await storage.createUser({
+          id: supabaseData.user.id,
+          email: data.email,
+          password: hashedPassword,
+          name: data.name,
+          phone: data.phone,
+          role: UserRole.GUEST, // Store users start as GUEST
+        });
+
+        res.status(201).json({
+          user: { id: user.id, email: user.email, name: user.name, role: user.role },
+          access_token: supabaseData.session?.access_token,
+          refresh_token: supabaseData.session?.refresh_token,
+          agentStore: slug, // Return the store slug for frontend to track
+        });
+      } catch (dbError) {
+        console.error("Database error creating user:", dbError);
+        try {
+          await supabaseServer.auth.admin.deleteUser(supabaseData.user.id);
+        } catch (cleanupError) {
+          console.error("Failed to cleanup Supabase user:", cleanupError);
+        }
+        return res.status(500).json({ error: "Failed to create user in database" });
+      }
+    } catch (error: any) {
+      console.error("Store registration error:", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
   // ============================================
   // PAYSTACK CONFIG
   // ============================================
@@ -622,7 +893,25 @@ export async function registerRoutes(
   // ============================================
   app.post("/api/checkout/initialize", async (req, res) => {
     try {
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
       const data = purchaseSchema.parse(req.body);
+      
+      // Validate phone number format
+      if (data.customerPhone && !/^\+?[0-9]{10,15}$/.test(data.customerPhone)) {
+        return res.status(400).json({ error: "Invalid phone number format" });
+      }
+      
+      // Validate email format if provided
+      if (data.customerEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(data.customerEmail)) {
+          return res.status(400).json({ error: "Invalid email format" });
+        }
+      }
       
       let product: any;
       let productName: string;
@@ -691,7 +980,7 @@ export async function registerRoutes(
       try {
         const paystackResponse = await initializePayment({
           email: customerEmail,
-          amount: amount,
+          amount: Math.round(amount * 100), // Convert GHS to pesewas
           reference: reference,
           callbackUrl: callbackUrl,
           metadata: {
@@ -817,7 +1106,26 @@ export async function registerRoutes(
       if (event.event === "charge.success") {
         const data = event.data;
         const reference = data.reference;
+        const metadata = data.metadata;
 
+        // Check if this is an agent activation payment
+        if (metadata && metadata.purpose === "agent_activation" && metadata.agent_id) {
+          console.log("Processing agent activation payment:", reference);
+          
+          // Auto-approve the agent
+          const agent = await storage.updateAgent(metadata.agent_id, { 
+            isApproved: true 
+          });
+
+          if (agent) {
+            console.log("Agent auto-approved after payment:", agent.id);
+            // You can add email notification here if needed
+          }
+          
+          return res.sendStatus(200);
+        }
+
+        // Handle regular transaction payments
         const transaction = await storage.getTransactionByReference(reference);
         if (!transaction) {
           console.error("Transaction not found for webhook:", reference);
@@ -919,6 +1227,61 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/agent/stats", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const transactions = await storage.getTransactions({ agentId: agent.id });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
+      const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+
+      res.json({
+        balance: Number(agent.balance),
+        totalProfit: Number(agent.totalProfit),
+        totalSales: Number(agent.totalSales),
+        totalTransactions: transactions.length,
+        todayProfit: Number(todayProfit.toFixed(2)),
+        todayTransactions: todayTransactions.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load agent stats" });
+    }
+  });
+
+  app.get("/api/agent/transactions/recent", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const transactions = await storage.getTransactions({
+        agentId: agent.id,
+        limit: 10,
+      });
+
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load recent transactions" });
+    }
+  });
+
   app.get("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
       // Get user from database using email from JWT
@@ -941,7 +1304,17 @@ export async function registerRoutes(
 
   app.post("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
       const data = withdrawalRequestSchema.parse(req.body);
+      
+      // Additional validation for withdrawal amount
+      if (data.amount <= 0 || data.amount > 100000) {
+        return res.status(400).json({ error: "Invalid withdrawal amount" });
+      }
 
       // Get user from database using email from JWT
       const dbUser = await storage.getUserByEmail(req.user!.email);
@@ -1031,6 +1404,89 @@ export async function registerRoutes(
       res.json(agent);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update agent" });
+    }
+  });
+
+  // Delete agent
+  app.delete("/api/admin/agents/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      // Delete agent (this will cascade delete related records based on DB schema)
+      await storage.deleteAgent(req.params.id);
+      res.json({ message: "Agent deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete agent" });
+    }
+  });
+
+  // Get all users with last purchase data
+  app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const allUsers = await storage.getUsers();
+      
+      const usersWithPurchaseData = await Promise.all(allUsers.map(async (user) => {
+        // Get user's completed transactions by email
+        const transactions = await storage.getTransactions({
+          customerEmail: user.email,
+          status: TransactionStatus.COMPLETED,
+        });
+
+        // Sort by date descending to get latest first
+        const sortedTransactions = transactions.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        const lastPurchase = sortedTransactions.length > 0 ? {
+          date: sortedTransactions[0].createdAt.toISOString(),
+          amount: parseFloat(sortedTransactions[0].amount),
+          productType: sortedTransactions[0].type,
+        } : null;
+
+        const totalSpent = sortedTransactions.reduce((sum, t) => 
+          sum + parseFloat(t.amount), 0
+        );
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          createdAt: user.createdAt.toISOString(),
+          lastPurchase,
+          totalPurchases: sortedTransactions.length,
+          totalSpent,
+        };
+      }));
+
+      res.json(usersWithPurchaseData);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load users" });
+    }
+  });
+
+  // Delete user
+  app.delete("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Prevent deleting admin users
+      if (user.role === UserRole.ADMIN) {
+        return res.status(403).json({ error: "Cannot delete admin users" });
+      }
+
+      // Delete user (this will cascade delete related records based on DB schema)
+      await storage.deleteUser(req.params.id);
+      res.json({ message: "User deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete user" });
     }
   });
 
@@ -1148,10 +1604,37 @@ export async function registerRoutes(
 
   app.post("/api/admin/result-checkers/bulk", requireAuth, requireAdmin, async (req, res) => {
     try {
+      // Validate input
+      if (!req.body || typeof req.body !== 'object') {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      
       const { type, year, basePrice, costPrice, checkers: checkersStr } = req.body;
       
       if (!type || !year || !basePrice || !costPrice || !checkersStr) {
         return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      // Validate types
+      if (typeof type !== 'string' || typeof checkersStr !== 'string') {
+        return res.status(400).json({ error: "Invalid field types" });
+      }
+      
+      // Validate numeric fields
+      const yearNum = parseInt(year);
+      const basePriceNum = parseFloat(basePrice);
+      const costPriceNum = parseFloat(costPrice);
+      
+      if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+        return res.status(400).json({ error: "Invalid year" });
+      }
+      
+      if (isNaN(basePriceNum) || basePriceNum <= 0 || basePriceNum > 10000) {
+        return res.status(400).json({ error: "Invalid base price" });
+      }
+      
+      if (isNaN(costPriceNum) || costPriceNum <= 0 || costPriceNum > basePriceNum) {
+        return res.status(400).json({ error: "Invalid cost price" });
       }
 
       const lines = checkersStr.split("\n").filter((line: string) => line.trim());
@@ -1319,9 +1802,439 @@ export async function registerRoutes(
       res.json({
         totalOrders,
         totalSpent: totalSpent.toFixed(2),
+        walletBalance: dbUser.walletBalance || "0.00",
       });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load user stats" });
+    }
+  });
+
+  // ============================================
+  // WALLET ROUTES
+  // ============================================
+  
+  // Get wallet statistics
+  app.get("/api/wallet/stats", requireAuth, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const transactions = await storage.getTransactions({
+        customerEmail: req.user!.email,
+      });
+
+      // Filter wallet topups
+      const walletTopups = transactions.filter(t => t.type === 'wallet_topup' && t.status === 'completed');
+      const totalTopups = walletTopups.length;
+      const totalTopupAmount = walletTopups.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+      // Filter wallet payments
+      const walletPayments = transactions.filter(t => t.paymentMethod === 'wallet');
+      const totalSpent = walletPayments.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+      // Get last topup
+      const lastTopup = walletTopups.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+
+      res.json({
+        walletBalance: dbUser.walletBalance || "0.00",
+        totalTopups,
+        totalTopupAmount: totalTopupAmount.toFixed(2),
+        totalSpent: totalSpent.toFixed(2),
+        lastTopupDate: lastTopup?.createdAt || null,
+        lastTopupAmount: lastTopup?.amount || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load wallet stats" });
+    }
+  });
+  
+  // Initialize wallet topup
+  app.post("/api/wallet/topup/initialize", requireAuth, async (req, res) => {
+    try {
+      const { amount } = req.body;
+
+      if (!amount || parseFloat(amount) < 1) {
+        return res.status(400).json({ error: "Invalid amount. Minimum topup is GHS 1" });
+      }
+
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Create topup transaction
+      const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      
+      const transaction = await storage.createTransaction({
+        reference,
+        type: "wallet_topup",
+        productName: "Wallet Top-up",
+        amount: parseFloat(amount).toFixed(2),
+        costPrice: "0.00",
+        profit: "0.00",
+        customerPhone: dbUser.phone || "",
+        customerEmail: dbUser.email,
+        paymentMethod: "paystack",
+        status: TransactionStatus.PENDING,
+      });
+
+      // Initialize Paystack payment
+      const callbackUrl = `${req.protocol}://${req.get("host")}/wallet/topup/success`;
+      
+      const paystackResponse = await initializePayment({
+        email: dbUser.email,
+        amount: Math.round(parseFloat(amount) * 100),
+        reference,
+        callbackUrl: callbackUrl,
+        metadata: {
+          type: "wallet_topup",
+          userId: dbUser.id,
+          customerName: dbUser.name,
+        },
+      });
+
+      if (paystackResponse.status && paystackResponse.data) {
+        res.json({
+          authorizationUrl: paystackResponse.data.authorization_url,
+          reference: paystackResponse.data.reference,
+          accessCode: paystackResponse.data.access_code,
+        });
+      } else {
+        const paystackError = paystackResponse as { message: string };
+        throw new Error(paystackError.message || "Payment initialization failed");
+      }
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Wallet topup failed" });
+    }
+  });
+
+  // Verify wallet topup
+  app.get("/api/wallet/topup/verify/:reference", requireAuth, async (req, res) => {
+    try {
+      const transaction = await storage.getTransactionByReference(req.params.reference);
+      if (!transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      if (transaction.type !== "wallet_topup") {
+        return res.status(400).json({ error: "Invalid transaction type" });
+      }
+
+      if (transaction.status === TransactionStatus.COMPLETED) {
+        return res.json({
+          success: true,
+          amount: transaction.amount,
+          status: transaction.status,
+        });
+      }
+
+      // Verify payment with Paystack
+      const paystackVerification = await verifyPayment(req.params.reference);
+      
+      if (paystackVerification.data.status !== "success") {
+        return res.json({
+          success: false,
+          status: paystackVerification.data.status,
+          message: paystackVerification.data.gateway_response,
+        });
+      }
+
+      // Credit wallet
+      const dbUser = await storage.getUserByEmail(transaction.customerEmail!);
+      if (dbUser) {
+        const newBalance = parseFloat(dbUser.walletBalance || "0") + parseFloat(transaction.amount);
+        await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
+      }
+
+      // Update transaction
+      await storage.updateTransaction(transaction.id, {
+        status: TransactionStatus.COMPLETED,
+        completedAt: new Date(),
+        paymentReference: paystackVerification.data.reference,
+      });
+
+      res.json({
+        success: true,
+        amount: transaction.amount,
+        newBalance: dbUser ? (parseFloat(dbUser.walletBalance || "0") + parseFloat(transaction.amount)).toFixed(2) : "0.00",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Verification failed" });
+    }
+  });
+
+  // Pay with wallet
+  app.post("/api/wallet/pay", requireAuth, async (req, res) => {
+    try {
+      const {
+        productType,
+        productId,
+        productName,
+        network,
+        amount,
+        customerPhone,
+        agentSlug,
+      } = req.body;
+
+      if (!productType || !productName || !amount || !customerPhone) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Check wallet balance
+      const walletBalance = parseFloat(dbUser.walletBalance || "0");
+      const purchaseAmount = parseFloat(amount);
+
+      if (walletBalance < purchaseAmount) {
+        return res.status(400).json({ 
+          error: "Insufficient wallet balance",
+          balance: walletBalance.toFixed(2),
+          required: purchaseAmount.toFixed(2),
+        });
+      }
+
+      // Get product pricing
+      let product: any;
+      let costPrice = 0;
+      let basePrice = parseFloat(amount);
+
+      if (productType === ProductType.DATA_BUNDLE && productId) {
+        product = await storage.getDataBundle(productId);
+        if (product) {
+          costPrice = parseFloat(product.costPrice);
+          basePrice = parseFloat(product.basePrice);
+        }
+      } else if (productType === ProductType.RESULT_CHECKER && productId) {
+        product = await storage.getResultChecker(productId);
+        if (product) {
+          costPrice = parseFloat(product.costPrice);
+          basePrice = parseFloat(product.basePrice);
+        }
+      }
+
+      const profit = basePrice - costPrice;
+
+      // Handle agent commission
+      let agentId: string | undefined;
+      let agentProfit = 0;
+
+      if (agentSlug) {
+        const agent = await storage.getAgentBySlug(agentSlug);
+        if (agent) {
+          agentId = agent.id;
+          const markup = parseFloat(agent.customPricingMarkup || "0") / 100;
+          agentProfit = basePrice * markup;
+        }
+      }
+
+      // Create transaction
+      const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      
+      const transaction = await storage.createTransaction({
+        reference,
+        type: productType,
+        productId,
+        productName,
+        network,
+        amount: purchaseAmount.toFixed(2),
+        costPrice: costPrice.toFixed(2),
+        profit: profit.toFixed(2),
+        customerPhone,
+        customerEmail: dbUser.email,
+        paymentMethod: "wallet",
+        status: TransactionStatus.CONFIRMED,
+        agentId,
+        agentProfit: agentProfit > 0 ? agentProfit.toFixed(2) : undefined,
+      });
+
+      // Deduct from wallet
+      const newBalance = walletBalance - purchaseAmount;
+      await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
+
+      // Process the order
+      let deliveredPin: string | undefined;
+      let deliveredSerial: string | undefined;
+
+      if (productType === ProductType.RESULT_CHECKER && productId) {
+        const checker = await storage.getResultChecker(productId);
+        if (checker && !checker.isSold) {
+          await storage.markResultCheckerSold(checker.id, transaction.id, customerPhone);
+          deliveredPin = checker.pin;
+          deliveredSerial = checker.serialNumber;
+          
+          await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.COMPLETED,
+            completedAt: new Date(),
+            deliveredPin,
+            deliveredSerial,
+          });
+        }
+      } else {
+        // For data bundles, mark as completed immediately
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.COMPLETED,
+          completedAt: new Date(),
+        });
+      }
+
+      // Credit agent
+      if (agentId && agentProfit > 0) {
+        await storage.updateAgentBalance(agentId, agentProfit, true);
+      }
+
+      res.json({
+        success: true,
+        reference: transaction.reference,
+        newBalance: newBalance.toFixed(2),
+        deliveredPin,
+        deliveredSerial,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Payment failed" });
+    }
+  });
+
+  // ===== CHAT SUPPORT API ROUTES =====
+
+  // Create new chat session
+  app.post("/api/support/chat/create", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const userName = user.user_metadata?.fullName || user.user_metadata?.full_name || user.email.split('@')[0];
+
+      const chatId = await storage.createSupportChat(user.id, user.email, userName);
+      res.json({ success: true, chatId });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create chat" });
+    }
+  });
+
+  // Get user's chat sessions
+  app.get("/api/support/chats", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const chats = await storage.getUserSupportChats(user.id);
+      res.json(chats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get chats" });
+    }
+  });
+
+  // Get chat details with messages
+  app.get("/api/support/chat/:chatId", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const { chatId } = req.params;
+      
+      const chat = await storage.getSupportChatById(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+
+      // Verify user owns chat or is admin
+      if (chat.userId !== user.id && user.role !== UserRole.ADMIN) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const messages = await storage.getChatMessages(chatId);
+      res.json({ chat, messages });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get chat" });
+    }
+  });
+
+  // Send message in chat
+  app.post("/api/support/chat/:chatId/message", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const { chatId } = req.params;
+      const { message } = req.body;
+
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: "Message cannot be empty" });
+      }
+
+      const chat = await storage.getSupportChatById(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+
+      // Verify user owns chat or is admin
+      if (chat.userId !== user.id && user.role !== UserRole.ADMIN) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const senderType = user.role === UserRole.ADMIN ? 'admin' : 'user';
+      const messageId = await storage.createChatMessage(chatId, user.id, senderType, message.trim());
+
+      res.json({ success: true, messageId });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to send message" });
+    }
+  });
+
+  // Mark messages as read
+  app.put("/api/support/message/:messageId/read", requireAuth, async (req: Request, res: Response) => {
+    try {
+      await storage.markMessageAsRead(req.params.messageId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to mark message as read" });
+    }
+  });
+
+  // Close chat
+  app.put("/api/support/chat/:chatId/close", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const { chatId } = req.params;
+
+      const chat = await storage.getSupportChatById(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "Chat not found" });
+      }
+
+      // Only chat owner or admin can close
+      if (chat.userId !== user.id && user.role !== UserRole.ADMIN) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      await storage.closeSupportChat(chatId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to close chat" });
+    }
+  });
+
+  // Admin: Get all support chats
+  app.get("/api/admin/support/chats", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { status } = req.query;
+      const chats = await storage.getAllSupportChats(status as string);
+      res.json(chats);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get chats" });
+    }
+  });
+
+  // Admin: Assign chat to admin
+  app.put("/api/admin/support/chat/:chatId/assign", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { chatId } = req.params;
+      const adminId = req.user!.id;
+
+      await storage.assignChatToAdmin(chatId, adminId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to assign chat" });
     }
   });
 

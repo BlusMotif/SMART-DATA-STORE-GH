@@ -18,6 +18,8 @@ interface ResultCheckerStock {
 export default function ResultCheckersPage() {
   const { data: resultCheckerStock, isLoading } = useQuery<ResultCheckerStock[]>({
     queryKey: ["/api/products/result-checkers/stock"],
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time stock updates
+    refetchOnWindowFocus: true,
   });
 
   const handlePurchaseChecker = (type: string, year: number) => {

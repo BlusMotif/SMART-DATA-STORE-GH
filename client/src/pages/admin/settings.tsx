@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,19 +17,23 @@ export default function AdminSettings() {
   const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: string}>({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { data: paystackConfig } = useQuery({
+  const { data: paystackConfig } = useQuery<{ isConfigured: boolean; isTestMode: boolean }>({
     queryKey: ["/api/paystack/config"],
   });
 
-  const uploadMutation = useMutation({
+  const uploadMutation = useMutation<{ url: string; filename: string }, Error, { file: File; type: string }>({
     mutationFn: async ({ file, type }: { file: File; type: string }) => {
       const formData = new FormData();
       formData.append(type, file);
-      return apiRequest("POST", `/api/admin/upload/${type}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const response = await fetch(`/api/admin/upload/${type}`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
       });
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      return response.json();
     },
     onSuccess: (data: { url: string; filename: string }, { type }) => {
       setUploadedFiles(prev => ({ ...prev, [type]: data.url }));

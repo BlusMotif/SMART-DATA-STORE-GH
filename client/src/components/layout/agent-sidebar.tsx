@@ -15,8 +15,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { APP_NAME, formatCurrency } from "@/lib/constants";
-import type { Agent } from "@shared/schema";
+import type { Agent, User } from "@shared/schema";
 import siteLogo from "@assets/logo_1765774201026.png";
+
+interface AgentProfileResponse {
+  agent: Agent & {
+    user: User;
+  };
+  stats: any;
+}
 
 const sidebarNavItems = [
   {
@@ -50,9 +57,11 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut } = useAuth();
 
-  const { data: agent, error } = useQuery<Agent>({
+  const { data: profileData, error } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
   });
+
+  const agent = profileData?.agent;
 
   // If there's an error loading the profile, show a basic sidebar
   if (error) {

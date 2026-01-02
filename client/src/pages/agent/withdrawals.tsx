@@ -36,10 +36,14 @@ export default function AgentWithdrawals() {
 
   const { data: agent } = useQuery<Agent>({
     queryKey: ["/api/agent/profile"],
+    refetchInterval: 10000, // Refresh every 10 seconds for balance updates
+    refetchOnWindowFocus: true,
   });
 
   const { data: withdrawals, isLoading } = useQuery<Withdrawal[]>({
     queryKey: ["/api/agent/withdrawals"],
+    refetchInterval: 20000, // Refresh every 20 seconds for withdrawal status updates
+    refetchOnWindowFocus: true,
   });
 
   const form = useForm<WithdrawalFormData>({

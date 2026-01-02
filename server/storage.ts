@@ -2,18 +2,22 @@ import { eq, and, desc, sql, gte, lte, or, like } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
+  supportChats, chatMessages,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
-  type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog
+  type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
+  type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage
 } from "@shared/schema";
 
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<void>;
 
   // Agents
   getAgent(id: string): Promise<Agent | undefined>;
@@ -23,6 +27,7 @@ export interface IStorage {
   createAgent(agent: InsertAgent): Promise<Agent>;
   updateAgent(id: string, data: Partial<Agent>): Promise<Agent | undefined>;
   updateAgentBalance(id: string, amount: number, addProfit: boolean): Promise<Agent | undefined>;
+  deleteAgent(id: string): Promise<void>;
 
   // Data Bundles
   getDataBundle(id: string): Promise<DataBundle | undefined>;
@@ -67,6 +72,17 @@ export interface IStorage {
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string, description?: string): Promise<void>;
 
+  // Support Chat
+  createSupportChat(userId: string, userEmail: string, userName: string): Promise<string>;
+  getUserSupportChats(userId: string): Promise<SupportChat[]>;
+  getAllSupportChats(status?: string): Promise<SupportChat[]>;
+  getSupportChatById(chatId: string): Promise<SupportChat | undefined>;
+  closeSupportChat(chatId: string): Promise<void>;
+  assignChatToAdmin(chatId: string, adminId: string): Promise<void>;
+  createChatMessage(chatId: string, senderId: string, senderType: string, message: string): Promise<string>;
+  getChatMessages(chatId: string): Promise<ChatMessage[]>;
+  markMessageAsRead(messageId: string): Promise<void>;
+
   // Admin Stats
   getAdminStats(): Promise<{
     totalRevenue: number;
@@ -89,14 +105,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    if (!email || typeof email !== 'string') {
+      throw new Error("Invalid email parameter");
+    }
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail) {
+      throw new Error("Email cannot be empty");
+    }
+    const result = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
     return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
+    if (!insertUser.email || typeof insertUser.email !== 'string') {
+      throw new Error("Invalid email");
+    }
+    if (!insertUser.name || typeof insertUser.name !== 'string' || insertUser.name.length < 2) {
+      throw new Error("Invalid name");
+    }
+    // Allow empty password for Supabase-authenticated users
+    if (insertUser.password !== undefined && insertUser.password !== '' && typeof insertUser.password !== 'string') {
+      throw new Error("Invalid password");
+    }
+    
+    const normalizedEmail = insertUser.email.toLowerCase().trim();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      throw new Error("Invalid email format");
+    }
+    
     const result = await db.insert(users).values({
       ...insertUser,
-      email: insertUser.email.toLowerCase(),
+      email: normalizedEmail,
+      password: insertUser.password || '', // Default to empty string if not provided
     }).returning();
     return result[0];
   }
@@ -159,6 +199,18 @@ export class DatabaseStorage implements IStorage {
       totalProfit: newTotalProfit.toFixed(2),
     }).where(eq(agents.id, id)).returning();
     return updated;
+  }
+
+  async deleteAgent(id: string): Promise<void> {
+    await db.delete(agents).where(eq(agents.id, id));
+  }
+
+  async getUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
   }
 
   // ============================================
@@ -454,6 +506,88 @@ export class DatabaseStorage implements IStorage {
       dataBundleStock: Number(bundleStats?.count || 0),
       resultCheckerStock: Number(checkerStats?.count || 0),
     };
+  }
+
+  // Support Chat Methods
+  async createSupportChat(userId: string, userEmail: string, userName: string): Promise<string> {
+    const [chat] = await db.insert(supportChats).values({
+      userId,
+      userEmail,
+      userName,
+      status: 'open',
+      lastMessageAt: new Date(),
+      createdAt: new Date(),
+    }).returning();
+    return chat.id;
+  }
+
+  async getUserSupportChats(userId: string): Promise<SupportChat[]> {
+    return await db.select()
+      .from(supportChats)
+      .where(eq(supportChats.userId, userId))
+      .orderBy(desc(supportChats.lastMessageAt));
+  }
+
+  async getAllSupportChats(status?: string): Promise<SupportChat[]> {
+    if (status) {
+      return await db.select()
+        .from(supportChats)
+        .where(eq(supportChats.status, status as any))
+        .orderBy(desc(supportChats.lastMessageAt));
+    }
+    return await db.select()
+      .from(supportChats)
+      .orderBy(desc(supportChats.lastMessageAt));
+  }
+
+  async getSupportChatById(chatId: string): Promise<SupportChat | undefined> {
+    const [chat] = await db.select()
+      .from(supportChats)
+      .where(eq(supportChats.id, chatId));
+    return chat;
+  }
+
+  async closeSupportChat(chatId: string): Promise<void> {
+    await db.update(supportChats)
+      .set({ status: 'closed', closedAt: new Date() })
+      .where(eq(supportChats.id, chatId));
+  }
+
+  async assignChatToAdmin(chatId: string, adminId: string): Promise<void> {
+    await db.update(supportChats)
+      .set({ assignedToAdminId: adminId })
+      .where(eq(supportChats.id, chatId));
+  }
+
+  async createChatMessage(chatId: string, senderId: string, senderType: string, message: string): Promise<string> {
+    const [msg] = await db.insert(chatMessages).values({
+      chatId,
+      senderId,
+      senderType: senderType as any,
+      message,
+      isRead: false,
+      createdAt: new Date(),
+    }).returning();
+
+    // Update last message timestamp on chat
+    await db.update(supportChats)
+      .set({ lastMessageAt: new Date() })
+      .where(eq(supportChats.id, chatId));
+
+    return msg.id;
+  }
+
+  async getChatMessages(chatId: string): Promise<ChatMessage[]> {
+    return await db.select()
+      .from(chatMessages)
+      .where(eq(chatMessages.chatId, chatId))
+      .orderBy(chatMessages.createdAt);
+  }
+
+  async markMessageAsRead(messageId: string): Promise<void> {
+    await db.update(chatMessages)
+      .set({ isRead: true })
+      .where(eq(chatMessages.id, messageId));
   }
 }
 

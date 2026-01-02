@@ -5,12 +5,14 @@ import {
   Smartphone,
   FileCheck,
   Users,
+  UserCircle,
   Wallet,
   BarChart3,
   Settings,
   LogOut,
   Bell,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,11 @@ const sidebarNavItems = [
     icon: BarChart3,
   },
   {
+    title: "Users",
+    href: "/admin/users",
+    icon: UserCircle,
+  },
+  {
     title: "Agents",
     href: "/admin/agents",
     icon: Users,
@@ -49,6 +56,11 @@ const sidebarNavItems = [
     title: "Withdrawals",
     href: "/admin/withdrawals",
     icon: Wallet,
+  },
+  {
+    title: "Chat Support",
+    href: "/admin/chat-support",
+    icon: MessageCircle,
   },
   {
     title: "Settings",

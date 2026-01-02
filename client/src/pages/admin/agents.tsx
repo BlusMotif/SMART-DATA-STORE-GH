@@ -9,10 +9,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { Users, CheckCircle, XCircle, Clock, Store, Menu } from "lucide-react";
+import { Users, CheckCircle, XCircle, Clock, Store, Menu, Trash2 } from "lucide-react";
 import type { Agent } from "@shared/schema";
 
 interface AgentWithUser extends Agent {
@@ -23,6 +33,7 @@ export default function AdminAgents() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null);
 
   const { data: agents, isLoading } = useQuery<AgentWithUser[]>({
     queryKey: ["/api/admin/agents"],
@@ -30,16 +41,20 @@ export default function AdminAgents() {
     refetchOnWindowFocus: true,
   });
 
-  const approveMutation = useMutation({
-    mutationFn: ({ id, isApproved }: { id: string; isApproved: boolean }) =>
-      apiRequest("PATCH", `/api/admin/agents/${id}/approve`, { isApproved }),
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/agents/${id}`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/agents"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] }); // Update stats when agent status changes
-      toast({ title: "Agent status updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({ title: "✅ Agent deleted successfully" });
+      setDeleteAgentId(null);
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update agent", description: error.message, variant: "destructive" });
+      toast({ 
+        title: "Failed to delete agent", 
+        description: error.message, 
+        variant: "destructive" 
+      });
     },
   });
 
@@ -192,32 +207,14 @@ export default function AdminAgents() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              {agent.isApproved ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    approveMutation.mutate({ id: agent.id, isApproved: false })
-                                  }
-                                  disabled={approveMutation.isPending}
-                                  data-testid={`button-revoke-${agent.id}`}
-                                >
-                                  <XCircle className="h-4 w-4 mr-1" />
-                                  Revoke
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    approveMutation.mutate({ id: agent.id, isApproved: true })
-                                  }
-                                  disabled={approveMutation.isPending}
-                                  data-testid={`button-approve-${agent.id}`}
-                                >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Approve
-                                </Button>
-                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() => setDeleteAgentId(agent.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -234,6 +231,28 @@ export default function AdminAgents() {
           </div>
         </main>
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteAgentId} onOpenChange={(open) => !open && setDeleteAgentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this agent? This action cannot be undone.
+              The agent's storefront, transactions, and all related data will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteAgentId && deleteMutation.mutate(deleteAgentId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

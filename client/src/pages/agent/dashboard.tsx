@@ -22,18 +22,33 @@ interface AgentStats {
   todayTransactions: number;
 }
 
+interface AgentProfileResponse {
+  agent: Agent & {
+    user: {
+      name: string;
+      email: string;
+      phone: string | null;
+    };
+  };
+  stats: any;
+}
+
 export default function AgentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { data: agent } = useQuery<Agent>({
+  const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
   });
+  
+  const agent = profileData?.agent;
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time data
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions/recent"],
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time data
   });
 
   return (

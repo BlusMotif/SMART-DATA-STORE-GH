@@ -13,15 +13,20 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Separator } from "@/components/ui/separator";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { NetworkBadge } from "@/components/products/network-badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, APP_NAME } from "@/lib/constants";
-import { Phone, Mail, Loader2, ShieldCheck, Lock, CheckCircle, Wifi, Clock, FileCheck } from "lucide-react";
+import { Phone, Mail, Loader2, ShieldCheck, Lock, CheckCircle, Wifi, Clock, FileCheck, Wallet, CreditCard, AlertCircle } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 
 const checkoutSchema = z.object({
   customerPhone: z.string().min(10, "Phone number must be at least 10 digits").max(15),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+  paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>;
@@ -36,6 +41,7 @@ export default function CheckoutPage() {
   const { productType, productId, year } = useParams<{ productType: string; productId: string; year?: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isDataBundle = productType === "data-bundle";
@@ -51,48 +57,113 @@ export default function CheckoutPage() {
     enabled: isResultChecker && !!productId && !!year,
   });
 
+  // Fetch user stats to get wallet balance
+  const { data: userStats, isLoading: statsLoading } = useQuery({
+    queryKey: ["/api/user/stats"],
+    enabled: !!user,
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+
+  const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
+  const price = isDataBundle 
+    ? (bundle?.basePrice ? parseFloat(bundle.basePrice) : 0)
+    : (checkerInfo?.price ? parseFloat(String(checkerInfo.price)) : 0);
+  
+  // Only check insufficient balance if we have valid data loaded
+  const hasInsufficientBalance = (
+    !statsLoading && 
+    userStats && 
+    price > 0 && 
+    walletBalance < price
+  );
+
   const form = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      customerPhone: "",
+      customerPhone: user?.phone || "",
       customerEmail: "",
+      paymentMethod: "paystack",
     },
   });
 
   const initializePaymentMutation = useMutation({
     mutationFn: async (data: CheckoutFormData) => {
-      const payload = {
-        productType: isDataBundle ? "data_bundle" : "result_checker",
-        productId: isResultChecker ? `${productId}-${year}` : productId,
-        customerPhone: data.customerPhone,
-        customerEmail: data.customerEmail || undefined,
-      };
+      if (data.paymentMethod === "wallet") {
+        // Pay with wallet
+        const payload = {
+          productType: isDataBundle ? "data_bundle" : "result_checker",
+          productId: isResultChecker ? `${productId}-${year}` : productId,
+          productName: isDataBundle ? bundle?.name : `${checkerInfo?.type.toUpperCase()} Result Checker ${checkerInfo?.year}`,
+          network: isDataBundle ? bundle?.network : undefined,
+          amount: price.toFixed(2),
+          customerPhone: data.customerPhone,
+        };
 
-      const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-      return response.json();
+        const response = await apiRequest("POST", "/api/wallet/pay", payload);
+        return response.json();
+      } else {
+        // Pay with Paystack
+        const payload = {
+          productType: isDataBundle ? "data_bundle" : "result_checker",
+          productId: isResultChecker ? `${productId}-${year}` : productId,
+          customerPhone: data.customerPhone,
+          customerEmail: data.customerEmail || undefined,
+        };
+
+        const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+        return response.json();
+      }
     },
-    onSuccess: (data) => {
-      // Redirect to success page (simulating instant payment for demo)
-      window.location.href = data.paymentUrl;
+    onSuccess: (data, variables) => {
+      if (variables.paymentMethod === "wallet") {
+        // Wallet payment successful - show success message
+        toast({
+          title: "✅ Payment Successful!",
+          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. ${data.deliveredPin ? `PIN: ${data.deliveredPin}` : 'Processing your order...'}`,
+          duration: 5000,
+        });
+        setTimeout(() => {
+          setLocation("/user/dashboard");
+        }, 2000);
+      } else {
+        // Redirect to Paystack payment page
+        window.location.href = data.paymentUrl;
+      }
     },
     onError: (error: any) => {
+      const errorMessage = error.message || "Unable to process payment";
+      const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
+      
       toast({
-        title: "Payment initialization failed",
-        description: error.message || "Please try again",
+        title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
+        description: isInsufficientBalance 
+          ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
+          : `${errorMessage}. Please try again or contact support if the problem persists.`,
         variant: "destructive",
+        duration: 6000,
       });
       setIsProcessing(false);
     },
   });
 
   const onSubmit = (data: CheckoutFormData) => {
+    if (data.paymentMethod === "wallet" && hasInsufficientBalance) {
+      const shortfall = price - walletBalance;
+      toast({
+        title: "⚠️ Insufficient Wallet Balance",
+        description: `You need GH₵${shortfall.toFixed(2)} more to complete this purchase. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${price.toFixed(2)}. Please top up or use Paystack.`,
+        variant: "destructive",
+        duration: 7000,
+      });
+      return;
+    }
+
     setIsProcessing(true);
     initializePaymentMutation.mutate(data);
   };
 
   const isLoading = bundleLoading || checkerLoading;
   const product = isDataBundle ? bundle : checkerInfo;
-  const price = isDataBundle ? bundle?.basePrice : checkerInfo?.price;
 
   if (isLoading) {
     return (
@@ -207,6 +278,97 @@ export default function CheckoutPage() {
                 <CardContent>
                   <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                      {/* Payment Method Selection */}
+                      <FormField
+                        control={form.control}
+                        name="paymentMethod"
+                        render={({ field }) => (
+                          <FormItem className="space-y-3">
+                            <FormLabel>Payment Method</FormLabel>
+                            <FormControl>
+                              <RadioGroup
+                                onValueChange={field.onChange}
+                                value={field.value}
+                                className="grid gap-3"
+                              >
+                                {user && (
+                                  <div className="relative">
+                                    <RadioGroupItem
+                                      value="wallet"
+                                      id="wallet"
+                                      className="peer sr-only"
+                                      disabled={hasInsufficientBalance}
+                                    />
+                                    <Label
+                                      htmlFor="wallet"
+                                      className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all ${
+                                        hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        <Wallet className="h-5 w-5" />
+                                        <div>
+                                          <div className="font-medium">Wallet Balance</div>
+                                          <div className="text-sm text-muted-foreground">
+                                            Available: GH₵{walletBalance.toFixed(2)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {field.value === "wallet" && (
+                                        <CheckCircle className="h-5 w-5 text-primary" />
+                                      )}
+                                    </Label>
+                                    {hasInsufficientBalance && (
+                                      <div className="absolute top-2 right-2">
+                                        <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                                          Insufficient
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                <div>
+                                  <RadioGroupItem
+                                    value="paystack"
+                                    id="paystack"
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor="paystack"
+                                    className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <CreditCard className="h-5 w-5" />
+                                      <div>
+                                        <div className="font-medium">Paystack</div>
+                                        <div className="text-sm text-muted-foreground">
+                                          Pay with card, bank transfer
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {field.value === "paystack" && (
+                                      <CheckCircle className="h-5 w-5 text-primary" />
+                                    )}
+                                  </Label>
+                                </div>
+                              </RadioGroup>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {hasInsufficientBalance && form.watch("paymentMethod") === "wallet" && (
+                        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription className="text-sm">
+                            <strong>Insufficient Balance:</strong> You need GH₵{(price - walletBalance).toFixed(2)} more. 
+                            <a href="/user/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack below.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
                       <FormField
                         control={form.control}
                         name="customerPhone"
@@ -263,9 +425,13 @@ export default function CheckoutPage() {
                       <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 flex items-start gap-3">
                         <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
                         <div className="text-sm">
-                          <p className="font-medium text-green-800 dark:text-green-300">Secure Payment</p>
+                          <p className="font-medium text-green-800 dark:text-green-300">
+                            {form.watch("paymentMethod") === "wallet" ? "Instant Purchase" : "Secure Payment"}
+                          </p>
                           <p className="text-green-700 dark:text-green-400">
-                            Your payment is processed securely through Paystack. We never store your card details.
+                            {form.watch("paymentMethod") === "wallet"
+                              ? "Your order will be processed instantly from your wallet balance."
+                              : "Your payment is processed securely through Paystack. We never store your card details."}
                           </p>
                         </div>
                       </div>
@@ -274,7 +440,7 @@ export default function CheckoutPage() {
                         type="submit"
                         size="lg"
                         className="w-full gap-2"
-                        disabled={isProcessing}
+                        disabled={isProcessing || (form.watch("paymentMethod") === "wallet" && hasInsufficientBalance)}
                         data-testid="button-pay"
                       >
                         {isProcessing ? (
@@ -284,7 +450,16 @@ export default function CheckoutPage() {
                           </>
                         ) : (
                           <>
-                            Pay {formatCurrency(price!)}
+                            {form.watch("paymentMethod") === "wallet" ? (
+                              <>
+                                <Wallet className="h-4 w-4" />
+                                Pay from Wallet - {formatCurrency(price!)}
+                              </>
+                            ) : (
+                              <>
+                                Pay {formatCurrency(price!)}
+                              </>
+                            )}
                           </>
                         )}
                       </Button>

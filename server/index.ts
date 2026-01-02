@@ -1,3 +1,7 @@
+// Load environment variables FIRST - before any imports that might use them
+import dotenv from "dotenv";
+dotenv.config();
+
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import MemoryStore from "memorystore";
@@ -7,13 +11,64 @@ import { createServer } from "http";
 import cors from "cors";
 import multer from "multer";
 import path from "path";
-import dotenv from "dotenv";
 
-// Load environment variables
-dotenv.config();
+// Initialize Supabase after env vars are loaded
+import { initializeSupabase, supabaseServer as supabaseServerExport } from "./supabase";
+const supabaseServerInitialized = initializeSupabase();
 
 const app = express();
 const httpServer = createServer(app);
+
+// Simple rate limiting (in-memory)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+const rateLimit = (maxRequests: number, windowMs: number) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const record = rateLimitMap.get(ip);
+    
+    if (!record || now > record.resetTime) {
+      rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+      return next();
+    }
+    
+    if (record.count >= maxRequests) {
+      return res.status(429).json({ error: "Too many requests. Please try again later." });
+    }
+    
+    record.count++;
+    next();
+  };
+};
+
+// Cleanup old rate limit entries every hour
+setInterval(() => {
+  const now = Date.now();
+  rateLimitMap.forEach((record, ip) => {
+    if (now > record.resetTime) {
+      rateLimitMap.delete(ip);
+    }
+  });
+}, 60 * 60 * 1000);
+
+// Security headers middleware
+app.use((req, res, next) => {
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Enable XSS protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Referrer policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Apply rate limiting to sensitive routes
+app.use('/api/auth/login', rateLimit(5, 15 * 60 * 1000)); // 5 requests per 15 minutes
+app.use('/api/auth/register', rateLimit(3, 60 * 60 * 1000)); // 3 requests per hour
+app.use('/api/agent/register', rateLimit(3, 60 * 60 * 1000)); // 3 requests per hour
 
 declare module "http" {
   interface IncomingMessage {

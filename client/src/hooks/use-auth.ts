@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { supabase } from "@/lib/supabaseClient";
 
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 export function useAuth() {
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
@@ -12,15 +14,65 @@ export function useAuth() {
 
   const queryClient = useQueryClient();
   const isFetchingUser = useRef(false);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   // Get current session for enabling the query
   const [currentSession, setCurrentSession] = useState<any>(null);
+
+  // Reset inactivity timer
+  const resetInactivityTimer = () => {
+    lastActivityRef.current = Date.now();
+    
+    // Clear existing timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
+    // Only set timer if user is logged in
+    if (currentSession) {
+      inactivityTimerRef.current = setTimeout(async () => {
+        console.log("User inactive for 5 minutes, logging out");
+        await supabase.auth.signOut();
+      }, INACTIVITY_TIMEOUT);
+    }
+  };
+
+  // Track user activity
+  useEffect(() => {
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    const handleActivity = () => {
+      resetInactivityTimer();
+    };
+
+    // Add event listeners for all activity events
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity);
+    });
+
+    // Initialize timer on mount
+    resetInactivityTimer();
+
+    // Cleanup
+    return () => {
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [currentSession]);
 
   // Update current session when auth state changes
   useEffect(() => {
     const getInitialSession = async () => {
       const { data } = await supabase.auth.getSession();
       setCurrentSession(data.session);
+      if (data.session) {
+        resetInactivityTimer();
+      }
     };
     getInitialSession();
 
@@ -31,10 +83,15 @@ export function useAuth() {
 
         if (event === "SIGNED_IN" && session) {
           console.log("Session restored:", session.user.id);
+          resetInactivityTimer();
           // Invalidate and refetch auth data when session changes
           queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         } else if (event === "SIGNED_OUT") {
           console.log("User signed out");
+          // Clear timer on logout
+          if (inactivityTimerRef.current) {
+            clearTimeout(inactivityTimerRef.current);
+          }
           // Clear auth data when user signs out
           queryClient.setQueryData(["/api/auth/me"], { user: null });
         }
@@ -100,8 +157,21 @@ export function useAuth() {
     setIsLoginLoading(true);
     setLoginError(null);
     try {
+      // Validate inputs
+      if (!email || !password) {
+        const errorMsg = "Email and password are required";
+        setLoginError(errorMsg);
+        return { error: errorMsg };
+      }
+      
+      if (typeof email !== 'string' || typeof password !== 'string') {
+        const errorMsg = "Invalid input types";
+        setLoginError(errorMsg);
+        return { error: errorMsg };
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -127,12 +197,37 @@ export function useAuth() {
     setIsRegisterLoading(true);
     setRegisterError(null);
     try {
+      // Validate inputs
+      if (!email || !password || !name) {
+        const errorMsg = "All fields are required";
+        setRegisterError(errorMsg);
+        return { error: errorMsg };
+      }
+      
+      if (typeof email !== 'string' || typeof password !== 'string' || typeof name !== 'string') {
+        const errorMsg = "Invalid input types";
+        setRegisterError(errorMsg);
+        return { error: errorMsg };
+      }
+      
+      if (name.trim().length < 2) {
+        const errorMsg = "Name must be at least 2 characters";
+        setRegisterError(errorMsg);
+        return { error: errorMsg };
+      }
+      
+      if (password.length < 6) {
+        const errorMsg = "Password must be at least 6 characters";
+        setRegisterError(errorMsg);
+        return { error: errorMsg };
+      }
+      
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
           data: {
-            name: name,
+            name: name.trim(),
           },
         },
       });

@@ -31,20 +31,39 @@ interface AgentPricing {
   customPrice: string;
 }
 
+interface AgentProfileResponse {
+  agent: Agent & {
+    user: {
+      name: string;
+      email: string;
+      phone: string | null;
+    };
+  };
+  stats: any;
+}
+
 export default function AgentStorefront() {
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { data: agent } = useQuery<Agent>({
+  const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
+    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchOnWindowFocus: true,
   });
+  
+  const agent = profileData?.agent;
 
   const { data: bundles } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],
+    refetchInterval: 30000, // Refresh every 30 seconds for product updates
+    refetchOnWindowFocus: true,
   });
 
   const { data: agentPricing } = useQuery<AgentPricing[]>({
     queryKey: ["/api/agent/pricing"],
+    refetchInterval: 15000, // Refresh every 15 seconds for pricing updates
+    refetchOnWindowFocus: true,
   });
 
   const [customPrices, setCustomPrices] = useState<Record<string, string>>({});

@@ -22,15 +22,27 @@ export function SupportChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
-  const { data: messages = [], isLoading } = useQuery({
+  const { data: messages = [], isLoading } = useQuery<ChatMessage[]>({
     queryKey: ["/api/support/messages"],
     enabled: isOpen,
     refetchInterval: 5000, // Poll every 5 seconds
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: (message: string) =>
-      apiRequest("POST", "/api/support/messages", { message }),
+    mutationFn: async (message: string) => {
+      const response = await fetch('/api/support/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message }),
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/support/messages"] });
       setMessage("");
@@ -68,20 +80,20 @@ export function SupportChat() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5" />
+        <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+          <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
           Customer Support
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs md:text-sm">
           Get help with your data bundle purchases and account issues
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
             onClick={() => setIsOpen(!isOpen)}
-            className="flex-1"
+            className="flex-1 text-sm"
           >
             <MessageSquare className="h-4 w-4 mr-2" />
             {isOpen ? "Close Chat" : "Start Chat"}
@@ -89,7 +101,7 @@ export function SupportChat() {
           <Button
             variant="outline"
             onClick={handleWhatsAppSupport}
-            className="flex-1"
+            className="flex-1 text-sm"
           >
             <MessageCircle className="h-4 w-4 mr-2" />
             WhatsApp
@@ -97,7 +109,7 @@ export function SupportChat() {
           <Button
             variant="outline"
             onClick={handleCallSupport}
-            className="flex-1"
+            className="flex-1 text-sm"
           >
             <Phone className="h-4 w-4 mr-2" />
             Call

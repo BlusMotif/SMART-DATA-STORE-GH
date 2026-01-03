@@ -6,6 +6,7 @@ import { Footer } from "@/components/layout/footer";
 import { DataBundleCard, DataBundleCardSkeleton } from "@/components/products/data-bundle-card";
 import { Button } from "@/components/ui/button";
 import { NoDataBundles } from "@/components/ui/empty-state";
+import { NetworkPrefixRules } from "@/components/ui/network-prefix-rules";
 import { ArrowLeft, Clock, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
@@ -32,6 +33,9 @@ const networkInfo: Record<string, { name: string; logo: string }> = {
 export default function NetworkProductsPage() {
   const { network } = useParams<{ network: string }>();
   const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
+  
+  // Get agent slug from URL
+  const agentSlug = new URLSearchParams(window.location.search).get("agent");
 
   const { data: dataBundles, isLoading } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],
@@ -53,7 +57,10 @@ export default function NetworkProductsPage() {
   const selectedBundle = sortedBundles?.find(bundle => bundle.id === selectedBundleId);
 
   const handlePurchaseBundle = (bundle: DataBundle) => {
-    window.location.href = `/checkout/data-bundle/${bundle.id}`;
+    const url = agentSlug 
+      ? `/checkout/data-bundle/${bundle.id}?agent=${agentSlug}`
+      : `/checkout/data-bundle/${bundle.id}`;
+    window.location.href = url;
   };
 
   return (
@@ -168,6 +175,9 @@ export default function NetworkProductsPage() {
 
           {/* Data Delivery Information */}
           <div className="mt-12 space-y-6">
+            {/* Network Prefix Rules */}
+            <NetworkPrefixRules />
+
             <Card className="p-6">
               <div className="flex items-start gap-3">
                 <Clock className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />

@@ -89,11 +89,21 @@ export default function AgentRegisterPage() {
       }
     },
     onError: (error: any) => {
-      toast({
-        title: "Registration failed",
-        description: error.message || "Something went wrong",
-        variant: "destructive",
-      });
+      // Check if it's a rate limit error
+      if (error.message && error.message.includes('rate limit')) {
+        toast({
+          title: "Too Many Attempts",
+          description: error.message || "You've exceeded the registration attempt limit. Please wait a few minutes before trying again.",
+          variant: "destructive",
+          duration: 8000,
+        });
+      } else {
+        toast({
+          title: "Registration failed",
+          description: error.message || "Something went wrong",
+          variant: "destructive",
+        });
+      }
     },
   });
 

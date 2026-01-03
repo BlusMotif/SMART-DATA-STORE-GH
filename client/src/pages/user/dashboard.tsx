@@ -147,6 +147,13 @@ export default function UserDashboard() {
     refetchInterval: 10000, // Refresh every 10 seconds for real-time data
   });
 
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return <Trophy className="h-5 w-5 text-yellow-500" />;
+    if (rank === 2) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (rank === 3) return <Award className="h-5 w-5 text-amber-600" />;
+    return <span className="text-sm font-semibold text-muted-foreground">#{rank}</span>;
+  };
+
   // Calculate status counts
   const statusCounts = transactions ? transactions.reduce((acc: Record<string, number>, transaction: any) => {
     acc[transaction.status] = (acc[transaction.status] || 0) + 1;

@@ -7,8 +7,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, X } from "lucide-react";
+import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Trophy, Award, Medal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Transaction } from "@shared/schema";
 
@@ -17,8 +18,18 @@ interface DashboardStats {
   totalTransactions: number;
   totalAgents: number;
   pendingWithdrawals: number;
+  pendingAgents: number;
+  activationRevenue: number;
   todayRevenue: number;
   todayTransactions: number;
+}
+
+interface TopCustomer {
+  customerEmail: string;
+  customerPhone: string;
+  totalPurchases: number;
+  totalSpent: number;
+  lastPurchase: string;
 }
 
 export default function AdminDashboard() {
@@ -32,6 +43,18 @@ export default function AdminDashboard() {
     queryKey: ["/api/admin/transactions/recent"],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+
+  const { data: topCustomers, isLoading: rankingsLoading } = useQuery<TopCustomer[]>({
+    queryKey: ["/api/admin/rankings/customers"],
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  const getRankIcon = (index: number) => {
+    if (index === 0) return <Trophy className="h-5 w-5 text-yellow-500" />;
+    if (index === 1) return <Medal className="h-5 w-5 text-gray-400" />;
+    if (index === 2) return <Award className="h-5 w-5 text-amber-600" />;
+    return <span className="text-sm font-semibold text-muted-foreground">#{index + 1}</span>;
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -172,9 +195,95 @@ export default function AdminDashboard() {
                       {stats?.todayTransactions || 0}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="h-5 w-5 text-purple-600" />
+                      <span className="text-sm font-medium">Activation Revenue</span>
+                    </div>
+                    <span className="font-bold text-purple-700 dark:text-purple-400">
+                      {formatCurrency(stats?.activationRevenue || 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Users className="h-5 w-5 text-orange-600" />
+                      <span className="text-sm font-medium">Pending Agents</span>
+                    </div>
+                    <span className="font-bold text-orange-700 dark:text-orange-400">
+                      {stats?.pendingAgents || 0}
+                    </span>
+                  </div>
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-yellow-500" />
+                    Top Customers
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">Highest spending customers</p>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {rankingsLoading ? (
+                  <TableSkeleton rows={5} />
+                ) : topCustomers && topCustomers.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">Rank</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead className="text-right">Total Spent</TableHead>
+                          <TableHead className="text-right">Purchases</TableHead>
+                          <TableHead className="text-right">Last Purchase</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {topCustomers.map((customer, index) => (
+                          <TableRow key={customer.customerPhone}>
+                            <TableCell className="text-center">
+                              {getRankIcon(index)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{customer.customerPhone}</span>
+                                {customer.customerEmail && (
+                                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                    {customer.customerEmail}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="font-bold text-green-600 dark:text-green-400">
+                                {formatCurrency(customer.totalSpent)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="secondary">
+                                {customer.totalPurchases} {customer.totalPurchases === 1 ? 'order' : 'orders'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground">
+                              {formatDate(customer.lastPurchase)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Trophy className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No customer rankings yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </main>
       </div>

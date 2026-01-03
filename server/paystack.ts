@@ -35,6 +35,7 @@ interface PaystackVerifyResponse {
       email: string;
       phone: string | null;
     };
+    metadata?: Record<string, any>;
   };
 }
 

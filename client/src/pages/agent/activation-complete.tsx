@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, XCircle, AlertCircle } from "lucide-react";
 import siteLogo from "@assets/logo_1765774201026.png";
 import { APP_NAME } from "@/lib/constants";
 
 export default function AgentActivationCompletePage() {
-  const [, setLocation] = useLocation();
-  const [status, setStatus] = useState<"processing" | "success" | "failed">("processing");
+  const [status, setStatus] = useState<"processing" | "success" | "failed" | "cancelled">("processing");
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [agentEmail, setAgentEmail] = useState<string>("");
 
   useEffect(() => {
     // Get reference from URL
@@ -29,16 +30,21 @@ export default function AgentActivationCompletePage() {
 
         if (data.status === "success") {
           setStatus("success");
-          // Redirect to login after 5 seconds
-          setTimeout(() => {
-            setLocation("/login");
-          }, 5000);
+          // Store agent email for display
+          if (data.data?.user?.email) {
+            setAgentEmail(data.data.user.email);
+          }
+        } else if (data.status === "cancelled") {
+          setStatus("cancelled");
+          setErrorMessage(data.message || "Payment was cancelled");
         } else {
           setStatus("failed");
+          setErrorMessage(data.message || "Payment verification failed");
         }
       } catch (error) {
         console.error("Payment verification error:", error);
         setStatus("failed");
+        setErrorMessage("Network error. Please check your connection and try again.");
       }
     };
 
@@ -46,7 +52,7 @@ export default function AgentActivationCompletePage() {
     setTimeout(() => {
       verifyPayment();
     }, 3000);
-  }, [setLocation]);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
@@ -76,13 +82,28 @@ export default function AgentActivationCompletePage() {
               <>
                 <Alert className="bg-green-50 border-green-200">
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  <AlertTitle className="text-green-900 text-lg font-semibold">Activation Successful!</AlertTitle>
-                  <AlertDescription className="text-green-800 space-y-2 mt-2">
-                    <p>🎉 Your agent account has been successfully activated!</p>
+                  <AlertTitle className="text-green-900 text-lg font-semibold">🎉 Account Activated Successfully!</AlertTitle>
+                  <AlertDescription className="text-green-800 space-y-3 mt-2">
+                    <p className="font-semibold">
+                      Congratulations! Your agent account has been successfully created and activated.
+                    </p>
+                    
+                    <div className="bg-white/50 p-3 rounded-md border border-green-300">
+                      <p className="font-semibold text-sm mb-2">✉️ Account Details:</p>
+                      {agentEmail && (
+                        <p className="text-sm">
+                          <span className="font-medium">Email:</span> {agentEmail}
+                        </p>
+                      )}
+                      <p className="text-sm mt-1 text-green-900">
+                        Please use your registration email and password to login.
+                      </p>
+                    </div>
+
                     <div className="mt-4 space-y-2 text-sm">
-                      <p className="font-semibold">What's next?</p>
+                      <p className="font-semibold">🚀 What's next?</p>
                       <ul className="list-disc list-inside space-y-1 ml-2">
-                        <li>Log in to your agent dashboard</li>
+                        <li>Login to access your agent dashboard</li>
                         <li>Set up your storefront preferences</li>
                         <li>Start selling and earning commissions</li>
                         <li>Share your storefront URL with customers</li>
@@ -92,12 +113,44 @@ export default function AgentActivationCompletePage() {
                 </Alert>
 
                 <div className="text-center space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    You will be redirected to the login page in 5 seconds...
-                  </p>
                   <Link href="/login">
+                    <Button className="w-full" size="lg">
+                      Login to Your Dashboard
+                    </Button>
+                  </Link>
+                  <p className="text-xs text-muted-foreground">
+                    Use your email and password to access your account
+                  </p>
+                </div>
+              </>
+            )}
+
+            {status === "cancelled" && (
+              <>
+                <Alert className="bg-amber-50 border-amber-200">
+                  <AlertCircle className="h-5 w-5 text-amber-600" />
+                  <AlertTitle className="text-amber-900 text-lg font-semibold">Payment Cancelled</AlertTitle>
+                  <AlertDescription className="text-amber-800">
+                    <p className="font-semibold">{errorMessage || "You cancelled the payment."}</p>
+                    <p className="mt-2">
+                      Your registration was not completed because payment was cancelled. 
+                      No charges have been made to your account.
+                    </p>
+                    <p className="mt-2 text-sm">
+                      You can try again whenever you're ready to complete your agent registration.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+
+                <div className="flex gap-3">
+                  <Link href="/agent/register" className="flex-1">
                     <Button className="w-full">
-                      Continue to Login
+                      Try Again
+                    </Button>
+                  </Link>
+                  <Link href="/" className="flex-1">
+                    <Button variant="outline" className="w-full">
+                      Back to Home
                     </Button>
                   </Link>
                 </div>
@@ -110,13 +163,14 @@ export default function AgentActivationCompletePage() {
                   <XCircle className="h-5 w-5 text-red-600" />
                   <AlertTitle className="text-red-900 text-lg font-semibold">Activation Failed</AlertTitle>
                   <AlertDescription className="text-red-800">
-                    <p>We couldn't verify your payment. This could be due to:</p>
+                    <p className="font-semibold">{errorMessage || "We couldn't verify your payment."}</p>
+                    <p className="mt-2">This could be due to:</p>
                     <ul className="list-disc list-inside mt-2 ml-2 space-y-1 text-sm">
-                      <li>Payment was cancelled</li>
                       <li>Payment failed to process</li>
                       <li>Network connection issues</li>
+                      <li>Invalid payment reference</li>
                     </ul>
-                    <p className="mt-3 font-semibold">
+                    <p className="mt-3 text-sm font-semibold">
                       Please try registering again or contact support if you were charged.
                     </p>
                   </AlertDescription>

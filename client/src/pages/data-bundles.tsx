@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Card } from "@/components/ui/card";
+import { NetworkPrefixRules } from "@/components/ui/network-prefix-rules";
 import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
@@ -41,8 +42,11 @@ export default function DataBundlesPage() {
       <main className="flex-1">
         {/* Products Section - Logo Grid */}
         <section id="products" className="py-12 px-4">
-          <div className="container mx-auto max-w-4xl">
-            <h2 className="text-2xl font-bold text-center mb-8">Select a Data Bundle</h2>
+          <div className="container mx-auto max-w-4xl space-y-8">
+            {/* Network Prefix Rules */}
+            <NetworkPrefixRules />
+
+            <h2 className="text-2xl font-bold text-center">Select a Data Bundle</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
               {products.map((product) => (

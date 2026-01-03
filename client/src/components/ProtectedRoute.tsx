@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
-import { Route, useLocation } from "wouter";
-import { useEffect } from "react";
+import { Route, Redirect } from "wouter";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 interface ProtectedRouteProps {
   path: string;
@@ -16,27 +16,32 @@ export function ProtectedRoute({
   fallbackPath = "/login"
 }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
 
-  useEffect(() => {
-    if (isLoading) return; // Still loading
+  return (
+    <Route path={path}>
+      {(params) => {
+        // Still loading
+        if (isLoading) {
+          return (
+            <div className="flex items-center justify-center min-h-screen">
+              <LoadingSpinner size="lg" />
+            </div>
+          );
+        }
 
-    if (!user) {
-      setLocation(fallbackPath);
-      return;
-    }
+        // Not authenticated
+        if (!user) {
+          return <Redirect to={fallbackPath} />;
+        }
 
-    if (requiredRole && user.role !== requiredRole) {
-      // If user doesn't have required role, redirect to home
-      setLocation("/");
-      return;
-    }
-  }, [user, isLoading, requiredRole, setLocation, fallbackPath]);
+        // Check role if required
+        if (requiredRole && user.role !== requiredRole) {
+          return <Redirect to="/" />;
+        }
 
-  // Don't render if still loading or not authorized
-  if (isLoading || !user || (requiredRole && user.role !== requiredRole)) {
-    return null;
-  }
-
-  return <Route path={path}>{(params) => <Component {...params} />}</Route>;
+        // Render component
+        return <Component {...params} />;
+      }}
+    </Route>
+  );
 }

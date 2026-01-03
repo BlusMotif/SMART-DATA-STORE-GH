@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu } from "lucide-react";
@@ -37,18 +38,27 @@ export default function AgentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
+    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   
   const agent = profileData?.agent;
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],
-    refetchInterval: 10000, // Refresh every 10 seconds for real-time data
+    refetchInterval: 5000, // Refresh every 5 seconds for real-time data
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Always consider data stale for real-time updates
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions/recent"],
-    refetchInterval: 10000, // Refresh every 10 seconds for real-time data
+    refetchInterval: 5000, // Refresh every 5 seconds for real-time data
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Always consider data stale for real-time updates
   });
 
   return (
@@ -108,32 +118,53 @@ export default function AgentDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                  title="Available Balance"
-                  value={formatCurrency(stats?.balance || 0)}
-                  icon={Wallet}
-                  description="Profit available for withdrawal"
-                />
-                <StatCard
-                  title="Total Profit"
-                  value={formatCurrency(stats?.totalProfit || 0)}
-                  icon={TrendingUp}
-                  description="All time earnings"
-                />
-                <StatCard
-                  title="Total Sales"
-                  value={formatCurrency(stats?.totalSales || 0)}
-                  icon={DollarSign}
-                  description="Revenue generated"
-                />
-                <StatCard
-                  title="Total Orders"
-                  value={stats?.totalTransactions || 0}
-                  icon={ShoppingCart}
-                  description="Completed transactions"
-                />
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <StatCard
+                    title="Available Balance"
+                    value={formatCurrency(stats?.balance || 0)}
+                    icon={Wallet}
+                    description="Profit available for withdrawal"
+                  />
+                  <StatCard
+                    title="Total Profit"
+                    value={formatCurrency(stats?.totalProfit || 0)}
+                    icon={TrendingUp}
+                    description="All time earnings"
+                  />
+                  <StatCard
+                    title="Total Sales"
+                    value={formatCurrency(stats?.totalSales || 0)}
+                    icon={DollarSign}
+                    description="Revenue generated"
+                  />
+                  <StatCard
+                    title="Total Orders"
+                    value={stats?.totalTransactions || 0}
+                    icon={ShoppingCart}
+                    description="Completed transactions"
+                  />
+                </div>
+
+                {/* Today's Performance Section */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Today's Performance</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <StatCard
+                      title="Today's Profit"
+                      value={formatCurrency(stats?.todayProfit || 0)}
+                      icon={TrendingUp}
+                      description="Earnings today"
+                    />
+                    <StatCard
+                      title="Today's Transactions"
+                      value={stats?.todayTransactions || 0}
+                      icon={ShoppingCart}
+                      description="Orders completed today"
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

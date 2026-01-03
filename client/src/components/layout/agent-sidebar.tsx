@@ -8,6 +8,8 @@ import {
   LogOut,
   ExternalLink,
   X,
+  Trophy,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,13 +30,23 @@ interface AgentProfileResponse {
 const sidebarNavItems = [
   {
     title: "Dashboard",
-    href: "/agent",
+    href: "/agent/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Users Ranking",
+    href: "/agent/rankings",
+    icon: Trophy,
   },
   {
     title: "My Storefront",
     href: "/agent/storefront",
     icon: Store,
+  },
+  {
+    title: "Bulk Upload",
+    href: "/agent/bulk-upload",
+    icon: Upload,
   },
   {
     title: "Transactions",
@@ -89,7 +101,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
         <ScrollArea className="flex-1 px-3 py-4">
           <nav className="flex flex-col gap-1">
             {sidebarNavItems.map((item) => {
-              const isActive = location === item.href || (item.href !== "/agent" && location.startsWith(item.href));
+              const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
@@ -160,7 +172,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="flex flex-col gap-1">
           {sidebarNavItems.map((item) => {
-            const isActive = location === item.href || (item.href !== "/agent" && location.startsWith(item.href));
+            const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
             return (
               <Link key={item.href} href={item.href}>
                 <Button

@@ -34,7 +34,12 @@ const rateLimit = (maxRequests: number, windowMs: number) => {
     }
     
     if (record.count >= maxRequests) {
-      return res.status(429).json({ error: "Too many requests. Please try again later." });
+      const remainingTime = Math.ceil((record.resetTime - now) / 1000 / 60); // minutes
+      return res.status(429).json({ 
+        error: "Too many requests. Please try again later.",
+        message: `You've exceeded the rate limit. Please wait ${remainingTime} minute(s) before trying again.`,
+        retryAfter: remainingTime
+      });
     }
     
     record.count++;
@@ -66,9 +71,19 @@ app.use((req, res, next) => {
 });
 
 // Apply rate limiting to sensitive routes
-app.use('/api/auth/login', rateLimit(5, 15 * 60 * 1000)); // 5 requests per 15 minutes
-app.use('/api/auth/register', rateLimit(3, 60 * 60 * 1000)); // 3 requests per hour
-app.use('/api/agent/register', rateLimit(3, 60 * 60 * 1000)); // 3 requests per hour
+// Note: These limits are lenient for development. Adjust for production as needed.
+app.use('/api/auth/login', rateLimit(10, 15 * 60 * 1000)); // 10 requests per 15 minutes
+app.use('/api/auth/register', rateLimit(10, 30 * 60 * 1000)); // 10 requests per 30 minutes
+app.use('/api/agent/register', rateLimit(10, 30 * 60 * 1000)); // 10 requests per 30 minutes
+
+// Development-only endpoint to clear rate limits
+if (process.env.NODE_ENV !== "production") {
+  app.post('/api/dev/clear-rate-limits', (req: Request, res: Response) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    rateLimitMap.delete(ip);
+    res.json({ message: `Rate limits cleared for ${ip}` });
+  });
+}
 
 declare module "http" {
   interface IncomingMessage {

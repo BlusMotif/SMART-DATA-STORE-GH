@@ -16,6 +16,9 @@ interface ResultCheckerStock {
 }
 
 export default function ResultCheckersPage() {
+  // Get agent slug from URL
+  const agentSlug = new URLSearchParams(window.location.search).get("agent");
+  
   const { data: resultCheckerStock, isLoading } = useQuery<ResultCheckerStock[]>({
     queryKey: ["/api/products/result-checkers/stock"],
     refetchInterval: 30000, // Refresh every 30 seconds for real-time stock updates
@@ -23,7 +26,10 @@ export default function ResultCheckersPage() {
   });
 
   const handlePurchaseChecker = (type: string, year: number) => {
-    window.location.href = `/checkout/result-checker/${type}/${year}`;
+    const url = agentSlug
+      ? `/checkout/result-checker/${type}/${year}?agent=${agentSlug}`
+      : `/checkout/result-checker/${type}/${year}`;
+    window.location.href = url;
   };
 
   return (

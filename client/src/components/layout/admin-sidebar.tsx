@@ -13,6 +13,7 @@ import {
   Bell,
   X,
   MessageCircle,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,11 @@ const sidebarNavItems = [
     title: "Users",
     href: "/admin/users",
     icon: UserCircle,
+  },
+  {
+    title: "Users Ranking",
+    href: "/admin/rankings",
+    icon: Trophy,
   },
   {
     title: "Agents",

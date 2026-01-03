@@ -26,6 +26,7 @@ export const TransactionStatus = {
 export const ProductType = {
   DATA_BUNDLE: "data_bundle",
   RESULT_CHECKER: "result_checker",
+  AGENT_ACTIVATION: "agent_activation",
 } as const;
 
 // Network provider enum
@@ -92,7 +93,7 @@ export const users = pgTable("users", {
 // ============================================
 export const agents = pgTable("agents", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   storefrontSlug: text("storefront_slug").notNull().unique(),
   businessName: text("business_name").notNull(),
   businessDescription: text("business_description"),
@@ -101,6 +102,8 @@ export const agents = pgTable("agents", {
   totalSales: decimal("total_sales", { precision: 12, scale: 2 }).notNull().default("0.00"),
   totalProfit: decimal("total_profit", { precision: 12, scale: 2 }).notNull().default("0.00"),
   isApproved: boolean("is_approved").notNull().default(false),
+  paymentPending: boolean("payment_pending").notNull().default(true),
+  activationFee: decimal("activation_fee", { precision: 10, scale: 2 }).default("60.00"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   userIdIdx: index("agents_user_id_idx").on(table.userId),
@@ -188,7 +191,7 @@ export const transactions = pgTable("transactions", {
 // ============================================
 export const withdrawals = pgTable("withdrawals", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id),
+  agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"),
   bankName: text("bank_name").notNull(),
@@ -243,6 +246,22 @@ export const auditLogs = pgTable("audit_logs", {
   actionIdx: index("audit_logs_action_idx").on(table.action),
   entityIdx: index("audit_logs_entity_idx").on(table.entityType, table.entityId),
   createdAtIdx: index("audit_logs_created_at_idx").on(table.createdAt),
+}));
+
+// ============================================
+// AGENT CUSTOM PRICING TABLE
+// ============================================
+export const agentCustomPricing = pgTable("agent_custom_pricing", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id, { onDelete: "cascade" }),
+  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
+  customPrice: decimal("custom_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  agentIdx: index("agent_custom_pricing_agent_idx").on(table.agentId),
+  bundleIdx: index("agent_custom_pricing_bundle_idx").on(table.bundleId),
+  uniqueAgentBundle: index("agent_custom_pricing_unique").on(table.agentId, table.bundleId),
 }));
 
 // ============================================
@@ -472,7 +491,7 @@ export const purchaseSchema = z.object({
 });
 
 export const withdrawalRequestSchema = z.object({
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().min(50, "Minimum withdrawal amount is GH₵50").positive("Amount must be positive"),
   bankName: z.string().min(2, "Bank name required"),
   accountNumber: z.string().min(10, "Account number required"),
   accountName: z.string().min(2, "Account name required"),

@@ -1,29 +1,26 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { StorefrontAuthDialog } from "@/components/storefront-auth-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { DataBundleCard, DataBundleCardSkeleton } from "@/components/products/data-bundle-card";
-import { ResultCheckerCard, ResultCheckerCardSkeleton } from "@/components/products/result-checker-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { NoDataBundles, NoResultCheckers } from "@/components/ui/empty-state";
 import { PageLoader } from "@/components/ui/loading-spinner";
-import { NETWORKS } from "@/lib/constants";
 import { useAuth } from "@/hooks/use-auth";
-import { Smartphone, FileCheck, Store, Shield, LogOut, User } from "lucide-react";
-import type { DataBundle, Agent } from "@shared/schema";
+import { Store, Shield, LogOut, User } from "lucide-react";
+import type { Agent } from "@shared/schema";
+import mtnLogo from "@assets/mtn_1765780772203.jpg";
+import telecelLogo from "@assets/telecel_1765780772206.jpg";
+import airteltigoLogo from "@assets/at_1765780772206.jpg";
+import resultLogo from "@assets/result_1765780772205.jpg";
 
 interface StorefrontData {
   agent: Agent & { user: { name: string } };
-  dataBundles: (DataBundle & { customPrice: number })[];
-  resultCheckerStock: { type: string; year: number; price: number; stock: number }[];
 }
 
 export default function StorefrontPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [selectedNetwork, setSelectedNetwork] = useState<string>("all");
+  const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
 
   // Store the agent slug in localStorage when visiting
@@ -33,28 +30,18 @@ export default function StorefrontPage() {
     }
   }, [slug]);
 
+  // Handle product navigation
+  const navigateToProduct = (network: string) => {
+    console.log(`Navigating to: /products/${network}?agent=${slug}`);
+    setLocation(`/products/${network}?agent=${slug}`);
+  };
+
   const { data, isLoading, error } = useQuery<StorefrontData>({
     queryKey: ["/api/store", slug],
     enabled: !!slug,
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
-
-  const handlePurchaseBundle = (bundle: DataBundle & { customPrice: number }) => {
-    if (!user) {
-      alert("Please login or register to make a purchase");
-      return;
-    }
-    window.location.href = `/checkout/data-bundle/${bundle.id}?agent=${slug}`;
-  };
-
-  const handlePurchaseChecker = (type: string, year: number) => {
-    if (!user) {
-      alert("Please login or register to make a purchase");
-      return;
-    }
-    window.location.href = `/checkout/result-checker/${type}/${year}?agent=${slug}`;
-  };
 
   const handleLogout = () => {
     logout();
@@ -106,10 +93,7 @@ export default function StorefrontPage() {
     );
   }
 
-  const { agent, dataBundles, resultCheckerStock } = data;
-  const filteredBundles = dataBundles?.filter(
-    (bundle) => selectedNetwork === "all" || bundle.network === selectedNetwork
-  );
+  const { agent } = data;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -164,67 +148,72 @@ export default function StorefrontPage() {
           </div>
         </section>
 
-        <section className="py-12 px-4">
-          <div className="container mx-auto max-w-6xl">
-            <Tabs defaultValue="data-bundles" className="space-y-8">
-              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
-                <TabsTrigger value="data-bundles" className="gap-2">
-                  <Smartphone className="h-4 w-4" />
-                  Data Bundles
-                </TabsTrigger>
-                <TabsTrigger value="result-checkers" className="gap-2">
-                  <FileCheck className="h-4 w-4" />
+        {/* Product Logos Section */}
+        <section className="py-12 px-4 bg-background">
+          <div className="container mx-auto max-w-4xl">
+            <h2 className="text-2xl font-bold text-center mb-8">Browse Our Products</h2>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {/* MTN Logo */}
+              <Card 
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                onClick={() => navigateToProduct('mtn')}
+              >
+                <img
+                  src={mtnLogo}
+                  alt="MTN Data Bundles"
+                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                />
+                <p className="text-sm font-medium text-center text-muted-foreground">
+                  MTN Data Bundles
+                </p>
+              </Card>
+
+              {/* Telecel Logo */}
+              <Card 
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                onClick={() => navigateToProduct('telecel')}
+              >
+                <img
+                  src={telecelLogo}
+                  alt="Telecel Data Bundles"
+                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                />
+                <p className="text-sm font-medium text-center text-muted-foreground">
+                  Telecel Data Bundles
+                </p>
+              </Card>
+
+              {/* AirtelTigo Logo */}
+              <Card 
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                onClick={() => navigateToProduct('airteltigo')}
+              >
+                <img
+                  src={airteltigoLogo}
+                  alt="AirtelTigo Data Bundles"
+                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                />
+                <p className="text-sm font-medium text-center text-muted-foreground">
+                  AirtelTigo Data Bundles
+                </p>
+              </Card>
+
+              {/* Result Checker Logo */}
+              <Card 
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                onClick={() => navigateToProduct('result-checkers')}
+              >
+                <img
+                  src={resultLogo}
+                  alt="Result Checkers"
+                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                />
+                <p className="text-sm font-medium text-center text-muted-foreground">
                   Result Checkers
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="data-bundles" className="space-y-6">
-                <div className="flex flex-wrap justify-center gap-2">
-                  <Button variant={selectedNetwork === "all" ? "default" : "outline"} size="sm" onClick={() => setSelectedNetwork("all")}>
-                    All Networks
-                  </Button>
-                  {NETWORKS.map((network) => (
-                    <Button key={network.id} variant={selectedNetwork === network.id ? "default" : "outline"} size="sm" onClick={() => setSelectedNetwork(network.id)}>
-                      {network.name}
-                    </Button>
-                  ))}
-                </div>
-
-                {filteredBundles && filteredBundles.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredBundles.map((bundle) => (
-                      <DataBundleCard
-                        key={bundle.id}
-                        bundle={bundle}
-                        customPrice={bundle.customPrice}
-                        onPurchase={() => handlePurchaseBundle(bundle)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <NoDataBundles />
-                )}
-              </TabsContent>
-
-              <TabsContent value="result-checkers" className="space-y-6">
-                {resultCheckerStock && resultCheckerStock.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {resultCheckerStock.map((item) => (
-                      <ResultCheckerCard
-                        key={`${item.type}-${item.year}`}
-                        type={item.type as "bece" | "wassce"}
-                        year={item.year}
-                        price={item.price}
-                        stock={item.stock}
-                        onPurchase={() => handlePurchaseChecker(item.type, item.year)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <NoResultCheckers />
-                )}
-              </TabsContent>
-            </Tabs>
+                </p>
+              </Card>
+            </div>
           </div>
         </section>
       </main>

@@ -132,8 +132,11 @@ export default function WalletTopupSuccessPage() {
                 <Button onClick={() => setLocation("/user/wallet")} className="w-full">
                   Check Wallet Balance
                 </Button>
-                <Button variant="outline" onClick={() => setLocation("/")}>
-                  Return Home
+                <Button variant="outline" onClick={() => {
+                  const agentStore = localStorage.getItem("agentStore");
+                  setLocation(agentStore ? `/store/${agentStore}` : "/");
+                }}>
+                  {localStorage.getItem("agentStore") ? "Return to Store" : "Return Home"}
                 </Button>
               </div>
             </CardContent>
@@ -186,12 +189,22 @@ export default function WalletTopupSuccessPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Button onClick={() => setLocation("/")} className="w-full">
+              <Button onClick={() => {
+                const agentStore = localStorage.getItem("agentStore");
+                setLocation(agentStore ? `/store/${agentStore}` : "/");
+              }} className="w-full">
                 <Wallet className="w-4 h-4 mr-2" />
-                Start Shopping
+                {localStorage.getItem("agentStore") ? "Back to Store" : "Start Shopping"}
               </Button>
-              <Button variant="outline" onClick={() => setLocation("/user/dashboard")}>
-                View Dashboard
+              <Button variant="outline" onClick={() => {
+                const agentStore = localStorage.getItem("agentStore");
+                if (agentStore) {
+                  setLocation(`/store/${agentStore}`);
+                } else {
+                  setLocation("/user/dashboard");
+                }
+              }}>
+                {localStorage.getItem("agentStore") ? "Continue Shopping" : "View Dashboard"}
               </Button>
             </div>
 

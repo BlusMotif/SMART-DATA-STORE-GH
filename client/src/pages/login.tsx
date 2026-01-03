@@ -52,8 +52,8 @@ export default function LoginPage() {
         console.log("Redirecting admin to /admin");
         setLocation("/admin");
       } else if (role === "agent") {
-        console.log("Redirecting agent to /agent");
-        setLocation("/agent");
+        console.log("Redirecting agent to /agent/dashboard");
+        setLocation("/agent/dashboard");
       } else if (role === "user") {
         console.log("Redirecting user to /user/dashboard");
         setLocation("/user/dashboard");

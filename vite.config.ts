@@ -7,9 +7,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+      jsxImportSource: 'react',
+      babel: {
+        plugins: [],
+      },
+    }),
   ],
   resolve: {
+    dedupe: ['react', 'react-dom'],
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
       "@shared": path.resolve(__dirname, "shared"),
@@ -33,5 +40,12 @@ export default defineConfig({
       strict: true,
       deny: ["**/.*"],
     },
+    watch: {
+      usePolling: true,
+    },
+  },
+  cacheDir: 'node_modules/.vite',
+  optimizeDeps: {
+    force: true,
   },
 });

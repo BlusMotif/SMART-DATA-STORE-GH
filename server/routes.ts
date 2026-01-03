@@ -10,6 +10,14 @@ import {
 } from "@shared/schema";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack";
 import { getSupabaseServer } from "./supabase";
+import { 
+  validatePhoneNetwork, 
+  getNetworkMismatchError, 
+  normalizePhoneNumber,
+  isValidPhoneLength,
+  detectNetwork,
+  validatePhoneNumberDetailed
+} from "./utils/network-validator";
 
 // Get Supabase instance
 const getSupabase = () => getSupabaseServer();
@@ -34,9 +42,9 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-// Phone validation
+// Phone validation - updated to use network validator
 function isValidPhone(phone: string): boolean {
-  return /^\+?[0-9]{10,15}$/.test(phone);
+  return isValidPhoneLength(phone);
 }
 
 // Supabase JWT auth middleware
@@ -524,79 +532,29 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Storefront URL already taken" });
       }
 
-      // Check if user already exists in Supabase Auth
-      console.log("Checking if user exists in Supabase Auth");
+      // Check if user already exists with this email
+      console.log("Checking if user exists");
       const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
       const existingAuthUser = existingUsers?.users.find(u => u.email === data.email);
       
-      let userId: string;
-      
       if (existingAuthUser) {
-        console.log("User already exists in Supabase Auth:", existingAuthUser.id);
-        userId = existingAuthUser.id;
-        
-        // Check if user already has an agent account
-        const existingAgent = await storage.getAgentByUserId(userId);
+        // Check if they already have an agent account
+        const existingAgent = await storage.getAgentByUserId(existingAuthUser.id);
         if (existingAgent) {
           return res.status(400).json({ error: "This email is already registered as an agent" });
         }
-      } else {
-        console.log("Creating new user in Supabase Auth");
-        // Create user in Supabase Auth
-        const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
-          email: data.email,
-          password: data.password,
-          user_metadata: {
-            name: data.name,
-            phone: data.phone,
-            role: 'agent'
-          },
-          email_confirm: true
-        });
-
-        if (authError) {
-          console.error("Supabase auth error:", authError);
-          return res.status(400).json({ error: authError.message });
-        }
-
-        console.log("Supabase user created:", authData.user.id);
-        userId = authData.user.id;
       }
 
-      // Create user in local database first
-      console.log("Creating user in local database");
-      try {
-        const localUser = await storage.createUser({
-          id: userId,
-          email: data.email,
-          password: '', // Empty password since auth is handled by Supabase
-          name: data.name,
-          phone: data.phone,
-          role: UserRole.AGENT,
-        });
-        console.log("User created in local database:", localUser.id);
-      } catch (userError: any) {
-        console.error("Failed to create user in local database:", userError.message);
-        // If user already exists, continue. Otherwise, throw error.
-        if (userError.code !== '23505') {
-          throw userError;
-        }
-        console.log("User already exists in database, continuing...");
-      }
-
-      console.log("Creating agent in database");
-      // Create agent record in database (initially not approved, will be approved after payment)
-      const agent = await storage.createAgent({
-        userId: userId,
-        storefrontSlug: data.storefrontSlug,
-        businessName: data.businessName,
-        isApproved: false, // Will be set to true after payment
-      });
-
-      console.log("Agent created:", agent.id);
+      // DO NOT CREATE ACCOUNT YET - Only initialize payment
+      // Account will be created after successful payment verification
+      
+      // Create a temporary reference for payment tracking
+      const activationFee = 60.00; // GHC 60.00
+      const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      
+      console.log("Initializing payment without creating account");
 
       // Initialize Paystack payment for agent activation
-      const activationFee = 60.00; // GHC 60.00
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
         headers: {
@@ -607,13 +565,20 @@ export async function registerRoutes(
           email: data.email,
           amount: Math.round(activationFee * 100), // Convert to pesewas
           currency: "GHS",
-          reference: `agent_activation_${agent.id}_${Date.now()}`,
-          callback_url: `${process.env.FRONTEND_URL || 'http://localhost:5000'}/agent/activation-complete`,
+          reference: tempReference,
+          callback_url: `${process.env.FRONTEND_URL || 'http://localhost:10000'}/agent/activation-complete`,
           metadata: {
-            agent_id: agent.id,
-            user_id: userId,
             purpose: "agent_activation",
-            business_name: data.businessName,
+            pending_registration: true,
+            // Store all registration data in metadata for account creation after payment
+            registration_data: {
+              email: data.email,
+              password: data.password,
+              name: data.name,
+              phone: data.phone,
+              storefrontSlug: data.storefrontSlug,
+              businessName: data.businessName,
+            },
           },
         }),
       });
@@ -625,29 +590,36 @@ export async function registerRoutes(
         return res.status(500).json({ error: "Payment initialization failed" });
       }
 
-      console.log("Paystack payment initialized:", paystackData.data.reference);
+      console.log("Payment initialized. Account will be created after successful payment:", paystackData.data.reference);
 
       res.json({
-        user: { 
-          id: userId, 
-          email: data.email, 
-          name: data.name, 
-          role: 'agent',
-          phone: data.phone
-        },
-        agent: { 
-          id: agent.id, 
-          businessName: agent.businessName, 
-          storefrontSlug: agent.storefrontSlug, 
-          isApproved: false 
-        },
+        message: "Please complete payment to activate your agent account",
         paymentUrl: paystackData.data.authorization_url,
         paymentReference: paystackData.data.reference,
+        amount: activationFee,
       });
     } catch (error: any) {
       console.error("Error during agent registration:", error.message);
       console.error("Full error:", error);
-      res.status(500).json({ error: error.message || "Registration failed" });
+      console.error("Error stack:", error.stack);
+      
+      // Handle specific database errors
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "This email or phone number is already registered" });
+      }
+      
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ 
+          error: "Invalid registration data", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: error.message || "Registration failed",
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 
@@ -746,6 +718,10 @@ export async function registerRoutes(
       const user = await storage.getUser(agent.userId);
       const bundles = await storage.getDataBundles({ isActive: true });
 
+      // Get agent's custom pricing
+      const customPricing = await storage.getAgentCustomPricing(agent.id);
+      const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
+
       const currentYear = new Date().getFullYear();
       const resultCheckerStock = [];
       for (const year of [currentYear, currentYear - 1]) {
@@ -771,10 +747,14 @@ export async function registerRoutes(
           businessDescription: agent.businessDescription,
           slug: agent.storefrontSlug,
         },
-        dataBundles: bundles.map(b => ({
-          ...b,
-          price: (parseFloat(b.basePrice) * (1 + parseFloat(agent.customPricingMarkup || "0") / 100)).toFixed(2),
-        })),
+        dataBundles: bundles.map(b => {
+          // Use custom price if set, otherwise use base price
+          const customPrice = pricingMap.get(b.id);
+          return {
+            ...b,
+            customPrice: parseFloat(customPrice || b.basePrice),
+          };
+        }),
         resultCheckers: resultCheckerStock,
       });
     } catch (error: any) {
@@ -900,9 +880,13 @@ export async function registerRoutes(
       
       const data = purchaseSchema.parse(req.body);
       
-      // Validate phone number format
-      if (data.customerPhone && !/^\+?[0-9]{10,15}$/.test(data.customerPhone)) {
-        return res.status(400).json({ error: "Invalid phone number format" });
+      // Normalize and validate phone number format
+      const normalizedPhone = normalizePhoneNumber(data.customerPhone);
+      
+      if (!isValidPhoneLength(normalizedPhone)) {
+        return res.status(400).json({ 
+          error: "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)" 
+        });
       }
       
       // Validate email format if provided
@@ -924,6 +908,13 @@ export async function registerRoutes(
         if (!product || !product.isActive) {
           return res.status(404).json({ error: "Product not found" });
         }
+        
+        // Validate that phone number matches the selected network
+        if (!validatePhoneNetwork(normalizedPhone, product.network)) {
+          const errorMsg = getNetworkMismatchError(normalizedPhone, product.network);
+          return res.status(400).json({ error: errorMsg });
+        }
+        
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
         amount = parseFloat(product.basePrice);
         costPrice = parseFloat(product.costPrice);
@@ -947,10 +938,29 @@ export async function registerRoutes(
         const agent = await storage.getAgentBySlug(data.agentSlug);
         if (agent && agent.isApproved) {
           agentId = agent.id;
-          const markup = parseFloat(agent.customPricingMarkup || "0");
-          const agentPrice = amount * (1 + markup / 100);
-          agentProfit = agentPrice - amount;
-          amount = agentPrice;
+          
+          // Check if agent has custom pricing for this bundle
+          if (data.productType === ProductType.DATA_BUNDLE) {
+            const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
+            if (customPrice) {
+              const agentPrice = parseFloat(customPrice);
+              // Agent profit is the difference between their price and cost price
+              agentProfit = agentPrice - costPrice;
+              amount = agentPrice;
+            } else {
+              // Fall back to markup if no custom price
+              const markup = parseFloat(agent.customPricingMarkup || "0");
+              const agentPrice = amount * (1 + markup / 100);
+              agentProfit = agentPrice - amount;
+              amount = agentPrice;
+            }
+          } else {
+            // For result checkers, use markup
+            const markup = parseFloat(agent.customPricingMarkup || "0");
+            const agentPrice = amount * (1 + markup / 100);
+            agentProfit = agentPrice - amount;
+            amount = agentPrice;
+          }
         }
       }
 
@@ -966,7 +976,7 @@ export async function registerRoutes(
         amount: amount.toFixed(2),
         costPrice: costPrice.toFixed(2),
         profit: profit.toFixed(2),
-        customerPhone: data.customerPhone,
+        customerPhone: normalizedPhone,
         customerEmail: data.customerEmail,
         status: TransactionStatus.PENDING,
         agentId,
@@ -974,7 +984,7 @@ export async function registerRoutes(
       });
 
       // Initialize Paystack payment
-      const customerEmail = data.customerEmail || `${data.customerPhone}@clectech.com`;
+      const customerEmail = data.customerEmail || `${normalizedPhone}@clectech.com`;
       const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success`;
 
       try {
@@ -986,7 +996,7 @@ export async function registerRoutes(
           metadata: {
             transactionId: transaction.id,
             productName: productName,
-            customerPhone: data.customerPhone,
+            customerPhone: normalizedPhone,
           },
         });
 
@@ -1089,6 +1099,260 @@ export async function registerRoutes(
     }
   });
 
+  // Paystack Payment Verification (for frontend callback)
+  app.get("/api/paystack/verify", async (req, res) => {
+    try {
+      const reference = req.query.reference as string;
+      
+      if (!reference) {
+        return res.status(400).json({ error: "Payment reference is required" });
+      }
+
+      console.log("Verifying payment reference:", reference);
+      
+      try {
+        // Verify payment with Paystack
+        const verificationResult = await verifyPayment(reference);
+        
+        if (!verificationResult.status) {
+          console.log("Payment verification failed for reference:", reference);
+          return res.json({ status: "failed", message: "Payment verification failed" });
+        }
+
+        const paymentData = verificationResult.data;
+        console.log("Payment data received:", { status: paymentData.status, reference: paymentData.reference });
+        
+        // Handle cancelled or abandoned payments
+        if (paymentData.status === "abandoned" || paymentData.status === "cancelled") {
+          console.log("Payment was cancelled or abandoned:", reference);
+          return res.json({ 
+            status: "cancelled", 
+            message: "Payment was cancelled. Please try again if you wish to complete your registration."
+          });
+        }
+        
+        if (paymentData.status === "success") {
+        const metadata = paymentData.metadata as any;
+        
+        // Check if this is a pending agent registration (new flow - account not created yet)
+        if (metadata && metadata.pending_registration && metadata.registration_data) {
+          console.log("Processing pending agent registration after payment success");
+          console.log("Registration data:", metadata.registration_data);
+          
+          const supabaseServer = getSupabase();
+          if (!supabaseServer) {
+            console.error("Supabase not configured");
+            return res.json({ status: "failed", message: "Server configuration error" });
+          }
+          
+          const regData = metadata.registration_data;
+          
+          // Check if user already exists (idempotency check for duplicate verification calls)
+          const existingUser = await storage.getUserByEmail(regData.email);
+          if (existingUser && existingUser.role === 'agent') {
+            console.log("User already exists, returning existing account details");
+            const existingAgent = await storage.getAgentByUserId(existingUser.id);
+            
+            if (existingAgent) {
+              return res.json({
+                status: "success",
+                message: "Agent account already created successfully",
+                autoLogin: true,
+                loginCredentials: {
+                  email: regData.email,
+                  password: regData.password
+                },
+                data: {
+                  reference: paymentData.reference,
+                  amount: paymentData.amount,
+                  paidAt: paymentData.paid_at,
+                  agent: {
+                    id: existingAgent.id,
+                    businessName: existingAgent.businessName,
+                    storefrontSlug: existingAgent.storefrontSlug
+                  },
+                  user: {
+                    id: existingUser.id,
+                    email: existingUser.email,
+                    name: existingUser.name,
+                    role: existingUser.role
+                  }
+                }
+              });
+            }
+          }
+          
+          // Now create the account after successful payment
+          try {
+            console.log("Step 1: Creating user in Supabase Auth:", regData.email);
+            const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
+              email: regData.email,
+              password: regData.password,
+              user_metadata: {
+                name: regData.name,
+                phone: regData.phone,
+                role: 'agent'
+              },
+              email_confirm: true
+            });
+
+            if (authError) {
+              console.error("Step 1 FAILED: Auth user creation error:", authError);
+              return res.json({ 
+                status: "failed", 
+                message: "Payment successful but account creation failed. Please contact support.",
+                error: authError.message
+              });
+            }
+
+            const userId = authData.user.id;
+            console.log("Step 1 SUCCESS: Supabase user created:", userId);
+
+            // Create user in local database
+            console.log("Step 2: Creating user in local database");
+            const localUser = await storage.createUser({
+              id: userId,
+              email: regData.email,
+              password: '', // Empty password since auth is handled by Supabase
+              name: regData.name,
+              phone: regData.phone,
+              role: UserRole.AGENT,
+            });
+            console.log("Step 2 SUCCESS: User created in local database:", localUser.id);
+
+            // Create agent record (already approved since payment is complete)
+            console.log("Step 3: Creating agent record");
+            const agent = await storage.createAgent({
+              userId: userId,
+              storefrontSlug: regData.storefrontSlug,
+              businessName: regData.businessName,
+              isApproved: true, // Approved since payment is successful
+              paymentPending: false,
+            });
+            console.log("Step 3 SUCCESS: Agent created and approved:", agent.id);
+
+            // Create transaction record for the activation payment
+            console.log("Step 4: Recording activation transaction");
+            const activationFee = 60.00;
+            const transaction = await storage.createTransaction({
+              reference: paymentData.reference,
+              type: ProductType.AGENT_ACTIVATION,
+              productId: agent.id,
+              productName: "Agent Account Activation",
+              network: null,
+              amount: activationFee.toString(),
+              costPrice: "0.00",
+              profit: activationFee.toString(),
+              customerPhone: regData.phone,
+              customerEmail: regData.email,
+              paymentMethod: "paystack",
+              status: TransactionStatus.COMPLETED,
+              completedAt: new Date(),
+              paymentReference: paymentData.reference,
+              agentId: null,
+              agentProfit: "0.00",
+            });
+            console.log("Step 4 SUCCESS: Activation transaction recorded:", transaction.id);
+
+            // Generate login credentials for auto-login
+            console.log("Step 5: Preparing auto-login response");
+            const response = { 
+              status: "success", 
+              message: "Payment verified and agent account created successfully",
+              autoLogin: true,
+              loginCredentials: {
+                email: regData.email,
+                password: regData.password,
+              },
+              data: {
+                reference: paymentData.reference,
+                amount: paymentData.amount,
+                paidAt: paymentData.paid_at,
+                agent: {
+                  id: agent.id,
+                  businessName: agent.businessName,
+                  storefrontSlug: agent.storefrontSlug,
+                },
+                user: {
+                  id: userId,
+                  email: regData.email,
+                  name: regData.name,
+                  role: 'agent',
+                }
+              }
+            };
+            console.log("Step 5 SUCCESS: Sending success response");
+            return res.json(response);
+          } catch (createError: any) {
+            console.error("ERROR in account creation process:", createError);
+            console.error("Error stack:", createError.stack);
+            return res.json({ 
+              status: "failed", 
+              message: "Payment successful but account creation failed. Please contact support.",
+              error: createError.message
+            });
+          }
+        }
+        
+        // Check if this is an agent activation payment (old flow - account already exists)
+        if (metadata && metadata.purpose === "agent_activation" && metadata.agent_id) {
+          console.log("Agent activation payment verified (old flow):", metadata.agent_id);
+          
+          // Update transaction status
+          if (metadata.transaction_id) {
+            await storage.updateTransaction(metadata.transaction_id, {
+              status: TransactionStatus.COMPLETED,
+              completedAt: new Date(),
+              paymentReference: paymentData.reference,
+            });
+            console.log("Activation transaction marked as completed:", metadata.transaction_id);
+          }
+          
+          // Auto-approve the agent and mark payment as received
+          const agent = await storage.updateAgent(metadata.agent_id, { 
+            isApproved: true,
+            paymentPending: false,
+          });
+
+          if (agent) {
+            console.log("Agent auto-approved after payment verification:", agent.id);
+          }
+        }
+
+        return res.json({ 
+          status: "success", 
+          message: "Payment verified successfully",
+          data: {
+            reference: paymentData.reference,
+            amount: paymentData.amount,
+            paidAt: paymentData.paid_at
+          }
+        });
+      } else {
+        return res.json({ 
+          status: "failed", 
+          message: `Payment status: ${paymentData.status}` 
+        });
+      }
+      } catch (verifyError: any) {
+        console.error("Error in payment verification process:", verifyError);
+        console.error("Error stack:", verifyError.stack);
+        return res.json({ 
+          status: "failed", 
+          message: "Payment verification failed. Please try again.",
+          error: verifyError.message
+        });
+      }
+    } catch (error: any) {
+      console.error("Payment verification error (outer catch):", error);
+      console.error("Error stack:", error.stack);
+      return res.json({ 
+        status: "failed", 
+        message: error.message || "Verification failed" 
+      });
+    }
+  });
+
   // Paystack Webhook Handler
   app.post("/api/paystack/webhook", async (req, res) => {
     try {
@@ -1109,20 +1373,115 @@ export async function registerRoutes(
         const metadata = data.metadata;
 
         // Check if this is an agent activation payment
-        if (metadata && metadata.purpose === "agent_activation" && metadata.agent_id) {
-          console.log("Processing agent activation payment:", reference);
-          
-          // Auto-approve the agent
-          const agent = await storage.updateAgent(metadata.agent_id, { 
-            isApproved: true 
-          });
+        if (metadata && metadata.purpose === "agent_activation") {
+          // Handle new flow - pending registration (account not created yet)
+          if (metadata.pending_registration && metadata.registration_data) {
+            console.log("Processing pending agent registration via webhook:", reference);
+            
+            const supabaseServer = getSupabase();
+            if (!supabaseServer) {
+              console.error("Supabase not initialized for webhook");
+              return res.sendStatus(200);
+            }
+            
+            const regData = metadata.registration_data;
+            
+            try {
+              // Create user in Supabase Auth
+              const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
+                email: regData.email,
+                password: regData.password,
+                user_metadata: {
+                  name: regData.name,
+                  phone: regData.phone,
+                  role: 'agent'
+                },
+                email_confirm: true
+              });
 
-          if (agent) {
-            console.log("Agent auto-approved after payment:", agent.id);
-            // You can add email notification here if needed
+              if (authError) {
+                console.error("Failed to create auth user in webhook:", authError);
+                return res.sendStatus(200);
+              }
+
+              const userId = authData.user.id;
+              console.log("User created via webhook:", userId);
+
+              // Create user in local database
+              await storage.createUser({
+                id: userId,
+                email: regData.email,
+                password: '',
+                name: regData.name,
+                phone: regData.phone,
+                role: UserRole.AGENT,
+              });
+
+              // Create agent record (approved since payment is complete)
+              const agent = await storage.createAgent({
+                userId: userId,
+                storefrontSlug: regData.storefrontSlug,
+                businessName: regData.businessName,
+                isApproved: true,
+                paymentPending: false,
+              });
+              console.log("Agent created via webhook:", agent.id);
+
+              // Create transaction record
+              const activationFee = 60.00;
+              await storage.createTransaction({
+                reference: reference,
+                type: ProductType.AGENT_ACTIVATION,
+                productId: agent.id,
+                productName: "Agent Account Activation",
+                network: null,
+                amount: activationFee.toString(),
+                costPrice: "0.00",
+                profit: activationFee.toString(),
+                customerPhone: regData.phone,
+                customerEmail: regData.email,
+                paymentMethod: "paystack",
+                status: TransactionStatus.COMPLETED,
+                completedAt: new Date(),
+                paymentReference: reference,
+                agentId: null,
+                agentProfit: "0.00",
+              });
+              
+              console.log("Agent registration completed via webhook");
+            } catch (createError: any) {
+              console.error("Error creating account in webhook:", createError);
+            }
+            
+            return res.sendStatus(200);
           }
           
-          return res.sendStatus(200);
+          // Handle old flow - agent already exists
+          if (metadata.agent_id) {
+            console.log("Processing agent activation payment (old flow):", reference);
+            
+            // Update transaction status
+            if (metadata.transaction_id) {
+              await storage.updateTransaction(metadata.transaction_id, {
+                status: TransactionStatus.COMPLETED,
+                completedAt: new Date(),
+                paymentReference: reference,
+              });
+              console.log("Activation transaction marked as completed:", metadata.transaction_id);
+            }
+            
+            // Auto-approve the agent and mark payment as received
+            const agent = await storage.updateAgent(metadata.agent_id, { 
+              isApproved: true,
+              paymentPending: false,
+            });
+
+            if (agent) {
+              console.log("Agent auto-approved after payment:", agent.id);
+            }
+            
+            return res.sendStatus(200);
+          }
         }
 
         // Handle regular transaction payments
@@ -1188,6 +1547,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Agent profile not found" });
       }
 
+      console.log("Agent balance from DB:", agent.balance);
+      console.log("Agent total profit:", agent.totalProfit);
+
       const user = await storage.getUser(dbUser.id);
       const stats = await storage.getTransactionStats(agent.id);
 
@@ -1246,15 +1608,21 @@ export async function registerRoutes(
       const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
       const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
 
-      res.json({
-        balance: Number(agent.balance),
-        totalProfit: Number(agent.totalProfit),
-        totalSales: Number(agent.totalSales),
+      const stats = {
+        balance: Number(agent.balance) || 0,
+        totalProfit: Number(agent.totalProfit) || 0,
+        totalSales: Number(agent.totalSales) || 0,
         totalTransactions: transactions.length,
         todayProfit: Number(todayProfit.toFixed(2)),
         todayTransactions: todayTransactions.length,
-      });
+      };
+
+      console.log("Agent stats:", JSON.stringify(stats, null, 2));
+      console.log("Total transactions with agentId:", transactions.length);
+
+      res.json(stats);
     } catch (error: any) {
+      console.error("Error loading agent stats:", error);
       res.status(500).json({ error: "Failed to load agent stats" });
     }
   });
@@ -1311,9 +1679,14 @@ export async function registerRoutes(
       
       const data = withdrawalRequestSchema.parse(req.body);
       
-      // Additional validation for withdrawal amount
-      if (data.amount <= 0 || data.amount > 100000) {
-        return res.status(400).json({ error: "Invalid withdrawal amount" });
+      // Validate minimum withdrawal amount of GHC 50
+      if (data.amount < 50) {
+        return res.status(400).json({ error: "Minimum withdrawal amount is GH₵50" });
+      }
+
+      // Additional validation for maximum withdrawal amount
+      if (data.amount > 100000) {
+        return res.status(400).json({ error: "Maximum withdrawal amount is GH₵100,000" });
       }
 
       // Get user from database using email from JWT
@@ -1333,13 +1706,18 @@ export async function registerRoutes(
 
       const balance = parseFloat(agent.balance);
       if (data.amount > balance) {
-        return res.status(400).json({ error: "Insufficient balance" });
+        return res.status(400).json({ 
+          error: "Insufficient balance",
+          balance: balance.toFixed(2),
+          requested: data.amount.toFixed(2)
+        });
       }
 
+      // Create withdrawal with COMPLETED status (automatic approval)
       const withdrawal = await storage.createWithdrawal({
         agentId: agent.id,
         amount: data.amount.toFixed(2),
-        status: WithdrawalStatus.PENDING,
+        status: WithdrawalStatus.COMPLETED, // Changed from PENDING to COMPLETED
         bankName: data.bankName,
         accountNumber: data.accountNumber,
         accountName: data.accountName,
@@ -1348,9 +1726,104 @@ export async function registerRoutes(
       // Deduct from agent balance
       await storage.updateAgentBalance(agent.id, -data.amount, false);
 
-      res.json(withdrawal);
+      res.json({
+        ...withdrawal,
+        message: "Withdrawal completed successfully. Funds will be transferred to your account within 24 hours."
+      });
     } catch (error: any) {
-      res.status(400).json({ error: error.message || "Withdrawal request failed" });
+      res.status(400).json({ error: error.message || "Withdrawal failed" });
+    }
+  });
+
+  // Agent storefront management
+  app.patch("/api/agent/storefront", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const { businessName, businessDescription } = req.body;
+      const updatedAgent = await storage.updateAgent(agent.id, {
+        businessName,
+        businessDescription,
+      });
+
+      res.json(updatedAgent);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update storefront" });
+    }
+  });
+
+  // Get agent custom pricing
+  app.get("/api/agent/pricing", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const pricing = await storage.getAgentCustomPricing(agent.id);
+      res.json(pricing);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  // Update agent custom pricing
+  app.post("/api/agent/pricing", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      // Update or delete pricing for each bundle
+      for (const [bundleId, price] of Object.entries(prices)) {
+        const priceStr = price as string;
+        if (!priceStr || priceStr === '') {
+          // Delete custom pricing if empty
+          await storage.deleteAgentCustomPricing(agent.id, bundleId);
+        } else {
+          // Validate price
+          const priceNum = parseFloat(priceStr);
+          if (isNaN(priceNum) || priceNum < 0) {
+            continue; // Skip invalid prices
+          }
+
+          // Get bundle to validate against cost price
+          const bundle = await storage.getDataBundle(bundleId);
+          if (bundle && priceNum >= parseFloat(bundle.costPrice)) {
+            await storage.setAgentCustomPricing(agent.id, bundleId, priceStr);
+          }
+        }
+      }
+
+      const updatedPricing = await storage.getAgentCustomPricing(agent.id);
+      res.json(updatedPricing);
+    } catch (error: any) {
+      console.error("Error updating pricing:", error);
+      res.status(500).json({ error: "Failed to update pricing" });
     }
   });
 
@@ -1363,6 +1836,36 @@ export async function registerRoutes(
       res.json(stats);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load stats" });
+    }
+  });
+
+  app.get("/api/admin/rankings/customers", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const topCustomers = await storage.getTopCustomers(limit);
+      res.json(topCustomers);
+    } catch (error: any) {
+      console.error("Error fetching top customers:", error);
+      res.status(500).json({ error: "Failed to load rankings" });
+    }
+  });
+
+  // Public endpoint for rankings (visible to all users)
+  app.get("/api/rankings/customers", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const topCustomers = await storage.getTopCustomers(limit);
+      // Remove sensitive email information for public view
+      const publicRankings = topCustomers.map((customer, index) => ({
+        rank: index + 1,
+        customerPhone: customer.customerPhone,
+        totalPurchases: customer.totalPurchases,
+        totalSpent: customer.totalSpent,
+      }));
+      res.json(publicRankings);
+    } catch (error: any) {
+      console.error("Error fetching public rankings:", error);
+      res.status(500).json({ error: "Failed to load rankings" });
     }
   });
 
@@ -1410,16 +1913,58 @@ export async function registerRoutes(
   // Delete agent
   app.delete("/api/admin/agents/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
+      const supabaseServer = getSupabase();
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Server configuration error" });
+      }
+
       const agent = await storage.getAgent(req.params.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
 
-      // Delete agent (this will cascade delete related records based on DB schema)
+      // Get the user associated with this agent
+      const user = await storage.getUser(agent.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const userId = agent.userId;
+      console.log(`Starting permanent deletion of agent ${req.params.id} and user ${userId}`);
+
+      // Step 1: Delete from database first (will cascade to related records)
+      console.log("Deleting agent from database...");
       await storage.deleteAgent(req.params.id);
-      res.json({ message: "Agent deleted successfully" });
+      console.log("Agent deleted from database");
+      
+      console.log("Deleting user from database...");
+      await storage.deleteUser(userId);
+      console.log("User deleted from database");
+
+      // Step 2: Delete from Supabase Auth (permanent deletion)
+      console.log("Deleting user from Supabase Auth...");
+      const { error: authError } = await supabaseServer.auth.admin.deleteUser(userId);
+      if (authError) {
+        console.error("Failed to delete user from Supabase Auth:", authError);
+        return res.status(500).json({ 
+          error: "User deleted from database but failed to delete from authentication. Please try again.",
+          details: authError.message 
+        });
+      }
+      
+      console.log(`User ${userId} permanently deleted from Supabase Auth`);
+      
+      res.json({ 
+        message: "Agent and user permanently deleted from database and authentication",
+        deletedAgentId: req.params.id,
+        deletedUserId: userId
+      });
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to delete agent" });
+      console.error("Error deleting agent:", error);
+      res.status(500).json({ 
+        error: "Failed to delete agent",
+        details: error.message 
+      });
     }
   });
 
@@ -1472,6 +2017,11 @@ export async function registerRoutes(
   // Delete user
   app.delete("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
+      const supabaseServer = getSupabase();
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Server configuration error" });
+      }
+
       const user = await storage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
@@ -1482,11 +2032,47 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Cannot delete admin users" });
       }
 
-      // Delete user (this will cascade delete related records based on DB schema)
-      await storage.deleteUser(req.params.id);
-      res.json({ message: "User deleted successfully" });
+      const userId = req.params.id;
+      console.log(`Starting permanent deletion of user ${userId}`);
+
+      // Step 1: If user is an agent, delete the agent record first
+      if (user.role === UserRole.AGENT) {
+        const agent = await storage.getAgentByUserId(userId);
+        if (agent) {
+          console.log("Deleting agent record:", agent.id);
+          await storage.deleteAgent(agent.id);
+          console.log("Agent record deleted:", agent.id);
+        }
+      }
+
+      // Step 2: Delete user from database
+      console.log("Deleting user from database...");
+      await storage.deleteUser(userId);
+      console.log("User deleted from database");
+
+      // Step 3: Delete from Supabase Auth (permanent deletion)
+      console.log("Deleting user from Supabase Auth...");
+      const { error: authError } = await supabaseServer.auth.admin.deleteUser(userId);
+      if (authError) {
+        console.error("Failed to delete user from Supabase Auth:", authError);
+        return res.status(500).json({ 
+          error: "User deleted from database but failed to delete from authentication. Please try again.",
+          details: authError.message 
+        });
+      }
+      
+      console.log(`User ${userId} permanently deleted from Supabase Auth`);
+      
+      res.json({ 
+        message: "User permanently deleted from database and authentication",
+        deletedUserId: userId
+      });
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to delete user" });
+      console.error("Error deleting user:", error);
+      res.status(500).json({ 
+        error: "Failed to delete user",
+        details: error.message 
+      });
     }
   });
 

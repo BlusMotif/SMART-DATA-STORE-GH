@@ -1,10 +1,8 @@
-const CACHE_NAME = 'smart-data-store-v2';
-const STATIC_CACHE = 'smart-data-store-static-v1';
-const DYNAMIC_CACHE = 'smart-data-store-dynamic-v1';
+const CACHE_NAME = 'smart-data-store-v3';
+const STATIC_CACHE = 'smart-data-store-static-v2';
+const DYNAMIC_CACHE = 'smart-data-store-dynamic-v2';
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/favicon.png',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
@@ -77,13 +75,6 @@ self.addEventListener('fetch', (event) => {
   if (isNavigationRequest(request)) {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => {
-            cache.put('/index.html', responseClone);
-          });
-          return response;
-        })
         .catch(() => {
           return caches.match('/index.html')
             .then((cachedResponse) => {
@@ -99,30 +90,22 @@ self.addEventListener('fetch', (event) => {
 
   if (isAssetRequest(url)) {
     event.respondWith(
-      caches.match(request)
-        .then((cachedResponse) => {
-          if (cachedResponse) {
-            fetch(request).then((networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
-                caches.open(DYNAMIC_CACHE).then((cache) => {
-                  cache.put(request, networkResponse);
-                });
-              }
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(DYNAMIC_CACHE).then((cache) => {
+              cache.put(request, responseClone);
             }).catch(() => {});
-            return cachedResponse;
           }
-
-          return fetch(request)
-            .then((networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
-                const responseClone = networkResponse.clone();
-                caches.open(DYNAMIC_CACHE).then((cache) => {
-                  cache.put(request, responseClone);
-                });
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(request)
+            .then((cachedResponse) => {
+              if (cachedResponse) {
+                return cachedResponse;
               }
-              return networkResponse;
-            })
-            .catch(() => {
               return new Response('Asset not available offline', { status: 503 });
             });
         })
@@ -130,25 +113,26 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // For all other requests, use network-first strategy
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const responseClone = networkResponse.clone();
-              caches.open(DYNAMIC_CACHE).then((cache) => {
-                cache.put(request, responseClone);
-              });
-            }
-            return networkResponse;
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(request, responseClone);
           });
+        }
+        return networkResponse;
       })
       .catch(() => {
-        return caches.match('/index.html');
+        return caches.match(request)
+          .then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            return caches.match('/index.html');
+          });
       })
   );
 });

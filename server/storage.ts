@@ -2,7 +2,7 @@ import { eq, and, desc, sql, gte, lte, or, like } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages,
+  supportChats, chatMessages, agentCustomPricing,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -83,6 +83,21 @@ export interface IStorage {
   getChatMessages(chatId: string): Promise<ChatMessage[]>;
   markMessageAsRead(messageId: string): Promise<void>;
 
+  // Agent Custom Pricing
+  getAgentCustomPricing(agentId: string): Promise<Array<{ bundleId: string; customPrice: string }>>;
+  setAgentCustomPricing(agentId: string, bundleId: string, customPrice: string): Promise<void>;
+  deleteAgentCustomPricing(agentId: string, bundleId: string): Promise<void>;
+  getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null>;
+
+  // Rankings
+  getTopCustomers(limit?: number): Promise<Array<{
+    customerEmail: string;
+    customerPhone: string;
+    totalPurchases: number;
+    totalSpent: number;
+    lastPurchase: Date;
+  }>>;
+
   // Admin Stats
   getAdminStats(): Promise<{
     totalRevenue: number;
@@ -90,6 +105,8 @@ export interface IStorage {
     totalTransactions: number;
     pendingWithdrawals: number;
     activeAgents: number;
+    pendingAgents: number;
+    activationRevenue: number;
     dataBundleStock: number;
     resultCheckerStock: number;
   }>;
@@ -472,6 +489,8 @@ export class DatabaseStorage implements IStorage {
     totalTransactions: number;
     pendingWithdrawals: number;
     activeAgents: number;
+    pendingAgents: number;
+    activationRevenue: number;
     dataBundleStock: number;
     resultCheckerStock: number;
   }> {
@@ -481,6 +500,11 @@ export class DatabaseStorage implements IStorage {
       totalProfit: sql<number>`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`,
     }).from(transactions);
 
+    // Get agent activation revenue
+    const [activationStats] = await db.select({
+      revenue: sql<number>`coalesce(sum(case when status = 'completed' and type = 'agent_activation' then amount::numeric else 0 end), 0)`,
+    }).from(transactions);
+
     const [withdrawalStats] = await db.select({
       pending: sql<number>`count(*)`,
     }).from(withdrawals).where(eq(withdrawals.status, "pending"));
@@ -488,6 +512,10 @@ export class DatabaseStorage implements IStorage {
     const [agentStats] = await db.select({
       active: sql<number>`count(*)`,
     }).from(agents).where(eq(agents.isApproved, true));
+
+    const [pendingAgentStats] = await db.select({
+      pending: sql<number>`count(*)`,
+    }).from(agents).where(eq(agents.paymentPending, true));
 
     const [bundleStats] = await db.select({
       count: sql<number>`count(*)`,
@@ -503,6 +531,8 @@ export class DatabaseStorage implements IStorage {
       totalTransactions: Number(txStats?.totalTransactions || 0),
       pendingWithdrawals: Number(withdrawalStats?.pending || 0),
       activeAgents: Number(agentStats?.active || 0),
+      pendingAgents: Number(pendingAgentStats?.pending || 0),
+      activationRevenue: Number(activationStats?.revenue || 0),
       dataBundleStock: Number(bundleStats?.count || 0),
       resultCheckerStock: Number(checkerStats?.count || 0),
     };
@@ -588,6 +618,110 @@ export class DatabaseStorage implements IStorage {
     await db.update(chatMessages)
       .set({ isRead: true })
       .where(eq(chatMessages.id, messageId));
+  }
+
+  // Agent Custom Pricing Methods
+  async getAgentCustomPricing(agentId: string): Promise<Array<{ bundleId: string; customPrice: string }>> {
+    const pricing = await db.select({
+      bundleId: agentCustomPricing.bundleId,
+      customPrice: agentCustomPricing.customPrice,
+    })
+      .from(agentCustomPricing)
+      .where(eq(agentCustomPricing.agentId, agentId));
+    
+    return pricing.map(p => ({
+      bundleId: p.bundleId,
+      customPrice: p.customPrice || "0",
+    }));
+  }
+
+  async setAgentCustomPricing(agentId: string, bundleId: string, customPrice: string): Promise<void> {
+    // Check if pricing exists
+    const [existing] = await db.select()
+      .from(agentCustomPricing)
+      .where(
+        and(
+          eq(agentCustomPricing.agentId, agentId),
+          eq(agentCustomPricing.bundleId, bundleId)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      // Update existing
+      await db.update(agentCustomPricing)
+        .set({ 
+          customPrice, 
+          updatedAt: new Date() 
+        })
+        .where(
+          and(
+            eq(agentCustomPricing.agentId, agentId),
+            eq(agentCustomPricing.bundleId, bundleId)
+          )
+        );
+    } else {
+      // Insert new
+      await db.insert(agentCustomPricing).values({
+        agentId,
+        bundleId,
+        customPrice,
+      });
+    }
+  }
+
+  async deleteAgentCustomPricing(agentId: string, bundleId: string): Promise<void> {
+    await db.delete(agentCustomPricing)
+      .where(
+        and(
+          eq(agentCustomPricing.agentId, agentId),
+          eq(agentCustomPricing.bundleId, bundleId)
+        )
+      );
+  }
+
+  async getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null> {
+    const [result] = await db.select({ customPrice: agentCustomPricing.customPrice })
+      .from(agentCustomPricing)
+      .where(
+        and(
+          eq(agentCustomPricing.agentId, agentId),
+          eq(agentCustomPricing.bundleId, bundleId)
+        )
+      )
+      .limit(1);
+    
+    return result?.customPrice || null;
+  }
+
+  // Rankings Methods
+  async getTopCustomers(limit: number = 10): Promise<Array<{
+    customerEmail: string;
+    customerPhone: string;
+    totalPurchases: number;
+    totalSpent: number;
+    lastPurchase: Date;
+  }>> {
+    const results = await db.select({
+      customerEmail: sql<string>`MAX(${transactions.customerEmail})`,
+      customerPhone: transactions.customerPhone,
+      totalPurchases: sql<number>`count(*)`,
+      totalSpent: sql<number>`sum(${transactions.amount}::numeric)`,
+      lastPurchase: sql<Date>`max(${transactions.createdAt})`,
+    })
+      .from(transactions)
+      .where(eq(transactions.status, 'completed'))
+      .groupBy(transactions.customerPhone)
+      .orderBy(desc(sql`sum(${transactions.amount}::numeric)`))
+      .limit(limit);
+
+    return results.map(r => ({
+      customerEmail: r.customerEmail || '',
+      customerPhone: r.customerPhone,
+      totalPurchases: Number(r.totalPurchases),
+      totalSpent: Number(r.totalSpent),
+      lastPurchase: r.lastPurchase,
+    }));
   }
 }
 

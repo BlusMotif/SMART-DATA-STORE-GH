@@ -21,7 +21,10 @@ import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu } from "lucide-react
 import type { Withdrawal, Agent } from "@shared/schema";
 
 const withdrawalSchema = z.object({
-  amount: z.string().min(1, "Amount is required"),
+  amount: z.string()
+    .min(1, "Amount is required")
+    .refine((val) => parseFloat(val) >= 50, "Minimum withdrawal amount is GH₵50")
+    .refine((val) => parseFloat(val) <= 100000, "Maximum withdrawal amount is GH₵100,000"),
   bankName: z.string().min(2, "Bank name is required"),
   accountNumber: z.string().min(5, "Account number is required"),
   accountName: z.string().min(2, "Account name is required"),
@@ -34,16 +37,22 @@ export default function AgentWithdrawals() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
 
-  const { data: agent } = useQuery<Agent>({
+  const { data: profileData } = useQuery<{ agent: Agent }>({
     queryKey: ["/api/agent/profile"],
-    refetchInterval: 10000, // Refresh every 10 seconds for balance updates
+    refetchInterval: 5000, // Refresh every 5 seconds for real-time balance updates
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Always fetch fresh data
   });
+
+  const agent = profileData?.agent;
 
   const { data: withdrawals, isLoading } = useQuery<Withdrawal[]>({
     queryKey: ["/api/agent/withdrawals"],
-    refetchInterval: 20000, // Refresh every 20 seconds for withdrawal status updates
+    refetchInterval: 5000, // Refresh every 5 seconds for real-time withdrawal status updates
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    staleTime: 0, // Always fetch fresh data
   });
 
   const form = useForm<WithdrawalFormData>({
@@ -59,21 +68,40 @@ export default function AgentWithdrawals() {
   const requestMutation = useMutation({
     mutationFn: (data: WithdrawalFormData) =>
       apiRequest("POST", "/api/agent/withdrawals", { ...data, amount: parseFloat(data.amount) }),
-    onSuccess: () => {
+    onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/withdrawals"] });
       queryClient.invalidateQueries({ queryKey: ["/api/agent/profile"] });
       setIsRequestOpen(false);
       form.reset();
-      toast({ title: "Withdrawal request submitted successfully" });
+      toast({ 
+        title: "Withdrawal Completed!", 
+        description: response.message || "Funds will be transferred to your account within 24 hours."
+      });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to submit request", description: error.message, variant: "destructive" });
+      toast({ title: "Withdrawal failed", description: error.message, variant: "destructive" });
     },
   });
 
   const onSubmit = (data: WithdrawalFormData) => {
-    if (parseFloat(data.amount) > parseFloat(agent?.balance || "0")) {
-      toast({ title: "Insufficient balance", variant: "destructive" });
+    const amount = parseFloat(data.amount);
+    const balance = parseFloat(agent?.balance || "0");
+    
+    if (amount < 50) {
+      toast({ 
+        title: "Amount too low", 
+        description: "Minimum withdrawal amount is GH₵50",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    if (amount > balance) {
+      toast({ 
+        title: "Insufficient balance", 
+        description: `Available balance: ${formatCurrency(balance)}`,
+        variant: "destructive" 
+      });
       return;
     }
     requestMutation.mutate(data);
@@ -131,12 +159,15 @@ export default function AgentWithdrawals() {
               <DialogTrigger asChild>
                 <Button data-testid="button-request-withdrawal">
                   <Plus className="h-4 w-4 mr-2" />
-                  Request Withdrawal
+                  Withdraw Funds
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Request Withdrawal</DialogTitle>
+                  <DialogTitle>Withdraw Funds</DialogTitle>
+                  <CardDescription>
+                    Instant withdrawal (Minimum: GH₵50). Funds will be transferred within 24 hours.
+                  </CardDescription>
                 </DialogHeader>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -150,12 +181,13 @@ export default function AgentWithdrawals() {
                       name="amount"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Amount (GHS)</FormLabel>
+                          <FormLabel>Amount (GHS) - Minimum GH₵50</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               step="0.01"
-                              placeholder="0.00"
+                              min="50"
+                              placeholder="50.00"
                               data-testid="input-amount"
                               {...field}
                             />
@@ -225,7 +257,7 @@ export default function AgentWithdrawals() {
                       disabled={requestMutation.isPending}
                       data-testid="button-submit-withdrawal"
                     >
-                      {requestMutation.isPending ? "Submitting..." : "Submit Request"}
+                      {requestMutation.isPending ? "Processing..." : "Withdraw Now"}
                     </Button>
                   </form>
                 </Form>
@@ -318,7 +350,7 @@ export default function AgentWithdrawals() {
                   </Table>
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
-                    No withdrawal requests yet. Click "Request Withdrawal" to cash out your earnings.
+                    No withdrawals yet. Click "Withdraw Funds" to cash out your earnings (Min: GH₵50).
                   </div>
                 )}
               </CardContent>

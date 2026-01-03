@@ -20,11 +20,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, APP_NAME } from "@/lib/constants";
+import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { Phone, Mail, Loader2, ShieldCheck, Lock, CheckCircle, Wifi, Clock, FileCheck, Wallet, CreditCard, AlertCircle } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 
 const checkoutSchema = z.object({
-  customerPhone: z.string().min(10, "Phone number must be at least 10 digits").max(15),
+  customerPhone: z.string()
+    .min(10, "Phone number must be exactly 10 digits")
+    .max(10, "Phone number must be exactly 10 digits")
+    .regex(/^0[0-9]{9}$/, "Phone number must start with 0 and be 10 digits (e.g., 0241234567)"),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
 });
@@ -49,6 +53,9 @@ export default function CheckoutPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Get agent slug from URL query parameters
+  const agentSlug = new URLSearchParams(window.location.search).get("agent");
 
   const isDataBundle = productType === "data-bundle";
   const isResultChecker = productType === "result-checker";
@@ -103,6 +110,7 @@ export default function CheckoutPage() {
           network: isDataBundle ? bundle?.network : undefined,
           amount: price.toFixed(2),
           customerPhone: data.customerPhone,
+          agentSlug: agentSlug || undefined,
         };
 
         const response = await apiRequest("POST", "/api/wallet/pay", payload);
@@ -114,6 +122,7 @@ export default function CheckoutPage() {
           productId: isResultChecker ? `${productId}-${year}` : productId,
           customerPhone: data.customerPhone,
           customerEmail: data.customerEmail || undefined,
+          agentSlug: agentSlug || undefined,
         };
 
         const response = await apiRequest("POST", "/api/checkout/initialize", payload);
@@ -153,6 +162,24 @@ export default function CheckoutPage() {
   });
 
   const onSubmit = (data: CheckoutFormData) => {
+    // Normalize phone number
+    const normalizedPhone = normalizePhoneNumber(data.customerPhone);
+    
+    // Validate phone against network for data bundles
+    if (isDataBundle && bundle) {
+      const validation = validatePhoneNetwork(normalizedPhone, bundle.network);
+      if (!validation.isValid) {
+        const prefixes = getNetworkPrefixes(bundle.network);
+        toast({
+          title: "❌ Phone Number Mismatch",
+          description: validation.error || `This bundle is for ${bundle.network.toUpperCase()} network. Valid prefixes: ${prefixes.join(", ")}`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+    }
+    
     if (data.paymentMethod === "wallet" && hasInsufficientBalance) {
       const shortfall = price - walletBalance;
       toast({
@@ -165,7 +192,11 @@ export default function CheckoutPage() {
     }
 
     setIsProcessing(true);
-    initializePaymentMutation.mutate(data);
+    // Use normalized phone for the mutation
+    initializePaymentMutation.mutate({
+      ...data,
+      customerPhone: normalizedPhone,
+    });
   };
 
   const isLoading = bundleLoading || checkerLoading;
@@ -393,9 +424,14 @@ export default function CheckoutPage() {
                               </div>
                             </FormControl>
                             <FormDescription>
-                              {isDataBundle
-                                ? "The data bundle will be sent to this number"
-                                : "We'll send the result checker PIN to this number"}
+                              {isDataBundle && bundle ? (
+                                <span className="text-xs">
+                                  For <strong>{bundle.network.toUpperCase()}</strong> network only. 
+                                  Valid prefixes: <strong>{getNetworkPrefixes(bundle.network).join(", ")}</strong>
+                                </span>
+                              ) : (
+                                "We'll send the result checker PIN to this number"
+                              )}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>

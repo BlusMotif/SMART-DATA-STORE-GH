@@ -18,6 +18,12 @@ export default function CheckoutSuccessPage() {
   const params = new URLSearchParams(search);
   const reference = params.get("reference");
 
+  // Function to get the return URL
+  const getReturnUrl = () => {
+    const agentStore = localStorage.getItem("agentStore");
+    return agentStore ? `/store/${agentStore}` : "/";
+  };
+
   const { data: verifyResult, isLoading, error } = useQuery<{ success: boolean; transaction: Transaction }>({
     queryKey: [`/api/transactions/verify/${reference}`],
     enabled: !!reference,
@@ -50,8 +56,11 @@ export default function CheckoutSuccessPage() {
               <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <h2 className="text-xl font-semibold mb-2">Invalid Request</h2>
               <p className="text-muted-foreground mb-4">No transaction reference provided.</p>
-              <Button onClick={() => setLocation("/")} data-testid="button-go-home">
-                Go to Home
+              <Button onClick={() => {
+                const agentStore = localStorage.getItem("agentStore");
+                setLocation(agentStore ? `/store/${agentStore}` : "/");
+              }} data-testid="button-go-home">
+                {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
               </Button>
             </CardContent>
           </Card>
@@ -203,13 +212,13 @@ export default function CheckoutSuccessPage() {
               )}
 
               <div className="flex flex-col gap-3">
-                <Button onClick={() => setLocation("/")} className="gap-2" data-testid="button-continue-shopping">
+                <Button onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-continue-shopping">
                   Continue Shopping
                   <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" onClick={() => setLocation("/")} className="gap-2" data-testid="button-home">
+                <Button variant="outline" onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-home">
                   <Home className="h-4 w-4" />
-                  Back to Home
+                  {localStorage.getItem("agentStore") ? "Back to Store" : "Back to Home"}
                 </Button>
               </div>
             </CardContent>

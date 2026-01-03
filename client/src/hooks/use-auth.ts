@@ -16,29 +16,28 @@ export function useAuth() {
   // Get current session for enabling the query
   const [currentSession, setCurrentSession] = useState<any>(null);
 
-  // Update current session when auth state changes
+  // Update current session when auth state changes (NO AUTO-LOGIN)
   useEffect(() => {
-    const getInitialSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setCurrentSession(data.session);
-    };
-    getInitialSession();
-
+    // Don't auto-restore session on page load
+    // User must explicitly login each time
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth event:", event);
-        setCurrentSession(session);
-
+        
+        // Only set session on explicit SIGNED_IN event, not on initial session restore
         if (event === "SIGNED_IN" && session) {
-          console.log("Session restored:", session.user.id);
+          console.log("User signed in:", session.user.id);
+          setCurrentSession(session);
           // Invalidate and refetch auth data when session changes
           queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         } else if (event === "SIGNED_OUT") {
           console.log("User signed out");
+          setCurrentSession(null);
           // Clear auth data when user signs out
           queryClient.setQueryData(["/api/auth/me"], { user: null });
         }
-        // Don't clear user state on INITIAL_SESSION - this causes confusing logs
+        // Ignore INITIAL_SESSION to prevent auto-login
       }
     );
 

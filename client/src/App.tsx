@@ -113,6 +113,26 @@ function Router() {
 }
 
 function App() {
+  // Clear all caches on app load
+  useEffect(() => {
+    // Clear React Query cache
+    queryClient.clear();
+    
+    // Clear all browser caches if available
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        names.forEach(name => {
+          caches.delete(name);
+        });
+      });
+    }
+    
+    // Clear session storage
+    sessionStorage.clear();
+    
+    console.log("All caches cleared on app load");
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

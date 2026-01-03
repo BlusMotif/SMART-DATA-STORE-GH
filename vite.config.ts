@@ -28,6 +28,14 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Add hash to filenames for cache busting
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]'
+      }
+    }
   },
   server: {
     host: '0.0.0.0',

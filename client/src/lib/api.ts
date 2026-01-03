@@ -68,9 +68,13 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}): P
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       ...(token && { 'Authorization': `Bearer ${token}` }),
       ...options.headers,
     },
+    cache: 'no-store',
     ...options,
   });
 

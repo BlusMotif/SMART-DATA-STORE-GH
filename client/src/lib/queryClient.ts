@@ -46,10 +46,14 @@ export async function apiRequest(
     method,
     headers: {
       "Content-Type": "application/json",
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       ...authHeaders,
     },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
+    cache: 'no-store',
   });
 
   await throwIfResNotOk(res);
@@ -65,8 +69,14 @@ export const getQueryFn: <T>(options: {
     const authHeaders = await getAuthHeaders();
 
     const res = await fetch(queryKey.join("/") as string, {
-      headers: authHeaders,
+      headers: {
+        ...authHeaders,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
       credentials: "include",
+      cache: 'no-store',
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
@@ -82,8 +92,10 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      staleTime: 0, // Never use cached data
+      cacheTime: 0, // Don't keep data in cache
       retry: false,
     },
     mutations: {

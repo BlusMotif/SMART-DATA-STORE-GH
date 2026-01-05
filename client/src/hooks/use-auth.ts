@@ -16,28 +16,36 @@ export function useAuth() {
   // Get current session for enabling the query
   const [currentSession, setCurrentSession] = useState<any>(null);
 
-  // Update current session when auth state changes (NO AUTO-LOGIN)
+  // Initialize session on mount
   useEffect(() => {
-    // Don't auto-restore session on page load
-    // User must explicitly login each time
-    
+    // Get the current session when the component mounts
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        console.log("Initial session found:", session.user.id);
+        setCurrentSession(session);
+      }
+    });
+  }, []);
+
+  // Update current session when auth state changes
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth event:", event);
         
-        // Only set session on explicit SIGNED_IN event, not on initial session restore
-        if (event === "SIGNED_IN" && session) {
-          console.log("User signed in:", session.user.id);
-          setCurrentSession(session);
-          // Invalidate and refetch auth data when session changes
-          queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-        } else if (event === "SIGNED_OUT") {
+        // Only handle explicit sign out - ignore automatic sign in/token refresh
+        if (event === "SIGNED_OUT") {
           console.log("User signed out");
           setCurrentSession(null);
           // Clear auth data when user signs out
           queryClient.setQueryData(["/api/auth/me"], { user: null });
         }
-        // Ignore INITIAL_SESSION to prevent auto-login
+        // Handle token refresh quietly - just update session without triggering refetch
+        else if (event === "TOKEN_REFRESHED" && session) {
+          console.log("Token refreshed");
+          setCurrentSession(session);
+        }
+        // Ignore SIGNED_IN, INITIAL_SESSION, USER_UPDATED events to prevent auto-login
       }
     );
 
@@ -51,6 +59,8 @@ export function useAuth() {
     queryKey: ["/api/auth/me"],
     enabled: !!currentSession?.access_token, // Only run when we have a session
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
       // Prevent duplicate calls
       if (isFetchingUser.current) {
@@ -122,9 +132,15 @@ export function useAuth() {
         return { error: error.message };
       }
 
-      // Supabase will automatically handle session storage
-      // The auth state change listener will trigger and update the query cache
-      console.log("Login successful, session created");
+      // Manually update session and trigger refetch after successful login
+      if (data.session) {
+        console.log("Login successful, updating session");
+        setCurrentSession(data.session);
+        // Invalidate and refetch auth data to get user details
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      }
+      
+      console.log("Login complete");
       return { user: data.user };
     } catch (error: any) {
       const errorMessage = error.message || "Login failed";
@@ -179,9 +195,16 @@ export function useAuth() {
         return { error: error.message };
       }
 
-      // For registration, we might not get a session immediately if email confirmation is required
-      // The auth state change listener will handle session updates
-      console.log("Registration successful");
+      // Manually update session after successful registration
+      if (data.session) {
+        console.log("Registration successful with session");
+        setCurrentSession(data.session);
+        // Invalidate and refetch auth data to get user details
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      } else {
+        console.log("Registration successful but no session (email confirmation may be required)");
+      }
+      
       return { user: data.user };
     } catch (error: any) {
       const errorMessage = error.message || "Registration failed";
@@ -200,9 +223,21 @@ export function useAuth() {
         console.error("Logout failed:", error);
       }
 
+      // Clear the session state
+      setCurrentSession(null);
+      
+      // Clear auth data from cache
+      queryClient.setQueryData(["/api/auth/me"], { user: null });
+      
+      // Clear all queries to reset the app state
+      queryClient.clear();
+
       // Supabase will automatically clear the session
       // The auth state change listener will handle clearing the query cache
       console.log("Logout successful");
+      
+      // Redirect to home page
+      window.location.href = '/';
     } catch (error: any) {
       console.error("Logout failed:", error);
     } finally {

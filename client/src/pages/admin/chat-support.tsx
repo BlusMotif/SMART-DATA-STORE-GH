@@ -21,6 +21,21 @@ export default function AdminChatSupport() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Get unread message count
+  const { data: unreadCount = 0 } = useQuery<number>({
+    queryKey: ["/api/support/admin/unread-count"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/support/admin/unread-count");
+        const data = await response.json();
+        return data.count || 0;
+      } catch (error) {
+        return 0;
+      }
+    },
+    refetchInterval: 5000, // Poll every 5 seconds
+  });
+
   // Get all chats
   const { data: chats, isLoading } = useQuery<SupportChat[]>({
     queryKey: ["/api", "admin", "support", "chats", `?status=${filter}`],
@@ -90,6 +105,29 @@ export default function AdminChatSupport() {
     }
   }, [chatData?.messages]);
 
+  // Mark user messages as read when admin views them
+  useEffect(() => {
+    if (chatData?.messages && selectedChatId) {
+      const unreadUserMessages = chatData.messages.filter(
+        msg => msg.senderType === 'user' && !msg.isRead
+      );
+      
+      // Mark each unread user message as read
+      unreadUserMessages.forEach(async (msg) => {
+        try {
+          await apiRequest("PUT", `/api/support/message/${msg.id}/read`, {});
+        } catch (error) {
+          console.error('Failed to mark message as read:', error);
+        }
+      });
+      
+      // Invalidate unread count query to update badge
+      if (unreadUserMessages.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/support/admin/unread-count"] });
+      }
+    }
+  }, [chatData?.messages, selectedChatId, queryClient]);
+
   // Auto-select first chat
   useEffect(() => {
     if (chats && chats.length > 0 && !selectedChatId) {
@@ -141,13 +179,27 @@ export default function AdminChatSupport() {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold">Support Chat</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">Support Chat</h1>
+            {unreadCount > 0 && (
+              <Badge variant="destructive" className="h-5 min-w-5 flex items-center justify-center px-1.5">
+                {unreadCount}
+              </Badge>
+            )}
+          </div>
           <div className="w-10" /> {/* Spacer for centering */}
         </div>
 
         <div className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 md:mb-6 hidden lg:block">
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Support Chat</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold">Support Chat</h1>
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="text-sm px-2.5 py-1">
+                  {unreadCount} New {unreadCount === 1 ? 'Message' : 'Messages'}
+                </Badge>
+              )}
+            </div>
             <p className="text-sm md:text-base text-muted-foreground">Manage customer support conversations</p>
           </div>
 
@@ -264,7 +316,7 @@ export default function AdminChatSupport() {
                 </CardHeader>
 
                 <CardContent className="flex-1 p-0 overflow-hidden">
-                  <ScrollArea className="h-[calc(55vh-200px)] lg:h-[calc(100vh-480px)] p-3 md:p-4" ref={scrollRef}>
+                  <ScrollArea className="h-[calc(55vh-150px)] lg:h-[calc(100vh-380px)] p-3 md:p-4" ref={scrollRef}>
                     {chatData.messages.length === 0 ? (
                       <div className="text-center text-muted-foreground py-8">
                         <p className="text-xs md:text-sm">No messages yet</p>

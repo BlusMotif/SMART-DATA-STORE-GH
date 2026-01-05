@@ -30,7 +30,7 @@ Smart Data Store is a multi-role platform that enables:
 - ✅ Real-time sales analytics dashboard
 - ✅ Transaction management
 - ✅ Business profile customization
-- ✅ Session management with 5-minute inactivity timeout
+- ✅ Secure session management
 
 ### Admin Features
 - ✅ Agent approval workflow
@@ -190,7 +190,7 @@ npm run check            # Run TypeScript type checking
 1. **Supabase Auth** handles JWT tokens and session management
 2. **Local Database** syncs user data automatically
 3. **Middleware** validates tokens and enforces role-based access control
-4. **Session Persistence** with 5-minute inactivity timeout
+4. **Session Persistence** with secure token management
 
 ### Payment Processing
 1. **Wallet System:**
@@ -229,7 +229,7 @@ Client (React) → API (Express) → Storage Layer → Drizzle ORM → PostgreSQ
   - X-XSS-Protection: 1; mode=block
   - Referrer-Policy: strict-origin-when-cross-origin
 - ✅ **Rate Limiting:** Login and registration endpoints
-- ✅ **Session Management:** Secure session storage with inactivity timeout
+- ✅ **Session Management:** Secure session storage with token-based authentication
 - ✅ **CORS Configuration:** Proper origin restrictions
 
 ### Recommended Enhancements
@@ -302,10 +302,9 @@ ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'paystack';
 - ✅ Fixed business name display
 
 ### Session Management (ENHANCED)
-- ✅ Implemented 5-minute inactivity timeout
+- ✅ Secure token-based authentication
 - ✅ Session persists across page navigation
-- ✅ Activity tracking (mousedown, mousemove, keypress, scroll, touchstart, click)
-- ✅ Auto-logout only after genuine inactivity
+- ✅ Manual logout functionality
 
 ### Type Safety (IMPROVED)
 - ✅ Fixed API response structure mismatch

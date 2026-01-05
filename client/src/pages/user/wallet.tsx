@@ -4,14 +4,16 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
-import { Loader2, Wallet, TrendingUp, Clock, CheckCircle, XCircle, ArrowUpRight, ArrowDownRight, Calendar, DollarSign, CreditCard } from "lucide-react";
+import { UserSidebar } from "@/components/layout/user-sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Loader2, Wallet, TrendingUp, Clock, CheckCircle, XCircle, ArrowUpRight, ArrowDownRight, Calendar, DollarSign, CreditCard, Menu } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/api";
 import { WalletTopup } from "@/components/user/wallet-topup";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 
 interface Transaction {
   id: string;
@@ -84,6 +86,7 @@ const getStatusConfig = (status: string) => {
 export default function WalletDashboard() {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState("overview");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Fetch wallet stats
   const { data: stats, isLoading: statsLoading } = useQuery<WalletStats>({
@@ -114,18 +117,60 @@ export default function WalletDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Header />
-      <main className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="flex h-screen overflow-hidden">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:block">
+        <UserSidebar />
+      </aside>
+
+      {/* Mobile Sidebar */}
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-64">
+          <VisuallyHidden>
+            <SheetTitle>Navigation Menu</SheetTitle>
+            <SheetDescription>Main navigation for your wallet</SheetDescription>
+          </VisuallyHidden>
+          <UserSidebar onClose={() => setSidebarOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="flex items-center justify-between border-b px-6 h-16 shrink-0">
+          <div className="flex items-center gap-3">
+            <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-64">
+                <VisuallyHidden>
+                  <SheetTitle>Navigation Menu</SheetTitle>
+                  <SheetDescription>Main navigation for your wallet</SheetDescription>
+                </VisuallyHidden>
+                <UserSidebar onClose={() => setSidebarOpen(false)} />
+              </SheetContent>
+            </Sheet>
+            <div>
+              <h1 className="text-xl font-bold">My Wallet</h1>
+              <p className="text-sm text-muted-foreground">Manage your wallet balance</p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto space-y-6 mt-4">
         {/* Page Header */}
-        <div className="mb-6">
+        <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Wallet className="h-7 w-7" />
-                My Wallet
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Wallet className="h-6 w-6" />
+                Wallet Overview
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
                 Manage your wallet balance and view transaction history
               </p>
             </div>
@@ -415,37 +460,9 @@ export default function WalletDashboard() {
             </Tabs>
           </CardContent>
         </Card>
-
-        {/* Quick Actions */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Link href="/data-bundles">
-                <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
-                  <DollarSign className="h-6 w-6" />
-                  <span>Buy Data Bundles</span>
-                </Button>
-              </Link>
-              <Link href="/products/result-checkers">
-                <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
-                  <CreditCard className="h-6 w-6" />
-                  <span>Buy Result Checker</span>
-                </Button>
-              </Link>
-              <Link href="/user/dashboard">
-                <Button variant="outline" className="w-full h-20 flex flex-col gap-2">
-                  <TrendingUp className="h-6 w-6" />
-                  <span>View Dashboard</span>
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </main>
-      <Footer />
+      </div>
+        </main>
+      </div>
     </div>
   );
 }

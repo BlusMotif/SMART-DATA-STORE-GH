@@ -878,7 +878,20 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid request body" });
       }
       
+      console.log("[Checkout] ========== REQUEST PARSING ==========");
+      console.log("[Checkout] Raw request body:", JSON.stringify(req.body, null, 2));
+      console.log("[Checkout] req.body.phoneNumbers type:", typeof req.body.phoneNumbers);
+      console.log("[Checkout] req.body.phoneNumbers is array:", Array.isArray(req.body.phoneNumbers));
+      console.log("[Checkout] req.body.phoneNumbers value:", req.body.phoneNumbers);
+      
       const data = purchaseSchema.parse(req.body);
+      
+      console.log("[Checkout] Parsed data:", JSON.stringify(data, null, 2));
+      console.log("[Checkout] data.phoneNumbers type:", typeof data.phoneNumbers);
+      console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(data.phoneNumbers));
+      console.log("[Checkout] data.phoneNumbers:", data.phoneNumbers);
+      console.log("[Checkout] data.isBulkOrder:", data.isBulkOrder);
+      console.log("[Checkout] ================================================");
       
       // Normalize and validate phone number format
       const normalizedPhone = normalizePhoneNumber(data.customerPhone);
@@ -965,7 +978,75 @@ export async function registerRoutes(
       }
 
       const reference = generateReference();
-      const profit = amount - costPrice;
+      
+      // Handle bulk orders - CRITICAL: Must check phoneNumbers array length properly
+      const phoneNumbers = data.phoneNumbers;
+      const isBulkOrder = data.isBulkOrder;
+      
+      console.log("[Checkout] ========== RAW DATA EXTRACTION ==========");
+      console.log("[Checkout] data object keys:", Object.keys(data));
+      console.log("[Checkout] data.phoneNumbers value:", phoneNumbers);
+      console.log("[Checkout] data.phoneNumbers type:", typeof phoneNumbers);
+      console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(phoneNumbers));
+      console.log("[Checkout] data.isBulkOrder value:", isBulkOrder);
+      console.log("[Checkout] ================================================");
+      
+      // Calculate number of recipients with multiple checks
+      let numberOfRecipients = 1;
+      
+      // Primary check: phoneNumbers is a valid array with items
+      if (Array.isArray(phoneNumbers) && phoneNumbers.length > 0) {
+        numberOfRecipients = phoneNumbers.length;
+        console.log("[Checkout] ✓ Using phoneNumbers array length:", numberOfRecipients);
+      } 
+      // Secondary check: isBulkOrder flag is true and phoneNumbers exists
+      else if (isBulkOrder === true && phoneNumbers) {
+        if (Array.isArray(phoneNumbers)) {
+          numberOfRecipients = phoneNumbers.length || 1;
+          console.log("[Checkout] ✓ Using isBulkOrder flag with array, length:", numberOfRecipients);
+        } else if (typeof phoneNumbers === 'object') {
+          // Fallback: Try to convert to array
+          try {
+            const phoneArray = Array.from(phoneNumbers as any);
+            numberOfRecipients = phoneArray.length || 1;
+            console.log("[Checkout] ✓ Converted phoneNumbers to array, length:", numberOfRecipients);
+          } catch (e) {
+            console.log("[Checkout] ⚠ Failed to convert phoneNumbers to array, defaulting to 1");
+            numberOfRecipients = 1;
+          }
+        } else {
+          console.log("[Checkout] ⚠ isBulkOrder is true but phoneNumbers is not an array:", typeof phoneNumbers);
+          numberOfRecipients = 1;
+        }
+      }
+      // If still 1 recipient but isBulkOrder is true, log warning
+      else if (isBulkOrder === true) {
+        console.log("[Checkout] ⚠ WARNING: isBulkOrder is true but phoneNumbers is missing or invalid!");
+        console.log("[Checkout] ⚠ phoneNumbers:", phoneNumbers);
+        console.log("[Checkout] ⚠ Defaulting to 1 recipient - THIS MAY BE A BUG!");
+      }
+      
+      console.log("[Checkout] ========== BULK ORDER CALCULATION ==========");
+      console.log("[Checkout] phoneNumbers is array:", Array.isArray(phoneNumbers));
+      console.log("[Checkout] phoneNumbers length:", phoneNumbers?.length);
+      console.log("[Checkout] isBulkOrder flag:", isBulkOrder);
+      console.log("[Checkout] FINAL numberOfRecipients:", numberOfRecipients);
+      console.log("[Checkout] Unit price (amount):", amount);
+      console.log("[Checkout] Unit cost price:", costPrice);
+      console.log("[Checkout] ================================================");
+      
+      // Calculate total amount for bulk orders
+      const totalAmount = amount * numberOfRecipients;
+      const totalCostPrice = costPrice * numberOfRecipients;
+      const totalProfit = totalAmount - totalCostPrice;
+      const totalAgentProfit = agentProfit * numberOfRecipients;
+      
+      console.log("[Checkout] ========== CALCULATED TOTALS ==========");
+      console.log("[Checkout] Total amount (", amount, " * ", numberOfRecipients, "):", totalAmount);
+      console.log("[Checkout] Total cost price:", totalCostPrice);
+      console.log("[Checkout] Total profit:", totalProfit);
+      console.log("[Checkout] Total agent profit:", totalAgentProfit);
+      console.log("[Checkout] ================================================");
 
       const transaction = await storage.createTransaction({
         reference,
@@ -973,31 +1054,46 @@ export async function registerRoutes(
         productId: product.id,
         productName,
         network,
-        amount: amount.toFixed(2),
-        costPrice: costPrice.toFixed(2),
-        profit: profit.toFixed(2),
+        amount: totalAmount.toFixed(2),
+        costPrice: totalCostPrice.toFixed(2),
+        profit: totalProfit.toFixed(2),
         customerPhone: normalizedPhone,
         customerEmail: data.customerEmail,
+        phoneNumbers: phoneNumbers || undefined,
+        isBulkOrder: isBulkOrder || false,
         status: TransactionStatus.PENDING,
         agentId,
-        agentProfit: agentProfit.toFixed(2),
+        agentProfit: totalAgentProfit.toFixed(2),
       });
 
       // Initialize Paystack payment
       const customerEmail = data.customerEmail || `${normalizedPhone}@clectech.com`;
-      const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success`;
+      const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success?reference=${reference}`;
+
+      console.log("[Checkout] Paystack initialization:", { 
+        totalAmount, 
+        amountInPesewas: Math.round(totalAmount * 100),
+        reference 
+      });
 
       try {
         const paystackResponse = await initializePayment({
           email: customerEmail,
-          amount: Math.round(amount * 100), // Convert GHS to pesewas
+          amount: Math.round(totalAmount * 100), // Convert GHS to pesewas
           reference: reference,
           callbackUrl: callbackUrl,
           metadata: {
             transactionId: transaction.id,
             productName: productName,
             customerPhone: normalizedPhone,
+            isBulkOrder: isBulkOrder || false,
+            numberOfRecipients: numberOfRecipients,
           },
+        });
+
+        console.log("[Checkout] Paystack response received:", { 
+          authorization_url: paystackResponse.data.authorization_url,
+          access_code: paystackResponse.data.access_code 
         });
 
         res.json({
@@ -1009,27 +1105,61 @@ export async function registerRoutes(
           },
           paymentUrl: paystackResponse.data.authorization_url,
           accessCode: paystackResponse.data.access_code,
+          debug: {
+            phoneNumbers: phoneNumbers,
+            isBulkOrder: isBulkOrder,
+            numberOfRecipients: numberOfRecipients,
+            unitPrice: amount,
+            totalAmount: totalAmount,
+            amountSentToPaystack: Math.round(totalAmount * 100),
+          }
         });
       } catch (paystackError: any) {
+        console.error("[Checkout] Paystack initialization failed:", paystackError);
+        console.error("[Checkout] Error details:", {
+          message: paystackError.message,
+          phoneNumbers: phoneNumbers,
+          numberOfRecipients: numberOfRecipients,
+          totalAmount: totalAmount
+        });
+        
         // If Paystack fails, clean up the transaction
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.FAILED,
         });
-        throw new Error(paystackError.message || "Payment initialization failed");
+        
+        return res.status(500).json({ 
+          error: paystackError.message || "Payment initialization failed",
+          debug: {
+            phoneNumbers: phoneNumbers,
+            numberOfRecipients: numberOfRecipients,
+            totalAmount: totalAmount,
+          }
+        });
       }
     } catch (error: any) {
-      res.status(400).json({ error: error.message || "Checkout failed" });
+      console.error("[Checkout] General error:", error);
+      res.status(400).json({ 
+        error: error.message || "Checkout failed",
+        debug: {
+          error: error.toString()
+        }
+      });
     }
   });
 
   app.get("/api/transactions/verify/:reference", async (req, res) => {
     try {
+      console.log("[Verify] Starting verification for reference:", req.params.reference);
       const transaction = await storage.getTransactionByReference(req.params.reference);
       if (!transaction) {
+        console.log("[Verify] Transaction not found:", req.params.reference);
         return res.status(404).json({ error: "Transaction not found" });
       }
 
+      console.log("[Verify] Transaction status:", transaction.status);
       if (transaction.status === TransactionStatus.COMPLETED) {
+        console.log("[Verify] Transaction already completed");
         return res.json({
           success: true,
           transaction: {
@@ -1043,19 +1173,58 @@ export async function registerRoutes(
         });
       }
 
-      // Verify payment with Paystack API
-      const paystackVerification = await verifyPayment(req.params.reference);
+      // Verify payment with Paystack API with retry logic
+      console.log("[Verify] Calling Paystack API for verification");
+      let paystackVerification;
+      let retryCount = 0;
+      const maxRetries = 2;
       
-      if (paystackVerification.data.status !== "success") {
-        // Payment not successful yet
+      while (retryCount < maxRetries) {
+        try {
+          paystackVerification = await verifyPayment(req.params.reference);
+          console.log(`[Verify] Paystack response (attempt ${retryCount + 1}):`, paystackVerification.data.status);
+          
+          if (paystackVerification.data.status === "success") {
+            break; // Payment successful, exit retry loop
+          }
+          
+          // If not successful and not last retry, wait before trying again
+          if (retryCount < maxRetries - 1) {
+            console.log(`[Verify] Payment status is ${paystackVerification.data.status}, waiting 1s before retry...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          
+          retryCount++;
+        } catch (error: any) {
+          console.error(`[Verify] Paystack API error (attempt ${retryCount + 1}):`, error.message);
+          
+          if (retryCount < maxRetries - 1) {
+            console.log("[Verify] Retrying after error...");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            retryCount++;
+          } else {
+            throw error; // Re-throw on last attempt
+          }
+        }
+      }
+      
+      if (!paystackVerification || paystackVerification.data.status !== "success") {
+        // Payment not successful after retries
+        const status = paystackVerification?.data.status || "unknown";
+        console.log("[Verify] Payment not successful after retries, final status:", status);
         return res.json({
           success: false,
-          status: paystackVerification.data.status,
-          message: paystackVerification.data.gateway_response,
+          status: status,
+          message: paystackVerification?.data.gateway_response || "Payment verification in progress",
+          transaction: {
+            reference: transaction.reference,
+            status: transaction.status,
+          }
         });
       }
 
       // Payment successful - fulfill the order
+      console.log("[Verify] Payment successful, fulfilling order");
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
 
@@ -1065,6 +1234,7 @@ export async function registerRoutes(
           await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
           deliveredPin = checker.pin;
           deliveredSerial = checker.serialNumber;
+          console.log("[Verify] Result checker delivered");
         }
       }
 
@@ -1076,12 +1246,15 @@ export async function registerRoutes(
         deliveredSerial,
         paymentReference: paystackVerification.data.reference,
       });
+      console.log("[Verify] Transaction updated to completed");
 
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+        console.log("[Verify] Agent credited");
       }
 
+      console.log("[Verify] Verification complete, sending success response");
       res.json({
         success: true,
         transaction: {
@@ -1094,8 +1267,8 @@ export async function registerRoutes(
         },
       });
     } catch (error: any) {
-      console.error("Payment verification error:", error);
-      res.status(500).json({ error: "Verification failed" });
+      console.error("[Verify] Payment verification error:", error.message || error);
+      res.status(500).json({ error: error.message || "Verification failed" });
     }
   });
 
@@ -1156,12 +1329,7 @@ export async function registerRoutes(
             if (existingAgent) {
               return res.json({
                 status: "success",
-                message: "Agent account already created successfully",
-                autoLogin: true,
-                loginCredentials: {
-                  email: regData.email,
-                  password: regData.password
-                },
+                message: "Agent account already created successfully. Please login with your credentials.",
                 data: {
                   reference: paymentData.reference,
                   amount: paymentData.amount,
@@ -1254,16 +1422,11 @@ export async function registerRoutes(
             });
             console.log("Step 4 SUCCESS: Activation transaction recorded:", transaction.id);
 
-            // Generate login credentials for auto-login
-            console.log("Step 5: Preparing auto-login response");
+            // Generate success response
+            console.log("Step 5: Preparing success response");
             const response = { 
               status: "success", 
-              message: "Payment verified and agent account created successfully",
-              autoLogin: true,
-              loginCredentials: {
-                email: regData.email,
-                password: regData.password,
-              },
+              message: "Payment verified and agent account created successfully. Please login with your credentials.",
               data: {
                 reference: paymentData.reference,
                 amount: paymentData.amount,
@@ -2556,6 +2719,8 @@ export async function registerRoutes(
   // Pay with wallet
   app.post("/api/wallet/pay", requireAuth, async (req, res) => {
     try {
+      console.log("Wallet pay request body:", req.body);
+      
       const {
         productType,
         productId,
@@ -2563,10 +2728,13 @@ export async function registerRoutes(
         network,
         amount,
         customerPhone,
+        phoneNumbers,
+        isBulkOrder,
         agentSlug,
       } = req.body;
 
       if (!productType || !productName || !amount || !customerPhone) {
+        console.error("Missing required fields:", { productType, productName, amount, customerPhone });
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -2635,6 +2803,8 @@ export async function registerRoutes(
         profit: profit.toFixed(2),
         customerPhone,
         customerEmail: dbUser.email,
+        phoneNumbers: phoneNumbers || undefined,
+        isBulkOrder: isBulkOrder || false,
         paymentMethod: "wallet",
         status: TransactionStatus.CONFIRMED,
         agentId,
@@ -2797,6 +2967,27 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to close chat" });
+    }
+  });
+
+  // Get unread message count for user
+  app.get("/api/support/unread-count", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const user = req.user!;
+      const count = await storage.getUnreadUserMessagesCount(user.id);
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get unread count" });
+    }
+  });
+
+  // Get unread message count for admin
+  app.get("/api/support/admin/unread-count", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const count = await storage.getUnreadAdminMessagesCount();
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get unread count" });
     }
   });
 

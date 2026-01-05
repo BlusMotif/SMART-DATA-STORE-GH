@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
-import { ChatWidget } from "@/components/user/chat-widget";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ConnectionStatus } from "@/components/connection-status";
@@ -27,6 +26,7 @@ import AgentStorefront from "@/pages/agent/storefront";
 import AgentSettings from "@/pages/agent/settings";
 import AgentRankings from "@/pages/agent/rankings";
 import AgentBulkUpload from "@/pages/agent/bulk-upload";
+import AgentSupportPage from "@/pages/agent/support";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDataBundles from "@/pages/admin/data-bundles";
 import AdminResultCheckers from "@/pages/admin/result-checkers";
@@ -43,6 +43,9 @@ import ResultCheckersPage from "@/pages/products/result-checkers";
 import DataBundlesPage from "@/pages/data-bundles";
 import UserDashboard from "@/pages/user/dashboard";
 import WalletDashboard from "@/pages/user/wallet";
+import UserBundlesPage from "@/pages/user/bundles";
+import UserHistoryPage from "@/pages/user/history";
+import UserSupportPage from "@/pages/user/support";
 
 // Component to restrict agent store users to storefront only
 function StorefrontGuard({ children }: { children: React.ReactNode }) {
@@ -51,12 +54,14 @@ function StorefrontGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const agentStore = localStorage.getItem("agentStore");
     
-    // Allowed paths for storefront users: store, products, checkout, success pages
+    // Allowed paths for storefront users: store, products, checkout, success pages, auth pages
     const allowedPaths = [
       "/store/",
       "/products/",
       "/checkout",
-      "/wallet/topup/success"
+      "/wallet/topup/success",
+      "/login",
+      "/register"
     ];
     
     const isAllowedPath = allowedPaths.some(path => location.startsWith(path));
@@ -88,12 +93,16 @@ function Router() {
       <Route path="/agent/activation-complete" component={AgentActivationCompletePage} />
       <ProtectedRoute path="/user/dashboard" component={UserDashboard} />
       <ProtectedRoute path="/user/wallet" component={WalletDashboard} />
+      <ProtectedRoute path="/user/bundles/:network" component={UserBundlesPage} />
+      <ProtectedRoute path="/user/history" component={UserHistoryPage} />
+      <ProtectedRoute path="/user/support" component={UserSupportPage} />
       <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRole="agent" />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />
       <ProtectedRoute path="/agent/bulk-upload" component={AgentBulkUpload} requiredRole="agent" />
       <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRole="agent" />
       <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRole="agent" />
+      <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRole="agent" />
       <ProtectedRoute path="/agent/rankings" component={AgentRankings} requiredRole="agent" />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
@@ -113,26 +122,6 @@ function Router() {
 }
 
 function App() {
-  // Clear all caches on app load
-  useEffect(() => {
-    // Clear React Query cache
-    queryClient.clear();
-    
-    // Clear all browser caches if available
-    if ('caches' in window) {
-      caches.keys().then((names) => {
-        names.forEach(name => {
-          caches.delete(name);
-        });
-      });
-    }
-    
-    // Clear session storage
-    sessionStorage.clear();
-    
-    console.log("All caches cleared on app load");
-  }, []);
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -141,7 +130,6 @@ function App() {
             <ConnectionStatus />
             <PWAInstallPrompt />
             <Router />
-            <ChatWidget />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

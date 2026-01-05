@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, CheckCircle, Clock, XCircle, AlertCircle } from "lucide-react";
+import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, CheckCircle, Clock, XCircle, AlertCircle, Layers } from "lucide-react";
 import type { Transaction } from "@shared/schema";
 
 // Status display utility
@@ -220,15 +220,25 @@ export default function AgentTransactions() {
                       <TableBody>
                         {filteredTransactions.map((tx) => {
                           const network = NETWORKS.find((n) => n.id === tx.network);
+                          const isBulkOrder = (tx as any).isBulkOrder;
+                          const phoneNumbers = (tx as any).phoneNumbers as string[] | undefined;
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
                               <TableCell>
                                 <div className="max-w-[200px]">
                                   <div className="font-medium truncate">{tx.productName}</div>
-                                  <Badge variant="outline" className="mt-1 text-xs">
-                                    {tx.type === "data_bundle" ? "Data Bundle" : "Result Checker"}
-                                  </Badge>
+                                  <div className="flex gap-1 mt-1 flex-wrap">
+                                    <Badge variant="outline" className="text-xs">
+                                      {tx.type === "data_bundle" ? "Data Bundle" : "Result Checker"}
+                                    </Badge>
+                                    {isBulkOrder && (
+                                      <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                                        <Layers className="h-3 w-3" />
+                                        Bulk ({phoneNumbers?.length || 0})
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -246,13 +256,32 @@ export default function AgentTransactions() {
                                 )}
                               </TableCell>
                               <TableCell className="font-medium tabular-nums">
-                                {formatCurrency(tx.amount)}
+                                <div>{formatCurrency(tx.amount)}</div>
+                                {isBulkOrder && phoneNumbers && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatCurrency(parseFloat(tx.amount) / phoneNumbers.length)} each
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell className="text-green-600 tabular-nums font-medium">
-                                +{formatCurrency(tx.agentProfit || 0)}
+                                <div>+{formatCurrency(tx.agentProfit || 0)}</div>
+                                {isBulkOrder && phoneNumbers && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatCurrency(parseFloat(tx.agentProfit || "0") / phoneNumbers.length)} each
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell className="text-muted-foreground">
-                                {tx.customerPhone}
+                                {isBulkOrder && phoneNumbers ? (
+                                  <div className="text-xs">
+                                    <div className="font-semibold">{phoneNumbers.length} numbers</div>
+                                    <div className="text-muted-foreground truncate max-w-[120px]">
+                                      {phoneNumbers[0]}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  tx.customerPhone
+                                )}
                               </TableCell>
                               <TableCell>
                                 <StatusBadge status={tx.status} />

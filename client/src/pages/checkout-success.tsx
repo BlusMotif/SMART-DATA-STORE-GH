@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Download, Phone as PhoneIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Transaction } from "@shared/schema";
 
@@ -17,6 +17,8 @@ export default function CheckoutSuccessPage() {
   const { toast } = useToast();
   const params = new URLSearchParams(search);
   const reference = params.get("reference");
+  const paystackReference = params.get("trxref"); // Paystack adds this
+  const paystackStatus = params.get("status"); // Paystack payment status
 
   // Function to get the return URL
   const getReturnUrl = () => {
@@ -24,17 +26,25 @@ export default function CheckoutSuccessPage() {
     return agentStore ? `/store/${agentStore}` : "/";
   };
 
+  const [verificationComplete, setVerificationComplete] = useState(false);
+  const [paymentFailed, setPaymentFailed] = useState(paystackStatus === "failed" || paystackStatus === "cancelled");
+
   const { data: verifyResult, isLoading, error } = useQuery<{ success: boolean; transaction: Transaction }>({
-    queryKey: [`/api/transactions/verify/${reference}`],
-    enabled: !!reference,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      if (data?.transaction?.status === "pending") {
-        return 3000;
-      }
-      return false;
-    },
+    queryKey: [`/api/transactions/verify/${reference || paystackReference}`],
+    enabled: !!(reference || paystackReference) && !paymentFailed,
+    retry: 1,
+    retryDelay: 1000,
   });
+
+  // Mark verification as complete once we get data
+  useEffect(() => {
+    if (verifyResult) {
+      setVerificationComplete(true);
+      if (verifyResult.success === false) {
+        setPaymentFailed(true);
+      }
+    }
+  }, [verifyResult]);
 
   const transaction = verifyResult?.transaction;
 
@@ -46,7 +56,79 @@ export default function CheckoutSuccessPage() {
     });
   };
 
-  if (!reference) {
+  const downloadReceipt = () => {
+    if (!transaction) return;
+
+    const phoneNumbers = (transaction as any).phoneNumbers as string[] | undefined;
+    const isBulkOrder = (transaction as any).isBulkOrder as boolean | undefined;
+
+    const receiptContent = `
+═══════════════════════════════════════
+           SMART DATA STORE GH
+        TRANSACTION RECEIPT
+═══════════════════════════════════════
+
+Transaction ID: ${transaction.id}
+Reference: ${transaction.reference}
+Date: ${formatDate(transaction.createdAt)}
+
+───────────────────────────────────────
+PRODUCT DETAILS
+───────────────────────────────────────
+Product: ${transaction.productName}
+${transaction.network ? `Network: ${transaction.network.toUpperCase()}` : ''}
+Amount: ${formatCurrency(transaction.amount)}
+Status: ${transaction.status.toUpperCase()}
+
+───────────────────────────────────────
+${isBulkOrder ? 'BULK ORDER - RECIPIENT NUMBERS' : 'RECIPIENT DETAILS'}
+───────────────────────────────────────
+${isBulkOrder && phoneNumbers ? 
+  `Total Recipients: ${phoneNumbers.length}\n\n` + phoneNumbers.map((num, idx) => `  ${idx + 1}. ${num}`).join('\n') : 
+  `Phone: ${transaction.customerPhone}`
+}
+${transaction.customerEmail ? `\nEmail: ${transaction.customerEmail}` : ''}
+
+${transaction.type === 'result_checker' && transaction.deliveredPin ? `
+───────────────────────────────────────
+RESULT CHECKER DETAILS
+───────────────────────────────────────
+Serial Number: ${transaction.deliveredSerial}
+PIN: ${transaction.deliveredPin}
+` : ''}
+${transaction.type === 'data_bundle' && status === 'completed' ? `
+───────────────────────────────────────
+DELIVERY STATUS
+───────────────────────────────────────
+✓ Data bundle delivered successfully
+${isBulkOrder ? `✓ Sent to ${phoneNumbers?.length || 0} recipients
+✓ Unit Price: ${formatCurrency(parseFloat(transaction.amount) / (phoneNumbers?.length || 1))}
+✓ Total Amount: ${formatCurrency(transaction.amount)}` : ''}
+` : ''}
+
+═══════════════════════════════════════
+Thank you for your business!
+For support: support@smartdatastore.com
+═══════════════════════════════════════
+    `.trim();
+
+    const blob = new Blob([receiptContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `receipt-${transaction.reference}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Receipt Downloaded!",
+      description: "Your receipt has been saved to your downloads folder.",
+    });
+  };
+
+  if (!reference && !paystackReference) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Header />
@@ -70,25 +152,82 @@ export default function CheckoutSuccessPage() {
     );
   }
 
-  if (isLoading) {
+  // Show payment failed state if Paystack indicates failure
+  if (paymentFailed) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <Header />
-        <main className="flex-1">
-          <PageLoader text="Verifying payment..." />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Payment {paystackStatus === "cancelled" ? "Cancelled" : "Failed"}</h2>
+              <p className="text-muted-foreground mb-4">
+                {paystackStatus === "cancelled" 
+                  ? "You cancelled the payment. No charges were made to your account."
+                  : "Your payment could not be processed. Please try again."}
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => {
+                  const agentStore = localStorage.getItem("agentStore");
+                  setLocation(agentStore ? `/store/${agentStore}` : "/");
+                }}>
+                  {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
+                </Button>
+                <Button variant="outline" onClick={() => window.history.back()}>
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </main>
         <Footer />
       </div>
     );
   }
 
+  // Show payment failed state if Paystack indicates failure
+  if (paymentFailed) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Payment {paystackStatus === "cancelled" ? "Cancelled" : "Failed"}</h2>
+              <p className="text-muted-foreground mb-4">
+                {paystackStatus === "cancelled" 
+                  ? "You cancelled the payment. No charges were made to your account."
+                  : "Your payment could not be processed. Please try again."}
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => {
+                  const agentStore = localStorage.getItem("agentStore");
+                  setLocation(agentStore ? `/store/${agentStore}` : "/");
+                }}>
+                  {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
+                </Button>
+                <Button variant="outline" onClick={() => window.history.back()}>
+                  Try Again
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Show success immediately and verify in background
   const statusConfig = {
     completed: {
       icon: CheckCircle,
       color: "text-green-500",
       bgColor: "bg-green-50 dark:bg-green-900/20",
       title: "Payment Successful!",
-      description: "Your transaction has been completed successfully.",
+      description: verificationComplete ? "Your transaction has been completed successfully." : "Verifying transaction...",
     },
     pending: {
       icon: Clock,
@@ -106,7 +245,7 @@ export default function CheckoutSuccessPage() {
     },
   };
 
-  const status = transaction?.status as keyof typeof statusConfig || "pending";
+  const status = (transaction?.status as keyof typeof statusConfig) || (paystackStatus === "success" ? "completed" : "pending");
   const config = statusConfig[status];
   const StatusIcon = config.icon;
 
@@ -125,9 +264,29 @@ export default function CheckoutSuccessPage() {
               <CardDescription>{config.description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {!verificationComplete && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  <p className="text-sm text-blue-800 dark:text-blue-300">Verifying transaction details...</p>
+                </div>
+              )}
               {transaction && (
                 <>
                   <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Transaction ID</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono" data-testid="text-transaction-id">{transaction.id}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => copyToClipboard(transaction.id)}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Reference</span>
                       <div className="flex items-center gap-2">
@@ -159,6 +318,35 @@ export default function CheckoutSuccessPage() {
                       <span className="text-sm">{formatDate(transaction.createdAt)}</span>
                     </div>
                   </div>
+
+                  {/* Bulk Order Phone Numbers */}
+                  {(transaction as any).isBulkOrder && (transaction as any).phoneNumbers && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                          <PhoneIcon className="h-4 w-4" />
+                          Bulk Order Recipients ({((transaction as any).phoneNumbers as string[]).length})
+                        </h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => copyToClipboard(((transaction as any).phoneNumbers as string[]).join('\n'))}
+                        >
+                          <Copy className="h-3 w-3 mr-1" />
+                          Copy All
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                        {((transaction as any).phoneNumbers as string[]).map((phone: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-800 rounded px-2 py-1">
+                            <span className="text-xs text-muted-foreground">{idx + 1}.</span>
+                            <code className="font-mono">{phone}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {status === "completed" && transaction.type === "result_checker" && transaction.deliveredPin && (
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
@@ -212,6 +400,12 @@ export default function CheckoutSuccessPage() {
               )}
 
               <div className="flex flex-col gap-3">
+                {status === "completed" && (
+                  <Button onClick={downloadReceipt} variant="secondary" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Download Receipt
+                  </Button>
+                )}
                 <Button onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-continue-shopping">
                   Continue Shopping
                   <ArrowRight className="h-4 w-4" />

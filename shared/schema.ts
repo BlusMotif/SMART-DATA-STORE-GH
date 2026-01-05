@@ -166,6 +166,8 @@ export const transactions = pgTable("transactions", {
   profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),
+  phoneNumbers: jsonb("phone_numbers"), // Array of phone numbers for bulk orders
+  isBulkOrder: boolean("is_bulk_order").default(false),
   paymentMethod: text("payment_method").notNull().default("paystack"), // "paystack" or "wallet"
   status: text("status").notNull().default("pending"),
   paymentReference: text("payment_reference"),
@@ -488,6 +490,8 @@ export const purchaseSchema = z.object({
   customerPhone: z.string().min(10, "Phone must be at least 10 digits"),
   customerEmail: z.string().email().optional(),
   agentSlug: z.string().optional(),
+  phoneNumbers: z.array(z.string()).optional(),
+  isBulkOrder: z.boolean().optional(),
 });
 
 export const withdrawalRequestSchema = z.object({

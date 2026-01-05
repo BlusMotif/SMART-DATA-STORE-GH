@@ -92,21 +92,35 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
     throw new Error("Paystack secret key not configured");
   }
 
-  const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/verify/${reference}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-  const data = await response.json();
+  try {
+    const response = await fetch(`${PAYSTACK_BASE_URL}/transaction/verify/${reference}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    throw new Error(data.message || "Failed to verify payment");
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to verify payment");
+    }
+
+    return data as PaystackVerifyResponse;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Payment verification timed out. Please try again.');
+    }
+    throw error;
   }
-
-  return data as PaystackVerifyResponse;
 }
 
 export function validateWebhookSignature(rawBody: string | Buffer, signature: string): boolean {

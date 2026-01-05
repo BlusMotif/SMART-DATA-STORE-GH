@@ -12,6 +12,6 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storage: window.sessionStorage, // Use sessionStorage instead of localStorage - clears when browser closes
   },
 });

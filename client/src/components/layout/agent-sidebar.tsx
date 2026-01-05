@@ -5,6 +5,7 @@ import {
   BarChart3,
   Wallet,
   Settings,
+  MessageCircle,
   LogOut,
   ExternalLink,
   X,
@@ -13,9 +14,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME, formatCurrency } from "@/lib/constants";
 import type { Agent, User } from "@shared/schema";
 import siteLogo from "@assets/logo_1765774201026.png";
@@ -63,6 +66,11 @@ const sidebarNavItems = [
     href: "/agent/settings",
     icon: Settings,
   },
+  {
+    title: "Support Chat",
+    href: "/agent/support",
+    icon: MessageCircle,
+  },
 ];
 
 export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
@@ -71,6 +79,21 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
 
   const { data: profileData, error } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
+  });
+
+  // Get unread message count for admin (agent acts as support)
+  const { data: unreadCount = 0 } = useQuery<number>({
+    queryKey: ["/api/support/admin/unread-count"],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest("GET", "/api/support/admin/unread-count");
+        const data = await response.json();
+        return data.count || 0;
+      } catch (error) {
+        return 0;
+      }
+    },
+    refetchInterval: 5000, // Refetch every 5 seconds for admins
   });
 
   const agent = profileData?.agent;
@@ -102,18 +125,24 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
           <nav className="flex flex-col gap-1">
             {sidebarNavItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
+              const isSupport = item.href === "/agent/support";
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
                     variant={isActive ? "secondary" : "ghost"}
                     className={cn(
-                      "w-full justify-start gap-3 font-normal",
+                      "w-full justify-start gap-3 font-normal relative",
                       isActive && "bg-primary/10 text-primary font-medium"
                     )}
                     onClick={onClose}
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.title}
+                    <span className="flex-1 text-left">{item.title}</span>
+                    {isSupport && unreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto">
+                        {unreadCount}
+                      </Badge>
+                    )}
                   </Button>
                 </Link>
               );
@@ -173,18 +202,24 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
         <nav className="flex flex-col gap-1">
           {sidebarNavItems.map((item) => {
             const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
+            const isSupport = item.href === "/agent/support";
             return (
               <Link key={item.href} href={item.href}>
                 <Button
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 font-normal",
+                    "w-full justify-start gap-3 font-normal relative",
                     isActive && "bg-primary/10 text-primary font-medium"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(" ", "-")}`}
                 >
                   <item.icon className="h-4 w-4" />
-                  {item.title}
+                  <span className="flex-1 text-left">{item.title}</span>
+                  {isSupport && unreadCount > 0 && (
+                    <Badge variant="destructive" className="ml-auto">
+                      {unreadCount}
+                    </Badge>
+                  )}
                 </Button>
               </Link>
             );

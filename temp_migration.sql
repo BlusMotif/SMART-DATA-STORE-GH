@@ -1,0 +1,1 @@
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS phone_numbers JSONB, ADD COLUMN IF NOT EXISTS is_bulk_order BOOLEAN DEFAULT FALSE; CREATE INDEX IF NOT EXISTS transactions_bulk_order_idx ON transactions(is_bulk_order) WHERE is_bulk_order = TRUE;

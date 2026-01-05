@@ -82,6 +82,8 @@ export interface IStorage {
   createChatMessage(chatId: string, senderId: string, senderType: string, message: string): Promise<string>;
   getChatMessages(chatId: string): Promise<ChatMessage[]>;
   markMessageAsRead(messageId: string): Promise<void>;
+  getUnreadUserMessagesCount(userId: string): Promise<number>;
+  getUnreadAdminMessagesCount(): Promise<number>;
 
   // Agent Custom Pricing
   getAgentCustomPricing(agentId: string): Promise<Array<{ bundleId: string; customPrice: string }>>;
@@ -618,6 +620,44 @@ export class DatabaseStorage implements IStorage {
     await db.update(chatMessages)
       .set({ isRead: true })
       .where(eq(chatMessages.id, messageId));
+  }
+
+  async getUnreadUserMessagesCount(userId: string): Promise<number> {
+    // Get all chats for this user
+    const userChats = await db.select({ id: supportChats.id })
+      .from(supportChats)
+      .where(eq(supportChats.userId, userId));
+    
+    if (userChats.length === 0) return 0;
+    
+    const chatIds = userChats.map(chat => chat.id);
+    
+    // Count unread messages from admin in user's chats
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(chatMessages)
+      .where(
+        and(
+          sql`${chatMessages.chatId} IN ${chatIds}`,
+          eq(chatMessages.senderType, 'admin'),
+          eq(chatMessages.isRead, false)
+        )
+      );
+    
+    return Number(result[0]?.count || 0);
+  }
+
+  async getUnreadAdminMessagesCount(): Promise<number> {
+    // Count all unread messages from users across all chats
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.senderType, 'user'),
+          eq(chatMessages.isRead, false)
+        )
+      );
+    
+    return Number(result[0]?.count || 0);
   }
 
   // Agent Custom Pricing Methods

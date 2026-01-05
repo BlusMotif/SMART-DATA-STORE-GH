@@ -79,8 +79,10 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}): P
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-    throw new Error(errorData.message || `API request failed: ${response.status} ${response.statusText}`);
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    const errorMessage = errorData.error || errorData.message || `API request failed: ${response.status} ${response.statusText}`;
+    console.error('API Error:', { endpoint, status: response.status, error: errorData });
+    throw new Error(errorMessage);
   }
 
   return response.json();

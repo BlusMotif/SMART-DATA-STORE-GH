@@ -128,13 +128,6 @@ export default function AdminChatSupport() {
     }
   }, [chatData?.messages, selectedChatId, queryClient]);
 
-  // Auto-select first chat
-  useEffect(() => {
-    if (chats && chats.length > 0 && !selectedChatId) {
-      setSelectedChatId(chats[0].id);
-    }
-  }, [chats, selectedChatId]);
-
   const handleSendMessage = () => {
     if (!message.trim() || !selectedChatId) return;
     sendMessageMutation.mutate(message);

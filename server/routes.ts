@@ -8,7 +8,7 @@ import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
 } from "@shared/schema";
-import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack";
+import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack";
 import { getSupabaseServer } from "./supabase";
 import { 
   validatePhoneNetwork, 
@@ -169,6 +169,26 @@ const requireAgent = async (req: Request, res: Response, next: NextFunction) => 
   } catch (error) {
     console.error('Agent auth error:', error);
     res.status(403).json({ error: "Agent access required" });
+  }
+};
+
+const requireSupport = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // requireAuth should have already run and set req.user with role
+    if (!req.user || !req.user.email) {
+      return res.status(403).json({ error: "Support access required" });
+    }
+
+    // Check role from req.user (already set by requireAuth middleware)
+    if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.AGENT) {
+      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+      return res.status(403).json({ error: "Support access required" });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Support auth error:', error);
+    res.status(403).json({ error: "Support access required" });
   }
 };
 
@@ -623,6 +643,104 @@ export async function registerRoutes(
     }
   });
 
+    // ============================================
+    // UPGRADE EXISTING USER TO AGENT (same account)
+    // ============================================
+    app.post("/api/agent/upgrade", requireAuth, async (req, res) => {
+      try {
+        const supabaseServer = getSupabase();
+        if (!supabaseServer) {
+          console.error('Supabase server client not initialized.');
+          return res.status(500).json({ error: "Server configuration error" });
+        }
+
+        const user = (req as any).user;
+        if (!user || !user.id) return res.status(401).json({ error: "Unauthorized" });
+
+        const { businessName, storefrontSlug } = req.body || {};
+        if (!businessName || !storefrontSlug) {
+          return res.status(400).json({ error: "Business name and storefront slug are required" });
+        }
+
+        // Check if user already has an agent
+        const existingAgent = await storage.getAgentByUserId(user.id);
+        if (existingAgent) {
+          return res.status(400).json({ error: "Your account is already an agent" });
+        }
+
+        // Check slug availability
+        const slugTaken = await storage.getAgentBySlug(storefrontSlug);
+        if (slugTaken) {
+          return res.status(400).json({ error: "Storefront URL already taken" });
+        }
+
+        // Create agent record (pending approval/payment)
+        const agent = await storage.createAgent({
+          userId: user.id,
+          storefrontSlug,
+          businessName,
+          isApproved: false,
+          paymentPending: true,
+        } as any);
+
+        // Create pending transaction record
+        const activationFee = 60.0;
+        const tempReference = `agent_pending_${Date.now()}_${user.id}`;
+
+        const transaction = await storage.createTransaction({
+          reference: tempReference,
+          type: ProductType.AGENT_ACTIVATION,
+          productId: agent.id,
+          productName: "Agent Account Activation",
+          network: null,
+          amount: activationFee.toString(),
+          costPrice: "0.00",
+          profit: activationFee.toString(),
+          customerPhone: user.phone || null,
+          customerEmail: user.email || null,
+          paymentMethod: "paystack",
+          status: TransactionStatus.PENDING,
+          paymentReference: null,
+          agentId: agent.id,
+          agentProfit: "0.00",
+        } as any);
+
+        // Initialize Paystack payment
+        const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            amount: Math.round(activationFee * 100),
+            currency: "GHS",
+            reference: tempReference,
+            callback_url: `${process.env.FRONTEND_URL || 'http://localhost:10000'}/agent/activation-complete`,
+            metadata: {
+              purpose: "agent_activation",
+              agent_id: agent.id,
+              transaction_id: transaction.id,
+            },
+          }),
+        });
+
+        const paystackData = await paystackResponse.json();
+        if (!paystackData.status) {
+          // cleanup
+          try { await storage.deleteAgent(agent.id); } catch (_) {}
+          try { await storage.updateTransaction(transaction.id, { status: TransactionStatus.FAILED }); } catch (_) {}
+          return res.status(500).json({ error: "Payment initialization failed" });
+        }
+
+        res.json({ paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
+      } catch (error: any) {
+        console.error("Error during agent upgrade:", error);
+        res.status(500).json({ error: error.message || "Upgrade failed" });
+      }
+    });
+
   // ============================================
   // PRODUCTS - DATA BUNDLES
   // ============================================
@@ -634,6 +752,21 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Database error:", error);
       res.status(500).json({ error: "Failed to fetch data bundles" });
+    }
+  });
+
+  // Check storefront slug availability
+  app.get("/api/agent/check-slug", async (req, res) => {
+    try {
+      const slug = (req.query.slug || "").toString().toLowerCase();
+      if (!slug) return res.status(400).json({ error: "slug is required" });
+      if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: "invalid slug format" });
+
+      const existing = await storage.getAgentBySlug(slug);
+      res.json({ available: !existing });
+    } catch (err: any) {
+      console.error("Error checking slug:", err);
+      res.status(500).json({ error: "Failed to check slug" });
     }
   });
 
@@ -916,7 +1049,54 @@ export async function registerRoutes(
       let costPrice: number;
       let network: string | null = null;
 
-      if (data.productType === ProductType.DATA_BUNDLE) {
+      // Handle new bulk format with orderItems
+      if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
+        console.log("[Checkout] ========== NEW BULK FORMAT DETECTED ==========");
+        console.log("[Checkout] orderItems:", data.orderItems);
+        console.log("[Checkout] ================================================");
+        
+        // Use the first item for initial product info
+        const firstItem = data.orderItems[0];
+        product = await storage.getDataBundle(firstItem.bundleId);
+        if (!product || !product.isActive) {
+          return res.status(404).json({ error: "Bundle not found" });
+        }
+        
+        // Get network from data or product
+        network = data.network || product.network;
+        
+        // Validate all phone numbers match the network
+        for (const item of data.orderItems) {
+          const normalizedItemPhone = normalizePhoneNumber(item.phone);
+          if (!normalizedItemPhone || !isValidPhoneLength(normalizedItemPhone)) {
+            console.error(`[BulkOrder] Invalid phone number: ${item.phone}`);
+            return res.status(400).json({ error: `Invalid phone number: ${item.phone}` });
+          }
+          if (!validatePhoneNetwork(normalizedItemPhone, network!)) {
+            const errorMsg = getNetworkMismatchError(normalizedItemPhone, network!);
+            console.error(`[BulkOrder] Network mismatch for phone: ${item.phone} | Error: ${errorMsg}`);
+            return res.status(400).json({ error: errorMsg });
+          }
+        }
+        
+        // Calculate cost price and amount from orderItems (prices already include agent markup)
+        costPrice = 0;
+        amount = 0;
+        for (const item of data.orderItems) {
+          const bundle = await storage.getDataBundle(item.bundleId);
+          if (!bundle) {
+            console.error(`[BulkOrder] Bundle not found for bundleId: ${item.bundleId}`);
+            return res.status(400).json({ error: `Bundle not found for bundleId: ${item.bundleId}` });
+          }
+          costPrice += parseFloat(bundle.costPrice);
+          amount += item.price; // Price already includes agent markup from frontend
+        }
+        
+        console.log("[Checkout] Bulk order total amount (from orderItems):", amount);
+        console.log("[Checkout] Bulk order total cost price:", costPrice);
+        
+        productName = `Bulk Order - ${data.orderItems.length} items`;
+      } else if (data.productId && data.productType === ProductType.DATA_BUNDLE) {
         product = await storage.getDataBundle(data.productId);
         if (!product || !product.isActive) {
           return res.status(404).json({ error: "Product not found" });
@@ -932,7 +1112,7 @@ export async function registerRoutes(
         amount = parseFloat(product.basePrice);
         costPrice = parseFloat(product.costPrice);
         network = product.network;
-      } else {
+      } else if (data.productId) {
         const [type, yearStr] = data.productId.split("-");
         const year = parseInt(yearStr);
         product = await storage.getAvailableResultChecker(type, year);
@@ -942,6 +1122,8 @@ export async function registerRoutes(
         productName = `${type.toUpperCase()} ${year} Result Checker`;
         amount = parseFloat(product.basePrice);
         costPrice = parseFloat(product.costPrice);
+      } else {
+        return res.status(400).json({ error: "Product ID or order items required" });
       }
 
       let agentId: string | undefined;
@@ -952,8 +1134,14 @@ export async function registerRoutes(
         if (agent && agent.isApproved) {
           agentId = agent.id;
           
-          // Check if agent has custom pricing for this bundle
-          if (data.productType === ProductType.DATA_BUNDLE) {
+          // For bulk orders with orderItems, profit is already calculated
+          if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
+            // Calculate profit: agent price - cost price
+            agentProfit = amount - costPrice;
+            console.log("[Checkout] Bulk order agent profit:", agentProfit);
+          }
+          // For single orders, check custom pricing or apply markup
+          else if (data.productType === ProductType.DATA_BUNDLE && data.productId) {
             const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
             if (customPrice) {
               const agentPrice = parseFloat(customPrice);
@@ -979,56 +1167,69 @@ export async function registerRoutes(
 
       const reference = generateReference();
       
-      // Handle bulk orders - CRITICAL: Must check phoneNumbers array length properly
-      const phoneNumbers = data.phoneNumbers;
-      const isBulkOrder = data.isBulkOrder;
+      // Handle bulk orders - store full order items with GB info
+      const phoneNumbersData = data.orderItems 
+        ? data.orderItems.map((item: any) => ({
+            phone: item.phone,
+            bundleName: item.bundleName,
+            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
+          }))
+        : data.phoneNumbers;
+      const isBulkOrder = data.isBulkOrder || (data.orderItems && data.orderItems.length > 0);
       
       console.log("[Checkout] ========== RAW DATA EXTRACTION ==========");
       console.log("[Checkout] data object keys:", Object.keys(data));
-      console.log("[Checkout] data.phoneNumbers value:", phoneNumbers);
-      console.log("[Checkout] data.phoneNumbers type:", typeof phoneNumbers);
-      console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(phoneNumbers));
+      console.log("[Checkout] data.phoneNumbers value:", data.phoneNumbers);
+      console.log("[Checkout] data.orderItems:", data.orderItems);
+      console.log("[Checkout] phoneNumbersData value:", phoneNumbersData);
+      console.log("[Checkout] phoneNumbersData type:", typeof phoneNumbersData);
+      console.log("[Checkout] phoneNumbersData is array:", Array.isArray(phoneNumbersData));
       console.log("[Checkout] data.isBulkOrder value:", isBulkOrder);
       console.log("[Checkout] ================================================");
       
       // Calculate number of recipients with multiple checks
       let numberOfRecipients = 1;
       
-      // Primary check: phoneNumbers is a valid array with items
-      if (Array.isArray(phoneNumbers) && phoneNumbers.length > 0) {
-        numberOfRecipients = phoneNumbers.length;
-        console.log("[Checkout] ✓ Using phoneNumbers array length:", numberOfRecipients);
+      // Primary check: phoneNumbersData is a valid array with items
+      if (Array.isArray(phoneNumbersData) && phoneNumbersData.length > 0) {
+        numberOfRecipients = phoneNumbersData.length;
+        console.log("[Checkout] ✓ Using phoneNumbersData array length:", numberOfRecipients);
       } 
-      // Secondary check: isBulkOrder flag is true and phoneNumbers exists
-      else if (isBulkOrder === true && phoneNumbers) {
-        if (Array.isArray(phoneNumbers)) {
-          numberOfRecipients = phoneNumbers.length || 1;
+      // Secondary check: orderItems array
+      else if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
+        numberOfRecipients = data.orderItems.length;
+        console.log("[Checkout] ✓ Using orderItems array length:", numberOfRecipients);
+      }
+      // Tertiary check: isBulkOrder flag is true and phoneNumbersData exists
+      else if (isBulkOrder === true && phoneNumbersData) {
+        if (Array.isArray(phoneNumbersData)) {
+          numberOfRecipients = phoneNumbersData.length || 1;
           console.log("[Checkout] ✓ Using isBulkOrder flag with array, length:", numberOfRecipients);
-        } else if (typeof phoneNumbers === 'object') {
+        } else if (typeof phoneNumbersData === 'object') {
           // Fallback: Try to convert to array
           try {
-            const phoneArray = Array.from(phoneNumbers as any);
+            const phoneArray = Array.from(phoneNumbersData as any);
             numberOfRecipients = phoneArray.length || 1;
-            console.log("[Checkout] ✓ Converted phoneNumbers to array, length:", numberOfRecipients);
+            console.log("[Checkout] ✓ Converted phoneNumbersData to array, length:", numberOfRecipients);
           } catch (e) {
-            console.log("[Checkout] ⚠ Failed to convert phoneNumbers to array, defaulting to 1");
+            console.log("[Checkout] ⚠ Failed to convert phoneNumbersData to array, defaulting to 1");
             numberOfRecipients = 1;
           }
         } else {
-          console.log("[Checkout] ⚠ isBulkOrder is true but phoneNumbers is not an array:", typeof phoneNumbers);
+          console.log("[Checkout] ⚠ isBulkOrder is true but phoneNumbersData is not an array:", typeof phoneNumbersData);
           numberOfRecipients = 1;
         }
       }
       // If still 1 recipient but isBulkOrder is true, log warning
       else if (isBulkOrder === true) {
-        console.log("[Checkout] ⚠ WARNING: isBulkOrder is true but phoneNumbers is missing or invalid!");
-        console.log("[Checkout] ⚠ phoneNumbers:", phoneNumbers);
+        console.log("[Checkout] ⚠ WARNING: isBulkOrder is true but phoneNumbersData is missing or invalid!");
+        console.log("[Checkout] ⚠ phoneNumbersData:", phoneNumbersData);
         console.log("[Checkout] ⚠ Defaulting to 1 recipient - THIS MAY BE A BUG!");
       }
       
       console.log("[Checkout] ========== BULK ORDER CALCULATION ==========");
-      console.log("[Checkout] phoneNumbers is array:", Array.isArray(phoneNumbers));
-      console.log("[Checkout] phoneNumbers length:", phoneNumbers?.length);
+      console.log("[Checkout] phoneNumbersData is array:", Array.isArray(phoneNumbersData));
+      console.log("[Checkout] phoneNumbersData length:", (phoneNumbersData as any)?.length);
       console.log("[Checkout] isBulkOrder flag:", isBulkOrder);
       console.log("[Checkout] FINAL numberOfRecipients:", numberOfRecipients);
       console.log("[Checkout] Unit price (amount):", amount);
@@ -1036,7 +1237,8 @@ export async function registerRoutes(
       console.log("[Checkout] ================================================");
       
       // Calculate total amount for bulk orders
-      const totalAmount = amount * numberOfRecipients;
+      // For orderItems format, amount is already the total
+      const totalAmount = data.orderItems ? amount : (amount * numberOfRecipients);
       const totalCostPrice = costPrice * numberOfRecipients;
       const totalProfit = totalAmount - totalCostPrice;
       const totalAgentProfit = agentProfit * numberOfRecipients;
@@ -1059,7 +1261,7 @@ export async function registerRoutes(
         profit: totalProfit.toFixed(2),
         customerPhone: normalizedPhone,
         customerEmail: data.customerEmail,
-        phoneNumbers: phoneNumbers || undefined,
+        phoneNumbers: (isBulkOrder && phoneNumbersData) ? phoneNumbersData : undefined,
         isBulkOrder: isBulkOrder || false,
         status: TransactionStatus.PENDING,
         agentId,
@@ -1106,7 +1308,7 @@ export async function registerRoutes(
           paymentUrl: paystackResponse.data.authorization_url,
           accessCode: paystackResponse.data.access_code,
           debug: {
-            phoneNumbers: phoneNumbers,
+            phoneNumbers: phoneNumbersData,
             isBulkOrder: isBulkOrder,
             numberOfRecipients: numberOfRecipients,
             unitPrice: amount,
@@ -1118,7 +1320,7 @@ export async function registerRoutes(
         console.error("[Checkout] Paystack initialization failed:", paystackError);
         console.error("[Checkout] Error details:", {
           message: paystackError.message,
-          phoneNumbers: phoneNumbers,
+          phoneNumbers: phoneNumbersData,
           numberOfRecipients: numberOfRecipients,
           totalAmount: totalAmount
         });
@@ -1131,7 +1333,7 @@ export async function registerRoutes(
         return res.status(500).json({ 
           error: paystackError.message || "Payment initialization failed",
           debug: {
-            phoneNumbers: phoneNumbers,
+            phoneNumbers: phoneNumbersData,
             numberOfRecipients: numberOfRecipients,
             totalAmount: totalAmount,
           }
@@ -1296,7 +1498,7 @@ export async function registerRoutes(
         console.log("Payment data received:", { status: paymentData.status, reference: paymentData.reference });
         
         // Handle cancelled or abandoned payments
-        if (paymentData.status === "abandoned" || paymentData.status === "cancelled") {
+        if (paymentData.status === "abandoned") {
           console.log("Payment was cancelled or abandoned:", reference);
           return res.json({ 
             status: "cancelled", 
@@ -1415,7 +1617,6 @@ export async function registerRoutes(
               customerEmail: regData.email,
               paymentMethod: "paystack",
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date(),
               paymentReference: paymentData.reference,
               agentId: null,
               agentProfit: "0.00",
@@ -1605,7 +1806,6 @@ export async function registerRoutes(
                 customerEmail: regData.email,
                 paymentMethod: "paystack",
                 status: TransactionStatus.COMPLETED,
-                completedAt: new Date(),
                 paymentReference: reference,
                 agentId: null,
                 agentProfit: "0.00",
@@ -1685,6 +1885,52 @@ export async function registerRoutes(
         }
 
         console.log("Payment processed via webhook:", reference);
+      }
+
+      // Handle transfer events
+      if (event.event === "transfer.success") {
+        const data = event.data;
+        const transferReference = data.reference;
+        
+        console.log("Processing transfer success:", transferReference);
+        
+        // Find withdrawal by transfer reference
+        const withdrawals = await storage.getWithdrawals();
+        const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
+        
+        if (withdrawal) {
+          await storage.updateWithdrawal(withdrawal.id, {
+            status: WithdrawalStatus.COMPLETED,
+            processedAt: new Date(),
+          });
+          console.log("Withdrawal marked as completed:", withdrawal.id);
+        }
+      }
+
+      if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
+        const data = event.data;
+        const transferReference = data.reference;
+        
+        console.log("Processing transfer failure:", transferReference);
+        
+        // Find withdrawal by transfer reference
+        const withdrawals = await storage.getWithdrawals();
+        const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
+        
+        if (withdrawal) {
+          // Refund the agent balance
+          const agent = await storage.getAgent(withdrawal.agentId);
+          if (agent) {
+            await storage.updateAgentBalance(agent.id, parseFloat(withdrawal.amount), false);
+          }
+          
+          await storage.updateWithdrawal(withdrawal.id, {
+            status: WithdrawalStatus.FAILED,
+            adminNote: `Transfer failed: ${data.failures?.[0]?.message || 'Unknown error'}`,
+            processedAt: new Date(),
+          });
+          console.log("Withdrawal marked as failed and balance refunded:", withdrawal.id);
+        }
       }
 
       res.sendStatus(200);
@@ -1842,9 +2088,9 @@ export async function registerRoutes(
       
       const data = withdrawalRequestSchema.parse(req.body);
       
-      // Validate minimum withdrawal amount of GHC 50
-      if (data.amount < 50) {
-        return res.status(400).json({ error: "Minimum withdrawal amount is GH₵50" });
+      // Validate minimum withdrawal amount of GHC 10
+      if (data.amount < 10) {
+        return res.status(400).json({ error: "Minimum withdrawal amount is GH₵10" });
       }
 
       // Additional validation for maximum withdrawal amount
@@ -1876,24 +2122,130 @@ export async function registerRoutes(
         });
       }
 
-      // Create withdrawal with COMPLETED status (automatic approval)
+      // Handle different payment methods
+      let recipientCode = null;
+      let bankName = data.bankName || "";
+      let bankCode = data.bankCode || "";
+
+      if (data.paymentMethod === "bank") {
+        // Bank transfer - requires bank details
+        if (!data.bankName || !data.bankCode) {
+          return res.status(400).json({ error: "Bank name and code are required for bank transfers" });
+        }
+
+        // Check if agent already has a transfer recipient for this account
+        const existingWithdrawals = await storage.getWithdrawals({ agentId: agent.id });
+        const existingRecipient = existingWithdrawals.find(w => 
+          w.accountNumber === data.accountNumber && 
+          w.bankCode === data.bankCode &&
+          w.recipientCode
+        );
+
+        if (existingRecipient?.recipientCode) {
+          recipientCode = existingRecipient.recipientCode;
+        } else {
+          // Create new transfer recipient for bank
+          try {
+            const recipientResponse = await createTransferRecipient({
+              type: "nuban",
+              name: data.accountName,
+              account_number: data.accountNumber,
+              bank_code: data.bankCode,
+              currency: "GHS"
+            });
+            recipientCode = recipientResponse.data.recipient_code;
+          } catch (error: any) {
+            console.error("Failed to create bank transfer recipient:", error);
+            return res.status(400).json({ error: "Failed to setup bank account for transfer. Please check your bank details." });
+          }
+        }
+      } else {
+        // Mobile money transfer
+        const mobileMoneyConfig = {
+          mtn_momo: { name: "MTN Mobile Money", code: "UMTN" },
+          telecel_cash: { name: "Telecel Cash", code: "UTEL" },
+          airtel_tigo_cash: { name: "AirtelTigo Cash", code: "UAIRTIGO" },
+          vodafone_cash: { name: "Vodafone Cash", code: "UVODAFONE" },
+        };
+
+        const config = mobileMoneyConfig[data.paymentMethod as keyof typeof mobileMoneyConfig];
+        if (!config) {
+          return res.status(400).json({ error: "Invalid payment method" });
+        }
+
+        bankName = config.name;
+        bankCode = config.code;
+
+        // Check if agent already has a transfer recipient for this mobile money account
+        const existingWithdrawals = await storage.getWithdrawals({ agentId: agent.id });
+        const existingRecipient = existingWithdrawals.find(w => 
+          w.accountNumber === data.accountNumber && 
+          w.paymentMethod === data.paymentMethod &&
+          w.recipientCode
+        );
+
+        if (existingRecipient?.recipientCode) {
+          recipientCode = existingRecipient.recipientCode;
+        } else {
+          // Create new transfer recipient for mobile money
+          try {
+            const recipientResponse = await createTransferRecipient({
+              type: "mobile_money",
+              name: data.accountName,
+              account_number: data.accountNumber,
+              bank_code: config.code,
+              currency: "GHS"
+            });
+            recipientCode = recipientResponse.data.recipient_code;
+          } catch (error: any) {
+            console.error("Failed to create mobile money recipient:", error);
+            return res.status(400).json({ error: "Failed to setup mobile money account for transfer. Please check your phone number." });
+          }
+        }
+      }
+
+      // Generate transfer reference
+      const transferReference = `WD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+
+      // Initiate transfer
+      let transferResponse;
+      try {
+        transferResponse = await initiateTransfer({
+          source: "balance",
+          amount: data.amount,
+          recipient: recipientCode,
+          reason: `Agent withdrawal - ${agent.businessName} (${data.paymentMethod.toUpperCase()})`,
+          reference: transferReference
+        });
+      } catch (error: any) {
+        console.error("Failed to initiate transfer:", error);
+        return res.status(400).json({ error: "Failed to initiate transfer. Please try again." });
+      }
+
+      // Create withdrawal record
       const withdrawal = await storage.createWithdrawal({
         agentId: agent.id,
         amount: data.amount.toFixed(2),
-        status: WithdrawalStatus.COMPLETED, // Changed from PENDING to COMPLETED
-        bankName: data.bankName,
+        status: WithdrawalStatus.PROCESSING,
+        paymentMethod: data.paymentMethod,
+        bankName: bankName,
+        bankCode: bankCode,
         accountNumber: data.accountNumber,
         accountName: data.accountName,
+        recipientCode: recipientCode,
+        transferReference: transferReference,
+        transferCode: transferResponse.data.transfer_code,
       });
 
-      // Deduct from agent balance
+      // Deduct from agent balance immediately
       await storage.updateAgentBalance(agent.id, -data.amount, false);
 
       res.json({
         ...withdrawal,
-        message: "Withdrawal completed successfully. Funds will be transferred to your account within 24 hours."
+        message: "Withdrawal initiated successfully. Funds will be transferred to your account within a few minutes."
       });
     } catch (error: any) {
+      console.error("Withdrawal error:", error);
       res.status(400).json({ error: error.message || "Withdrawal failed" });
     }
   });
@@ -2257,43 +2609,6 @@ export async function registerRoutes(
       res.json(withdrawalsWithAgents);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load withdrawals" });
-    }
-  });
-
-  app.patch("/api/admin/withdrawals/:id", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { status, adminNote } = req.body;
-
-      const withdrawal = await storage.getWithdrawal(req.params.id);
-      if (!withdrawal) {
-        return res.status(404).json({ error: "Withdrawal not found" });
-      }
-
-      if (withdrawal.status !== WithdrawalStatus.PENDING) {
-        return res.status(400).json({ error: "Withdrawal already processed" });
-      }
-
-      // Get admin user from database using email from JWT
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "Admin user not found" });
-      }
-
-      const updated = await storage.updateWithdrawal(req.params.id, {
-        status,
-        adminNote,
-        processedBy: dbUser.id,
-        processedAt: new Date(),
-      });
-
-      // If rejected, refund to agent balance
-      if (status === WithdrawalStatus.REJECTED) {
-        await storage.updateAgentBalance(withdrawal.agentId, parseFloat(withdrawal.amount), false);
-      }
-
-      res.json(updated);
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to update withdrawal" });
     }
   });
 
@@ -2731,10 +3046,14 @@ export async function registerRoutes(
         phoneNumbers,
         isBulkOrder,
         agentSlug,
+        orderItems,
       } = req.body;
 
-      if (!productType || !productName || !amount || !customerPhone) {
-        console.error("Missing required fields:", { productType, productName, amount, customerPhone });
+      // For new bulk format, productName might be generated
+      const effectiveProductName = productName || (orderItems ? `Bulk Order - ${orderItems.length} items` : null);
+
+      if (!productType || !effectiveProductName || !amount || !customerPhone) {
+        console.error("Missing required fields:", { productType, productName: effectiveProductName, amount, customerPhone });
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -2760,7 +3079,22 @@ export async function registerRoutes(
       let costPrice = 0;
       let basePrice = parseFloat(amount);
 
-      if (productType === ProductType.DATA_BUNDLE && productId) {
+      // Handle new bulk format with orderItems
+      if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
+        console.log("[Wallet] Processing orderItems:", orderItems);
+        
+        // Calculate total cost price from all items
+        costPrice = 0;
+        for (const item of orderItems) {
+          const bundle = await storage.getDataBundle(item.bundleId);
+          if (bundle) {
+            costPrice += parseFloat(bundle.costPrice);
+          }
+        }
+        
+        // Use the first item's bundle for validation
+        product = await storage.getDataBundle(orderItems[0].bundleId);
+      } else if (productType === ProductType.DATA_BUNDLE && productId) {
         product = await storage.getDataBundle(productId);
         if (product) {
           costPrice = parseFloat(product.costPrice);
@@ -2774,7 +3108,7 @@ export async function registerRoutes(
         }
       }
 
-      const profit = basePrice - costPrice;
+      const profit = purchaseAmount - costPrice;
 
       // Handle agent commission
       let agentId: string | undefined;
@@ -2792,19 +3126,34 @@ export async function registerRoutes(
       // Create transaction
       const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
       
+      // Store full order items with GB info for bulk orders, or just phone numbers for simple orders
+      const phoneNumbersData = orderItems 
+        ? orderItems.map((item: any) => ({
+            phone: item.phone,
+            bundleName: item.bundleName,
+            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
+          }))
+        : (phoneNumbers ? phoneNumbers.map((phone: string) => ({ phone })) : undefined);
+      
+      console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
+      console.log("[Wallet] orderItems:", orderItems);
+      console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
+      console.log("[Wallet] phoneNumbersData:", phoneNumbersData);
+      console.log("[Wallet] ===================================================");
+      
       const transaction = await storage.createTransaction({
         reference,
         type: productType,
-        productId,
-        productName,
+        productId: productId || (orderItems ? orderItems[0].bundleId : null),
+        productName: effectiveProductName,
         network,
         amount: purchaseAmount.toFixed(2),
         costPrice: costPrice.toFixed(2),
         profit: profit.toFixed(2),
         customerPhone,
         customerEmail: dbUser.email,
-        phoneNumbers: phoneNumbers || undefined,
-        isBulkOrder: isBulkOrder || false,
+        phoneNumbers: (isBulkOrder || (orderItems && orderItems.length > 0)) && phoneNumbersData ? phoneNumbersData : undefined,
+        isBulkOrder: isBulkOrder || (orderItems && orderItems.length > 0) || false,
         paymentMethod: "wallet",
         status: TransactionStatus.CONFIRMED,
         agentId,
@@ -2929,7 +3278,23 @@ export async function registerRoutes(
       }
 
       const senderType = user.role === UserRole.ADMIN ? 'admin' : 'user';
+      
+      // Check if this is user's first message BEFORE creating it
+      let isFirstUserMessage = false;
+      if (senderType === 'user') {
+        const existingMessages = await storage.getChatMessages(chatId);
+        const existingUserMessages = existingMessages.filter(msg => msg.senderType === 'user');
+        isFirstUserMessage = existingUserMessages.length === 0;
+      }
+      
       const messageId = await storage.createChatMessage(chatId, user.id, senderType, message.trim());
+
+      // Send automated welcome message if this was the user's first message
+      if (isFirstUserMessage) {
+        const autoReplyMessage = "Thank you for contacting us! 🙏\n\nPlease leave your concerns, questions, or reports below and our support team will respond as soon as they're available. We typically respond within a few hours during business hours.\n\nFeel free to provide as much detail as possible about your issue, and we'll get back to you with a solution.\n\nFor urgent matters, you can also reach us via WhatsApp.";
+        // Use a system user ID for automated messages
+        await storage.createChatMessage(chatId, user.id, 'admin', autoReplyMessage);
+      }
 
       res.json({ success: true, messageId });
     } catch (error: any) {
@@ -2981,8 +3346,8 @@ export async function registerRoutes(
     }
   });
 
-  // Get unread message count for admin
-  app.get("/api/support/admin/unread-count", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+  // Get unread message count for admin/agent support
+  app.get("/api/support/admin/unread-count", requireAuth, requireSupport, async (req: Request, res: Response) => {
     try {
       const count = await storage.getUnreadAdminMessagesCount();
       res.json({ count });

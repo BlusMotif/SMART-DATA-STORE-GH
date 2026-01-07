@@ -102,13 +102,13 @@ export function getNetworkMismatchError(
 ): string {
   const detectedNetwork = detectNetwork(phone);
   const normalized = normalizePhoneNumber(phone);
+  const prefix = normalized.substring(0, 3);
   
   if (!isValidPhoneLength(normalized)) {
     return "Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)";
   }
   
   if (!detectedNetwork) {
-    const prefix = normalized.substring(0, 3);
     return `Invalid phone number. The prefix '${prefix}' does not belong to any supported network (MTN, Telecel, or AirtelTigo)`;
   }
   

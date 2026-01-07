@@ -8,26 +8,40 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, WITHDRAWAL_STATUSES } from "@/lib/constants";
-import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu } from "lucide-react";
+import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu, Smartphone, Building2 } from "lucide-react";
 import type { Withdrawal, Agent } from "@shared/schema";
 
 const withdrawalSchema = z.object({
   amount: z.string()
     .min(1, "Amount is required")
-    .refine((val) => parseFloat(val) >= 50, "Minimum withdrawal amount is GH₵50")
+    .refine((val) => parseFloat(val) >= 10, "Minimum withdrawal amount is GH₵10")
     .refine((val) => parseFloat(val) <= 100000, "Maximum withdrawal amount is GH₵100,000"),
-  bankName: z.string().min(2, "Bank name is required"),
-  accountNumber: z.string().min(5, "Account number is required"),
+  paymentMethod: z.enum(["bank", "mtn_momo", "telecel_cash", "airtel_tigo_cash", "vodafone_cash"], {
+    required_error: "Please select a payment method"
+  }),
+  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
+  accountNumber: z.string().min(5, "Account/Phone number is required"),
   accountName: z.string().min(2, "Account name is required"),
+}).refine((data) => {
+  // For bank transfers, bank name and code are required
+  if (data.paymentMethod === "bank") {
+    return data.bankName && data.bankCode;
+  }
+  return true;
+}, {
+  message: "Bank name and code are required for bank transfers",
+  path: ["bankName"],
 });
 
 type WithdrawalFormData = z.infer<typeof withdrawalSchema>;
@@ -59,11 +73,23 @@ export default function AgentWithdrawals() {
     resolver: zodResolver(withdrawalSchema),
     defaultValues: {
       amount: "",
+      paymentMethod: "bank",
       bankName: "",
+      bankCode: "",
       accountNumber: "",
       accountName: "",
     },
   });
+
+  const watchedPaymentMethod = form.watch("paymentMethod");
+
+  const paymentMethods = [
+    { value: "bank", label: "Bank Transfer", icon: Building2, description: "Transfer to bank account" },
+    { value: "mtn_momo", label: "MTN Mobile Money", icon: Smartphone, description: "Send to MTN MoMo number" },
+    { value: "telecel_cash", label: "Telecel Cash", icon: Smartphone, description: "Send to Telecel Cash number" },
+    { value: "airtel_tigo_cash", label: "AirtelTigo Cash", icon: Smartphone, description: "Send to AirtelTigo Cash number" },
+    { value: "vodafone_cash", label: "Vodafone Cash", icon: Smartphone, description: "Send to Vodafone Cash number" },
+  ];
 
   const requestMutation = useMutation({
     mutationFn: (data: WithdrawalFormData) =>
@@ -87,10 +113,10 @@ export default function AgentWithdrawals() {
     const amount = parseFloat(data.amount);
     const balance = parseFloat(agent?.balance || "0");
     
-    if (amount < 50) {
+    if (amount < 10) {
       toast({ 
         title: "Amount too low", 
-        description: "Minimum withdrawal amount is GH₵50",
+        description: "Minimum withdrawal amount is GH₵10",
         variant: "destructive" 
       });
       return;
@@ -165,9 +191,9 @@ export default function AgentWithdrawals() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Withdraw Funds</DialogTitle>
-                  <CardDescription>
-                    Instant withdrawal (Minimum: GH₵50). Funds will be transferred within 24 hours.
-                  </CardDescription>
+                  <DialogDescription>
+                    Instant withdrawal (Minimum: GH₵10). Funds will be transferred within minutes.
+                  </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -181,13 +207,13 @@ export default function AgentWithdrawals() {
                       name="amount"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Amount (GHS) - Minimum GH₵50</FormLabel>
+                          <FormLabel>Amount (GHS) - Minimum GH₵10</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               step="0.01"
-                              min="50"
-                              placeholder="50.00"
+                              min="10"
+                              placeholder="10.00"
                               data-testid="input-amount"
                               {...field}
                             />
@@ -199,31 +225,90 @@ export default function AgentWithdrawals() {
 
                     <FormField
                       control={form.control}
-                      name="bankName"
+                      name="paymentMethod"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Bank Name</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g., MTN Mobile Money, Access Bank"
-                              data-testid="input-bank-name"
-                              {...field}
-                            />
-                          </FormControl>
+                          <FormLabel>Payment Method</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select payment method" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {paymentMethods.map((method) => (
+                                <SelectItem key={method.value} value={method.value}>
+                                  <div className="flex items-center gap-2">
+                                    <method.icon className="h-4 w-4" />
+                                    <div>
+                                      <div className="font-medium">{method.label}</div>
+                                      <div className="text-xs text-muted-foreground">{method.description}</div>
+                                    </div>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+
+                    {watchedPaymentMethod === "bank" && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="bankName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Bank Name</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g., Access Bank, GTBank"
+                                  data-testid="input-bank-name"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="bankCode"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Bank Code</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="e.g., 030100 (Access Bank)"
+                                  data-testid="input-bank-code"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
 
                     <FormField
                       control={form.control}
                       name="accountNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Account/Phone Number</FormLabel>
+                          <FormLabel>
+                            {watchedPaymentMethod === "bank" ? "Account Number" : "Phone Number"}
+                          </FormLabel>
                           <FormControl>
                             <Input
-                              placeholder="Enter account or phone number"
+                              placeholder={
+                                watchedPaymentMethod === "bank"
+                                  ? "Enter account number"
+                                  : "Enter phone number (e.g., 0241234567)"
+                              }
                               data-testid="input-account-number"
                               {...field}
                             />
@@ -314,7 +399,8 @@ export default function AgentWithdrawals() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Amount</TableHead>
-                        <TableHead>Bank Details</TableHead>
+                        <TableHead>Payment Method</TableHead>
+                        <TableHead>Account Details</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Requested</TableHead>
                         <TableHead>Processed</TableHead>
@@ -328,10 +414,24 @@ export default function AgentWithdrawals() {
                             {formatCurrency(withdrawal.amount)}
                           </TableCell>
                           <TableCell>
+                            <div className="flex items-center gap-2">
+                              {withdrawal.paymentMethod === "bank" ? (
+                                <Building2 className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Smartphone className="h-4 w-4 text-green-600" />
+                              )}
+                              <span className="text-sm font-medium capitalize">
+                                {withdrawal.paymentMethod?.replace("_", " ") || "Bank"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <div className="text-sm">
-                              <div className="font-medium">{withdrawal.bankName}</div>
+                              <div className="font-medium">{withdrawal.accountName}</div>
                               <div className="text-muted-foreground">{withdrawal.accountNumber}</div>
-                              <div className="text-muted-foreground">{withdrawal.accountName}</div>
+                              {withdrawal.paymentMethod === "bank" && withdrawal.bankName && (
+                                <div className="text-muted-foreground text-xs">{withdrawal.bankName}</div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(withdrawal.status)}</TableCell>

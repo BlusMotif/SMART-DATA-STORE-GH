@@ -27,25 +27,24 @@ export function useAuth() {
     });
   }, []);
 
-  // Update current session when auth state changes
+  // Update current session when auth state changes - simplified to avoid auto login/logout
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth event:", event);
         
-        // Only handle explicit sign out - ignore automatic sign in/token refresh
+        // Only handle explicit sign out
         if (event === "SIGNED_OUT") {
           console.log("User signed out");
           setCurrentSession(null);
-          // Clear auth data when user signs out
           queryClient.setQueryData(["/api/auth/me"], { user: null });
         }
-        // Handle token refresh quietly - just update session without triggering refetch
+        // Handle token refresh silently - update session only
         else if (event === "TOKEN_REFRESHED" && session) {
           console.log("Token refreshed");
           setCurrentSession(session);
         }
-        // Ignore SIGNED_IN, INITIAL_SESSION, USER_UPDATED events to prevent auto-login
+        // Ignore all other events (SIGNED_IN, INITIAL_SESSION, USER_UPDATED) to prevent unwanted behavior
       }
     );
 

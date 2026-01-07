@@ -221,7 +221,7 @@ export default function AgentTransactions() {
                         {filteredTransactions.map((tx) => {
                           const network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
-                          const phoneNumbers = (tx as any).phoneNumbers as string[] | undefined;
+                          const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
@@ -276,7 +276,7 @@ export default function AgentTransactions() {
                                   <div className="text-xs">
                                     <div className="font-semibold">{phoneNumbers.length} numbers</div>
                                     <div className="text-muted-foreground truncate max-w-[120px]">
-                                      {phoneNumbers[0]}
+                                      {phoneNumbers[0]?.phone}
                                     </div>
                                   </div>
                                 ) : (

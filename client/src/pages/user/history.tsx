@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Loader2, Menu, Search, CheckCircle, XCircle, Clock, Layers, Filter } from "lucide-react";
+import { Loader2, Menu, Search, CheckCircle, XCircle, Clock, Layers, Filter, Download } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { generateReceipt } from "@/lib/pdf-receipt";
+import { useToast } from "@/hooks/use-toast";
 
 const getStatusConfig = (status: string) => {
   switch (status.toLowerCase()) {
@@ -54,6 +56,7 @@ const getStatusConfig = (status: string) => {
 
 export default function UserHistoryPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -64,6 +67,24 @@ export default function UserHistoryPage() {
     queryFn: () => apiRequest("/api/transactions"),
     refetchInterval: 10000,
   });
+
+  const handleDownloadReceipt = (transaction: any) => {
+    try {
+      generateReceipt(transaction);
+      toast({
+        title: "✅ Receipt Downloaded",
+        description: "Your payment receipt has been downloaded successfully.",
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Download Failed",
+        description: "Failed to generate receipt. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((transaction: any) => {
@@ -180,7 +201,7 @@ export default function UserHistoryPage() {
                       const statusConfig = getStatusConfig(transaction.status);
                       const StatusIcon = statusConfig.icon;
                       const isBulkOrder = transaction.isBulkOrder;
-                      const phoneNumbers = transaction.phoneNumbers as string[] | undefined;
+                      const phoneNumbers = transaction.phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
 
                       return (
                         <div
@@ -210,8 +231,8 @@ export default function UserHistoryPage() {
                                     <details className="cursor-pointer">
                                       <summary className="text-blue-600 hover:underline">View all numbers</summary>
                                       <div className="mt-2 ml-2 space-y-1 max-h-32 overflow-y-auto">
-                                        {phoneNumbers.map((phone, idx) => (
-                                          <p key={idx} className="font-mono text-xs">{idx + 1}. {phone}</p>
+                                        {phoneNumbers.map((phoneObj, idx) => (
+                                          <p key={idx} className="font-mono text-xs">{idx + 1}. {phoneObj.phone} - {phoneObj.bundleName} ({phoneObj.dataAmount})</p>
                                         ))}
                                       </div>
                                     </details>
@@ -243,8 +264,19 @@ export default function UserHistoryPage() {
                                 </p>
                               )}
                               <Badge variant="outline" className="mt-1">
-                                {transaction.paymentMethod === 'wallet' ? 'Wallet' : 'Paystack'}
+                                {transaction.paymentMethod === 'wallet' ? 'Wallet' : 'MoMo'}
                               </Badge>
+                              {transaction.status === 'completed' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-2 w-full sm:w-auto flex items-center gap-2"
+                                  onClick={() => handleDownloadReceipt(transaction)}
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Download Receipt
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>

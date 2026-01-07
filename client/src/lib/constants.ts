@@ -26,7 +26,77 @@ export const WITHDRAWAL_STATUSES = {
   approved: { label: "Approved", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" },
   rejected: { label: "Rejected", color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" },
   completed: { label: "Completed", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" },
+  processing: { label: "Processing", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" },
+  failed: { label: "Failed", color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" },
 } as const;
+
+export const PAYMENT_METHODS = [
+  {
+    id: "bank",
+    name: "Bank Transfer",
+    description: "Transfer to bank account",
+    icon: "Building2",
+    requiresBankDetails: true,
+    placeholder: {
+      accountNumber: "Enter account number",
+      accountName: "Name on account",
+      bankName: "e.g., Access Bank, GTBank",
+      bankCode: "e.g., 030100 (Access Bank)"
+    }
+  },
+  {
+    id: "mtn_momo",
+    name: "MTN Mobile Money",
+    description: "Send to MTN MoMo number",
+    icon: "Smartphone",
+    requiresBankDetails: false,
+    placeholder: {
+      accountNumber: "Enter MTN phone number (e.g., 0241234567)",
+      accountName: "Name on MTN account",
+      bankName: "",
+      bankCode: ""
+    }
+  },
+  {
+    id: "telecel_cash",
+    name: "Telecel Cash",
+    description: "Send to Telecel Cash number",
+    icon: "Smartphone",
+    requiresBankDetails: false,
+    placeholder: {
+      accountNumber: "Enter Telecel phone number (e.g., 0271234567)",
+      accountName: "Name on Telecel account",
+      bankName: "",
+      bankCode: ""
+    }
+  },
+  {
+    id: "airtel_tigo_cash",
+    name: "AirtelTigo Cash",
+    description: "Send to AirtelTigo Cash number",
+    icon: "Smartphone",
+    requiresBankDetails: false,
+    placeholder: {
+      accountNumber: "Enter AirtelTigo phone number (e.g., 0261234567)",
+      accountName: "Name on AirtelTigo account",
+      bankName: "",
+      bankCode: ""
+    }
+  },
+  {
+    id: "vodafone_cash",
+    name: "Vodafone Cash",
+    description: "Send to Vodafone Cash number",
+    icon: "Smartphone",
+    requiresBankDetails: false,
+    placeholder: {
+      accountNumber: "Enter Vodafone phone number (e.g., 0201234567)",
+      accountName: "Name on Vodafone account",
+      bankName: "",
+      bankCode: ""
+    }
+  },
+] as const;
 
 export const GHANA_BANKS = [
   "Access Bank Ghana",

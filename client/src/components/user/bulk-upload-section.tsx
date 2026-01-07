@@ -28,7 +28,7 @@ export function BulkUploadSection() {
   const bulkUploadMutation = useMutation({
     mutationFn: async (data: BulkUploadData) => {
       if (data.file) {
-        // Handle file upload
+        // Handle file upload - the file should have format: phone GB (one per line)
         const formData = new FormData();
         formData.append('network', data.network);
         formData.append('file', data.file);
@@ -46,7 +46,7 @@ export function BulkUploadSection() {
 
         return response.json();
       } else {
-        // Handle text input - Note: This endpoint may not exist yet
+        // Handle text input with new format: phone GB
         const response = await fetch('/api/user/bulk-upload', {
           method: 'POST',
           headers: {
@@ -130,17 +130,17 @@ export function BulkUploadSection() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="data">Phone Numbers (Text Format)</Label>
+            <Label htmlFor="data">Phone Numbers with GB Amounts (Text Format)</Label>
             <Textarea
               id="data"
               value={uploadData.data}
               onChange={(e) => setUploadData({ ...uploadData, data: e.target.value })}
-              placeholder="Enter one phone number per line&#10;e.g.,&#10;0241234567&#10;0209876543"
+              placeholder="Enter phone number and GB amount per line&#10;e.g.,&#10;0546591622 1&#10;0247064874 3&#10;0245696072 2&#10;233547897522 10"
               rows={6}
               disabled={!!uploadedFile}
             />
             <p className="text-xs text-muted-foreground">
-              One phone number per line - OR upload an Excel/CSV file below
+              Format: phone_number GB_amount (one per line). Supports 0241234567 or 233241234567 (no + sign) - OR upload an Excel/CSV file below
             </p>
           </div>
 
@@ -154,7 +154,7 @@ export function BulkUploadSection() {
               className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/80"
             />
             <p className="text-xs text-muted-foreground">
-              Excel/CSV format: Phone numbers in first column (no headers needed)
+              Excel/CSV format: Column 1: Phone number, Column 2: GB amount (no headers needed)
             </p>
             {uploadedFile && (
               <p className="text-sm text-green-600 flex items-center gap-2">

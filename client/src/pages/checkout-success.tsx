@@ -9,6 +9,7 @@ import { PageLoader } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Download, Phone as PhoneIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { generateReceipt } from "@/lib/pdf-receipt";
 import type { Transaction } from "@shared/schema";
 
 export default function CheckoutSuccessPage() {
@@ -59,73 +60,21 @@ export default function CheckoutSuccessPage() {
   const downloadReceipt = () => {
     if (!transaction) return;
 
-    const phoneNumbers = (transaction as any).phoneNumbers as string[] | undefined;
-    const isBulkOrder = (transaction as any).isBulkOrder as boolean | undefined;
-
-    const receiptContent = `
-═══════════════════════════════════════
-           SMART DATA STORE GH
-        TRANSACTION RECEIPT
-═══════════════════════════════════════
-
-Transaction ID: ${transaction.id}
-Reference: ${transaction.reference}
-Date: ${formatDate(transaction.createdAt)}
-
-───────────────────────────────────────
-PRODUCT DETAILS
-───────────────────────────────────────
-Product: ${transaction.productName}
-${transaction.network ? `Network: ${transaction.network.toUpperCase()}` : ''}
-Amount: ${formatCurrency(transaction.amount)}
-Status: ${transaction.status.toUpperCase()}
-
-───────────────────────────────────────
-${isBulkOrder ? 'BULK ORDER - RECIPIENT NUMBERS' : 'RECIPIENT DETAILS'}
-───────────────────────────────────────
-${isBulkOrder && phoneNumbers ? 
-  `Total Recipients: ${phoneNumbers.length}\n\n` + phoneNumbers.map((num, idx) => `  ${idx + 1}. ${num}`).join('\n') : 
-  `Phone: ${transaction.customerPhone}`
-}
-${transaction.customerEmail ? `\nEmail: ${transaction.customerEmail}` : ''}
-
-${transaction.type === 'result_checker' && transaction.deliveredPin ? `
-───────────────────────────────────────
-RESULT CHECKER DETAILS
-───────────────────────────────────────
-Serial Number: ${transaction.deliveredSerial}
-PIN: ${transaction.deliveredPin}
-` : ''}
-${transaction.type === 'data_bundle' && status === 'completed' ? `
-───────────────────────────────────────
-DELIVERY STATUS
-───────────────────────────────────────
-✓ Data bundle delivered successfully
-${isBulkOrder ? `✓ Sent to ${phoneNumbers?.length || 0} recipients
-✓ Unit Price: ${formatCurrency(parseFloat(transaction.amount) / (phoneNumbers?.length || 1))}
-✓ Total Amount: ${formatCurrency(transaction.amount)}` : ''}
-` : ''}
-
-═══════════════════════════════════════
-Thank you for your business!
-For support: support@smartdatastore.com
-═══════════════════════════════════════
-    `.trim();
-
-    const blob = new Blob([receiptContent], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `receipt-${transaction.reference}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "Receipt Downloaded!",
-      description: "Your receipt has been saved to your downloads folder.",
-    });
+    try {
+      generateReceipt(transaction as any);
+      toast({
+        title: "✅ Receipt Downloaded!",
+        description: "Your professional PDF receipt has been saved to your downloads folder.",
+        duration: 3000,
+      });
+    } catch (error) {
+      toast({
+        title: "❌ Download Failed",
+        description: "Failed to generate receipt. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
   };
 
   if (!reference && !paystackReference) {

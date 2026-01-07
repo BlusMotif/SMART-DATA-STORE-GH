@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,8 @@ export default function AgentActivationCompletePage() {
   const [status, setStatus] = useState<"processing" | "success" | "failed" | "cancelled">("processing");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [agentEmail, setAgentEmail] = useState<string>("");
+  const [, setLocation] = useLocation();
+  const [redirectCountdown, setRedirectCountdown] = useState<number>(6);
 
   useEffect(() => {
     // Get reference from URL
@@ -34,6 +37,19 @@ export default function AgentActivationCompletePage() {
           if (data.data?.user?.email) {
             setAgentEmail(data.data.user.email);
           }
+          // start auto-redirect countdown
+          setTimeout(() => {
+            const interval = setInterval(() => {
+              setRedirectCountdown((c) => {
+                if (c <= 1) {
+                  clearInterval(interval);
+                  setLocation("/login");
+                  return 0;
+                }
+                return c - 1;
+              });
+            }, 1000);
+          }, 1500);
         } else if (data.status === "cancelled") {
           setStatus("cancelled");
           setErrorMessage(data.message || "Payment was cancelled");
@@ -121,6 +137,7 @@ export default function AgentActivationCompletePage() {
                   <p className="text-xs text-muted-foreground">
                     Use your email and password to access your account
                   </p>
+                  <p className="text-xs text-muted-foreground">Redirecting to login in {redirectCountdown}s…</p>
                 </div>
               </>
             )}

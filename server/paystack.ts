@@ -139,3 +139,190 @@ export function validateWebhookSignature(rawBody: string | Buffer, signature: st
 export function isPaystackConfigured(): boolean {
   return !!PAYSTACK_SECRET_KEY;
 }
+
+// Transfer API interfaces
+interface PaystackTransferRecipientResponse {
+  status: boolean;
+  message: string;
+  data: {
+    active: boolean;
+    createdAt: string;
+    currency: string;
+    domain: string;
+    id: number;
+    integration: number;
+    name: string;
+    recipient_code: string;
+    type: string;
+    updatedAt: string;
+    is_deleted: boolean;
+    details: {
+      authorization_code?: string;
+      account_number: string;
+      account_name: string;
+      bank_code: string;
+      bank_name: string;
+    };
+  };
+}
+
+interface PaystackTransferResponse {
+  status: boolean;
+  message: string;
+  data: {
+    reference: string;
+    integration: number;
+    domain: string;
+    amount: number;
+    currency: string;
+    source: string;
+    reason: string;
+    recipient: number;
+    status: "pending" | "success" | "failed";
+    transfer_code: string;
+    id: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+interface PaystackTransferVerificationResponse {
+  status: boolean;
+  message: string;
+  data: {
+    reference: string;
+    integration: number;
+    domain: string;
+    amount: number;
+    currency: string;
+    source: string;
+    reason: string;
+    recipient: number;
+    status: "pending" | "success" | "failed";
+    transfer_code: string;
+    id: number;
+    createdAt: string;
+    updatedAt: string;
+    failures?: any;
+  };
+}
+
+export async function createTransferRecipient(params: {
+  type: "nuban" | "mobile_money";
+  name: string;
+  account_number: string;
+  bank_code: string;
+  currency?: "GHS";
+}): Promise<PaystackTransferRecipientResponse> {
+  if (!PAYSTACK_SECRET_KEY) {
+    throw new Error("Paystack secret key not configured");
+  }
+
+  // Validate inputs
+  if (!params.name || !params.account_number || !params.bank_code) {
+    throw new Error("Missing required recipient details");
+  }
+
+  const response = await fetch(`${PAYSTACK_BASE_URL}/transferrecipient`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      type: params.type,
+      name: params.name,
+      account_number: params.account_number,
+      bank_code: params.bank_code,
+      currency: params.currency || "GHS",
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.status) {
+    throw new Error(data.message || "Failed to create transfer recipient");
+  }
+
+  return data as PaystackTransferRecipientResponse;
+}
+
+export async function initiateTransfer(params: {
+  source: "balance";
+  amount: number;
+  recipient: string; // recipient_code
+  reason?: string;
+  reference?: string;
+}): Promise<PaystackTransferResponse> {
+  if (!PAYSTACK_SECRET_KEY) {
+    throw new Error("Paystack secret key not configured");
+  }
+
+  // Validate inputs
+  if (!params.amount || params.amount <= 0) {
+    throw new Error("Invalid transfer amount");
+  }
+
+  if (!params.recipient) {
+    throw new Error("Recipient code is required");
+  }
+
+  const response = await fetch(`${PAYSTACK_BASE_URL}/transfer`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      source: params.source,
+      amount: Math.round(params.amount * 100), // Convert to pesewas
+      recipient: params.recipient,
+      reason: params.reason || "Agent withdrawal",
+      reference: params.reference,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || !data.status) {
+    throw new Error(data.message || "Failed to initiate transfer");
+  }
+
+  return data as PaystackTransferResponse;
+}
+
+export async function verifyTransfer(reference: string): Promise<PaystackTransferVerificationResponse> {
+  if (!PAYSTACK_SECRET_KEY) {
+    throw new Error("Paystack secret key not configured");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+  try {
+    const response = await fetch(`${PAYSTACK_BASE_URL}/transfer/verify/${reference}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to verify transfer");
+    }
+
+    return data as PaystackTransferVerificationResponse;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Transfer verification timed out. Please try again.');
+    }
+    throw error;
+  }
+}

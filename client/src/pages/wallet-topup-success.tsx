@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/header";
 import { Loader2, CheckCircle, XCircle, Wallet } from "lucide-react";
 import { apiRequest } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function WalletTopupSuccessPage() {
   const [, setLocation] = useLocation();
@@ -13,6 +14,7 @@ export default function WalletTopupSuccessPage() {
   const reference = searchParams.get("reference");
   const queryClient = useQueryClient();
   const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const { user, agent } = useAuth();
 
   const { data: verificationResult, isLoading, error } = useQuery({
     queryKey: [`/api/wallet/topup/verify/${reference}`],
@@ -129,14 +131,26 @@ export default function WalletTopupSuccessPage() {
                 </ul>
               </div>
               <div className="flex flex-col gap-2">
-                <Button onClick={() => setLocation("/user/wallet")} className="w-full">
+                <Button onClick={() => {
+                  if (agent) {
+                    setLocation("/agent/wallet");
+                  } else {
+                    setLocation("/user/wallet");
+                  }
+                }} className="w-full">
                   Check Wallet Balance
                 </Button>
                 <Button variant="outline" onClick={() => {
                   const agentStore = localStorage.getItem("agentStore");
-                  setLocation(agentStore ? `/store/${agentStore}` : "/");
+                  if (agentStore) {
+                    setLocation(`/store/${agentStore}`);
+                  } else if (agent) {
+                    setLocation("/agent/dashboard");
+                  } else {
+                    setLocation("/");
+                  }
                 }}>
-                  {localStorage.getItem("agentStore") ? "Return to Store" : "Return Home"}
+                  {localStorage.getItem("agentStore") ? "Return to Store" : agent ? "Agent Dashboard" : "Return Home"}
                 </Button>
               </div>
             </CardContent>
@@ -200,11 +214,13 @@ export default function WalletTopupSuccessPage() {
                 const agentStore = localStorage.getItem("agentStore");
                 if (agentStore) {
                   setLocation(`/store/${agentStore}`);
+                } else if (agent) {
+                  setLocation("/agent/dashboard");
                 } else {
                   setLocation("/user/dashboard");
                 }
               }}>
-                {localStorage.getItem("agentStore") ? "Continue Shopping" : "View Dashboard"}
+                {localStorage.getItem("agentStore") ? "Continue Shopping" : agent ? "Agent Dashboard" : "View Dashboard"}
               </Button>
             </div>
 

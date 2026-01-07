@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -70,7 +70,6 @@ export default function UserBundlesPage() {
   
   // Bulk purchase state
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
-  const [selectedBulkBundle, setSelectedBulkBundle] = useState<DataBundle | null>(null);
   const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack">("wallet");
 
   const networkKey = network as keyof typeof NetworkInfo;
@@ -93,6 +92,40 @@ export default function UserBundlesPage() {
       return response.json();
     },
   });
+
+  // Calculate bulk purchase total
+  const bulkTotal = useMemo(() => {
+    if (!bulkPhoneNumbers.trim() || !bundles) return null;
+    
+    const lines = bulkPhoneNumbers.split('\n').filter(line => line.trim());
+    let total = 0;
+    let count = 0;
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length === 2) {
+        const gbAmount = parseFloat(parts[1]);
+        if (!isNaN(gbAmount) && gbAmount > 0) {
+          const matchingBundle = bundles.find(b => {
+            const bundleName = b.name.toLowerCase();
+            const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+            if (gbMatch) {
+              const bundleGB = parseFloat(gbMatch[1]);
+              return bundleGB === gbAmount;
+            }
+            return false;
+          });
+          
+          if (matchingBundle) {
+            total += parseFloat(matchingBundle.basePrice);
+            count++;
+          }
+        }
+      }
+    }
+    
+    return count > 0 ? { total, count } : null;
+  }, [bulkPhoneNumbers, bundles]);
 
   // Single purchase mutation
   const purchaseMutation = useMutation({
@@ -145,8 +178,8 @@ export default function UserBundlesPage() {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
-          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}`,
-          duration: 3000,
+          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
+          duration: 5000,
         });
         setSelectedBundle(null);
         setPhoneNumber("");
@@ -173,71 +206,112 @@ export default function UserBundlesPage() {
 
   // Bulk purchase mutation
   const bulkPurchaseMutation = useMutation({
-    mutationFn: async (data: { bundleId: string; phoneNumbers: string[]; paymentMethod: "wallet" | "paystack" }) => {
-      const bundle = bundles?.find(b => b.id === data.bundleId);
-      if (!bundle) throw new Error("Bundle not found");
-      
-      const phoneNumbers = data.phoneNumbers;
-      const price = parseFloat(bundle.basePrice);
-      const totalAmount = price * phoneNumbers.length;
+    mutationFn: async (data: { 
+      bundleId: string; 
+      phoneNumbers: string[]; 
+      paymentMethod: "wallet" | "paystack";
+      orderItems?: Array<{ phone: string; bundleId: string; bundleName: string; price: number }>;
+      totalAmount?: number;
+    }) => {
       const isBulk = true;
-
-      console.log("[Frontend] ========== PAYMENT INITIALIZATION ==========");
-      console.log("[Frontend] Order type: bulk");
-      console.log("[Frontend] isBulk:", isBulk);
-      console.log("[Frontend] phoneNumbers array:", phoneNumbers);
-      console.log("[Frontend] numberOfRecipients:", phoneNumbers.length);
-      console.log("[Frontend] ================================================");
       
-      if (data.paymentMethod === "wallet") {
-        const payload = {
-          productType: "data_bundle",
-          productId: bundle.id,
-          productName: bundle.name,
-          network: bundle.network,
-          amount: totalAmount.toFixed(2),
-          customerPhone: phoneNumbers[0],
-          phoneNumbers: isBulk ? phoneNumbers : undefined,
-          isBulkOrder: isBulk,
-        };
+      // Use new orderItems format if available
+      if (data.orderItems && data.totalAmount !== undefined) {
+        const phoneNumbers = data.orderItems.map(item => item.phone);
+        const totalAmount = data.totalAmount;
+
+        console.log("[Frontend] ========== NEW BULK FORMAT PAYMENT ==========");
+        console.log("[Frontend] Order items:", data.orderItems);
+        console.log("[Frontend] Total amount:", totalAmount);
+        console.log("[Frontend] ================================================");
         
-        console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
-        
-        const response = await apiRequest("POST", "/api/wallet/pay", payload);
-        return response.json();
+        if (data.paymentMethod === "wallet") {
+          const payload = {
+            productType: "data_bundle",
+            productName: `Bulk Order - ${data.orderItems.length} items`,
+            network: network,
+            amount: totalAmount.toFixed(2),
+            customerPhone: phoneNumbers[0],
+            isBulkOrder: isBulk,
+            orderItems: data.orderItems,
+          };
+          
+          console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
+          
+          const response = await apiRequest("POST", "/api/wallet/pay", payload);
+          return response.json();
+        } else {
+          const payload = {
+            productType: "data_bundle",
+            network: network,
+            customerPhone: phoneNumbers[0],
+            isBulkOrder: isBulk,
+            orderItems: data.orderItems,
+            totalAmount: totalAmount,
+            customerEmail: user?.email || undefined,
+          };
+          
+          console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
+          
+          const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+          const result = await response.json();
+          
+          console.log("[Frontend] ===== SERVER RESPONSE =====");
+          console.log("[Frontend] Result:", result);
+          console.log("[Frontend] ================================");
+          
+          return result;
+        }
       } else {
-        const payload = {
-          productType: "data_bundle",
-          productId: bundle.id,
-          customerPhone: phoneNumbers[0],
-          phoneNumbers: isBulk ? phoneNumbers : undefined,
-          isBulkOrder: isBulk,
-          customerEmail: user?.email || undefined,
-        };
+        // Fallback to old format for backward compatibility
+        const bundle = bundles?.find(b => b.id === data.bundleId);
+        if (!bundle) throw new Error("Bundle not found");
         
-        console.log("[Frontend] Sending Paystack payload:", JSON.stringify(payload, null, 2));
+        const phoneNumbers = data.phoneNumbers;
+        const price = parseFloat(bundle.basePrice);
+        const totalAmount = price * phoneNumbers.length;
+
+        console.log("[Frontend] ========== LEGACY BULK FORMAT ==========");
         console.log("[Frontend] Phone numbers:", phoneNumbers);
-        console.log("[Frontend] Is bulk:", isBulk);
-        console.log("[Frontend] Number of recipients:", phoneNumbers.length);
+        console.log("[Frontend] Total amount:", totalAmount);
+        console.log("[Frontend] ================================================");
         
-        const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-        const result = await response.json();
-        
-        console.log("[Frontend] ===== SERVER RESPONSE DEBUG =====");
-        console.log("[Frontend] Debug info from server:", result.debug);
-        console.log("[Frontend] ========================================");
-        
-        return result;
+        if (data.paymentMethod === "wallet") {
+          const payload = {
+            productType: "data_bundle",
+            productId: bundle.id,
+            productName: bundle.name,
+            network: bundle.network,
+            amount: totalAmount.toFixed(2),
+            customerPhone: phoneNumbers[0],
+            phoneNumbers: phoneNumbers,
+            isBulkOrder: isBulk,
+          };
+          
+          const response = await apiRequest("POST", "/api/wallet/pay", payload);
+          return response.json();
+        } else {
+          const payload = {
+            productType: "data_bundle",
+            productId: bundle.id,
+            customerPhone: phoneNumbers[0],
+            phoneNumbers: phoneNumbers,
+            isBulkOrder: isBulk,
+            customerEmail: user?.email || undefined,
+          };
+          
+          const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+          return response.json();
+        }
       }
     },
     onSuccess: (data, variables) => {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Bulk Purchase Successful!",
-          description: `Your bulk order has been processed. New wallet balance: GH₵${data.newBalance}`,
-          duration: 3000,
+          description: `Your bulk order has been processed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
+          duration: 5000,
         });
-        setSelectedBulkBundle(null);
         setBulkPhoneNumbers("");
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -308,64 +382,141 @@ export default function UserBundlesPage() {
   };
 
   const handleBulkPurchase = () => {
-    if (!selectedBulkBundle || !bulkPhoneNumbers.trim()) {
+    if (!bulkPhoneNumbers.trim()) {
       toast({
         title: "Missing Information",
-        description: "Please select a bundle and enter phone numbers",
+        description: "Please enter phone numbers with GB amounts",
         variant: "destructive",
       });
       return;
     }
 
-    // Parse and normalize phone numbers (one per line)
-    const numbers = bulkPhoneNumbers
-      .split('\n')
-      .map(num => normalizePhoneNumber(num.trim()))
-      .filter(num => num.length > 0);
-
-    if (numbers.length === 0) {
-      toast({
-        title: "No Phone Numbers",
-        description: "Please enter at least one phone number",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate all phone numbers match the network
-    for (const phone of numbers) {
-      const validation = validatePhoneNetwork(phone, selectedBulkBundle.network);
-      if (!validation.isValid) {
-        const prefixes = getNetworkPrefixes(selectedBulkBundle.network);
+    // Parse phone numbers with GB amounts
+    // Format: "0546591622 1" or "233546591622 2"
+    const lines = bulkPhoneNumbers.split('\n').filter(line => line.trim());
+    const parsedData: Array<{ phone: string; gb: number }> = [];
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length !== 2) {
         toast({
-          title: "❌ Phone Number Mismatch",
-          description: `${phone}: ${validation.error || `This bundle is for ${selectedBulkBundle.network.toUpperCase()} network. Valid prefixes: ${prefixes.join(", ")}`}`,
+          title: "❌ Invalid Format",
+          description: `Line "${line}" must have format: phone_number GB_amount (e.g., "0241234567 2")`,
           variant: "destructive",
           duration: 8000,
         });
         return;
       }
+
+      let phoneStr = parts[0];
+      const gbAmount = parseFloat(parts[1]);
+
+      if (isNaN(gbAmount) || gbAmount <= 0) {
+        toast({
+          title: "❌ Invalid GB Amount",
+          description: `GB amount "${parts[1]}" must be a positive number`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
+      // Handle country code 233 (remove + if present)
+      phoneStr = phoneStr.replace(/^\+/, '');
+      
+      // If starts with 233, remove it and add 0
+      if (phoneStr.startsWith('233')) {
+        phoneStr = '0' + phoneStr.substring(3);
+      }
+
+      // Normalize the phone number
+      const normalizedPhone = normalizePhoneNumber(phoneStr);
+
+      // Validate phone number for the selected network
+      const validation = validatePhoneNetwork(normalizedPhone, network);
+      if (!validation.isValid) {
+        const prefixes = getNetworkPrefixes(network);
+        toast({
+          title: "❌ Phone Number Mismatch",
+          description: `${phoneStr}: ${validation.error || `Must be for ${networkInfo?.name} network. Valid prefixes: ${prefixes.join(", ")}`}`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
+      parsedData.push({ phone: normalizedPhone, gb: gbAmount });
+    }
+
+    if (parsedData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "Please enter at least one phone number with GB amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Find matching bundles for each GB amount from our bundles list
+    const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
+    let totalAmount = 0;
+
+    for (const item of parsedData) {
+      // Find a bundle that matches the GB amount (looking for bundles with the GB in the name)
+      const matchingBundle = bundles?.find(b => {
+        const bundleName = b.name.toLowerCase();
+        // Try to extract GB from bundle name (e.g., "5GB" -> 5)
+        const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+        if (gbMatch) {
+          const bundleGB = parseFloat(gbMatch[1]);
+          return bundleGB === item.gb;
+        }
+        return false;
+      });
+
+      if (!matchingBundle) {
+        toast({
+          title: "❌ Bundle Not Found",
+          description: `No ${item.gb}GB bundle available for ${networkInfo?.name}. Please check available bundles.`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
+      orderItems.push({
+        phone: item.phone,
+        bundleId: matchingBundle.id,
+        bundleName: matchingBundle.name,
+        price: parseFloat(matchingBundle.basePrice),
+      });
+
+      totalAmount += parseFloat(matchingBundle.basePrice);
     }
 
     // Check wallet balance if paying with wallet
-    const totalAmount = parseFloat(selectedBulkBundle.basePrice) * numbers.length;
     const walletBalance = stats?.walletBalance ? parseFloat(stats.walletBalance) : 0;
     
     if (bulkPaymentMethod === "wallet" && walletBalance < totalAmount) {
       const shortfall = totalAmount - walletBalance;
       toast({
         title: "⚠️ Insufficient Wallet Balance",
-        description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${numbers.length} order(s). Please top up or use Paystack.`,
+        description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${parsedData.length} order(s). Please top up or use Paystack.`,
         variant: "destructive",
         duration: 7000,
       });
       return;
     }
 
+    // Send bulk purchase with order items
+    // Note: This will need backend support for the new format
     bulkPurchaseMutation.mutate({
-      bundleId: selectedBulkBundle.id,
-      phoneNumbers: numbers,
+      bundleId: orderItems[0].bundleId, // For compatibility, but we'll send full orderItems
+      phoneNumbers: orderItems.map(item => item.phone),
       paymentMethod: bulkPaymentMethod,
+      // @ts-ignore - adding custom field for new bulk format
+      orderItems: orderItems,
+      totalAmount: totalAmount,
     });
   };
 
@@ -508,6 +659,20 @@ export default function UserBundlesPage() {
                       </div>
                     )}
 
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Beneficiary Number</Label>
+                      <Input
+                        id="phone"
+                        placeholder="0241234567"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        For <strong>{networkInfo?.name}</strong> network only. 
+                        Valid prefixes: <strong>{selectedBundle ? getNetworkPrefixes(selectedBundle.network).join(", ") : ""}</strong>
+                      </p>
+                    </div>
+
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
                       <RadioGroup 
@@ -524,7 +689,7 @@ export default function UserBundlesPage() {
                             checked={paymentMethod === "wallet"}
                             onChange={() => setPaymentMethod("wallet")}
                             className="peer sr-only"
-                            disabled={selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)}
+                            disabled={selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) ? true : false}
                           />
                           <Label
                             htmlFor="wallet-single"
@@ -573,7 +738,7 @@ export default function UserBundlesPage() {
                             <div className="flex items-center gap-3">
                               <CreditCard className="h-5 w-5" />
                               <div>
-                                <div className="font-medium">Pay with Card</div>
+                                <div className="font-medium">Pay with MoMo</div>
                                 <div className="text-sm text-muted-foreground">
                                   Secure payment via Paystack
                                 </div>
@@ -597,20 +762,6 @@ export default function UserBundlesPage() {
                         </AlertDescription>
                       </Alert>
                     )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        placeholder="0241234567"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        For <strong>{networkInfo?.name}</strong> network only. 
-                        Valid prefixes: <strong>{selectedBundle ? getNetworkPrefixes(selectedBundle.network).join(", ") : ""}</strong>
-                      </p>
-                    </div>
 
                     <Button
                       className="w-full"
@@ -639,65 +790,36 @@ export default function UserBundlesPage() {
                 <Card>
                     <CardHeader>
                       <CardTitle>Bulk Purchase</CardTitle>
-                      <CardDescription>Select a bundle and enter multiple phone numbers</CardDescription>
+                      <CardDescription>Enter phone numbers with GB amounts for {networkInfo?.name}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                    {/* Bundle Dropdown */}
-                    <div className="space-y-2">
-                      <Label htmlFor="bulk-bundle-select">Select Bundle</Label>
-                      {isLoading ? (
-                        <div className="flex justify-center py-4">
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        </div>
-                      ) : (
-                        <Select
-                          value={selectedBulkBundle?.id || ""}
-                          onValueChange={(value) => {
-                            const bundle = bundles?.find(b => b.id === value);
-                            setSelectedBulkBundle(bundle || null);
-                          }}
-                        >
-                          <SelectTrigger id="bulk-bundle-select">
-                            <SelectValue placeholder="Choose a data bundle" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {bundles && bundles.length > 0 ? (
-                              bundles.map((bundle) => (
-                                <SelectItem key={bundle.id} value={bundle.id}>
-                                  {bundle.name} - {bundle.validity} - GH₵{bundle.basePrice}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="no-bundles" disabled>
-                                No bundles available
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
 
-                    {/* Selected Bundle Display */}
-                    {selectedBulkBundle && (
-                      <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-                        <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                        <p className="font-medium text-lg">{selectedBulkBundle.name}</p>
-                        <p className="text-sm text-muted-foreground">{selectedBulkBundle.validity}</p>
-                        <p className="text-lg font-bold text-primary mt-2">
-                          GH₵{selectedBulkBundle.basePrice} per number
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label htmlFor="bulk-phones">Beneficiary Numbers and GB Amounts</Label>
+                          {bulkPhoneNumbers.trim() && (
+                            <Badge variant="outline" className="text-xs">
+                              {bulkPhoneNumbers.split('\n').filter(line => line.trim()).length} entries
+                            </Badge>
+                          )}
+                        </div>
+                        <Textarea
+                          id="bulk-phones"
+                          placeholder="0546591622 1&#10;0247064874 3&#10;0245696072 2&#10;233547897522 10&#10;...add as many as you need (no limit)"
+                          rows={20}
+                          value={bulkPhoneNumbers}
+                          onChange={(e) => setBulkPhoneNumbers(e.target.value)}
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter one number per line with GB amount (e.g., "0241234567 2" for 2GB). 
+                          Supports formats: 0241234567 or 233241234567 (no + sign). 
+                          <strong className="text-green-600">✓ No limit - add 100+ numbers!</strong>
+                          <br />
+                          All numbers must be for <strong>{networkInfo?.name}</strong> network.
+                          Valid prefixes: <strong>{network ? getNetworkPrefixes(network).join(", ") : ""}</strong>
                         </p>
-                        {bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-primary/20">
-                            <p className="text-sm text-muted-foreground">
-                              {bulkPhoneNumbers.split('\n').filter(n => n.trim()).length} numbers × GH₵{selectedBulkBundle.basePrice}
-                            </p>
-                            <p className="text-2xl font-bold text-primary">
-                              Total: GH₵{(parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length).toFixed(2)}
-                            </p>
-                          </div>
-                        )}
                       </div>
-                    )}
 
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
@@ -715,21 +837,10 @@ export default function UserBundlesPage() {
                             checked={bulkPaymentMethod === "wallet"}
                             onChange={() => setBulkPaymentMethod("wallet")}
                             className="peer sr-only"
-                            disabled={
-                              selectedBulkBundle && 
-                              bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > 0 &&
-                              parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
-                            }
                           />
                           <Label
                             htmlFor="wallet-bulk"
-                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all ${
-                              selectedBulkBundle && 
-                              bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > 0 &&
-                              parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
-                                ? "opacity-50 cursor-not-allowed"
-                                : ""
-                            }`}
+                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
                               <Wallet className="h-5 w-5" />
@@ -744,15 +855,6 @@ export default function UserBundlesPage() {
                               <CheckCircle className="h-5 w-5 text-primary" />
                             )}
                           </Label>
-                          {selectedBulkBundle && 
-                            bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > 0 &&
-                            parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
-                            <div className="absolute top-2 right-2">
-                              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
-                                Insufficient
-                              </span>
-                            </div>
-                          )}
                         </div>
 
                         {/* Paystack Payment Option */}
@@ -772,7 +874,7 @@ export default function UserBundlesPage() {
                             <div className="flex items-center gap-3">
                               <CreditCard className="h-5 w-5" />
                               <div>
-                                <div className="font-medium">Pay with Card</div>
+                                <div className="font-medium">Pay with MoMo</div>
                                 <div className="text-sm text-muted-foreground">
                                   Secure payment via Paystack
                                 </div>
@@ -786,47 +888,13 @@ export default function UserBundlesPage() {
                       </RadioGroup>
                     </div>
 
-                    {/* Insufficient Balance Alert */}
-                    {selectedBulkBundle && 
-                      bulkPaymentMethod === "wallet" && 
-                      bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > 0 &&
-                      parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
-                      <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription className="text-sm">
-                          <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length - (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)).toFixed(2)} more.
-                          <a href="/user/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    <div className="space-y-2">
-                        <Label htmlFor="bulk-phones">Phone Numbers</Label>
-                        <Textarea
-                          id="bulk-phones"
-                          placeholder="0241234567&#10;0501234567&#10;0261234567"
-                          rows={10}
-                          value={bulkPhoneNumbers}
-                          onChange={(e) => setBulkPhoneNumbers(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Enter one {networkInfo?.name} number per line. All numbers must be for <strong>{selectedBulkBundle ? selectedBulkBundle.network.toUpperCase() : networkInfo?.name}</strong> network.
-                          Valid prefixes: <strong>{selectedBulkBundle ? getNetworkPrefixes(selectedBulkBundle.network).join(", ") : ""}</strong>
-                        </p>
-                      </div>
-
                       <Button
                         className="w-full"
                         size="lg"
                         onClick={handleBulkPurchase}
                         disabled={
-                          !selectedBulkBundle || 
                           !bulkPhoneNumbers.trim() || 
-                          bulkPurchaseMutation.isPending ||
-                          (bulkPaymentMethod === "wallet" && 
-                            selectedBulkBundle && 
-                            bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > 0 &&
-                            parseFloat(selectedBulkBundle.basePrice) * bulkPhoneNumbers.split('\n').filter(n => n.trim()).length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0))
+                          bulkPurchaseMutation.isPending
                         }
                       >
                         {bulkPurchaseMutation.isPending ? (
@@ -837,7 +905,10 @@ export default function UserBundlesPage() {
                         ) : (
                           <>
                             <Upload className="mr-2 h-4 w-4" />
-                            Purchase for {bulkPhoneNumbers.split('\n').filter(n => n.trim()).length} Numbers
+                            {bulkTotal 
+                              ? `Purchase for GH₵${bulkTotal.total.toFixed(2)} (${bulkTotal.count} items)`
+                              : "Purchase Data Bundles"
+                            }
                           </>
                         )}
                       </Button>

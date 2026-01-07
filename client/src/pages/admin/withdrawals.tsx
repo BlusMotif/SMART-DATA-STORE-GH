@@ -5,10 +5,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
@@ -26,29 +23,12 @@ interface WithdrawalWithAgent extends Withdrawal {
 export default function AdminWithdrawals() {
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [processingWithdrawal, setProcessingWithdrawal] = useState<WithdrawalWithAgent | null>(null);
-  const [adminNote, setAdminNote] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: withdrawals, isLoading } = useQuery<WithdrawalWithAgent[]>({
     queryKey: ["/api/admin/withdrawals"],
     refetchInterval: 20000, // Refetch every 20 seconds for withdrawals
     refetchOnWindowFocus: true,
-  });
-
-  const processMutation = useMutation({
-    mutationFn: ({ id, status, adminNote }: { id: string; status: string; adminNote: string }) =>
-      apiRequest("PATCH", `/api/admin/withdrawals/${id}`, { status, adminNote }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] }); // Update stats when withdrawal is processed
-      setProcessingWithdrawal(null);
-      setAdminNote("");
-      toast({ title: "Withdrawal processed successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to process withdrawal", description: error.message, variant: "destructive" });
-    },
   });
 
   const filteredWithdrawals = withdrawals?.filter((w) => {
@@ -58,8 +38,9 @@ export default function AdminWithdrawals() {
 
   const stats = {
     total: withdrawals?.length || 0,
-    pending: withdrawals?.filter((w) => w.status === "pending").length || 0,
-    approved: withdrawals?.filter((w) => w.status === "approved" || w.status === "completed").length || 0,
+    processing: withdrawals?.filter((w) => w.status === "processing").length || 0,
+    completed: withdrawals?.filter((w) => w.status === "completed").length || 0,
+    failed: withdrawals?.filter((w) => w.status === "failed").length || 0,
     totalAmount: withdrawals?.reduce((sum, w) => sum + parseFloat(w.amount), 0) || 0,
   };
 
@@ -115,22 +96,22 @@ export default function AdminWithdrawals() {
                 description="All time"
               />
               <StatCard
-                title="Pending"
-                value={stats.pending}
+                title="Processing"
+                value={stats.processing}
                 icon={Clock}
-                description="Awaiting review"
+                description="Being transferred"
               />
               <StatCard
-                title="Processed"
-                value={stats.approved}
+                title="Completed"
+                value={stats.completed}
                 icon={CheckCircle}
-                description="Approved/completed"
+                description="Successfully transferred"
               />
               <StatCard
-                title="Total Amount"
-                value={formatCurrency(stats.totalAmount)}
-                icon={Banknote}
-                description="All requests"
+                title="Failed"
+                value={stats.failed}
+                icon={XCircle}
+                description="Transfer failed"
               />
             </div>
 
@@ -142,7 +123,7 @@ export default function AdminWithdrawals() {
                     Withdrawal Requests
                   </CardTitle>
                   <CardDescription>
-                    Review and process agent withdrawal requests
+                    Track all agent withdrawal requests and their transfer status
                   </CardDescription>
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -151,10 +132,9 @@ export default function AdminWithdrawals() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="processing">Processing</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
                   </SelectContent>
                 </Select>
               </CardHeader>
@@ -167,11 +147,11 @@ export default function AdminWithdrawals() {
                       <TableRow>
                         <TableHead>Agent</TableHead>
                         <TableHead>Amount</TableHead>
-                        <TableHead>Bank Details</TableHead>
+                        <TableHead>Payment Method</TableHead>
+                        <TableHead>Account Details</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Requested</TableHead>
-                        <TableHead>Processed</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>Transfer Reference</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -185,36 +165,32 @@ export default function AdminWithdrawals() {
                             {formatCurrency(withdrawal.amount)}
                           </TableCell>
                           <TableCell>
+                            <div className="flex items-center gap-2">
+                              {withdrawal.paymentMethod === "bank" ? (
+                                <Banknote className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Wallet className="h-4 w-4 text-green-600" />
+                              )}
+                              <span className="text-sm font-medium capitalize">
+                                {withdrawal.paymentMethod?.replace("_", " ") || "Bank"}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             <div className="text-sm">
-                              <div className="font-medium">{withdrawal.bankName}</div>
+                              <div className="font-medium">{withdrawal.accountName}</div>
                               <div className="text-muted-foreground">{withdrawal.accountNumber}</div>
-                              <div className="text-muted-foreground">{withdrawal.accountName}</div>
+                              {withdrawal.paymentMethod === "bank" && withdrawal.bankName && (
+                                <div className="text-muted-foreground text-xs">{withdrawal.bankName}</div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(withdrawal.status)}</TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {formatDate(withdrawal.createdAt)}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {withdrawal.processedAt ? formatDate(withdrawal.processedAt) : "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {withdrawal.status === "pending" && (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => setProcessingWithdrawal(withdrawal)}
-                                  data-testid={`button-process-${withdrawal.id}`}
-                                >
-                                  Process
-                                </Button>
-                              </div>
-                            )}
-                            {withdrawal.adminNote && (
-                              <div className="text-xs text-muted-foreground mt-1 max-w-[150px] truncate">
-                                Note: {withdrawal.adminNote}
-                              </div>
-                            )}
+                          <TableCell className="text-muted-foreground text-sm font-mono text-xs">
+                            {withdrawal.transferReference || "N/A"}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -230,85 +206,6 @@ export default function AdminWithdrawals() {
           </div>
         </main>
       </div>
-
-      <Dialog open={!!processingWithdrawal} onOpenChange={(open) => !open && setProcessingWithdrawal(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Process Withdrawal</DialogTitle>
-          </DialogHeader>
-          {processingWithdrawal && (
-            <div className="space-y-4">
-              <div className="p-4 bg-muted rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Agent:</span>
-                  <span className="font-medium">{processingWithdrawal.agent?.businessName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount:</span>
-                  <span className="font-bold text-lg">{formatCurrency(processingWithdrawal.amount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Bank:</span>
-                  <span>{processingWithdrawal.bankName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Account:</span>
-                  <span>{processingWithdrawal.accountNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Name:</span>
-                  <span>{processingWithdrawal.accountName}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="adminNote">Admin Note (Optional)</Label>
-                <Textarea
-                  id="adminNote"
-                  value={adminNote}
-                  onChange={(e) => setAdminNote(e.target.value)}
-                  placeholder="Add a note about this withdrawal..."
-                  data-testid="input-admin-note"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button
-                  variant="destructive"
-                  className="flex-1"
-                  onClick={() =>
-                    processMutation.mutate({
-                      id: processingWithdrawal.id,
-                      status: "rejected",
-                      adminNote,
-                    })
-                  }
-                  disabled={processMutation.isPending}
-                  data-testid="button-reject"
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Reject
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={() =>
-                    processMutation.mutate({
-                      id: processingWithdrawal.id,
-                      status: "approved",
-                      adminNote,
-                    })
-                  }
-                  disabled={processMutation.isPending}
-                  data-testid="button-approve"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -7,11 +7,11 @@ import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu, Package } from "lucide-react";
 import type { Transaction, Agent } from "@shared/schema";
 
 interface AgentStats {
@@ -166,6 +166,48 @@ export default function AgentDashboard() {
                 </div>
               </>
             )}
+
+            {/* Quick Actions */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+                <CardDescription>Start selling data bundles</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <Link href="/agent/bundles/mtn">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Package className="h-5 w-5" />
+                      <span className="text-xs">MTN Bundles</span>
+                    </Button>
+                  </Link>
+                  <Link href="/agent/bundles/at-ishare">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Package className="h-5 w-5" />
+                      <span className="text-xs">AT iShare</span>
+                    </Button>
+                  </Link>
+                  <Link href="/agent/bundles/at-bigtime">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Package className="h-5 w-5" />
+                      <span className="text-xs">AT BIG TIME</span>
+                    </Button>
+                  </Link>
+                  <Link href="/agent/bundles/telecel">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Package className="h-5 w-5" />
+                      <span className="text-xs">Telecel</span>
+                    </Button>
+                  </Link>
+                  <Link href="/agent/wallet">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Wallet className="h-5 w-5" />
+                      <span className="text-xs">Top Up Wallet</span>
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card className="lg:col-span-2">

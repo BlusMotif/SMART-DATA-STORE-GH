@@ -55,7 +55,7 @@ export default function AgentRegisterPage() {
     resolver: zodResolver(agentRegisterSchema),
     defaultValues: {
       name: "",
-      email: "",
+      email: typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('email') || '' : '',
       phone: "",
       password: "",
       confirmPassword: "",

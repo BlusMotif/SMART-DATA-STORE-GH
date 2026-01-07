@@ -13,6 +13,7 @@ interface ChatMessage {
   id: string;
   message: string;
   senderType: "user" | "admin";
+  isRead: boolean;
   createdAt: string;
 }
 

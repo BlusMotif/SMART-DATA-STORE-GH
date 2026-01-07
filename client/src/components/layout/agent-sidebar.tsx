@@ -10,7 +10,8 @@ import {
   ExternalLink,
   X,
   Trophy,
-  Upload,
+  Smartphone,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,24 +38,39 @@ const sidebarNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Users Ranking",
-    href: "/agent/rankings",
-    icon: Trophy,
-  },
-  {
     title: "My Storefront",
     href: "/agent/storefront",
     icon: Store,
   },
   {
-    title: "Bulk Upload",
-    href: "/agent/bulk-upload",
-    icon: Upload,
-  },
-  {
     title: "Transactions",
     href: "/agent/transactions",
     icon: BarChart3,
+  },
+  {
+    title: "MTN Bundles",
+    href: "/agent/bundles/mtn",
+    icon: Smartphone,
+  },
+  {
+    title: "AT iShare Bundles",
+    href: "/agent/bundles/at-ishare",
+    icon: Smartphone,
+  },
+  {
+    title: "AT BIG TIME Bundles",
+    href: "/agent/bundles/at-bigtime",
+    icon: Smartphone,
+  },
+  {
+    title: "TELECEL Bundles",
+    href: "/agent/bundles/telecel",
+    icon: Smartphone,
+  },
+  {
+    title: "Top Up Wallet",
+    href: "/agent/wallet",
+    icon: CreditCard,
   },
   {
     title: "Withdrawals",

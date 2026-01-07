@@ -24,9 +24,9 @@ import AgentTransactions from "@/pages/agent/transactions";
 import AgentWithdrawals from "@/pages/agent/withdrawals";
 import AgentStorefront from "@/pages/agent/storefront";
 import AgentSettings from "@/pages/agent/settings";
-import AgentRankings from "@/pages/agent/rankings";
-import AgentBulkUpload from "@/pages/agent/bulk-upload";
 import AgentSupportPage from "@/pages/agent/support";
+import AgentBundlesPage from "@/pages/agent/bundles";
+import AgentWalletPage from "@/pages/agent/wallet";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDataBundles from "@/pages/admin/data-bundles";
 import AdminResultCheckers from "@/pages/admin/result-checkers";
@@ -37,7 +37,8 @@ import AdminWithdrawals from "@/pages/admin/withdrawals";
 import AdminChatSupport from "@/pages/admin/chat-support";
 import AdminSettings from "@/pages/admin/settings";
 import AdminRankings from "@/pages/admin/rankings";
-import StorefrontPage from "@/pages/storefront";
+import AgentPublicStorefront from "@/pages/agent/public-storefront";
+import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
 import NetworkProductsPage from "@/pages/products/network";
 import ResultCheckersPage from "@/pages/products/result-checkers";
 import DataBundlesPage from "@/pages/data-bundles";
@@ -99,11 +100,13 @@ function Router() {
       <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRole="agent" />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />
-      <ProtectedRoute path="/agent/bulk-upload" component={AgentBulkUpload} requiredRole="agent" />
       <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRole="agent" />
       <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRole="agent" />
       <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRole="agent" />
-      <ProtectedRoute path="/agent/rankings" component={AgentRankings} requiredRole="agent" />
+      <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRole="agent" />
+      <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRole="agent" />
+      <ProtectedRoute path="/agent/bundles/:network" component={UserBundlesPage} requiredRole="agent" />
+      <ProtectedRoute path="/agent/wallet" component={WalletDashboard} requiredRole="agent" />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />
@@ -114,7 +117,8 @@ function Router() {
       <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
       <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
-      <Route path="/store/:slug" component={StorefrontPage} />
+      <Route path="/store/:slug" component={AgentPublicStorefront} />
+      <Route path="/store/:slug/:network" component={AgentNetworkPurchasePage} />
       <Route component={NotFound} />
     </Switch>
     </StorefrontGuard>

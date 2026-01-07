@@ -12,10 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
 import siteLogo from "@assets/logo_1765774201026.png";
 
@@ -66,21 +63,6 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user } = useAuth();
 
-  // Get unread message count
-  const { data: unreadCount = 0 } = useQuery<number>({
-    queryKey: ["/api/support/unread-count"],
-    queryFn: async () => {
-      try {
-        const response = await apiRequest("GET", "/api/support/unread-count");
-        const data = await response.json();
-        return data.count || 0;
-      } catch (error) {
-        return 0;
-      }
-    },
-    refetchInterval: 10000, // Refetch every 10 seconds
-  });
-
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-background relative">
       <div className="flex h-16 items-center gap-2 border-b px-6">
@@ -115,7 +97,6 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
           {sidebarNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
-            const isSupport = item.href === "/user/support";
             
             return (
               <Link key={item.href} href={item.href}>
@@ -129,12 +110,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
                   onClick={onClose}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{item.title}</span>
-                  {isSupport && unreadCount > 0 && (
-                    <Badge variant="destructive" className="ml-auto">
-                      {unreadCount}
-                    </Badge>
-                  )}
+                  <span>{item.title}</span>
                 </div>
               </Link>
             );

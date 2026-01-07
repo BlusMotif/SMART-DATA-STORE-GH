@@ -45,9 +45,20 @@ export const ResultCheckerType = {
 // Withdrawal status enum
 export const WithdrawalStatus = {
   PENDING: "pending",
+  PROCESSING: "processing",
   APPROVED: "approved",
   REJECTED: "rejected",
   COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
+
+// Payment method enum for withdrawals
+export const PaymentMethod = {
+  BANK: "bank",
+  MTN_MOMO: "mtn_momo",
+  TELECEL_CASH: "telecel_cash",
+  AIRTEL_TIGO_CASH: "airtel_tigo_cash",
+  VODAFONE_CASH: "vodafone_cash",
 } as const;
 
 // Chat status enum
@@ -196,9 +207,14 @@ export const withdrawals = pgTable("withdrawals", {
   agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   status: text("status").notNull().default("pending"),
-  bankName: text("bank_name").notNull(),
+  paymentMethod: text("payment_method").notNull().default("bank"),
+  bankName: text("bank_name"),
+  bankCode: text("bank_code"),
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name").notNull(),
+  recipientCode: text("recipient_code"), // Paystack recipient code
+  transferReference: text("transfer_reference"), // Paystack transfer reference
+  transferCode: text("transfer_code"), // Paystack transfer code
   adminNote: text("admin_note"),
   processedBy: varchar("processed_by", { length: 36 }),
   processedAt: timestamp("processed_at"),
@@ -485,18 +501,51 @@ export const agentRegisterSchema = z.object({
 });
 
 export const purchaseSchema = z.object({
-  productId: z.string(),
+  productId: z.string().optional(),
   productType: z.enum(["data_bundle", "result_checker"]),
   customerPhone: z.string().min(10, "Phone must be at least 10 digits"),
-  customerEmail: z.string().email().optional(),
+  customerEmail: z.union([z.string().email(), z.literal("")]).optional(),
   agentSlug: z.string().optional(),
-  phoneNumbers: z.array(z.string()).optional(),
+  phoneNumbers: z.array(z.object({
+    phone: z.string(),
+    bundleName: z.string(),
+    dataAmount: z.string(),
+  })).optional(),
   isBulkOrder: z.boolean().optional(),
+  network: z.string().optional(),
+  orderItems: z.array(z.object({
+    phone: z.string(),
+    bundleId: z.string(),
+    bundleName: z.string(),
+    price: z.number(),
+  })).optional(),
+  totalAmount: z.number().optional(),
+}).refine((data) => {
+  // If orderItems exist, productId is not required
+  if (data.orderItems && data.orderItems.length > 0) return true;
+  // Otherwise, productId is required
+  return data.productId !== undefined;
+}, {
+  message: "productId is required when orderItems are not provided",
+  path: ["productId"],
 });
 
 export const withdrawalRequestSchema = z.object({
-  amount: z.number().min(50, "Minimum withdrawal amount is GH₵50").positive("Amount must be positive"),
-  bankName: z.string().min(2, "Bank name required"),
-  accountNumber: z.string().min(10, "Account number required"),
-  accountName: z.string().min(2, "Account name required"),
+  amount: z.number().min(10, "Minimum withdrawal amount is GH₵10").positive("Amount must be positive"),
+  paymentMethod: z.enum(["bank", "mtn_momo", "telecel_cash", "airtel_tigo_cash", "vodafone_cash"], {
+    required_error: "Please select a payment method"
+  }),
+  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
+  accountNumber: z.string().min(5, "Account/Phone number is required"),
+  accountName: z.string().min(2, "Account name is required"),
+}).refine((data) => {
+  // For bank transfers, bank name and code are required
+  if (data.paymentMethod === "bank") {
+    return data.bankName && data.bankCode;
+  }
+  return true;
+}, {
+  message: "Bank name and code are required for bank transfers",
+  path: ["bankName"],
 });

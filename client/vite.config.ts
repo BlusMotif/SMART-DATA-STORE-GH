@@ -67,13 +67,6 @@ export default defineConfig({
     allowedHosts: ["smartdatastoregh.onrender.com", "localhost"],
     watch: { usePolling: true },
     fs: { strict: true, deny: ["**/.*"] },
-    proxy: {
-      "/api": {
-        target: `http://localhost:${process.env.PORT || 3000}`,
-        changeOrigin: true,
-        secure: false,
-      },
-    },
   },
 
   cacheDir: "node_modules/.vite",

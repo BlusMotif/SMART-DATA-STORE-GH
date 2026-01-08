@@ -3,20 +3,19 @@
 // In development, they might be on different ports
 import { supabase } from "./supabaseClient";
 
-const API_BASE_URL = import.meta.env.DEV ? '' : '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const api = {
-  // In development, use localhost:10000
-  // In production (Render), use relative URLs (same domain)
+  // Use VITE_API_BASE_URL for full URLs in both dev and prod
   baseURL: API_BASE_URL,
 
   // Helper to build full API URLs
   buildUrl: (endpoint: string) => {
     if (API_BASE_URL) {
-      // Development: use full URL with localhost
+      // Use full URL from environment
       return `${API_BASE_URL}${endpoint}`;
     } else {
-      // Production: use relative URLs (same domain)
+      // Fallback to relative URLs
       return endpoint;
     }
   },

@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
-import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import { execSync } from "child_process";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -36,7 +36,19 @@ async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
   console.log("building client...");
-  await viteBuild();
+  // Ensure frontend dependencies are installed inside /client, then run Vite build from that cwd.
+  // Use execSync so commands are run synchronously and inherit stdio for CI logs.
+  try {
+    console.log("installing client dependencies (client)...");
+    execSync("npm install --no-audit --no-fund", { cwd: "client", stdio: "inherit" });
+
+    console.log("running vite build (client)...");
+    // Prefer using the project's npm build script, which runs `vite build`.
+    execSync("npm run build", { cwd: "client", stdio: "inherit" });
+  } catch (err) {
+    console.error("Client build failed:", err);
+    throw err;
+  }
 
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));

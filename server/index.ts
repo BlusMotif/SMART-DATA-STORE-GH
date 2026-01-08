@@ -2,21 +2,52 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import express, { type Request, Response, NextFunction } from "express";
+import express, { type Request, Response, NextFunction, type Express } from "express";
 // @ts-ignore
 import session from "express-session";
 import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes.js";
-import { serveStatic } from "./static.js";
 import { createServer } from "http";
 // @ts-ignore
 import cors from "cors";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
-// Initialize Supabase after env vars are loaded
-import { initializeSupabase, supabaseServer as supabaseServerExport } from "./supabase.js";
-const supabaseServerInitialized = initializeSupabase();
+// Get the directory path - use import.meta.url for correct path in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function serveStatic(app: Express) {
+  const distPath = path.resolve(__dirname, "..", "public");
+  console.log(`Serving static files from: ${distPath}`);
+  
+  if (!fs.existsSync(distPath)) {
+    console.error(`Could not find the build directory: ${distPath}`);
+    throw new Error(
+      `Could not find the build directory: ${distPath}, make sure to build the client first`,
+    );
+  }
+
+  // Serve static files
+  app.use(express.static(distPath));
+
+  // SPA fallback - serve index.html for all non-API routes
+  app.get("*", (req: Request, res: Response) => {
+    // Skip API routes
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ error: "API endpoint not found" });
+    }
+    
+    const indexPath = path.resolve(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send("Application not built properly");
+    }
+  });
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -240,7 +271,7 @@ app.use((req, res, next) => {
   httpServer.listen(
     {
       port,
-      host: "0.0.0.0",
+      host: "127.0.0.1",
       reusePort: true,
     },
     () => {

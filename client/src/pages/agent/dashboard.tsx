@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { AgentSidebar } from "@/components/layout/agent-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatCard } from "@/components/ui/stat-card";
@@ -36,6 +37,7 @@ interface AgentProfileResponse {
 
 export default function AgentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
     refetchInterval: 5000, // Refresh every 5 seconds
@@ -44,6 +46,13 @@ export default function AgentDashboard() {
   });
   
   const agent = profileData?.agent;
+
+  // Redirect to activation if agent is not approved
+  useEffect(() => {
+    if (agent && !agent.isApproved) {
+      setLocation("/agent/activation-complete");
+    }
+  }, [agent, setLocation]);
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],

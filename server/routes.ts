@@ -1816,6 +1816,11 @@ export async function registerRoutes(
             const existingAgent = await storage.getAgentByUserId(existingUser.id);
             
             if (existingAgent) {
+              // Ensure the agent is approved after successful payment
+              if (!existingAgent.isApproved) {
+                await storage.updateAgent(existingAgent.id, { isApproved: true });
+                console.log("Updated existing agent to approved");
+              }
               return res.json({
                 status: "success",
                 message: "Agent account already created successfully. Please login with your credentials.",
@@ -1840,7 +1845,7 @@ export async function registerRoutes(
           } else if (existingUser && existingUser.role !== 'agent') {
             console.log("User exists but not agent, upgrading to agent");
             // Update user role to agent
-            await storage.updateUserRole(existingUser.id, UserRole.AGENT);
+            await storage.updateUser(existingUser.id, { role: UserRole.AGENT });
             // Create agent record
             const agent = await storage.createAgent({
               userId: existingUser.id,

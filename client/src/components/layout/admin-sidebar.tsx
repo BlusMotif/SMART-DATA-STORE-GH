@@ -14,6 +14,7 @@ import {
   X,
   MessageCircle,
   Trophy,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,16 @@ const sidebarNavItems = [
     title: "Chat Support",
     href: "/admin/chat-support",
     icon: MessageCircle,
+  },
+  {
+    title: "Break Settings",
+    href: "/admin/break-settings",
+    icon: AlertTriangle,
+  },
+  {
+    title: "API Configuration",
+    href: "/admin/api-configuration",
+    icon: Settings,
   },
   {
     title: "Settings",

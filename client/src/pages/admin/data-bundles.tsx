@@ -255,7 +255,6 @@ function BundleForm({
     validity: bundle?.validity || "",
     basePrice: bundle?.basePrice || "",
     costPrice: bundle?.costPrice || "",
-    apiCode: bundle?.apiCode || "",
     isActive: bundle?.isActive ?? true,
   });
 
@@ -352,16 +351,7 @@ function BundleForm({
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="apiCode">API Code (Optional)</Label>
-        <Input
-          id="apiCode"
-          value={formData.apiCode}
-          onChange={(e) => setFormData({ ...formData, apiCode: e.target.value })}
-          placeholder="Provider API code"
-          data-testid="input-bundle-apicode"
-        />
-      </div>
+      {/* Per-bundle API selection removed; system-wide API configuration used instead */}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">

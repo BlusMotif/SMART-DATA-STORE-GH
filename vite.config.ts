@@ -44,6 +44,13 @@ export default defineConfig({
       host: 'localhost',
       port: 10000,
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:10002',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

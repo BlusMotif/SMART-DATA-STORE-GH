@@ -89,7 +89,7 @@ export default function AgentDashboard() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-lg lg:text-xl font-semibold">Agent Dashboard</h1>
+            <h1 className="text-lg lg:text-xl font-semibold">{agent?.businessName || 'Agent'} - Dashboard</h1>
           </div>
           <div className="flex items-center gap-2">
             {agent && (

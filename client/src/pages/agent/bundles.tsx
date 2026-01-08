@@ -57,28 +57,28 @@ const NetworkInfo = {
 };
 
 export default function AgentBundlesPage() {
-  const { network } = useParams();
+  const { network } = useParams<{ network: string }>();
   const { user } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Form states
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // Single purchase state
   const [selectedBundle, setSelectedBundle] = useState<DataBundle | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  // Bulk purchase states
-  const [bulkPhones, setBulkPhones] = useState("");
-  const [bulkMode, setBulkMode] = useState(false);
+  
+  // Bulk purchase state
+  const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack">("wallet");
 
   // Fetch bundles for the selected network
   const { data: bundles, isLoading: bundlesLoading } = useQuery({
-    queryKey: ["/api/bundles", network],
+    queryKey: ["/api/products/data-bundles", network],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/bundles?network=${network}`);
+      // Convert hyphens to underscores for API call
+      const apiNetwork = network?.replace(/-/g, '_');
+      const response = await apiRequest("GET", `/api/products/data-bundles?network=${apiNetwork}`);
       return response.json();
     },
     enabled: !!network,
@@ -115,128 +115,413 @@ export default function AgentBundlesPage() {
   // Calculate total for single purchase
   const singleTotal = agentPrice * quantity;
 
-  // Calculate bulk total
+  // Calculate bulk purchase total
   const bulkTotal = useMemo(() => {
-    if (!bulkPhones.trim() || !selectedBundle || !agentData?.agent) return 0;
+    if (!bulkPhoneNumbers.trim() || !bundles) return null;
+    
+    const lines = bulkPhoneNumbers.split('\n').filter(line => line.trim());
+    let total = 0;
+    let count = 0;
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length === 2) {
+        const gbAmount = parseFloat(parts[1]);
+        if (!isNaN(gbAmount) && gbAmount > 0) {
+          const matchingBundle = bundles.find(b => {
+            const bundleName = b.name.toLowerCase();
+            const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+            if (gbMatch) {
+              const bundleGB = parseFloat(gbMatch[1]);
+              return bundleGB === gbAmount;
+            }
+            return false;
+          });
+          
+          if (matchingBundle) {
+            const basePrice = parseFloat(matchingBundle.basePrice);
+            const markup = agentData?.agent?.markupPercentage || 0;
+            const agentPrice = basePrice + (basePrice * markup / 100);
+            total += agentPrice;
+            count++;
+          }
+        }
+      }
+    }
+    
+    return count > 0 ? { total, count } : null;
+  }, [bulkPhoneNumbers, bundles, agentData]);
 
-    const phones = bulkPhones
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(line => {
-        const parts = line.split(/\s+/);
-        return parts[0]; // Extract phone number
-      })
-      .filter(phone => phone.length > 0);
-
-    const basePrice = parseFloat(selectedBundle.basePrice);
-    const markup = agentData.agent.markupPercentage || 0;
-    const agentPrice = basePrice + (basePrice * markup / 100);
-
-    return agentPrice * phones.length;
-  }, [bulkPhones, selectedBundle, agentData]);
-
-  // Purchase mutation
+  // Single purchase mutation
   const purchaseMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/checkout/initialize", data);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      if (data.paystackUrl) {
-        window.location.href = data.paystackUrl;
+    mutationFn: async (data: { bundleId: string; phoneNumber: string; paymentMethod: "wallet" | "paystack" }) => {
+      const bundle = bundles?.find(b => b.id === data.bundleId);
+      if (!bundle) throw new Error("Bundle not found");
+      
+      const phoneNumbers = [data.phoneNumber];
+      const basePrice = parseFloat(bundle.basePrice);
+      const markup = agentData?.agent?.markupPercentage || 0;
+      const agentPrice = basePrice + (basePrice * markup / 100);
+      const isBulk = false;
+
+      console.log("[Frontend] Single order payment initialization");
+      console.log("[Frontend] Phone numbers:", phoneNumbers);
+      console.log("[Frontend] Is bulk:", isBulk);
+
+      if (data.paymentMethod === "wallet") {
+        const payload = {
+          productType: "data_bundle",
+          productId: bundle.id,
+          productName: bundle.name,
+          network: bundle.network,
+          amount: agentPrice.toFixed(2),
+          customerPhone: phoneNumbers[0],
+          phoneNumbers: undefined,
+          isBulkOrder: isBulk,
+        };
+        
+        console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
+        
+        const response = await apiRequest("POST", "/api/wallet/pay", payload);
+        return response.json();
       } else {
+        const payload = {
+          productType: "data_bundle",
+          productId: bundle.id,
+          customerPhone: phoneNumbers[0],
+          phoneNumbers: undefined,
+          isBulkOrder: isBulk,
+          customerEmail: user?.email || undefined,
+        };
+        
+        console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
+        
+        const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+        const result = await response.json();
+        return result;
+      }
+    },
+    onSuccess: (data, variables) => {
+      if (variables.paymentMethod === "wallet") {
         toast({
-          title: "Purchase Successful",
-          description: "Your data bundle has been purchased successfully.",
+          title: "✅ Payment Successful!",
+          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
+          duration: 5000,
         });
-        queryClient.invalidateQueries({ queryKey: ["/api/agent/wallet"] });
-        // Reset form
         setSelectedBundle(null);
         setPhoneNumber("");
-        setQuantity(1);
-        setBulkPhones("");
-        setBulkMode(false);
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/wallet"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      } else {
+        window.location.href = data.paymentUrl;
       }
     },
     onError: (error: any) => {
+      const errorMessage = error.message || "Unable to process payment";
+      const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
+      
       toast({
-        title: "Purchase Failed",
-        description: error.message || "Failed to process purchase",
+        title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
+        description: isInsufficientBalance 
+          ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
+          : `${errorMessage}. Please try again or contact support if the problem persists.`,
         variant: "destructive",
+        duration: 6000,
       });
     },
-    onSettled: () => {
-      setIsProcessing(false);
+  });
+
+  // Bulk purchase mutation
+  const bulkPurchaseMutation = useMutation({
+    mutationFn: async (data: { 
+      bundleId: string; 
+      phoneNumbers: string[]; 
+      paymentMethod: "wallet" | "paystack";
+      orderItems?: Array<{ phone: string; bundleId: string; bundleName: string; price: number }>;
+      totalAmount?: number;
+    }) => {
+      const isBulk = true;
+      
+      // Use new orderItems format if available
+      if (data.orderItems && data.totalAmount !== undefined) {
+        const phoneNumbers = data.orderItems.map(item => item.phone);
+        const totalAmount = data.totalAmount;
+
+        console.log("[Frontend] ========== NEW BULK FORMAT PAYMENT ==========");
+        console.log("[Frontend] Order items:", data.orderItems);
+        console.log("[Frontend] Total amount:", totalAmount);
+        console.log("[Frontend] ================================================");
+        
+        if (data.paymentMethod === "wallet") {
+          const payload = {
+            productType: "data_bundle",
+            productName: `Bulk Order - ${data.orderItems.length} items`,
+            network: network,
+            amount: totalAmount.toFixed(2),
+            customerPhone: phoneNumbers[0],
+            isBulkOrder: isBulk,
+            orderItems: data.orderItems,
+          };
+          
+          console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
+          
+          const response = await apiRequest("POST", "/api/wallet/pay", payload);
+          return response.json();
+        } else {
+          const payload = {
+            productType: "data_bundle",
+            network: network,
+            customerPhone: phoneNumbers[0],
+            isBulkOrder: isBulk,
+            orderItems: data.orderItems,
+            totalAmount: totalAmount,
+            customerEmail: user?.email || undefined,
+          };
+          
+          console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
+          
+          const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+          const result = await response.json();
+          
+          console.log("[Frontend] ===== SERVER RESPONSE =====");
+          console.log("[Frontend] Result:", result);
+          console.log("[Frontend] ================================");
+          
+          return result;
+        }
+      } else {
+        // Fallback to old format for backward compatibility
+        const bundle = bundles?.find(b => b.id === data.bundleId);
+        if (!bundle) throw new Error("Bundle not found");
+        
+        const phoneNumbers = data.phoneNumbers;
+        const basePrice = parseFloat(bundle.basePrice);
+        const markup = agentData?.agent?.markupPercentage || 0;
+        const agentPrice = basePrice + (basePrice * markup / 100);
+        const totalAmount = agentPrice * phoneNumbers.length;
+
+        console.log("[Frontend] ========== LEGACY BULK FORMAT ==========");
+        console.log("[Frontend] Phone numbers:", phoneNumbers);
+        console.log("[Frontend] Total amount:", totalAmount);
+        console.log("[Frontend] ================================================");
+        
+        if (data.paymentMethod === "wallet") {
+          const payload = {
+            productType: "data_bundle",
+            productId: bundle.id,
+            productName: bundle.name,
+            network: bundle.network,
+            amount: totalAmount.toFixed(2),
+            customerPhone: phoneNumbers[0],
+            phoneNumbers: phoneNumbers,
+            isBulkOrder: isBulk,
+          };
+          
+          const response = await apiRequest("POST", "/api/wallet/pay", payload);
+          return response.json();
+        } else {
+          const payload = {
+            productType: "data_bundle",
+            productId: bundle.id,
+            customerPhone: phoneNumbers[0],
+            phoneNumbers: phoneNumbers,
+            isBulkOrder: isBulk,
+            customerEmail: user?.email || undefined,
+          };
+          
+          const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+          const result = await response.json();
+          return result;
+        }
+      }
+    },
+    onSuccess: (data, variables) => {
+      if (variables.paymentMethod === "wallet") {
+        toast({
+          title: "✅ Payment Successful!",
+          description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
+          duration: 5000,
+        });
+        setBulkPhoneNumbers("");
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/wallet"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      } else {
+        window.location.href = data.paymentUrl;
+      }
+    },
+    onError: (error: any) => {
+      const errorMessage = error.message || "Unable to process payment";
+      const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
+      
+      toast({
+        title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
+        description: isInsufficientBalance 
+          ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
+          : `${errorMessage}. Please try again or contact support if the problem persists.`,
+        variant: "destructive",
+        duration: 6000,
+      });
     },
   });
 
   const handleSinglePurchase = () => {
-    if (!selectedBundle || !phoneNumber || !user) return;
-
-    if (paymentMethod === "wallet" && singleTotal > walletBalance) {
+    if (!selectedBundle || !phoneNumber) return;
+    
+    const basePrice = parseFloat(selectedBundle.basePrice);
+    const markup = agentData?.agent?.markupPercentage || 0;
+    const agentPrice = basePrice + (basePrice * markup / 100);
+    
+    if (paymentMethod === "wallet" && agentPrice > walletBalance) {
       toast({
-        title: "Insufficient Balance",
-        description: "Your wallet balance is not enough for this purchase.",
+        title: "⚠️ Insufficient Wallet Balance",
+        description: `You need GH₵${(agentPrice - walletBalance).toFixed(2)} more. Please top up your wallet or use Paystack.`,
         variant: "destructive",
+        duration: 6000,
       });
       return;
     }
 
-    setIsProcessing(true);
-
-    const purchaseData = {
-      productId: selectedBundle.id,
-      customerPhone: phoneNumber,
-      customerEmail: user.email,
-      quantity,
+    purchaseMutation.mutate({
+      bundleId: selectedBundle.id,
+      phoneNumber,
       paymentMethod,
-      agentSlug: agentData?.agent?.storefrontSlug,
-    };
-
-    purchaseMutation.mutate(purchaseData);
+    });
   };
 
   const handleBulkPurchase = () => {
-    if (!selectedBundle || !bulkPhones.trim() || !user) return;
-
-    if (paymentMethod === "wallet" && bulkTotal > walletBalance) {
+    if (!bulkPhoneNumbers.trim()) {
       toast({
-        title: "Insufficient Balance",
-        description: "Your wallet balance is not enough for this purchase.",
+        title: "❌ Missing Information",
+        description: "Please enter phone numbers with GB amounts",
         variant: "destructive",
       });
       return;
     }
 
-    setIsProcessing(true);
+    // Parse and validate bulk input
+    const lines = bulkPhoneNumbers.split('\n').filter(line => line.trim());
+    const parsedData: Array<{ phone: string; gb: number }> = [];
 
-    // Parse bulk phones
-    const phoneEntries = bulkPhones
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(line => {
-        const parts = line.split(/\s+/);
-        const phone = parts[0];
-        const dataAmount = parts[1] || selectedBundle.name;
-        return { phone, bundleName: selectedBundle.name, dataAmount };
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length !== 2) {
+        toast({
+          title: "❌ Invalid Format",
+          description: `Line "${line}" must have format: phone_number GB_amount (e.g., "0241234567 2")`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
+      let phoneStr = parts[0];
+      const gbAmount = parseFloat(parts[1]);
+
+      if (isNaN(gbAmount) || gbAmount <= 0) {
+        toast({
+          title: "❌ Invalid GB Amount",
+          description: `GB amount "${parts[1]}" must be a positive number`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
+      // Handle country code 233 (remove + if present)
+      phoneStr = phoneStr.replace(/^\+/, '');
+      
+      // If starts with 233, remove it and add 0
+      if (phoneStr.startsWith('233')) {
+        phoneStr = '0' + phoneStr.substring(3);
+      }
+
+      // Normalize the phone number
+      const normalizedPhone = normalizePhoneNumber(phoneStr);
+
+      // Validate phone number for the selected network
+      const validation = validatePhoneNetwork(normalizedPhone, network);
+      if (!validation.isValid) {
+        const prefixes = getNetworkPrefixes(network);
+        toast({
+          title: "❌ Phone Number Mismatch",
+          description: `${phoneStr}: ${validation.error || `Must be for ${networkInfo?.name} network. Valid prefixes: ${prefixes.join(", ")}`}`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
+
+      parsedData.push({ phone: normalizedPhone, gb: gbAmount });
+    }
+
+    if (parsedData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "Please enter at least one phone number with GB amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Find matching bundles for each GB amount from our bundles list
+    const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
+    let totalAmount = 0;
+
+    for (const item of parsedData) {
+      // Find a bundle that matches the GB amount (looking for bundles with the GB in the name)
+      const matchingBundle = bundles?.find(b => {
+        const bundleName = b.name.toLowerCase();
+        // Try to extract GB from bundle name (e.g., "5GB" -> 5)
+        const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+        if (gbMatch) {
+          const bundleGB = parseFloat(gbMatch[1]);
+          return bundleGB === item.gb;
+        }
+        return false;
       });
 
-    const purchaseData = {
-      customerEmail: user.email,
-      paymentMethod,
-      agentSlug: agentData?.agent?.storefrontSlug,
-      orderItems: phoneEntries.map(entry => ({
-        phone: entry.phone,
-        bundleId: selectedBundle.id,
-        bundleName: entry.bundleName,
-        price: agentPrice,
-      })),
-      totalAmount: bulkTotal,
-    };
+      if (!matchingBundle) {
+        toast({
+          title: "❌ Bundle Not Found",
+          description: `No ${item.gb}GB bundle available for ${networkInfo?.name}. Please check available bundles.`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        return;
+      }
 
-    purchaseMutation.mutate(purchaseData);
+      const basePrice = parseFloat(matchingBundle.basePrice);
+      const markup = agentData?.agent?.markupPercentage || 0;
+      const agentPrice = basePrice + (basePrice * markup / 100);
+
+      orderItems.push({
+        phone: item.phone,
+        bundleId: matchingBundle.id,
+        bundleName: matchingBundle.name,
+        price: agentPrice,
+      });
+
+      totalAmount += agentPrice;
+    }
+
+    // Check wallet balance if paying with wallet
+    if (bulkPaymentMethod === "wallet" && walletBalance < totalAmount) {
+      toast({
+        title: "⚠️ Insufficient Wallet Balance",
+        description: `You need GH₵${(totalAmount - walletBalance).toFixed(2)} more. Please top up your wallet or use Paystack.`,
+        variant: "destructive",
+        duration: 6000,
+      });
+      return;
+    }
+
+    bulkPurchaseMutation.mutate({
+      bundleId: "", // Not used in new format
+      phoneNumbers: [], // Not used in new format
+      paymentMethod: bulkPaymentMethod,
+      orderItems,
+      totalAmount,
+    });
   };
 
   if (!user) {
@@ -247,7 +532,7 @@ export default function AgentBundlesPage() {
     );
   }
 
-  const networkInfo = NetworkInfo[network as keyof typeof NetworkInfo];
+  const networkInfo = NetworkInfo[(network?.replace(/-/g, '_')) as keyof typeof NetworkInfo];
 
   if (!networkInfo) {
     return (
@@ -319,250 +604,359 @@ export default function AgentBundlesPage() {
                 <div className="flex items-center gap-4">
                   <div className={`w-4 h-4 rounded-full ${networkInfo.color}`} />
                   <div>
-                    <h2 className="text-lg font-semibold">{networkInfo.name}</h2>
+                    <h2 className="text-lg font-semibold">{networkInfo.name} Data Bundles</h2>
                     <p className="text-sm text-muted-foreground">
-                      Select a data bundle to purchase for your customers
+                      Purchase data bundles for your customers with your markup pricing
                     </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Bundles List */}
-              <div className="lg:col-span-2">
+            <Tabs defaultValue="single" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="single">
+                  <Smartphone className="h-4 w-4 mr-2" />
+                  Single Purchase
+                </TabsTrigger>
+                <TabsTrigger value="bulk">
+                  <Package className="h-4 w-4 mr-2" />
+                  Bulk Purchase
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Single Purchase Tab */}
+              <TabsContent value="single" className="space-y-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Available Bundles</CardTitle>
-                    <CardDescription>
-                      Choose a data bundle for your customers
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {bundlesLoading ? (
-                      <div className="space-y-4">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div key={i} className="animate-pulse">
-                            <div className="h-20 bg-muted rounded-lg" />
-                          </div>
-                        ))}
-                      </div>
-                    ) : bundles && bundles.length > 0 ? (
-                      <div className="space-y-3">
-                        {bundles.map((bundle: DataBundle) => {
-                          const basePrice = parseFloat(bundle.basePrice);
-                          const markup = agentData?.agent?.markupPercentage || 0;
-                          const agentPrice = basePrice + (basePrice * markup / 100);
-
-                          return (
-                            <div
-                              key={bundle.id}
-                              className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                                selectedBundle?.id === bundle.id
-                                  ? "border-primary bg-primary/5"
-                                  : "border-border hover:border-primary/50"
-                              }`}
-                              onClick={() => setSelectedBundle(bundle)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Package className="h-4 w-4" />
-                                    <span className="font-medium">{bundle.name}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {bundle.validity}
-                                    </Badge>
-                                  </div>
-                                  {bundle.description && (
-                                    <p className="text-sm text-muted-foreground mb-2">
-                                      {bundle.description}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="text-right">
-                                  <div className="text-lg font-bold text-primary">
-                                    GH₵{agentPrice.toFixed(2)}
-                                  </div>
-                                  {markup > 0 && (
-                                    <div className="text-xs text-muted-foreground">
-                                      +{markup}% markup
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No bundles available for this network.
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Purchase Form */}
-              <div>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Purchase Details</CardTitle>
-                    <CardDescription>
-                      Complete your purchase information
-                    </CardDescription>
+                    <CardTitle>Purchase Data Bundle</CardTitle>
+                    <CardDescription>Select a bundle and enter recipient details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {selectedBundle ? (
-                      <>
-                        <div className="p-3 bg-muted rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">{selectedBundle.name}</span>
-                            <Badge variant="outline">{selectedBundle.validity}</Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Base Price: GH₵{selectedBundle.basePrice}
-                          </div>
-                          <div className="text-sm font-medium text-primary">
-                            Your Price: GH₵{agentPrice.toFixed(2)}
-                          </div>
+                    {/* Bundle Dropdown */}
+                    <div className="space-y-2">
+                      <Label htmlFor="bundle-select">Select Bundle</Label>
+                      {bundlesLoading ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin" />
                         </div>
-
-                        {/* Purchase Mode Toggle */}
-                        <Tabs value={bulkMode ? "bulk" : "single"} onValueChange={(value) => setBulkMode(value === "bulk")}>
-                          <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="single">Single Purchase</TabsTrigger>
-                            <TabsTrigger value="bulk">Bulk Purchase</TabsTrigger>
-                          </TabsList>
-
-                          <TabsContent value="single" className="space-y-4">
-                            <div>
-                              <Label htmlFor="phone">Customer Phone Number</Label>
-                              <Input
-                                id="phone"
-                                type="tel"
-                                placeholder="0541234567"
-                                value={phoneNumber}
-                                onChange={(e) => setPhoneNumber(e.target.value)}
-                              />
-                            </div>
-
-                            <div>
-                              <Label htmlFor="quantity">Quantity</Label>
-                              <Select value={quantity.toString()} onValueChange={(value) => setQuantity(parseInt(value))}>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                                    <SelectItem key={num} value={num.toString()}>
-                                      {num}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div className="text-sm">
-                              <div className="flex justify-between">
-                                <span>Subtotal:</span>
-                                <span>GH₵{singleTotal.toFixed(2)}</span>
-                              </div>
-                            </div>
-                          </TabsContent>
-
-                          <TabsContent value="bulk" className="space-y-4">
-                            <div>
-                              <Label htmlFor="bulk-phones">Phone Numbers & Amounts</Label>
-                              <Textarea
-                                id="bulk-phones"
-                                placeholder={`0541234567 1GB\n0547654321 2GB\n0549876543`}
-                                value={bulkPhones}
-                                onChange={(e) => setBulkPhones(e.target.value)}
-                                rows={6}
-                              />
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Enter one phone number per line. Format: phone [amount]
-                              </p>
-                            </div>
-
-                            <div className="text-sm">
-                              <div className="flex justify-between">
-                                <span>Total ({bulkPhones.split('\n').filter(line => line.trim()).length} numbers):</span>
-                                <span>GH₵{bulkTotal.toFixed(2)}</span>
-                              </div>
-                            </div>
-                          </TabsContent>
-                        </Tabs>
-
-                        {/* Payment Method */}
-                        <div>
-                          <Label>Payment Method</Label>
-                          <RadioGroup value={paymentMethod} onValueChange={(value: "wallet" | "paystack") => setPaymentMethod(value)}>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="wallet" id="wallet" />
-                              <Label htmlFor="wallet" className="flex items-center gap-2">
-                                <Wallet className="h-4 w-4" />
-                                Wallet (GH₵{walletBalance.toFixed(2)})
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="paystack" id="paystack" />
-                              <Label htmlFor="paystack" className="flex items-center gap-2">
-                                <CreditCard className="h-4 w-4" />
-                                Paystack
-                              </Label>
-                            </div>
-                          </RadioGroup>
-                        </div>
-
-                        {/* Insufficient Balance Warning */}
-                        {paymentMethod === "wallet" && (
-                          (bulkMode ? bulkTotal : singleTotal) > walletBalance
-                        ) && (
-                          <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              Insufficient wallet balance. Please top up your wallet or use Paystack.
-                            </AlertDescription>
-                          </Alert>
-                        )}
-
-                        <Button
-                          className="w-full"
-                          onClick={bulkMode ? handleBulkPurchase : handleSinglePurchase}
-                          disabled={
-                            isProcessing ||
-                            !selectedBundle ||
-                            (bulkMode ? !bulkPhones.trim() : !phoneNumber) ||
-                            (paymentMethod === "wallet" && (bulkMode ? bulkTotal : singleTotal) > walletBalance)
-                          }
+                      ) : (
+                        <Select
+                          value={selectedBundle?.id || ""}
+                          onValueChange={(value) => {
+                            const bundle = bundles?.find(b => b.id === value);
+                            setSelectedBundle(bundle || null);
+                          }}
                         >
-                          {isProcessing ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart className="mr-2 h-4 w-4" />
-                              Purchase {bulkMode ? "Bulk" : "Bundle"}
-                            </>
+                          <SelectTrigger id="bundle-select">
+                            <SelectValue placeholder="Choose a data bundle" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bundles && bundles.length > 0 ? (
+                              bundles.map((bundle) => {
+                                const basePrice = parseFloat(bundle.basePrice);
+                                const markup = agentData?.agent?.markupPercentage || 0;
+                                const agentPrice = basePrice + (basePrice * markup / 100);
+                                return (
+                                  <SelectItem key={bundle.id} value={bundle.id}>
+                                    {bundle.name} - {bundle.validity} - GH₵{agentPrice.toFixed(2)}
+                                  </SelectItem>
+                                );
+                              })
+                            ) : (
+                              <SelectItem value="no-bundles" disabled>
+                                No bundles available
+                              </SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    {/* Selected Bundle Display */}
+                    {selectedBundle && (
+                      <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                        <p className="text-sm text-muted-foreground">Selected Bundle</p>
+                        <p className="font-medium text-lg">{selectedBundle.name}</p>
+                        <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
+                        {selectedBundle.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{selectedBundle.description}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-2xl font-bold text-primary">
+                            GH₵{(parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)).toFixed(2)}
+                          </span>
+                          {(agentData?.agent?.markupPercentage || 0) > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{(agentData?.agent?.markupPercentage || 0)}% markup
+                            </Badge>
                           )}
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Select a bundle to continue
+                        </div>
                       </div>
                     )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Beneficiary Number</Label>
+                      <Input
+                        id="phone"
+                        placeholder="0241234567"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        For <strong>{networkInfo?.name}</strong> network only. 
+                        Valid prefixes: <strong>{selectedBundle ? getNetworkPrefixes(selectedBundle.network).join(", ") : ""}</strong>
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Payment Method</Label>
+                      <RadioGroup 
+                        value={paymentMethod} 
+                        onValueChange={(value: "wallet" | "paystack") => setPaymentMethod(value)}
+                        className="grid gap-3"
+                      >
+                        {/* Wallet Payment Option */}
+                        <div className="relative">
+                          <input
+                            type="radio"
+                            value="wallet"
+                            id="wallet-single"
+                            checked={paymentMethod === "wallet"}
+                            onChange={() => setPaymentMethod("wallet")}
+                            className="peer sr-only"
+                            disabled={selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance ? true : false}
+                          />
+                          <Label
+                            htmlFor="wallet-single"
+                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all ${
+                              selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Wallet className="h-5 w-5" />
+                              <div>
+                                <div className="font-medium">Wallet Balance</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Available: GH₵{walletBalance.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+                            {paymentMethod === "wallet" && (
+                              <CheckCircle className="h-5 w-5 text-primary" />
+                            )}
+                          </Label>
+                          {selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance && (
+                            <div className="absolute top-2 right-2">
+                              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                                Insufficient
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Paystack Payment Option */}
+                        <div>
+                          <input
+                            type="radio"
+                            value="paystack"
+                            id="paystack-single"
+                            checked={paymentMethod === "paystack"}
+                            onChange={() => setPaymentMethod("paystack")}
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="paystack-single"
+                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
+                          >
+                            <div className="flex items-center gap-3">
+                              <CreditCard className="h-5 w-5" />
+                              <div>
+                                <div className="font-medium">Pay with MoMo</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Secure payment via Paystack
+                                </div>
+                              </div>
+                            </div>
+                            {paymentMethod === "paystack" && (
+                              <CheckCircle className="h-5 w-5 text-primary" />
+                            )}
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    {/* Insufficient Balance Alert */}
+                    {selectedBundle && paymentMethod === "wallet" && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance && (
+                      <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                          <strong>Insufficient Balance:</strong> You need GH₵{((parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) - walletBalance).toFixed(2)} more.
+                          <a href="/agent/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={handleSinglePurchase}
+                      disabled={!selectedBundle || !phoneNumber || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance)}
+                    >
+                      {purchaseMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Smartphone className="mr-2 h-4 w-4" />
+                          Purchase Bundle
+                        </>
+                      )}
+                    </Button>
                   </CardContent>
                 </Card>
-              </div>
-            </div>
+              </TabsContent>
+
+              {/* Bulk Purchase Tab */}
+              <TabsContent value="bulk" className="space-y-6">
+                <Card>
+                    <CardHeader>
+                      <CardTitle>Bulk Purchase</CardTitle>
+                      <CardDescription>Enter phone numbers with GB amounts for {networkInfo?.name}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label htmlFor="bulk-phones">Beneficiary Numbers and GB Amounts</Label>
+                          {bulkPhoneNumbers.trim() && (
+                            <Badge variant="outline" className="text-xs">
+                              {bulkPhoneNumbers.split('\n').filter(line => line.trim()).length} entries
+                            </Badge>
+                          )}
+                        </div>
+                        <Textarea
+                          id="bulk-phones"
+                          placeholder="0546591622 1&#10;0247064874 3&#10;0245696072 2&#10;233547897522 10&#10;...add as many as you need (no limit)"
+                          rows={20}
+                          value={bulkPhoneNumbers}
+                          onChange={(e) => setBulkPhoneNumbers(e.target.value)}
+                          className="font-mono text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter one number per line with GB amount (e.g., "0241234567 2" for 2GB). 
+                          Supports formats: 0241234567 or 233241234567 (no + sign). 
+                          <strong className="text-green-600">✓ No limit - add 100+ numbers!</strong>
+                          <br />
+                          All numbers must be for <strong>{networkInfo?.name}</strong> network.
+                          Valid prefixes: <strong>{network ? getNetworkPrefixes(network).join(", ") : ""}</strong>
+                        </p>
+                      </div>
+
+                    <div className="space-y-3">
+                      <Label>Payment Method</Label>
+                      <RadioGroup 
+                        value={bulkPaymentMethod} 
+                        onValueChange={(value: "wallet" | "paystack") => setBulkPaymentMethod(value)}
+                        className="grid gap-3"
+                      >
+                        {/* Wallet Payment Option */}
+                        <div className="relative">
+                          <input
+                            type="radio"
+                            value="wallet"
+                            id="wallet-bulk"
+                            checked={bulkPaymentMethod === "wallet"}
+                            onChange={() => setBulkPaymentMethod("wallet")}
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="wallet-bulk"
+                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Wallet className="h-5 w-5" />
+                              <div>
+                                <div className="font-medium">Wallet Balance</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Available: GH₵{walletBalance.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+                            {bulkPaymentMethod === "wallet" && (
+                              <CheckCircle className="h-5 w-5 text-primary" />
+                            )}
+                          </Label>
+                        </div>
+
+                        {/* Paystack Payment Option */}
+                        <div>
+                          <input
+                            type="radio"
+                            value="paystack"
+                            id="paystack-bulk"
+                            checked={bulkPaymentMethod === "paystack"}
+                            onChange={() => setBulkPaymentMethod("paystack")}
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="paystack-bulk"
+                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
+                          >
+                            <div className="flex items-center gap-3">
+                              <CreditCard className="h-5 w-5" />
+                              <div>
+                                <div className="font-medium">Pay with MoMo</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Secure payment via Paystack
+                                </div>
+                              </div>
+                            </div>
+                            {bulkPaymentMethod === "paystack" && (
+                              <CheckCircle className="h-5 w-5 text-primary" />
+                            )}
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleBulkPurchase}
+                        disabled={
+                          !bulkPhoneNumbers.trim() || 
+                          bulkPurchaseMutation.isPending
+                        }
+                      >
+                        {bulkPurchaseMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="mr-2 h-4 w-4" />
+                            {bulkTotal 
+                              ? `Purchase for GH₵${bulkTotal.total.toFixed(2)} (${bulkTotal.count} items)`
+                              : "Purchase Data Bundles"
+                            }
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+              </TabsContent>
+            </Tabs>
           </div>
         </main>
       </div>
     </div>
+
+
   );
 }

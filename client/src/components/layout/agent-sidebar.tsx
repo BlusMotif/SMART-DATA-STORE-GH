@@ -195,7 +195,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
           CT
         </div>
         <div className="flex flex-col">
-          <span className="font-semibold text-sm">{APP_NAME}</span>
+          <span className="font-semibold text-sm">{agent?.businessName || APP_NAME}</span>
           <span className="text-xs text-muted-foreground">Agent Portal</span>
         </div>
       </div>

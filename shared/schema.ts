@@ -58,6 +58,8 @@ export const PaymentMethod = {
   MTN_MOMO: "mtn_momo",
   TELECEL_CASH: "telecel_cash",
   AIRTEL_TIGO_CASH: "airtel_tigo_cash",
+  AT_BIGTIME: "at_bigtime",
+  AT_ISHARE: "at_ishare",
   VODAFONE_CASH: "vodafone_cash",
 } as const;
 
@@ -532,7 +534,7 @@ export const purchaseSchema = z.object({
 
 export const withdrawalRequestSchema = z.object({
   amount: z.number().min(10, "Minimum withdrawal amount is GH₵10").positive("Amount must be positive"),
-  paymentMethod: z.enum(["bank", "mtn_momo", "telecel_cash", "airtel_tigo_cash", "vodafone_cash"], {
+  paymentMethod: z.enum(["bank", "mtn_momo", "telecel_cash", "airtel_tigo_cash", "at_bigtime", "at_ishare", "vodafone_cash"], {
     required_error: "Please select a payment method"
   }),
   bankName: z.string().optional(),

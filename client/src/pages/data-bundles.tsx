@@ -2,7 +2,6 @@ import { Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Card } from "@/components/ui/card";
-import { NetworkPrefixRules } from "@/components/ui/network-prefix-rules";
 import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
@@ -26,11 +25,18 @@ const products = [
     description: "Telecel Data Bundles",
   },
   {
-    id: "airteltigo",
-    name: "AirtelTigo Data",
+    id: "at_bigtime",
+    name: "AT BIG TIME Data",
     logo: airteltigoLogo,
-    href: "/products/airteltigo",
-    description: "AirtelTigo Data Bundles",
+    href: "/products/at_bigtime",
+    description: "AT BIG TIME Data Bundles",
+  },
+  {
+    id: "at_ishare",
+    name: "AT iShare Data",
+    logo: airteltigoLogo,
+    href: "/products/at_ishare",
+    description: "AT iShare Data Bundles",
   },
 ];
 
@@ -43,9 +49,6 @@ export default function DataBundlesPage() {
         {/* Products Section - Logo Grid */}
         <section id="products" className="py-12 px-4">
           <div className="container mx-auto max-w-4xl space-y-8">
-            {/* Network Prefix Rules */}
-            <NetworkPrefixRules />
-
             <h2 className="text-2xl font-bold text-center">Select a Data Bundle</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">

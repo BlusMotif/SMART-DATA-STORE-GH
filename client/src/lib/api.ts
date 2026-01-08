@@ -3,7 +3,7 @@
 // In development, they might be on different ports
 import { supabase } from "./supabaseClient";
 
-const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:10000' : '';
+const API_BASE_URL = import.meta.env.DEV ? '' : '';
 
 export const api = {
   // In development, use localhost:10000

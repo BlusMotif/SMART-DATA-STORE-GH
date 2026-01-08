@@ -34,6 +34,8 @@ const networkInfo: Record<string, { name: string; logo: string }> = {
   mtn: { name: "MTN", logo: mtnLogo },
   telecel: { name: "Telecel", logo: telecelLogo },
   airteltigo: { name: "AirtelTigo", logo: airteltigoLogo },
+  at_bigtime: { name: "AT BIG TIME", logo: airteltigoLogo },
+  at_ishare: { name: "AT iShare", logo: airteltigoLogo },
 };
 
 const singleOrderSchema = z.object({

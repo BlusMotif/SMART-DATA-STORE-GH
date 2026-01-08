@@ -7,6 +7,8 @@ export enum GhanaNetwork {
   MTN = "mtn",
   TELECEL = "telecel",
   AIRTELTIGO = "airteltigo",
+  AT_BIGTIME = "at_bigtime",
+  AT_ISHARE = "at_ishare",
 }
 
 // Network prefix mappings
@@ -14,6 +16,8 @@ const NETWORK_PREFIXES: Record<GhanaNetwork, string[]> = {
   [GhanaNetwork.MTN]: ["024", "025", "053", "054", "055", "059"],
   [GhanaNetwork.TELECEL]: ["020", "050"],
   [GhanaNetwork.AIRTELTIGO]: ["026", "027", "056", "057"],
+  [GhanaNetwork.AT_BIGTIME]: ["026", "027", "056", "057"],
+  [GhanaNetwork.AT_ISHARE]: ["026", "027", "056", "057"],
 };
 
 /**
@@ -129,6 +133,8 @@ export function getNetworkDisplayName(network: string): string {
     mtn: "MTN Ghana",
     telecel: "Telecel",
     airteltigo: "AirtelTigo",
+    at_bigtime: "AT Bigtime",
+    at_ishare: "AT ishare",
   };
   
   return names[network.toLowerCase()] || network.toUpperCase();

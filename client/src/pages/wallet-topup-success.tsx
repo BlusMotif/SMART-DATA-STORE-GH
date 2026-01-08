@@ -203,13 +203,6 @@ export default function WalletTopupSuccessPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Button onClick={() => {
-                const agentStore = localStorage.getItem("agentStore");
-                setLocation(agentStore ? `/store/${agentStore}` : "/");
-              }} className="w-full">
-                <Wallet className="w-4 h-4 mr-2" />
-                {localStorage.getItem("agentStore") ? "Back to Store" : "Start Shopping"}
-              </Button>
               <Button variant="outline" onClick={() => {
                 const agentStore = localStorage.getItem("agentStore");
                 if (agentStore) {
@@ -219,7 +212,8 @@ export default function WalletTopupSuccessPage() {
                 } else {
                   setLocation("/user/dashboard");
                 }
-              }}>
+              }} className="w-full">
+                <Wallet className="w-4 h-4 mr-2" />
                 {localStorage.getItem("agentStore") ? "Continue Shopping" : agent ? "Agent Dashboard" : "View Dashboard"}
               </Button>
             </div>

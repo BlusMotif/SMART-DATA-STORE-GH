@@ -354,11 +354,25 @@ export default function AgentPublicStorefront() {
       network: "telecel"
     },
     {
-      id: "airteltigo",
-      name: "AirtelTigo Data Bundles",
-      description: "Buy AirtelTigo data bundles.",
+      id: "at_bigtime",
+      name: "AT BIG TIME Bundles",
+      description: "Buy AT BIG TIME data bundles.",
       image: airteltigoLogo,
-      network: "airteltigo"
+      network: "at_bigtime"
+    },
+    {
+      id: "at_ishare",
+      name: "AT iShare Bundles",
+      description: "Buy AT iShare data bundles.",
+      image: airteltigoLogo,
+      network: "at_ishare"
+    },
+    {
+      id: "waec-result-checker",
+      name: "WAEC Result Checker",
+      description: "Purchase BECE & WASSCE result checkers.",
+      image: resultLogo,
+      network: "result-checkers"
     },
   ];
 
@@ -425,24 +439,26 @@ export default function AgentPublicStorefront() {
         <section id="products" className="py-12 px-4">
           <div className="container mx-auto max-w-4xl">
             <h2 className="text-2xl font-bold text-center mb-8">Select Network</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {productCategories.map((cat) => (
-                <Card 
-                  key={cat.id} 
-                  className="p-6 h-full flex flex-col items-center justify-center gap-4 cursor-pointer hover-elevate transition-all min-h-[200px]"
-                  onClick={() => handleProductClick(cat.network)}
-                >
-                  <img
-                    src={cat.image}
-                    alt={cat.name}
-                    className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg flex-shrink-0"
-                  />
-                  <div className="flex flex-col items-center gap-2 flex-1 justify-center">
-                    <p className="text-lg font-semibold text-center">{cat.name}</p>
-                    <p className="text-sm text-center text-muted-foreground leading-relaxed">{cat.description}</p>
-                  </div>
-                </Card>
-              ))}
+            <div className="flex justify-center">
+              <div className="grid grid-cols-3 gap-4 max-w-2xl">
+                {productCategories.map((cat) => (
+                  <Card
+                    key={cat.id}
+                    className="p-3 h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover-elevate transition-all min-h-[120px] w-full max-w-[180px]"
+                    onClick={() => handleProductClick(cat.network)}
+                  >
+                    <img
+                      src={cat.image}
+                      alt={cat.name}
+                      className="w-10 h-10 md:w-12 md:h-12 object-contain rounded-lg flex-shrink-0"
+                    />
+                    <div className="flex flex-col items-center gap-1 flex-1 justify-center">
+                      <p className="text-sm font-semibold text-center leading-tight">{cat.name}</p>
+                      <p className="text-xs text-center text-muted-foreground leading-tight">{cat.description}</p>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -691,7 +707,7 @@ export default function AgentPublicStorefront() {
                             setSelectedNetwork(value);
                             setSelectedBundleId("");
                           }}>
-                            <div className="grid grid-cols-3 gap-3 mt-2">
+                            <div className="grid grid-cols-2 gap-3 mt-2">
                               <Label htmlFor="bulk-mtn" className="cursor-pointer">
                                 <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "mtn" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
                                   <RadioGroupItem value="mtn" id="bulk-mtn" className="sr-only" />
@@ -710,12 +726,21 @@ export default function AgentPublicStorefront() {
                                   </span>
                                 </div>
                               </Label>
-                              <Label htmlFor="bulk-airteltigo" className="cursor-pointer">
-                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "airteltigo" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
-                                  <RadioGroupItem value="airteltigo" id="bulk-airteltigo" className="sr-only" />
-                                  <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AirtelTigo</Badge>
+                              <Label htmlFor="bulk-at_bigtime" className="cursor-pointer">
+                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_bigtime" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                  <RadioGroupItem value="at_bigtime" id="bulk-at_bigtime" className="sr-only" />
+                                  <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AT BIG TIME</Badge>
                                   <span className="text-sm text-center">
-                                    {validationResults.filter(r => r.isValid && r.network === "airteltigo").length} numbers
+                                    {validationResults.filter(r => r.isValid && r.network === "at_bigtime").length} numbers
+                                  </span>
+                                </div>
+                              </Label>
+                              <Label htmlFor="bulk-at_ishare" className="cursor-pointer">
+                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_ishare" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                  <RadioGroupItem value="at_ishare" id="bulk-at_ishare" className="sr-only" />
+                                  <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AT iShare</Badge>
+                                  <span className="text-sm text-center">
+                                    {validationResults.filter(r => r.isValid && r.network === "at_ishare").length} numbers
                                   </span>
                                 </div>
                               </Label>

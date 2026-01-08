@@ -9,6 +9,262 @@ import {
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
 } from "@shared/schema";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack";
+import { fulfillDataBundleTransaction } from "./providers";
+
+// Process webhook events asynchronously
+async function processWebhookEvent(event: any) {
+  if (event.event === "charge.success") {
+    const data = event.data;
+    const reference = data.reference;
+    const metadata = data.metadata;
+
+    // Check if this is an agent activation payment
+    if (metadata && metadata.purpose === "agent_activation") {
+      // Handle new flow - pending registration (account not created yet)
+      if (metadata.pending_registration && metadata.registration_data) {
+        console.log("Processing pending agent registration via webhook:", reference);
+        
+        const supabaseServer = getSupabase();
+        if (!supabaseServer) {
+          console.error("Supabase not initialized for webhook");
+          return;
+        }
+        
+        const regData = metadata.registration_data;
+        
+        try {
+          // Check if agent already exists
+          const existingAgent = await storage.getAgentBySlug(regData.storefrontSlug);
+          if (existingAgent) {
+            console.log("Agent already exists for slug:", regData.storefrontSlug);
+            return;
+          }
+
+          // Create user in Supabase Auth
+          const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
+            email: regData.email,
+            password: regData.password,
+            user_metadata: {
+              name: regData.name,
+              phone: regData.phone,
+              role: 'agent'
+            },
+            email_confirm: true
+          });
+
+          if (authError) {
+            console.error("Failed to create auth user in webhook:", authError);
+            return;
+          }
+
+          const userId = authData.user.id;
+          console.log("User created via webhook:", userId);
+
+          // Check if user already exists in local database
+          const existingUser = await storage.getUser(userId);
+          if (!existingUser) {
+            // Create user in local database
+            await storage.createUser({
+              id: userId,
+              email: regData.email,
+              password: '',
+              name: regData.name,
+              phone: regData.phone,
+              role: UserRole.AGENT,
+            });
+          }
+
+          // Create agent record (approved since payment is complete)
+          const agent = await storage.createAgent({
+            userId: userId,
+            storefrontSlug: regData.storefrontSlug,
+            businessName: regData.businessName,
+            isApproved: true,
+            paymentPending: false,
+          });
+          console.log("Agent created via webhook:", agent.id);
+
+          // Check if transaction already exists
+          const existingTransaction = await storage.getTransactionByReference(reference);
+          if (!existingTransaction) {
+            // Create transaction record
+            const activationFee = 60.00;
+            await storage.createTransaction({
+              reference: reference,
+              type: ProductType.AGENT_ACTIVATION,
+              productId: agent.id,
+              productName: "Agent Account Activation",
+              network: null,
+              amount: activationFee.toString(),
+              costPrice: "0.00",
+              profit: activationFee.toString(),
+              customerPhone: regData.phone,
+              customerEmail: regData.email,
+              paymentMethod: "paystack",
+              status: TransactionStatus.COMPLETED,
+              paymentReference: reference,
+              agentId: null,
+              agentProfit: "0.00",
+            });
+          }
+          
+          console.log("Agent registration completed via webhook");
+        } catch (createError: any) {
+          console.error("Error creating account in webhook:", createError);
+        }
+        
+        return;
+      }
+      
+      // Handle old flow - agent already exists
+      if (metadata.agent_id) {
+        console.log("Processing agent activation payment (old flow):", reference);
+        
+        try {
+          // Update transaction status
+          if (metadata.transaction_id) {
+            await storage.updateTransaction(metadata.transaction_id, {
+              status: TransactionStatus.COMPLETED,
+              completedAt: new Date(),
+              paymentReference: reference,
+            });
+            console.log("Activation transaction marked as completed:", metadata.transaction_id);
+          }
+          
+          // Auto-approve the agent and mark payment as received
+          const agent = await storage.updateAgent(metadata.agent_id, { 
+            isApproved: true,
+            paymentPending: false,
+          });
+
+          if (agent) {
+            console.log("Agent auto-approved after payment:", agent.id);
+            
+            // Update user role to agent
+            const updatedUser = await storage.updateUser(agent.userId, { role: UserRole.AGENT });
+            if (updatedUser) {
+              console.log("User role updated to agent:", updatedUser.id);
+            } else {
+              console.error("Failed to update user role to agent for user:", agent.userId);
+            }
+          }
+        } catch (oldFlowError: any) {
+          console.error("Error processing old flow webhook:", oldFlowError);
+        }
+        
+        return;
+      }
+    }
+
+    // Handle regular transaction payments
+    try {
+      const transaction = await storage.getTransactionByReference(reference);
+      if (!transaction) {
+        console.error("Transaction not found for webhook:", reference);
+        return; // Return early, don't throw
+      }
+
+      if (transaction.status === TransactionStatus.COMPLETED) {
+        return; // Already processed
+      }
+
+      // Fulfill the order
+      let deliveredPin: string | undefined;
+      let deliveredSerial: string | undefined;
+
+      if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
+        const checker = await storage.getResultChecker(transaction.productId);
+        if (checker && !checker.isSold) {
+          await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+          deliveredPin = checker.pin;
+          deliveredSerial = checker.serialNumber;
+        }
+      }
+
+      // If this is a data bundle transaction, try to fulfill using provider settings
+      if (transaction.type === ProductType.DATA_BUNDLE) {
+        try {
+          const fulfillResult = await fulfillDataBundleTransaction(transaction);
+          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
+          // If provider reports all recipients ok, mark delivered/completed
+          if (fulfillResult && fulfillResult.success && Array.isArray(fulfillResult.results)) {
+            const allOk = fulfillResult.results.every((r: any) => r.status === "ok");
+            if (allOk) {
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.DELIVERED,
+                completedAt: new Date(),
+                paymentReference: data.reference,
+              });
+            } else {
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.COMPLETED,
+                completedAt: new Date(),
+                paymentReference: data.reference,
+                failureReason: JSON.stringify(fulfillResult.results),
+              });
+            }
+          } else {
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.COMPLETED,
+              completedAt: new Date(),
+              paymentReference: data.reference,
+              failureReason: fulfillResult?.error || "Provider fulfillment failed",
+            });
+          }
+        } catch (err: any) {
+          console.error("Fulfillment error:", err);
+          await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.COMPLETED,
+            completedAt: new Date(),
+            paymentReference: data.reference,
+            failureReason: String(err?.message || err),
+          });
+        }
+      } else {
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.COMPLETED,
+          completedAt: new Date(),
+          deliveredPin,
+          deliveredSerial,
+          paymentReference: data.reference,
+        });
+      }
+
+      // Credit agent if applicable
+      if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
+        await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+      }
+
+      console.log("Payment processed via webhook:", reference);
+    } catch (transactionError: any) {
+      console.error("Error processing transaction webhook:", transactionError);
+    }
+  }
+
+  // Handle transfer events
+  if (event.event === "transfer.success") {
+    try {
+      const data = event.data;
+      const transferReference = data.reference;
+      
+      console.log("Processing transfer success:", transferReference);
+      
+      // Find withdrawal by transfer reference
+      const withdrawals = await storage.getWithdrawals();
+      const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
+      
+      if (withdrawal) {
+        await storage.updateWithdrawal(withdrawal.id, {
+          status: WithdrawalStatus.COMPLETED,
+          processedAt: new Date(),
+        });
+        console.log("Withdrawal marked as completed:", withdrawal.id);
+      }
+    } catch (transferError: any) {
+      console.error("Error processing transfer webhook:", transferError);
+    }
+  }
+}
 import { getSupabaseServer } from "./supabase";
 import { 
   validatePhoneNetwork, 
@@ -656,6 +912,23 @@ export async function registerRoutes(
 
         const user = (req as any).user;
         if (!user || !user.id) return res.status(401).json({ error: "Unauthorized" });
+        console.log("Upgrade request for user:", user.id, "email:", user.email);
+
+        // Ensure user exists in database
+        let dbUser = await storage.getUserByEmail(user.email);
+        if (!dbUser) {
+          console.log("User not in database, creating...");
+          dbUser = await storage.createUser({
+            id: user.id,
+            email: user.email,
+            password: "",
+            name: user.user_metadata?.name || user.email.split('@')[0],
+            phone: user.phone || null,
+            role: 'user',
+            isActive: true,
+          });
+          console.log("User created in db:", dbUser.id);
+        }
 
         const { businessName, storefrontSlug } = req.body || {};
         if (!businessName || !storefrontSlug) {
@@ -674,14 +947,16 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Storefront URL already taken" });
         }
 
+        console.log("Creating agent for user:", dbUser.id);
         // Create agent record (pending approval/payment)
         const agent = await storage.createAgent({
-          userId: user.id,
+          userId: dbUser.id,
           storefrontSlug,
           businessName,
           isApproved: false,
           paymentPending: true,
         } as any);
+        console.log("Agent created:", agent.id);
 
         // Create pending transaction record
         const activationFee = 60.0;
@@ -696,7 +971,7 @@ export async function registerRoutes(
           amount: activationFee.toString(),
           costPrice: "0.00",
           profit: activationFee.toString(),
-          customerPhone: user.phone || null,
+          customerPhone: user.phone || "",
           customerEmail: user.email || null,
           paymentMethod: "paystack",
           status: TransactionStatus.PENDING,
@@ -704,8 +979,11 @@ export async function registerRoutes(
           agentId: agent.id,
           agentProfit: "0.00",
         } as any);
+        console.log("Transaction created:", transaction.id);
 
+        console.log("Initializing Paystack payment...");
         // Initialize Paystack payment
+        console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",
           headers: {
@@ -727,6 +1005,8 @@ export async function registerRoutes(
         });
 
         const paystackData = await paystackResponse.json();
+        console.log("Paystack response status:", paystackData.status, "data:", paystackData);
+        console.log("Paystack response full:", JSON.stringify(paystackData, null, 2));
         if (!paystackData.status) {
           // cleanup
           try { await storage.deleteAgent(agent.id); } catch (_) {}
@@ -735,8 +1015,11 @@ export async function registerRoutes(
         }
 
         res.json({ paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
+        console.log("Returning payment URL:", paystackData.data.authorization_url);
+        console.log("Full response being sent:", { paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
       } catch (error: any) {
-        console.error("Error during agent upgrade:", error);
+        console.error("Error during agent upgrade:", error.message);
+        console.error("Full error:", error);
         res.status(500).json({ error: error.message || "Upgrade failed" });
       }
     });
@@ -993,12 +1276,16 @@ export async function registerRoutes(
   // ============================================
   // PAYSTACK CONFIG
   // ============================================
-  app.get("/api/paystack/config", (req, res) => {
-    res.json({
-      publicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
-      isConfigured: isPaystackConfigured(),
-      isTestMode: isPaystackTestMode(),
-    });
+  app.get("/api/paystack/config", async (req, res) => {
+    try {
+      const publicKey = (await storage.getSetting("paystack.public_key")) || process.env.PAYSTACK_PUBLIC_KEY || "";
+      const secretKey = (await storage.getSetting("paystack.secret_key")) || process.env.PAYSTACK_SECRET_KEY || "";
+      const isConfigured = !!secretKey;
+      const isTestMode = secretKey.startsWith("sk_test_");
+      res.json({ publicKey, isConfigured, isTestMode });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load paystack config" });
+    }
   });
 
   // ============================================
@@ -1680,6 +1967,14 @@ export async function registerRoutes(
 
           if (agent) {
             console.log("Agent auto-approved after payment verification:", agent.id);
+            
+            // Update user role to agent
+            const updatedUser = await storage.updateUser(agent.userId, { role: UserRole.AGENT });
+            if (updatedUser) {
+              console.log("User role updated to agent:", updatedUser.id);
+            } else {
+              console.error("Failed to update user role to agent for user:", agent.userId);
+            }
           }
         }
 
@@ -1717,60 +2012,58 @@ export async function registerRoutes(
     }
   });
 
-  // Paystack Webhook Handler
-  app.post("/api/paystack/webhook", async (req, res) => {
-    try {
-      const signature = req.headers["x-paystack-signature"] as string;
-      const rawBody = req.rawBody as Buffer;
+  // Process webhook events asynchronously
+  async function processWebhookEvent(event: any) {
+    if (event.event === "charge.success") {
+      const data = event.data;
+      const reference = data.reference;
+      const metadata = data.metadata;
 
-      // Validate webhook signature using raw body
-      if (!rawBody || !validateWebhookSignature(rawBody, signature)) {
-        console.error("Invalid Paystack webhook signature");
-        return res.status(400).json({ error: "Invalid signature" });
-      }
-
-      const event = req.body;
-
-      if (event.event === "charge.success") {
-        const data = event.data;
-        const reference = data.reference;
-        const metadata = data.metadata;
-
-        // Check if this is an agent activation payment
-        if (metadata && metadata.purpose === "agent_activation") {
-          // Handle new flow - pending registration (account not created yet)
-          if (metadata.pending_registration && metadata.registration_data) {
-            console.log("Processing pending agent registration via webhook:", reference);
-            
-            const supabaseServer = getSupabase();
-            if (!supabaseServer) {
-              console.error("Supabase not initialized for webhook");
-              return res.sendStatus(200);
+      // Check if this is an agent activation payment
+      if (metadata && metadata.purpose === "agent_activation") {
+        // Handle new flow - pending registration (account not created yet)
+        if (metadata.pending_registration && metadata.registration_data) {
+          console.log("Processing pending agent registration via webhook:", reference);
+          
+          const supabaseServer = getSupabase();
+          if (!supabaseServer) {
+            console.error("Supabase not initialized for webhook");
+            return;
+          }
+          
+          const regData = metadata.registration_data;
+          
+          try {
+            // Check if agent already exists
+            const existingAgent = await storage.getAgentBySlug(regData.storefrontSlug);
+            if (existingAgent) {
+              console.log("Agent already exists for slug:", regData.storefrontSlug);
+              return;
             }
-            
-            const regData = metadata.registration_data;
-            
-            try {
-              // Create user in Supabase Auth
-              const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
-                email: regData.email,
-                password: regData.password,
-                user_metadata: {
-                  name: regData.name,
-                  phone: regData.phone,
-                  role: 'agent'
-                },
-                email_confirm: true
-              });
 
-              if (authError) {
-                console.error("Failed to create auth user in webhook:", authError);
-                return res.sendStatus(200);
-              }
+            // Create user in Supabase Auth
+            const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
+              email: regData.email,
+              password: regData.password,
+              user_metadata: {
+                name: regData.name,
+                phone: regData.phone,
+                role: 'agent'
+              },
+              email_confirm: true
+            });
 
-              const userId = authData.user.id;
-              console.log("User created via webhook:", userId);
+            if (authError) {
+              console.error("Failed to create auth user in webhook:", authError);
+              return;
+            }
 
+            const userId = authData.user.id;
+            console.log("User created via webhook:", userId);
+
+            // Check if user already exists in local database
+            const existingUser = await storage.getUser(userId);
+            if (!existingUser) {
               // Create user in local database
               await storage.createUser({
                 id: userId,
@@ -1780,17 +2073,21 @@ export async function registerRoutes(
                 phone: regData.phone,
                 role: UserRole.AGENT,
               });
+            }
 
-              // Create agent record (approved since payment is complete)
-              const agent = await storage.createAgent({
-                userId: userId,
-                storefrontSlug: regData.storefrontSlug,
-                businessName: regData.businessName,
-                isApproved: true,
-                paymentPending: false,
-              });
-              console.log("Agent created via webhook:", agent.id);
+            // Create agent record (approved since payment is complete)
+            const agent = await storage.createAgent({
+              userId: userId,
+              storefrontSlug: regData.storefrontSlug,
+              businessName: regData.businessName,
+              isApproved: true,
+              paymentPending: false,
+            });
+            console.log("Agent created via webhook:", agent.id);
 
+            // Check if transaction already exists
+            const existingTransaction = await storage.getTransactionByReference(reference);
+            if (!existingTransaction) {
               // Create transaction record
               const activationFee = 60.00;
               await storage.createTransaction({
@@ -1810,132 +2107,166 @@ export async function registerRoutes(
                 agentId: null,
                 agentProfit: "0.00",
               });
-              
-              console.log("Agent registration completed via webhook");
-            } catch (createError: any) {
-              console.error("Error creating account in webhook:", createError);
             }
             
-            return res.sendStatus(200);
+            console.log("Agent registration completed via webhook");
+          } catch (createError: any) {
+            console.error("Error creating account in webhook:", createError);
           }
           
-          // Handle old flow - agent already exists
-          if (metadata.agent_id) {
-            console.log("Processing agent activation payment (old flow):", reference);
-            
-            // Update transaction status
-            if (metadata.transaction_id) {
-              await storage.updateTransaction(metadata.transaction_id, {
-                status: TransactionStatus.COMPLETED,
-                completedAt: new Date(),
-                paymentReference: reference,
-              });
-              console.log("Activation transaction marked as completed:", metadata.transaction_id);
-            }
-            
-            // Auto-approve the agent and mark payment as received
-            const agent = await storage.updateAgent(metadata.agent_id, { 
-              isApproved: true,
-              paymentPending: false,
+          return;
+        }
+        
+        // Handle old flow - agent already exists
+        if (metadata.agent_id) {
+          console.log("Processing agent activation payment (old flow):", reference);
+          
+          // Update transaction status
+          if (metadata.transaction_id) {
+            await storage.updateTransaction(metadata.transaction_id, {
+              status: TransactionStatus.COMPLETED,
+              completedAt: new Date(),
+              paymentReference: reference,
             });
-
-            if (agent) {
-              console.log("Agent auto-approved after payment:", agent.id);
-            }
-            
-            return res.sendStatus(200);
-          }
-        }
-
-        // Handle regular transaction payments
-        const transaction = await storage.getTransactionByReference(reference);
-        if (!transaction) {
-          console.error("Transaction not found for webhook:", reference);
-          return res.sendStatus(200); // Return 200 to acknowledge receipt
-        }
-
-        if (transaction.status === TransactionStatus.COMPLETED) {
-          return res.sendStatus(200); // Already processed
-        }
-
-        // Fulfill the order
-        let deliveredPin: string | undefined;
-        let deliveredSerial: string | undefined;
-
-        if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
-          const checker = await storage.getResultChecker(transaction.productId);
-          if (checker && !checker.isSold) {
-            await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
-            deliveredPin = checker.pin;
-            deliveredSerial = checker.serialNumber;
-          }
-        }
-
-        await storage.updateTransaction(transaction.id, {
-          status: TransactionStatus.COMPLETED,
-          completedAt: new Date(),
-          deliveredPin,
-          deliveredSerial,
-          paymentReference: data.reference,
-        });
-
-        // Credit agent if applicable
-        if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
-          await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
-        }
-
-        console.log("Payment processed via webhook:", reference);
-      }
-
-      // Handle transfer events
-      if (event.event === "transfer.success") {
-        const data = event.data;
-        const transferReference = data.reference;
-        
-        console.log("Processing transfer success:", transferReference);
-        
-        // Find withdrawal by transfer reference
-        const withdrawals = await storage.getWithdrawals();
-        const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
-        
-        if (withdrawal) {
-          await storage.updateWithdrawal(withdrawal.id, {
-            status: WithdrawalStatus.COMPLETED,
-            processedAt: new Date(),
-          });
-          console.log("Withdrawal marked as completed:", withdrawal.id);
-        }
-      }
-
-      if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
-        const data = event.data;
-        const transferReference = data.reference;
-        
-        console.log("Processing transfer failure:", transferReference);
-        
-        // Find withdrawal by transfer reference
-        const withdrawals = await storage.getWithdrawals();
-        const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
-        
-        if (withdrawal) {
-          // Refund the agent balance
-          const agent = await storage.getAgent(withdrawal.agentId);
-          if (agent) {
-            await storage.updateAgentBalance(agent.id, parseFloat(withdrawal.amount), false);
+            console.log("Activation transaction marked as completed:", metadata.transaction_id);
           }
           
-          await storage.updateWithdrawal(withdrawal.id, {
-            status: WithdrawalStatus.FAILED,
-            adminNote: `Transfer failed: ${data.failures?.[0]?.message || 'Unknown error'}`,
-            processedAt: new Date(),
+          // Auto-approve the agent and mark payment as received
+          const agent = await storage.updateAgent(metadata.agent_id, { 
+            isApproved: true,
+            paymentPending: false,
           });
-          console.log("Withdrawal marked as failed and balance refunded:", withdrawal.id);
+
+          if (agent) {
+            console.log("Agent auto-approved after payment:", agent.id);
+            
+            // Update user role to agent
+            const updatedUser = await storage.updateUser(agent.userId, { role: UserRole.AGENT });
+            if (updatedUser) {
+              console.log("User role updated to agent:", updatedUser.id);
+            } else {
+              console.error("Failed to update user role to agent for user:", agent.userId);
+            }
+          }
+          
+          return;
         }
       }
 
+      // Handle regular transaction payments
+      const transaction = await storage.getTransactionByReference(reference);
+      if (!transaction) {
+        console.error("Transaction not found for webhook:", reference);
+        return;
+      }
+
+      if (transaction.status === TransactionStatus.COMPLETED) {
+        return; // Already processed
+      }
+
+      // Fulfill the order
+      let deliveredPin: string | undefined;
+      let deliveredSerial: string | undefined;
+
+      if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
+        const checker = await storage.getResultChecker(transaction.productId);
+        if (checker && !checker.isSold) {
+          await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+          deliveredPin = checker.pin;
+          deliveredSerial = checker.serialNumber;
+        }
+      }
+
+      await storage.updateTransaction(transaction.id, {
+        status: TransactionStatus.COMPLETED,
+        completedAt: new Date(),
+        deliveredPin,
+        deliveredSerial,
+        paymentReference: data.reference,
+      });
+
+      // Credit agent if applicable
+      if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
+        await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+      }
+
+      console.log("Payment processed via webhook:", reference);
+    }
+
+    // Handle transfer events
+    if (event.event === "transfer.success") {
+      const data = event.data;
+      const transferReference = data.reference;
+      
+      console.log("Processing transfer success:", transferReference);
+      
+      // Find withdrawal by transfer reference
+      const withdrawals = await storage.getWithdrawals();
+      const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
+      
+      if (withdrawal) {
+        await storage.updateWithdrawal(withdrawal.id, {
+          status: WithdrawalStatus.COMPLETED,
+          processedAt: new Date(),
+        });
+        console.log("Withdrawal marked as completed:", withdrawal.id);
+      }
+    }
+
+    if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
+      const data = event.data;
+      const transferReference = data.reference;
+      
+      console.log("Processing transfer failure:", transferReference);
+      
+      // Find withdrawal by transfer reference
+      const withdrawals = await storage.getWithdrawals();
+      const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
+      
+      if (withdrawal) {
+        // Refund the agent balance
+        const agent = await storage.getAgent(withdrawal.agentId);
+        if (agent) {
+          await storage.updateAgentBalance(agent.id, parseFloat(withdrawal.amount), false);
+        }
+        
+        await storage.updateWithdrawal(withdrawal.id, {
+          status: WithdrawalStatus.FAILED,
+          adminNote: `Transfer failed: ${data.failures?.[0]?.message || 'Unknown error'}`,
+          processedAt: new Date(),
+        });
+        console.log("Withdrawal marked as failed and balance refunded:", withdrawal.id);
+      }
+    }
+  }
+
+  // Paystack Webhook Handler
+  app.post("/api/paystack/webhook", async (req, res) => {
+    try {
+      const signature = req.headers["x-paystack-signature"] as string;
+      const rawBody = req.rawBody as Buffer;
+
+      // Validate webhook signature using raw body
+      if (!rawBody || !(await validateWebhookSignature(rawBody, signature))) {
+        console.error("Invalid Paystack webhook signature");
+        return res.status(400).json({ error: "Invalid signature" });
+      }
+
+      const event = req.body;
+
+      // Process webhook asynchronously to prevent blocking
+      setImmediate(async () => {
+        try {
+          await processWebhookEvent(event);
+        } catch (webhookError: any) {
+          console.error("Webhook processing error:", webhookError);
+        }
+      });
+
+      // Always respond immediately to prevent Paystack retries
       res.sendStatus(200);
     } catch (error: any) {
-      console.error("Webhook processing error:", error);
+      console.error("Webhook handler error:", error);
       res.sendStatus(200); // Always return 200 to prevent Paystack retries
     }
   });
@@ -1957,6 +2288,7 @@ export async function registerRoutes(
       }
 
       console.log("Agent balance from DB:", agent.balance);
+      console.log("User wallet balance:", dbUser.walletBalance);
       console.log("Agent total profit:", agent.totalProfit);
 
       const user = await storage.getUser(dbUser.id);
@@ -1965,6 +2297,7 @@ export async function registerRoutes(
       res.json({
         agent: {
           ...agent,
+          balance: dbUser.walletBalance, // Use user's wallet balance for agent dashboard
           user: { name: user?.name, email: user?.email, phone: user?.phone },
         },
         stats,
@@ -2018,7 +2351,7 @@ export async function registerRoutes(
       const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
 
       const stats = {
-        balance: Number(agent.balance) || 0,
+        balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
         totalProfit: Number(agent.totalProfit) || 0,
         totalSales: Number(agent.totalSales) || 0,
         totalTransactions: transactions.length,
@@ -2823,6 +3156,93 @@ export async function registerRoutes(
       res.json({ url: fileUrl, filename: req.file.filename });
     } catch (error: any) {
       res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  // ============================================
+  // BREAK SETTINGS ROUTES
+  // ============================================
+  app.get("/api/admin/break-settings", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getBreakSettings();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load break settings" });
+    }
+  });
+
+  app.post("/api/admin/break-settings", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { isEnabled, enabled, message } = req.body;
+      const finalIsEnabled = isEnabled !== undefined ? isEnabled : enabled;
+
+      if (typeof finalIsEnabled !== 'boolean') {
+        return res.status(400).json({ error: "isEnabled or enabled must be a boolean" });
+      }
+
+      if (finalIsEnabled && (!message || typeof message !== 'string' || message.trim().length === 0)) {
+        return res.status(400).json({ error: "Message is required when break mode is enabled" });
+      }
+
+      const settings = await storage.updateBreakSettings({
+        isEnabled: finalIsEnabled,
+        message: message?.trim() || "",
+      });
+
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update break settings" });
+    }
+  });
+
+  // ============================================
+  // ADMIN - API CONFIGURATION
+  // ============================================
+  app.get("/api/admin/api-config", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const keys = [
+        "api.mtn.key",
+        "api.mtn.endpoint",
+        "api.telecel.key",
+        "api.at_bigtime.key",
+        "api.at_ishare.key",
+        "paystack.secret_key",
+        "paystack.public_key",
+      ];
+
+      const result: Record<string, string> = {};
+      for (const k of keys) {
+        const v = await storage.getSetting(k);
+        if (v !== undefined) result[k] = v;
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load API configuration" });
+    }
+  });
+
+  app.post("/api/admin/api-config", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const body = req.body || {};
+      for (const [k, v] of Object.entries(body)) {
+        if (typeof v === 'string') {
+          await storage.setSetting(k, v);
+        }
+      }
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to save API configuration" });
+    }
+  });
+
+  // Public endpoint for break settings (no auth required)
+  app.get("/api/break-settings", async (req, res) => {
+    try {
+      const settings = await storage.getBreakSettings();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load break settings" });
     }
   });
 

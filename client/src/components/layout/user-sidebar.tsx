@@ -61,7 +61,7 @@ const sidebarNavItems = [
 
 export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
-  const { logout, isLoggingOut, user } = useAuth();
+  const { logout, isLoggingOut, user, agent } = useAuth();
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-background relative">
@@ -119,6 +119,20 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
       </ScrollArea>
 
       <div className="border-t p-4">
+        {!agent && (
+          <Button
+            variant="default"
+            className="w-full justify-start gap-3 mb-3 bg-primary text-primary-foreground"
+            onClick={() => {
+              // Dispatch custom event to open upgrade modal on dashboard
+              window.dispatchEvent(new Event('open-upgrade-modal'));
+              onClose?.();
+            }}
+          >
+            <Smartphone className="h-4 w-4" />
+            Become an agent
+          </Button>
+        )}
         <Button
           variant="outline"
           className="w-full justify-start gap-3"

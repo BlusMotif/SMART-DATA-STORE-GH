@@ -12,6 +12,8 @@ const networkImages: Record<string, string> = {
   mtn: mtnImage,
   telecel: telecelImage,
   airteltigo: airteltigoImage,
+  at_bigtime: airteltigoImage,
+  at_ishare: airteltigoImage,
 };
 
 interface DataBundleCardProps {

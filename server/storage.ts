@@ -72,6 +72,10 @@ export interface IStorage {
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string, description?: string): Promise<void>;
 
+  // Break Settings
+  getBreakSettings(): Promise<{ isEnabled: boolean; message: string }>;
+  updateBreakSettings(settings: { isEnabled: boolean; message: string }): Promise<{ isEnabled: boolean; message: string }>;
+
   // Support Chat
   createSupportChat(userId: string, userEmail: string, userName: string): Promise<string>;
   getUserSupportChats(userId: string): Promise<SupportChat[]>;
@@ -480,6 +484,26 @@ export class DatabaseStorage implements IStorage {
         target: settings.key,
         set: { value, updatedAt: new Date() },
       });
+  }
+
+  // ============================================
+  // BREAK SETTINGS
+  // ============================================
+  async getBreakSettings(): Promise<{ isEnabled: boolean; message: string }> {
+    const isEnabledStr = await this.getSetting("break_mode_enabled");
+    const message = await this.getSetting("break_mode_message") || "";
+
+    return {
+      isEnabled: isEnabledStr === "true",
+      message,
+    };
+  }
+
+  async updateBreakSettings(settings: { isEnabled: boolean; message: string }): Promise<{ isEnabled: boolean; message: string }> {
+    await this.setSetting("break_mode_enabled", settings.isEnabled.toString(), "Site break mode enabled/disabled");
+    await this.setSetting("break_mode_message", settings.message, "Site break mode message");
+
+    return settings;
   }
 
   // ============================================

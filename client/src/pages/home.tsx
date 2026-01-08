@@ -7,13 +7,13 @@ import { Card } from "@/components/ui/card";
 import { APP_NAME } from "@/lib/constants";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import banner1 from "@assets/banner1_1765774201032.jpeg";
-import banner2 from "@assets/banner2_1765774201033.jpeg";
-import banner3 from "@assets/banner3_1765774201030.jpeg";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
 import resultLogo from "@assets/result_1765780772205.jpg";
+import banner1 from "@assets/banner1_1765774201032.jpeg";
+import banner2 from "@assets/banner2_1765774201033.jpeg";
+import banner3 from "@assets/banner3_1765774201030.jpeg";
 import { Truck, Shield, Headphones, DollarSign } from "lucide-react";
 
 const bannerImages = [banner1, banner2, banner3];
@@ -40,11 +40,18 @@ export default function HomePage() {
       href: "/products/telecel"
     },
     {
-      id: "airteltigo",
-      name: "AirtelTigo Data Bundles",
-      description: "Buy AirtelTigo data bundles.",
+      id: "at_bigtime",
+      name: "AT BIG TIME Bundles",
+      description: "Buy AT BIG TIME data bundles.",
       image: airteltigoLogo,
-      href: "/products/airteltigo"
+      href: "/products/at_bigtime"
+    },
+    {
+      id: "at_ishare",
+      name: "AT iShare Bundles",
+      description: "Buy AT iShare data bundles.",
+      image: airteltigoLogo,
+      href: "/products/at_ishare"
     },
     {
       id: "waec-result-checker",
@@ -143,41 +150,43 @@ export default function HomePage() {
         <section id="products" className="py-12 px-4">
           <div className="container mx-auto max-w-4xl">
             <h2 className="text-2xl font-bold text-center mb-8">Product Categories</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {productCategories.map((cat) => (
-                <Link key={cat.id} href={cat.href}>
-                  <Card className="p-6 h-full flex flex-col items-center justify-center gap-4 cursor-pointer hover-elevate transition-all min-h-[200px]">
-                    <img
-                      src={cat.image}
-                      alt={cat.name}
-                      className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg flex-shrink-0"
-                    />
-                    <div className="flex flex-col items-center gap-2 flex-1 justify-center">
-                      <p className="text-lg font-semibold text-center">{cat.name}</p>
-                      <p className="text-sm text-center text-muted-foreground leading-relaxed">{cat.description}</p>
-                    </div>
-                  </Card>
-                </Link>
-              ))}
+            <div className="flex justify-center">
+              <div className="grid grid-cols-3 gap-4 max-w-2xl">
+                {productCategories.map((cat) => (
+                  <Link key={cat.id} href={cat.href}>
+                    <Card className="p-3 h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover-elevate transition-all min-h-[120px] w-full max-w-[180px]">
+                      <img
+                        src={cat.image}
+                        alt={cat.name}
+                        className="w-10 h-10 md:w-12 md:h-12 object-contain rounded-lg flex-shrink-0"
+                      />
+                      <div className="flex flex-col items-center gap-1 flex-1 justify-center">
+                        <p className="text-sm font-semibold text-center leading-tight">{cat.name}</p>
+                        <p className="text-xs text-center text-muted-foreground leading-tight">{cat.description}</p>
+                      </div>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
         {/* Features Section */}
-        <section className="py-16 px-4 bg-muted/30">
-          <div className="container mx-auto max-w-6xl">
-            <h2 className="text-3xl font-bold text-center mb-12">Why Choose Us?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <section className="py-12 px-4 bg-muted/30">
+          <div className="container mx-auto max-w-4xl">
+            <h2 className="text-2xl font-bold text-center mb-8">Why Choose Us?</h2>
+            <div className="grid grid-cols-2 gap-4">
               {features.map((feature) => {
                 const IconComponent = feature.icon;
                 return (
-                  <Card key={feature.id} className="p-6 text-center hover-elevate transition-all">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="p-3 bg-primary/10 rounded-full">
-                        <IconComponent className="h-8 w-8 text-primary" />
+                  <Card key={feature.id} className="p-4 text-center hover-elevate transition-all">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-full">
+                        <IconComponent className="h-6 w-6 text-primary" />
                       </div>
-                      <h3 className="text-xl font-semibold">{feature.title}</h3>
-                      <p className="text-muted-foreground">{feature.description}</p>
+                      <h3 className="text-lg font-semibold">{feature.title}</h3>
+                      <p className="text-sm text-muted-foreground">{feature.description}</p>
                     </div>
                   </Card>
                 );

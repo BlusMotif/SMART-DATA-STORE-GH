@@ -19,9 +19,30 @@ export default function AgentActivationCompletePage() {
     // Get reference from URL
     const params = new URLSearchParams(window.location.search);
     const reference = params.get("reference");
+    const isMock = params.get("mock") === "true";
 
     if (!reference) {
       setStatus("failed");
+      return;
+    }
+
+    // For mock payments, skip verification and show success
+    if (isMock) {
+      setStatus("success");
+      setAgentEmail("test@example.com"); // Mock email
+      // start auto-redirect countdown
+      setTimeout(() => {
+        const interval = setInterval(() => {
+          setRedirectCountdown((c) => {
+            if (c <= 1) {
+              clearInterval(interval);
+              setLocation("/login");
+              return 0;
+            }
+            return c - 1;
+          });
+        }, 1000);
+      }, 1000);
       return;
     }
 

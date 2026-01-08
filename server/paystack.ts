@@ -1,10 +1,18 @@
 import crypto from "crypto";
+import { storage } from "./storage";
 
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "";
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
-export function isPaystackTestMode(): boolean {
-  return PAYSTACK_SECRET_KEY.startsWith("sk_test_");
+async function getPaystackKey(): Promise<string> {
+  const env = process.env.PAYSTACK_SECRET_KEY || "";
+  if (env) return env;
+  const stored = await storage.getSetting("paystack.secret_key");
+  return stored || "";
+}
+
+export async function isPaystackTestMode(): Promise<boolean> {
+  const key = await getPaystackKey();
+  return key.startsWith("sk_test_");
 }
 
 interface PaystackInitializeResponse {
@@ -46,6 +54,7 @@ export async function initializePayment(params: {
   callbackUrl?: string;
   metadata?: Record<string, any>;
 }): Promise<PaystackInitializeResponse> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
@@ -88,6 +97,7 @@ export async function initializePayment(params: {
 }
 
 export async function verifyPayment(reference: string): Promise<PaystackVerifyResponse> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
@@ -123,7 +133,8 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
   }
 }
 
-export function validateWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
+export async function validateWebhookSignature(rawBody: string | Buffer, signature: string): Promise<boolean> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
   if (!PAYSTACK_SECRET_KEY || !signature) {
     return false;
   }
@@ -136,8 +147,9 @@ export function validateWebhookSignature(rawBody: string | Buffer, signature: st
   return hash === signature;
 }
 
-export function isPaystackConfigured(): boolean {
-  return !!PAYSTACK_SECRET_KEY;
+export async function isPaystackConfigured(): Promise<boolean> {
+  const key = await getPaystackKey();
+  return !!key;
 }
 
 // Transfer API interfaces
@@ -214,6 +226,7 @@ export async function createTransferRecipient(params: {
   bank_code: string;
   currency?: "GHS";
 }): Promise<PaystackTransferRecipientResponse> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
@@ -254,6 +267,7 @@ export async function initiateTransfer(params: {
   reason?: string;
   reference?: string;
 }): Promise<PaystackTransferResponse> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
@@ -292,6 +306,7 @@ export async function initiateTransfer(params: {
 }
 
 export async function verifyTransfer(reference: string): Promise<PaystackTransferVerificationResponse> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }

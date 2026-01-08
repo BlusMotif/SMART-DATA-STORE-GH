@@ -18,7 +18,12 @@ const networkStyles: Record<string, { bg: string; text: string; border: string }
     text: "text-red-800 dark:text-red-300",
     border: "border-red-300 dark:border-red-700",
   },
-  airteltigo: {
+  at_bigtime: {
+    bg: "bg-red-100 dark:bg-red-900/30",
+    text: "text-red-800 dark:text-red-300",
+    border: "border-red-300 dark:border-red-700",
+  },
+  at_ishare: {
     bg: "bg-red-100 dark:bg-red-900/30",
     text: "text-red-800 dark:text-red-300",
     border: "border-red-300 dark:border-red-700",
@@ -28,7 +33,8 @@ const networkStyles: Record<string, { bg: string; text: string; border: string }
 const networkLabels: Record<string, string> = {
   mtn: "MTN",
   telecel: "TELECEL",
-  airteltigo: "AIRTELTIGO",
+  at_bigtime: "AT Bigtime",
+  at_ishare: "AT ishare",
 };
 
 export function NetworkBadge({ network, size = "sm", className }: NetworkBadgeProps) {

@@ -207,8 +207,9 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    console.error("Express error:", err);
     res.status(status).json({ message });
-    throw err;
+    // Don't throw the error - just log it
   });
 
   // importantly only setup vite in development and after
@@ -237,3 +238,17 @@ app.use((req, res, next) => {
     },
   );
 })();
+
+// Global error handlers to prevent server crashes
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  // Don't exit the process in production, just log the error
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit the process, just log the error
+});

@@ -2,7 +2,6 @@ import { useParams, Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
-import { NetworkPrefixRules } from "@/components/ui/network-prefix-rules";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,7 +21,8 @@ import airteltigoLogo from "@assets/at_1765780772206.jpg";
 const networkInfo: Record<string, { name: string; logo: string }> = {
   mtn: { name: "MTN", logo: mtnLogo },
   telecel: { name: "Telecel", logo: telecelLogo },
-  airteltigo: { name: "AirtelTigo", logo: airteltigoLogo },
+  at_bigtime: { name: "AT BIG TIME", logo: airteltigoLogo },
+  at_ishare: { name: "AT iShare", logo: airteltigoLogo },
 };
 
 export default function NetworkProductsPage() {
@@ -69,9 +69,6 @@ export default function NetworkProductsPage() {
 
           {/* Data Delivery Information */}
           <div className="mt-12 space-y-6">
-            {/* Network Prefix Rules */}
-            <NetworkPrefixRules />
-
             <Card className="p-6">
               <div className="flex items-start gap-3">
                 <Clock className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />

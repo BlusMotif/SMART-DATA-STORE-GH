@@ -9,6 +9,7 @@ import { PWAInstallPrompt } from "@/components/pwa-install-prompt";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ConnectionStatus } from "@/components/connection-status";
+import { BreakModeGuard } from "@/components/BreakModeGuard";
 import NotFound from "@/pages/not-found";
 
 import HomePage from "@/pages/home";
@@ -19,6 +20,7 @@ import CheckoutSuccessPage from "@/pages/checkout-success";
 import WalletTopupSuccessPage from "@/pages/wallet-topup-success";
 import AgentRegisterPage from "@/pages/agent/register";
 import AgentActivationCompletePage from "@/pages/agent/activation-complete";
+import AgentUpgradePage from "@/pages/agent/upgrade";
 import AgentDashboard from "@/pages/agent/dashboard";
 import AgentTransactions from "@/pages/agent/transactions";
 import AgentWithdrawals from "@/pages/agent/withdrawals";
@@ -37,6 +39,8 @@ import AdminWithdrawals from "@/pages/admin/withdrawals";
 import AdminChatSupport from "@/pages/admin/chat-support";
 import AdminSettings from "@/pages/admin/settings";
 import AdminRankings from "@/pages/admin/rankings";
+import AdminBreakSettings from "@/pages/admin/break-settings";
+import AdminApiConfiguration from "@/pages/admin/api-configuration";
 import AgentPublicStorefront from "@/pages/agent/public-storefront";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
 import NetworkProductsPage from "@/pages/products/network";
@@ -91,6 +95,7 @@ function Router() {
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/wallet/topup/success" component={WalletTopupSuccessPage} />
       <Route path="/agent/register" component={AgentRegisterPage} />
+      <Route path="/agent/upgrade" component={AgentUpgradePage} />
       <Route path="/agent/activation-complete" component={AgentActivationCompletePage} />
       <ProtectedRoute path="/user/dashboard" component={UserDashboard} />
       <ProtectedRoute path="/user/wallet" component={WalletDashboard} />
@@ -116,6 +121,8 @@ function Router() {
       <ProtectedRoute path="/admin/agents" component={AdminAgents} requiredRole="admin" />
       <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
       <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
+      <ProtectedRoute path="/admin/break-settings" component={AdminBreakSettings} requiredRole="admin" />
+      <ProtectedRoute path="/admin/api-configuration" component={AdminApiConfiguration} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
       <Route path="/store/:slug" component={AgentPublicStorefront} />
       <Route path="/store/:slug/:network" component={AgentNetworkPurchasePage} />
@@ -133,7 +140,9 @@ function App() {
           <TooltipProvider>
             <ConnectionStatus />
             <PWAInstallPrompt />
-            <Router />
+            <BreakModeGuard>
+              <Router />
+            </BreakModeGuard>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

@@ -6,7 +6,8 @@ export const APP_DESCRIPTION = "Digital Products & Data Bundle Marketplace";
 export const NETWORKS = [
   { id: "mtn", name: "MTN", color: "#FFCC00", textColor: "#000000" },
   { id: "telecel", name: "TELECEL", color: "#E60000", textColor: "#FFFFFF" },
-  { id: "airteltigo", name: "AIRTELTIGO", color: "#FF0000", textColor: "#FFFFFF" },
+  { id: "at_bigtime", name: "AT Bigtime", color: "#FF0000", textColor: "#FFFFFF" },
+  { id: "at_ishare", name: "AT ishare", color: "#FF0000", textColor: "#FFFFFF" },
 ] as const;
 
 export const RESULT_CHECKER_TYPES = [
@@ -84,14 +85,27 @@ export const PAYMENT_METHODS = [
     }
   },
   {
-    id: "vodafone_cash",
-    name: "Vodafone Cash",
-    description: "Send to Vodafone Cash number",
+    id: "at_bigtime",
+    name: "AT Bigtime",
+    description: "Send to AT Bigtime number",
     icon: "Smartphone",
     requiresBankDetails: false,
     placeholder: {
-      accountNumber: "Enter Vodafone phone number (e.g., 0201234567)",
-      accountName: "Name on Vodafone account",
+      accountNumber: "Enter AT Bigtime phone number (e.g., 0261234567)",
+      accountName: "Name on AT Bigtime account",
+      bankName: "",
+      bankCode: ""
+    }
+  },
+  {
+    id: "at_ishare",
+    name: "AT ishare",
+    description: "Send to AT ishare number",
+    icon: "Smartphone",
+    requiresBankDetails: false,
+    placeholder: {
+      accountNumber: "Enter AT ishare phone number (e.g., 0261234567)",
+      accountName: "Name on AT ishare account",
       bankName: "",
       bankCode: ""
     }

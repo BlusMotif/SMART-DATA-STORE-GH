@@ -109,9 +109,14 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 
 // Configure multer for file uploads
+// Use different upload target in production (dist/public/assets) vs dev (client/public/assets)
+const assetsUploadPath = process.env.NODE_ENV === "production"
+  ? path.join(process.cwd(), "dist", "public", "assets")
+  : path.join(process.cwd(), "client", "public", "assets");
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(process.cwd(), "client/public/assets"));
+    cb(null, assetsUploadPath);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "_" + Math.round(Math.random() * 1e9);
@@ -140,10 +145,14 @@ declare global {
 global.upload = upload;
 
 // CORS configuration
+// Determine allowed frontend origin using environment variable or sensible defaults
+const FRONTEND_URL = process.env.FRONTEND_URL
+  || (process.env.NODE_ENV === "production"
+    ? "https://smartdatastoregh.onrender.com"
+    : `http://localhost:${process.env.PORT || 3000}`);
+
 app.use(cors({
-  origin: process.env.NODE_ENV === "production"
-    ? false // Same domain in production
-    : `http://localhost:${process.env.PORT || 3000}`, // Vite/dev server in local dev
+  origin: FRONTEND_URL,
   credentials: true,
 }));
 

@@ -3,6 +3,10 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 // @ts-ignore
 import viteConfig from "../client/vite.config.js";
+// The client and server may have different installed Vite types; avoid leaking
+// the client vite types into the server build by treating the imported
+// client config as an unknown/any when merging for the dev server setup.
+const clientViteConfig: any = viteConfig as unknown as any;
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -18,7 +22,7 @@ export async function setupVite(server: Server, app: Express) {
   };
 
   const vite = await createViteServer({
-    ...viteConfig,
+    ...clientViteConfig,
     configFile: false,
     customLogger: {
       ...viteLogger,

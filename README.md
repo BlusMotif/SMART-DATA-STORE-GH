@@ -160,7 +160,7 @@ Smartdatastoregh/
    npm run dev
    ```
    
-   The app will be available at `http://localhost:10000`
+   The app will be available at `https://smartdatastoregh.onrender.com`
 
 ---
 

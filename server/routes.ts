@@ -830,6 +830,10 @@ export async function registerRoutes(
       
       console.log("Initializing payment without creating account");
 
+      const baseUrl = process.env.NODE_ENV === "production" 
+        ? "https://smartdatastoregh.onrender.com"
+        : `http://localhost:${process.env.PORT || '3000'}`;
+
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
@@ -842,7 +846,7 @@ export async function registerRoutes(
           amount: Math.round(activationFee * 100), // Convert to pesewas
           currency: "GHS",
           reference: tempReference,
-          callback_url: `${req.headers.origin || process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || '3000'}`}/agent/activation-complete`,
+          callback_url: `${baseUrl}/agent/activation-complete`,
           metadata: {
             purpose: "agent_activation",
             pending_registration: true,
@@ -984,6 +988,11 @@ export async function registerRoutes(
         console.log("Initializing Paystack payment...");
         // Initialize Paystack payment
         console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
+
+        const baseUrl = process.env.NODE_ENV === "production" 
+          ? "https://smartdatastoregh.onrender.com"
+          : `http://localhost:${process.env.PORT || '3000'}`;
+
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",
           headers: {
@@ -995,7 +1004,7 @@ export async function registerRoutes(
             amount: Math.round(activationFee * 100),
             currency: "GHS",
             reference: tempReference,
-            callback_url: `${req.headers.origin || process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || '3000'}`}/agent/activation-complete`,
+            callback_url: `${baseUrl}/agent/activation-complete`,
             metadata: {
               purpose: "agent_activation",
               agent_id: agent.id,

@@ -38,15 +38,18 @@ export default defineConfig({
     }
   },
   server: {
-    host: '0.0.0.0',
-    port: Number(process.env.PORT) || 5173,
-    hmr: {
-      host: 'localhost',
-      port: Number(process.env.PORT) || 5173,
-    },
+    // Use the platform-provided PORT when present so preview/dev bind correctly
+    // on hosting platforms like Render. `host: true` makes the server listen
+    // on all interfaces which is required for containerized deployments.
+    host: true,
+    port: Number(process.env.PORT) || 3000,
+    // Avoid forcing HMR to a conflicting port; let Vite choose defaults when
+    // running locally. If needed, Vite's HMR will infer settings from the
+    // dev server environment.
     proxy: {
       '/api': {
-        target: 'http://localhost:10002',
+        // Proxy API requests to the backend running on the same PORT in dev.
+        target: `http://localhost:${process.env.PORT || 3000}`,
         changeOrigin: true,
         secure: false,
       },

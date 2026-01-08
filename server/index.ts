@@ -139,9 +139,9 @@ global.upload = upload;
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.NODE_ENV === "production" 
+  origin: process.env.NODE_ENV === "production"
     ? false // Same domain in production
-    : "http://localhost:5173", // Vite dev server
+    : `http://localhost:${process.env.PORT || 3000}`, // Vite/dev server in local dev
   credentials: true,
 }));
 
@@ -223,9 +223,8 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 10000 if not specified (Render expects 10000).
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Use the provided PORT when available (Render sets this). Fall back to 3000
+  // for local development so the app still runs without additional env config.
   const port = parseInt(process.env.PORT || "3000", 10);
   httpServer.listen(
     {

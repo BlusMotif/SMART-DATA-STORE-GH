@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host --port $PORT"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

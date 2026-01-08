@@ -842,7 +842,7 @@ export async function registerRoutes(
           amount: Math.round(activationFee * 100), // Convert to pesewas
           currency: "GHS",
           reference: tempReference,
-          callback_url: `${process.env.FRONTEND_URL || 'http://localhost:10000'}/agent/activation-complete`,
+          callback_url: `${process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || '3000'}`}/agent/activation-complete`,
           metadata: {
             purpose: "agent_activation",
             pending_registration: true,
@@ -995,7 +995,7 @@ export async function registerRoutes(
             amount: Math.round(activationFee * 100),
             currency: "GHS",
             reference: tempReference,
-            callback_url: `${process.env.FRONTEND_URL || 'http://localhost:10000'}/agent/activation-complete`,
+            callback_url: `${process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || '3000'}`}/agent/activation-complete`,
             metadata: {
               purpose: "agent_activation",
               agent_id: agent.id,

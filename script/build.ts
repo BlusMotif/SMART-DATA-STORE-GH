@@ -51,26 +51,8 @@ async function buildAll() {
   }
 
   console.log("building server...");
-  const pkg = JSON.parse(await readFile("package.json", "utf-8"));
-  const allDeps = [
-    ...Object.keys(pkg.dependencies || {}),
-    ...Object.keys(pkg.devDependencies || {}),
-  ];
-  const externals = allDeps.filter((dep) => !allowlist.includes(dep));
-
-  await esbuild({
-    entryPoints: ["server/index.ts"],
-    platform: "node",
-    bundle: true,
-    format: "esm",
-    outfile: "dist/index.js",
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
-    minify: true,
-    external: [...externals, "path", "fs", "url", "crypto", "stream", "util", "events", "http", "https", "querystring", "zlib", "buffer"],
-    logLevel: "info",
-  });
+  // Compile server with tsc
+  execSync("npx tsc --project . --outDir dist", { stdio: "inherit" });
 }
 
 buildAll().catch((err) => {

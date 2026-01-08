@@ -8,6 +8,7 @@ import autoprefixer from "autoprefixer";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  base: "/",
   plugins: [
     react({
       jsxRuntime: "automatic",
@@ -28,10 +29,7 @@ export default defineConfig({
 
   css: {
     postcss: {
-      plugins: [tailwindcss(), autoprefixer()],
-    },
-    postcssOptions: {
-      from: undefined,
+      plugins: [tailwindcss() as any, autoprefixer() as any],
     },
   },
 
@@ -49,10 +47,7 @@ export default defineConfig({
         manualChunks(id: string) {
           if (!id) return;
           if (id.includes("node_modules")) {
-            if (id.includes("react") || id.includes("react-dom")) return "vendor_react";
             if (id.includes("jspdf")) return "vendor_jspdf";
-            if (id.includes("lodash")) return "vendor_lodash";
-            if (id.includes("axios")) return "vendor_axios";
             return "vendor";
           }
         },

@@ -1,15 +1,15 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
-} from "../shared/schema";
-import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack";
-import { fulfillDataBundleTransaction } from "./providers";
+} from "../shared/schema.js";
+import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack.js";
+import { fulfillDataBundleTransaction } from "./providers.js";
 
 // Process webhook events asynchronously
 async function processWebhookEvent(event: any) {
@@ -265,7 +265,7 @@ async function processWebhookEvent(event: any) {
     }
   }
 }
-import { getSupabaseServer } from "./supabase";
+import { getSupabaseServer } from "./supabase.js";
 import { 
   validatePhoneNetwork, 
   getNetworkMismatchError, 
@@ -273,7 +273,7 @@ import {
   isValidPhoneLength,
   detectNetwork,
   validatePhoneNumberDetailed
-} from "./utils/network-validator";
+} from "./utils/network-validator.js";
 
 // Get Supabase instance
 const getSupabase = () => getSupabaseServer();
@@ -830,9 +830,7 @@ export async function registerRoutes(
       
       console.log("Initializing payment without creating account");
 
-      const baseUrl = process.env.NODE_ENV === "production" 
-        ? "https://smartdatastoregh.onrender.com"
-        : `http://localhost:${process.env.PORT || '3000'}`;
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
 
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
@@ -989,9 +987,7 @@ export async function registerRoutes(
         // Initialize Paystack payment
         console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
 
-        const baseUrl = process.env.NODE_ENV === "production" 
-          ? "https://smartdatastoregh.onrender.com"
-          : `http://localhost:${process.env.PORT || '3000'}`;
+        const baseUrl = `${req.protocol}://${req.get("host")}`;
 
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",

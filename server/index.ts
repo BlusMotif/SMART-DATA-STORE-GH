@@ -3,17 +3,19 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import express, { type Request, Response, NextFunction } from "express";
+// @ts-ignore
 import session from "express-session";
 import MemoryStore from "memorystore";
-import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
+import { registerRoutes } from "./routes.js";
+import { serveStatic } from "./static.js";
 import { createServer } from "http";
+// @ts-ignore
 import cors from "cors";
 import multer from "multer";
 import path from "path";
 
 // Initialize Supabase after env vars are loaded
-import { initializeSupabase, supabaseServer as supabaseServerExport } from "./supabase";
+import { initializeSupabase, supabaseServer as supabaseServerExport } from "./supabase.js";
 const supabaseServerInitialized = initializeSupabase();
 
 const app = express();
@@ -218,7 +220,7 @@ app.use((req, res, next) => {
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
-    const { setupVite } = await import("./vite");
+    const { setupVite } = await import("./vite.js");
     await setupVite(httpServer, app);
   }
 

@@ -1,5 +1,5 @@
 import { eq, and, desc, sql, gte, lte, or, like } from "drizzle-orm";
-import { db } from "./db";
+import { db } from "./db.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, agentCustomPricing,
@@ -8,7 +8,7 @@ import {
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
   type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage
-} from "../shared/schema";
+} from "../shared/schema.js";
 
 export interface IStorage {
   // Users

@@ -1,4 +1,4 @@
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 
 // Minimal generic provider caller - extend per provider as needed
 export async function fulfillDataBundleTransaction(transaction: any) {

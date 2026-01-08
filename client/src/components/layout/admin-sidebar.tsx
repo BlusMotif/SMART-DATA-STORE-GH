@@ -73,9 +73,9 @@ const sidebarNavItems = [
     icon: MessageCircle,
   },
   {
-    title: "Break Settings",
-    href: "/admin/break-settings",
-    icon: AlertTriangle,
+    title: "Announcements",
+    href: "/admin/announcements",
+    icon: Bell,
   },
   {
     title: "API Configuration",

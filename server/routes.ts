@@ -3096,6 +3096,88 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================
+  // ANNOUNCEMENTS ROUTES
+  // ============================================
+
+  // Get all announcements
+  app.get("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const announcements = await storage.getAnnouncements();
+      res.json(announcements);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load announcements" });
+    }
+  });
+
+  // Create announcement
+  app.post("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { title, message } = req.body;
+      if (!title || !message) {
+        return res.status(400).json({ error: "Title and message are required" });
+      }
+
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const announcement = await storage.createAnnouncement({
+        title: title.trim(),
+        message: message.trim(),
+        isActive: true,
+        createdBy: dbUser.name || dbUser.email,
+      });
+
+      res.json(announcement);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to create announcement" });
+    }
+  });
+
+  // Update announcement
+  app.patch("/api/admin/announcements/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { isActive } = req.body;
+      const announcement = await storage.updateAnnouncement(req.params.id, { isActive });
+      if (!announcement) {
+        return res.status(404).json({ error: "Announcement not found" });
+      }
+      res.json(announcement);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update announcement" });
+    }
+  });
+
+  // Delete announcement
+  app.delete("/api/admin/announcements/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteAnnouncement(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Announcement not found" });
+      }
+      res.json({ message: "Announcement deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete announcement" });
+    }
+  });
+
+  // Get active announcements for users
+  app.get("/api/announcements/active", requireAuth, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser || dbUser.role === 'guest') {
+        return res.json([]); // Don't show announcements to guests
+      }
+
+      const announcements = await storage.getActiveAnnouncements();
+      res.json(announcements);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load announcements" });
+    }
+  });
+
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
@@ -4108,6 +4190,110 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to assign chat" });
+    }
+  });
+
+  // ============================================
+  // SETTINGS ROUTES
+  // ============================================
+
+  // Get all settings
+  app.get("/api/admin/settings", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const settings = await storage.getAllSettings();
+      res.json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to load settings" });
+    }
+  });
+
+  // Update setting
+  app.put("/api/admin/settings/:key", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { key } = req.params;
+      const { value, description } = req.body;
+
+      if (!value) {
+        return res.status(400).json({ error: "Value is required" });
+      }
+
+      await storage.setSetting(key, value, description);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update setting" });
+    }
+  });
+
+  // Get specific setting
+  app.get("/api/admin/settings/:key", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { key } = req.params;
+      const value = await storage.getSetting(key);
+      res.json({ key, value });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get setting" });
+    }
+  });
+
+  // ============================================
+  // ADMIN CREDENTIAL MANAGEMENT
+  // ============================================
+
+  // Get all users (for admin to manage credentials)
+  app.get("/api/admin/users", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const users = await storage.getUsers();
+      // Don't send passwords in response
+      const safeUsers = users.map(user => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        role: user.role,
+        isActive: user.isActive,
+        walletBalance: user.walletBalance,
+        createdAt: user.createdAt,
+      }));
+      res.json(safeUsers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to load users" });
+    }
+  });
+
+  // Update user credentials
+  app.put("/api/admin/users/:userId/credentials", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { email, password, name, phone } = req.body;
+
+      if (!email && !password && !name && phone === undefined) {
+        return res.status(400).json({ error: "At least one field must be provided" });
+      }
+
+      const updateData: any = {};
+      if (email) updateData.email = email;
+      if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        updateData.password = hashedPassword;
+      }
+      if (name) updateData.name = name;
+      if (phone !== undefined) updateData.phone = phone;
+
+      const updatedUser = await storage.updateUser(userId, updateData);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        id: updatedUser.id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        phone: updatedUser.phone,
+        role: updatedUser.role,
+        isActive: updatedUser.isActive,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update user credentials" });
     }
   });
 

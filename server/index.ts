@@ -29,9 +29,15 @@ function serveStatic(app: Express) {
   
   if (!fs.existsSync(distPath)) {
     console.error(`Could not find the build directory: ${distPath}`);
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+    console.error("Static file serving will not work properly. Make sure to build the client first.");
+    // Don't throw error in production - just log and continue
+    if (process.env.NODE_ENV === "production") {
+      return;
+    } else {
+      throw new Error(
+        `Could not find the build directory: ${distPath}, make sure to build the client first`,
+      );
+    }
   }
 
   // Serve static files
@@ -48,7 +54,8 @@ function serveStatic(app: Express) {
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      res.status(404).send("Application not built properly");
+      console.error(`Could not find index.html at: ${indexPath}`);
+      res.status(500).send("Application not built properly");
     }
   });
 }
@@ -148,6 +155,17 @@ app.use(express.urlencoded({ extended: false }));
 const assetsUploadPath = process.env.NODE_ENV === "production"
   ? path.join(process.cwd(), "dist", "public", "assets")
   : path.join(process.cwd(), "client", "public", "assets");
+
+// Ensure upload directory exists
+try {
+  if (!fs.existsSync(assetsUploadPath)) {
+    fs.mkdirSync(assetsUploadPath, { recursive: true });
+    console.log(`Created upload directory: ${assetsUploadPath}`);
+  }
+} catch (error) {
+  console.error(`Failed to create upload directory ${assetsUploadPath}:`, error);
+  // Don't fail the server startup, just log the error
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

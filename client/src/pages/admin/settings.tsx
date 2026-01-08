@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,45 +10,134 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Bell, CreditCard, Shield, Smartphone, Upload, Image as ImageIcon, Save, X, Menu } from "lucide-react";
+import { Settings, Bell, CreditCard, Shield, Smartphone, Save, X, Menu, Users, Key } from "lucide-react";
+
+interface Setting {
+  key: string;
+  value: string;
+  description?: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string;
+  role: string;
+  isActive: boolean;
+  walletBalance: string;
+  createdAt: string;
+}
 
 export default function AdminSettings() {
   const { toast } = useToast();
-  const [uploadedFiles, setUploadedFiles] = useState<{[key: string]: string}>({});
+  const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  const { data: paystackConfig } = useQuery<{ isConfigured: boolean; isTestMode: boolean }>({
-    queryKey: ["/api/paystack/config"],
+  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [credentialForm, setCredentialForm] = useState({
+    email: "",
+    password: "",
+    name: "",
+    phone: "",
   });
 
-  const uploadMutation = useMutation<{ url: string; filename: string }, Error, { file: File; type: string }>({
-    mutationFn: async ({ file, type }: { file: File; type: string }) => {
-      const formData = new FormData();
-      formData.append(type, file);
-      const response = await fetch(`/api/admin/upload/${type}`, {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
+  // Fetch settings from database
+  const { data: settingsData, isLoading: settingsLoading } = useQuery<Setting[]>({
+    queryKey: ["/api/admin/settings"],
+    refetchInterval: 30000, // Real-time updates every 30 seconds
+  });
+
+  // Fetch users for credential management
+  const { data: usersData, isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+    refetchInterval: 30000,
+  });
+
+  // Update setting mutation
+  const updateSettingMutation = useMutation({
+    mutationFn: async ({ key, value, description }: { key: string; value: string; description?: string }) => {
+      return apiRequest("PUT", `/api/admin/settings/${key}`, { value, description });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({ title: "Setting updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update setting", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Update user credentials mutation
+  const updateCredentialsMutation = useMutation({
+    mutationFn: async ({ userId, data }: { userId: string; data: any }) => {
+      return apiRequest("PUT", `/api/admin/users/${userId}/credentials`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      setSelectedUser(null);
+      setCredentialForm({ email: "", password: "", name: "", phone: "" });
+      toast({ title: "User credentials updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update credentials", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Initialize settings when data loads
+  useEffect(() => {
+    if (settingsData) {
+      const settingsMap: Record<string, string> = {};
+      settingsData.forEach(setting => {
+        settingsMap[setting.key] = setting.value;
       });
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-      return response.json();
-    },
-    onSuccess: (data: { url: string; filename: string }, { type }) => {
-      setUploadedFiles(prev => ({ ...prev, [type]: data.url }));
-      toast({ title: "File uploaded successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, type: string) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate({ file, type });
+      setSettings(settingsMap);
     }
+  }, [settingsData]);
+
+  useEffect(() => {
+    if (usersData) {
+      setUsers(usersData);
+    }
+  }, [usersData]);
+
+  const handleSettingChange = (key: string, value: string) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveSetting = (key: string, description?: string) => {
+    const value = settings[key];
+    if (value !== undefined) {
+      updateSettingMutation.mutate({ key, value, description });
+    }
+  };
+
+  const handleUserSelect = (user: User) => {
+    setSelectedUser(user);
+    setCredentialForm({
+      email: user.email,
+      password: "",
+      name: user.name,
+      phone: user.phone || "",
+    });
+  };
+
+  const handleUpdateCredentials = () => {
+    if (!selectedUser) return;
+
+    const data: any = {};
+    if (credentialForm.email && credentialForm.email !== selectedUser.email) data.email = credentialForm.email;
+    if (credentialForm.password) data.password = credentialForm.password;
+    if (credentialForm.name && credentialForm.name !== selectedUser.name) data.name = credentialForm.name;
+    if (credentialForm.phone !== selectedUser.phone) data.phone = credentialForm.phone;
+
+    if (Object.keys(data).length === 0) {
+      toast({ title: "No changes detected", variant: "destructive" });
+      return;
+    }
+
+    updateCredentialsMutation.mutate({ userId: selectedUser.id, data });
   };
 
   return (
@@ -85,7 +174,8 @@ export default function AdminSettings() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="max-w-3xl mx-auto space-y-6">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* General Settings */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -99,154 +189,63 @@ export default function AdminSettings() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="appName">Application Name</Label>
-                  <Input
-                    id="appName"
-                    defaultValue="CLECTECH"
-                    data-testid="input-app-name"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="appName"
+                      value={settings.app_name || ""}
+                      onChange={(e) => handleSettingChange("app_name", e.target.value)}
+                      placeholder="CLECTECH"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("app_name", "Application name displayed in the UI")}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="supportEmail">Support Email</Label>
-                  <Input
-                    id="supportEmail"
-                    type="email"
-                    placeholder="support@clectech.com"
-                    data-testid="input-support-email"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="supportEmail"
+                      type="email"
+                      value={settings.support_email || ""}
+                      onChange={(e) => handleSettingChange("support_email", e.target.value)}
+                      placeholder="support@clectech.com"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("support_email", "Support email for customer inquiries")}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="supportPhone">Support Phone</Label>
-                  <Input
-                    id="supportPhone"
-                    placeholder="+233 XX XXX XXXX"
-                    data-testid="input-support-phone"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Payment Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure payment gateway integration
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="paystackKey">Paystack Public Key</Label>
-                  <Input
-                    id="paystackKey"
-                    type="password"
-                    placeholder="pk_live_..."
-                    data-testid="input-paystack-key"
-                  />
-                </div>
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div className="space-y-1">
-                    <Label>Paystack Status</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {paystackConfig?.isConfigured 
-                        ? (paystackConfig.isTestMode ? "Test Mode Active" : "Live Mode Active")
-                        : "Not Configured"
-                      }
-                    </p>
-                  </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    paystackConfig?.isConfigured 
-                      ? (paystackConfig.isTestMode 
-                          ? "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
-                          : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                        )
-                      : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                  }`}>
-                    {paystackConfig?.isConfigured 
-                      ? (paystackConfig.isTestMode ? "TEST" : "LIVE")
-                      : "ERROR"
-                    }
+                  <div className="flex gap-2">
+                    <Input
+                      id="supportPhone"
+                      value={settings.support_phone || ""}
+                      onChange={(e) => handleSettingChange("support_phone", e.target.value)}
+                      placeholder="+233 XX XXX XXXX"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("support_phone", "Support phone number")}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-5 w-5" />
-                  API Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure third-party API integrations
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="smsApiKey">SMS API Key</Label>
-                  <Input
-                    id="smsApiKey"
-                    type="password"
-                    placeholder="Enter SMS provider API key"
-                    data-testid="input-sms-key"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dataBundleApiKey">Data Bundle API Key</Label>
-                  <Input
-                    id="dataBundleApiKey"
-                    type="password"
-                    placeholder="Enter data bundle provider API key"
-                    data-testid="input-bundle-api-key"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5" />
-                  Notification Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure notification preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive email alerts for important events
-                    </p>
-                  </div>
-                  <Switch defaultChecked data-testid="switch-email-notifications" />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>SMS Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Send SMS alerts to customers on purchase
-                    </p>
-                  </div>
-                  <Switch defaultChecked data-testid="switch-sms-notifications" />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Agent Withdrawal Alerts</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified when agents request withdrawals
-                    </p>
-                  </div>
-                  <Switch defaultChecked data-testid="switch-withdrawal-alerts" />
-                </div>
-              </CardContent>
-            </Card>
-
+            {/* Security Settings */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -265,133 +264,153 @@ export default function AdminSettings() {
                       Automatically approve new agent registrations
                     </p>
                   </div>
-                  <Switch data-testid="switch-auto-approve" />
+                  <Switch
+                    checked={settings.auto_approve_agents === "true"}
+                    onCheckedChange={(checked) => {
+                      handleSettingChange("auto_approve_agents", checked ? "true" : "false");
+                      handleSaveSetting("auto_approve_agents", "Auto-approve new agent registrations");
+                    }}
+                  />
                 </div>
                 <Separator />
                 <div className="space-y-2">
                   <Label htmlFor="minWithdrawal">Minimum Withdrawal (GHS)</Label>
-                  <Input
-                    id="minWithdrawal"
-                    type="number"
-                    defaultValue="10"
-                    data-testid="input-min-withdrawal"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="minWithdrawal"
+                      type="number"
+                      value={settings.min_withdrawal || "10"}
+                      onChange={(e) => handleSettingChange("min_withdrawal", e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("min_withdrawal", "Minimum withdrawal amount in GHS")}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="maxWithdrawal">Maximum Withdrawal (GHS)</Label>
-                  <Input
-                    id="maxWithdrawal"
-                    type="number"
-                    defaultValue="5000"
-                    data-testid="input-max-withdrawal"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="maxWithdrawal"
+                      type="number"
+                      value={settings.max_withdrawal || "5000"}
+                      onChange={(e) => handleSettingChange("max_withdrawal", e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("max_withdrawal", "Maximum withdrawal amount in GHS")}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
+            {/* User Credential Management */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5" />
-                  Media Uploads
+                  <Key className="h-5 w-5" />
+                  User Credential Management
                 </CardTitle>
                 <CardDescription>
-                  Upload logos, banners, and network images
+                  Manage user credentials and account information
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Site Logo</Label>
-                  <div className="flex items-center gap-4">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload(e, "logo")}
-                      className="flex-1"
-                      disabled={uploadMutation.isPending}
-                    />
-                    {uploadedFiles.logo && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-green-600">✓ Uploaded</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(uploadedFiles.logo, '_blank')}
-                        >
-                          View
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  <Label>Select User to Manage</Label>
+                  <select
+                    className="w-full p-2 border rounded-md"
+                    value={selectedUser?.id || ""}
+                    onChange={(e) => {
+                      const user = users.find(u => u.id === e.target.value);
+                      if (user) handleUserSelect(user);
+                    }}
+                  >
+                    <option value="">Choose a user...</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({user.email}) - {user.role}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <Separator />
+                {selectedUser && (
+                  <>
+                    <Separator />
+                    <div className="space-y-4">
+                      <h3 className="font-medium">Update Credentials for {selectedUser.name}</h3>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="userEmail">Email</Label>
+                        <Input
+                          id="userEmail"
+                          type="email"
+                          value={credentialForm.email}
+                          onChange={(e) => setCredentialForm(prev => ({ ...prev, email: e.target.value }))}
+                        />
+                      </div>
 
-                <div className="space-y-2">
-                  <Label>Home Page Banners</Label>
-                  <div className="flex items-center gap-4">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload(e, "banner")}
-                      className="flex-1"
-                      disabled={uploadMutation.isPending}
-                    />
-                    {uploadedFiles.banner && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-green-600">✓ Uploaded</span>
+                      <div className="space-y-2">
+                        <Label htmlFor="userName">Name</Label>
+                        <Input
+                          id="userName"
+                          value={credentialForm.name}
+                          onChange={(e) => setCredentialForm(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="userPhone">Phone</Label>
+                        <Input
+                          id="userPhone"
+                          value={credentialForm.phone}
+                          onChange={(e) => setCredentialForm(prev => ({ ...prev, phone: e.target.value }))}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="userPassword">New Password (leave empty to keep current)</Label>
+                        <Input
+                          id="userPassword"
+                          type="password"
+                          value={credentialForm.password}
+                          onChange={(e) => setCredentialForm(prev => ({ ...prev, password: e.target.value }))}
+                          placeholder="Enter new password"
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleUpdateCredentials}
+                          disabled={updateCredentialsMutation.isPending}
+                        >
+                          {updateCredentialsMutation.isPending ? "Updating..." : "Update Credentials"}
+                        </Button>
                         <Button
                           variant="outline"
-                          size="sm"
-                          onClick={() => window.open(uploadedFiles.banner, '_blank')}
+                          onClick={() => {
+                            setSelectedUser(null);
+                            setCredentialForm({ email: "", password: "", name: "", phone: "" });
+                          }}
                         >
-                          View
+                          <X className="h-4 w-4 mr-2" />
+                          Cancel
                         </Button>
                       </div>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload banner images for the home page (recommended: 1200x400px)
-                  </p>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label>Network Provider Logos</Label>
-                  <div className="flex items-center gap-4">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileUpload(e, "network-logo")}
-                      className="flex-1"
-                      disabled={uploadMutation.isPending}
-                    />
-                    {uploadedFiles["network-logo"] && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-green-600">✓ Uploaded</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(uploadedFiles["network-logo"], '_blank')}
-                        >
-                          View
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Upload logos for network providers (MTN, Telecel, AirtelTigo)
-                  </p>
-                </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
-
-            <div className="flex justify-end">
-              <Button size="lg" data-testid="button-save-settings">
-                Save Settings
-              </Button>
-            </div>
           </div>
         </main>
       </div>

@@ -2,7 +2,7 @@ import { useParams, Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -120,6 +120,13 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const [orderType, setOrderType] = useState<'single' | 'bulk'>('single');
   const [phone, setPhone] = useState('');
   const [bulkPhones, setBulkPhones] = useState('');
+
+  // Disable bulk orders for AT Ishare network
+  useEffect(() => {
+    if (network === "at_ishare" && orderType === "bulk") {
+      setOrderType("single");
+    }
+  }, [network, orderType]);
 
   const { data: bundles, isLoading } = useQuery({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
@@ -273,8 +280,18 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       <Tabs defaultValue="single" className="w-full" onValueChange={(v) => setOrderType(v as 'single' | 'bulk')}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="single"><ShoppingCart className="h-4 w-4 mr-2"/>Single Purchase</TabsTrigger>
-          <TabsTrigger value="bulk"><Package className="h-4 w-4 mr-2"/>Bulk Purchase</TabsTrigger>
+          <TabsTrigger value="bulk" disabled={network === "at_ishare"}>
+            <Package className="h-4 w-4 mr-2"/>Bulk Purchase
+            {network === "at_ishare" && (
+              <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>
+            )}
+          </TabsTrigger>
         </TabsList>
+        {network === "at_ishare" && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Bulk purchases are not available for AT iShare network.
+          </p>
+        )}
 
         <TabsContent value="single" className="space-y-4">
           <Card>

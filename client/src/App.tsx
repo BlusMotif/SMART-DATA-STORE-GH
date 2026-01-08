@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ConnectionStatus } from "@/components/connection-status";
 import { BreakModeGuard } from "@/components/BreakModeGuard";
+import { AnnouncementPopup } from "@/components/announcement-popup";
 import NotFound from "@/pages/not-found";
 
 import HomePage from "@/pages/home";
@@ -41,6 +42,7 @@ import AdminSettings from "@/pages/admin/settings";
 import AdminRankings from "@/pages/admin/rankings";
 import AdminBreakSettings from "@/pages/admin/break-settings";
 import AdminApiConfiguration from "@/pages/admin/api-configuration";
+import AdminAnnouncements from "@/pages/admin/announcements";
 import AgentPublicStorefront from "@/pages/agent/public-storefront";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
 import NetworkProductsPage from "@/pages/products/network";
@@ -119,6 +121,7 @@ function Router() {
       <ProtectedRoute path="/admin/agents" component={AdminAgents} requiredRole="admin" />
       <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
       <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
+      <ProtectedRoute path="/admin/announcements" component={AdminAnnouncements} requiredRole="admin" />
       <ProtectedRoute path="/admin/break-settings" component={AdminBreakSettings} requiredRole="admin" />
       <ProtectedRoute path="/admin/api-configuration" component={AdminApiConfiguration} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
@@ -141,6 +144,7 @@ function App() {
             <BreakModeGuard>
               <Router />
             </BreakModeGuard>
+            <AnnouncementPopup />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

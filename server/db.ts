@@ -28,4 +28,26 @@ export const pool = new Pool({
   connectionTimeoutMillis: 10000, // Wait max 10s for connection
 });
 
+// Add error handling for the pool
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+  // Don't exit the process, just log the error
+});
+
+// Test the connection on startup (but don't fail if it doesn't work immediately)
+if (process.env.DATABASE_URL) {
+  pool.connect()
+    .then(() => {
+      console.log('✅ Database connection established successfully');
+    })
+    .catch((err) => {
+      console.error('❌ Database connection failed:', err.message);
+      // Don't exit in production, just log the error
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Exiting due to database connection failure in development');
+        process.exit(1);
+      }
+    });
+}
+
 export const db = drizzle(pool, { schema });

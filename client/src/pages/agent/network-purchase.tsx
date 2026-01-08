@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -88,6 +88,14 @@ export default function AgentNetworkPurchasePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderType, setOrderType] = useState<"single" | "bulk">("single");
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+
+  // Disable bulk orders for AT Ishare network
+  useEffect(() => {
+    if (network === "at_ishare" && orderType === "bulk") {
+      setOrderType("single");
+      setValidationResult(null);
+    }
+  }, [network, orderType]);
 
   const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
 
@@ -587,11 +595,19 @@ export default function AgentNetworkPurchasePage() {
                       <ShoppingCart className="h-4 w-4 mr-2" />
                       Single Purchase
                     </TabsTrigger>
-                    <TabsTrigger value="bulk">
+                    <TabsTrigger value="bulk" disabled={network === "at_ishare"}>
                       <Package className="h-4 w-4 mr-2" />
                       Bulk Purchase
+                      {network === "at_ishare" && (
+                        <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>
+                      )}
                     </TabsTrigger>
                   </TabsList>
+                  {network === "at_ishare" && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Bulk purchases are not available for AT iShare network.
+                    </p>
+                  )}
 
                   {/* Single Order Form */}
                   <TabsContent value="single" className="space-y-4 mt-4">

@@ -337,6 +337,22 @@ export const settings = pgTable("settings", {
 });
 
 // ============================================
+// ANNOUNCEMENTS TABLE
+// ============================================
+export const announcements = pgTable("announcements", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  activeIdx: index("announcements_active_idx").on(table.isActive),
+  createdAtIdx: index("announcements_created_at_idx").on(table.createdAt),
+}));
+
+// ============================================
 // RELATIONS
 // ============================================
 export const usersRelations = relations(users, ({ one }) => ({
@@ -451,6 +467,12 @@ export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
   createdAt: true,
 });
 
+export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // ============================================
 // TYPES
 // ============================================
@@ -483,6 +505,9 @@ export type SupportChat = typeof supportChats.$inferSelect;
 
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type ChatMessage = typeof chatMessages.$inferSelect;
+
+export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
+export type Announcement = typeof announcements.$inferSelect;
 
 // ============================================
 // VALIDATION SCHEMAS

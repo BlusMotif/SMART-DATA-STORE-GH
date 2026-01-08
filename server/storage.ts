@@ -2,12 +2,13 @@ import { eq, and, desc, sql, gte, lte, or, like } from "drizzle-orm";
 import { db } from "./db.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, agentCustomPricing,
+  supportChats, chatMessages, agentCustomPricing, announcements,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
   type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
-  type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage
+  type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
+  type Announcement, type InsertAnnouncement
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -116,6 +117,11 @@ export interface IStorage {
     dataBundleStock: number;
     resultCheckerStock: number;
   }>;
+
+  // Settings
+  getSetting(key: string): Promise<string | undefined>;
+  setSetting(key: string, value: string, description?: string): Promise<void>;
+  getAllSettings(): Promise<Array<{ key: string; value: string; description?: string }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -470,23 +476,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============================================
-  // SETTINGS
-  // ============================================
-  async getSetting(key: string): Promise<string | undefined> {
-    const [setting] = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
-    return setting?.value;
-  }
-
-  async setSetting(key: string, value: string, description?: string): Promise<void> {
-    await db.insert(settings)
-      .values({ key, value, description })
-      .onConflictDoUpdate({
-        target: settings.key,
-        set: { value, updatedAt: new Date() },
-      });
-  }
-
-  // ============================================
   // BREAK SETTINGS
   // ============================================
   async getBreakSettings(): Promise<{ isEnabled: boolean; message: string }> {
@@ -785,6 +774,64 @@ export class DatabaseStorage implements IStorage {
       totalPurchases: Number(r.totalPurchases),
       totalSpent: Number(r.totalSpent),
       lastPurchase: r.lastPurchase,
+    }));
+  }
+
+  // ============================================
+  // ANNOUNCEMENTS
+  // ============================================
+  async getAnnouncements(): Promise<Announcement[]> {
+    return await db.select().from(announcements).orderBy(desc(announcements.createdAt));
+  }
+
+  async getActiveAnnouncements(): Promise<Announcement[]> {
+    return await db.select().from(announcements).where(eq(announcements.isActive, true)).orderBy(desc(announcements.createdAt));
+  }
+
+  async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
+    const result = await db.insert(announcements).values(announcement).returning();
+    return result[0];
+  }
+
+  async updateAnnouncement(id: string, data: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
+    const result = await db.update(announcements)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(announcements.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteAnnouncement(id: string): Promise<boolean> {
+    const result = await db.delete(announcements).where(eq(announcements.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
+  // SETTINGS
+  // ============================================
+  async getSetting(key: string): Promise<string | undefined> {
+    const result = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+    return result[0]?.value;
+  }
+
+  async setSetting(key: string, value: string, description?: string): Promise<void> {
+    const existing = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+    
+    if (existing[0]) {
+      await db.update(settings)
+        .set({ value, description, updatedAt: new Date() })
+        .where(eq(settings.key, key));
+    } else {
+      await db.insert(settings).values({ key, value, description });
+    }
+  }
+
+  async getAllSettings(): Promise<Array<{ key: string; value: string; description?: string }>> {
+    const result = await db.select().from(settings);
+    return result.map(s => ({
+      key: s.key,
+      value: s.value,
+      description: s.description || undefined,
     }));
   }
 }

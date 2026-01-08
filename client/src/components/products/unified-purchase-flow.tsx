@@ -74,6 +74,13 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   const [isStep1Open, setIsStep1Open] = useState(true);
   const [isStep2Open, setIsStep2Open] = useState(false);
 
+  // Disable bulk orders for AT Ishare network
+  useEffect(() => {
+    if (network === "at_ishare" && orderType === "bulk") {
+      setOrderType("single");
+    }
+  }, [network, orderType]);
+
   // Fetch data bundles for the network
   const { data: dataBundles, isLoading: bundlesLoading } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],
@@ -419,13 +426,22 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                       </TabsTrigger>
                       <TabsTrigger 
                         value="bulk" 
-                        className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all"
+                        disabled={network === "at_ishare"}
+                        className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Layers className="h-4 w-4" />
                         Bulk Order
+                        {network === "at_ishare" && (
+                          <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>
+                        )}
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
+                  {network === "at_ishare" && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Bulk orders are not available for AT Ishare network.
+                    </p>
+                  )}
                 </div>
 
                 {/* Single Order Form */}

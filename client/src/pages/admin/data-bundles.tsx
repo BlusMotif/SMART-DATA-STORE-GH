@@ -164,7 +164,7 @@ export default function AdminDataBundles() {
                                 {network?.name || bundle.network.toUpperCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell className="font-medium">{bundle.name}</TableCell>
+                            <TableCell className="font-medium">{bundle.network.toUpperCase()} {bundle.dataAmount} - {bundle.validity} - GH₵{bundle.basePrice}</TableCell>
                             <TableCell>{bundle.dataAmount}</TableCell>
                             <TableCell>{bundle.validity}</TableCell>
                             <TableCell className="text-muted-foreground tabular-nums">
@@ -352,6 +352,15 @@ function BundleForm({
       </div>
 
       {/* Per-bundle API selection removed; system-wide API configuration used instead */}
+
+      {(formData.network && formData.dataAmount && formData.validity && formData.basePrice) && (
+        <div className="p-4 bg-muted rounded-lg border">
+          <Label className="text-sm font-medium text-muted-foreground mb-2 block">Preview (How users will see this bundle)</Label>
+          <div className="text-sm font-medium">
+            {formData.network.toUpperCase()} {formData.dataAmount} - {formData.validity} - GH₵{formData.basePrice}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">

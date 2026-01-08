@@ -286,7 +286,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                     <SelectTrigger className="w-full"><SelectValue placeholder="Choose a data bundle" /></SelectTrigger>
                     <SelectContent>
                       {sortedBundles?.map((b: any) => (
-                        <SelectItem key={b.id} value={b.id}>{b.name} - {b.validity} - GH₵{b.basePrice}</SelectItem>
+                        <SelectItem key={b.id} value={b.id}>{b.network.toUpperCase()} {b.dataAmount} - {b.validity} - GH₵{b.basePrice}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -296,7 +296,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               {selectedBundle && (
                 <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                  <p className="font-medium text-lg">{selectedBundle.name}</p>
+                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{selectedBundle.basePrice}</p>
                   <p className="text-2xl font-bold text-primary mt-2">GH₵{selectedBundle.basePrice}</p>
                 </div>
               )}

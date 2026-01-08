@@ -339,7 +339,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                 <div className="mt-4 p-4 bg-muted rounded-lg">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-lg">{selectedBundle.name}</h3>
+                      <h3 className="font-semibold text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - {formatCurrency(parseFloat(selectedBundle.basePrice))}</h3>
                       <NetworkBadge network={selectedBundle.network} className="mt-1" />
                     </div>
                     <div className="text-right">

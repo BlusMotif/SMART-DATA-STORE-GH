@@ -57,7 +57,7 @@ export function DataBundleCard({
       <CardContent className="space-y-2 px-3 pb-3 flex-1 flex flex-col">
         <div className="flex-1">
           <h3 className="font-semibold text-sm leading-tight mb-0.5 line-clamp-2" data-testid={`text-bundle-name-${bundle.id}`}>
-            {bundle.name}
+            {bundle.network.toUpperCase()} {bundle.dataAmount} - {bundle.validity} - {formatCurrency(displayPrice)}
           </h3>
           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
             <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -71,10 +71,7 @@ export function DataBundleCard({
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2 mt-auto">
-          <p className="text-lg font-bold text-primary tabular-nums flex-shrink-0" data-testid={`text-bundle-price-${bundle.id}`}>
-            {formatCurrency(displayPrice)}
-          </p>
+        <div className="flex items-center justify-end gap-2 mt-auto">
           <Button
             size="sm"
             onClick={() => onPurchase(bundle)}

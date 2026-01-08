@@ -1,8 +1,7 @@
-import type { Config } from "tailwindcss";
-
+/** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
-  content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  content: ["./index.html", "./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
       borderRadius: {
@@ -51,6 +50,16 @@ export default {
           foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
           border: "var(--destructive-border)",
         },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",
+          foreground: "hsl(var(--sidebar-foreground) / <alpha-value>)",
+          primary: "hsl(var(--sidebar-primary) / <alpha-value>)",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground) / <alpha-value>)",
+          accent: "hsl(var(--sidebar-accent) / <alpha-value>)",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
+          border: "hsl(var(--sidebar-border) / <alpha-value>)",
+          ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
+        },
         ring: "hsl(var(--ring) / <alpha-value>)",
         chart: {
           "1": "hsl(var(--chart-1) / <alpha-value>)",
@@ -59,33 +68,27 @@ export default {
           "4": "hsl(var(--chart-4) / <alpha-value>)",
           "5": "hsl(var(--chart-5) / <alpha-value>)",
         },
-        sidebar: {
-          ring: "hsl(var(--sidebar-ring) / <alpha-value>)",
-          DEFAULT: "hsl(var(--sidebar) / <alpha-value>)",
-          foreground: "hsl(var(--sidebar-foreground) / <alpha-value>)",
-          border: "hsl(var(--sidebar-border) / <alpha-value>)",
-        },
-        "sidebar-primary": {
-          DEFAULT: "hsl(var(--sidebar-primary) / <alpha-value>)",
-          foreground: "hsl(var(--sidebar-primary-foreground) / <alpha-value>)",
-          border: "var(--sidebar-primary-border)",
-        },
-        "sidebar-accent": {
-          DEFAULT: "hsl(var(--sidebar-accent) / <alpha-value>)",
-          foreground: "hsl(var(--sidebar-accent-foreground) / <alpha-value>)",
-          border: "var(--sidebar-accent-border)"
-        },
-        status: {
-          online: "rgb(34 197 94)",
-          away: "rgb(245 158 11)",
-          busy: "rgb(239 68 68)",
-          offline: "rgb(156 163 175)",
-        },
       },
       fontFamily: {
-        sans: ["var(--font-sans)"],
-        serif: ["var(--font-serif)"],
-        mono: ["var(--font-mono)"],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "serif"],
+        mono: ["var(--font-mono)", "monospace"],
+      },
+      boxShadow: {
+        "2xs": "var(--shadow-2xs)",
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        DEFAULT: "var(--shadow)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        xl: "var(--shadow-xl)",
+        "2xl": "var(--shadow-2xl)",
+      },
+      spacing: {
+        "spacing": "var(--spacing)",
+      },
+      letterSpacing: {
+        "normal": "var(--tracking-normal)",
       },
       keyframes: {
         "accordion-down": {
@@ -103,5 +106,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
-} satisfies Config;
+  plugins: [],
+}

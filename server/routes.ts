@@ -3465,6 +3465,145 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk upload data bundles
+  app.post("/api/user/bulk-upload", requireAuth, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      let network: string;
+      let data: string;
+
+      // Handle file upload
+      if (req.is('multipart/form-data')) {
+        network = req.body.network;
+        // For file upload, we'd need to parse the file content
+        // For now, let's focus on text input
+        return res.status(400).json({ error: "File upload not implemented yet" });
+      } else {
+        // Handle text input
+        network = req.body.network;
+        data = req.body.data;
+      }
+
+      if (!network || !data) {
+        return res.status(400).json({ error: "Network and data are required" });
+      }
+
+      // Parse the data format: phone_number GB_amount (one per line)
+      const lines = data.split('\n').map(line => line.trim()).filter(line => line);
+      const orderItems: any[] = [];
+
+      for (const line of lines) {
+        const parts = line.split(/\s+/);
+        if (parts.length !== 2) {
+          return res.status(400).json({ error: `Invalid format: ${line}. Expected: phone_number GB_amount` });
+        }
+
+        const phone = parts[0].trim();
+        const gbAmount = parseInt(parts[1].trim());
+
+        if (isNaN(gbAmount) || gbAmount < 1 || gbAmount > 100) {
+          return res.status(400).json({ error: `Invalid GB amount: ${parts[1]}. Must be 1-100` });
+        }
+
+        // Validate phone number
+        const normalizedPhone = normalizePhoneNumber(phone);
+        if (!normalizedPhone || !isValidPhoneLength(normalizedPhone)) {
+          return res.status(400).json({ error: `Invalid phone number: ${phone}` });
+        }
+
+        // Validate network match
+        if (!validatePhoneNetwork(normalizedPhone, network)) {
+          const errorMsg = getNetworkMismatchError(normalizedPhone, network);
+          return res.status(400).json({ error: errorMsg });
+        }
+
+        // Find bundle by data amount and network
+        const bundles = await storage.getDataBundles({ network, isActive: true });
+        const bundle = bundles.find(b => {
+          const bundleGB = parseInt(b.dataAmount.replace('GB', ''));
+          return bundleGB === gbAmount;
+        });
+
+        if (!bundle) {
+          return res.status(404).json({ error: `Bundle not found for ${gbAmount}GB on ${network} network` });
+        }
+
+        // Calculate price based on user role
+        let price = parseFloat(bundle.basePrice);
+        if (dbUser.role === 'agent') {
+          price = parseFloat(bundle.agentPrice || bundle.basePrice);
+        } else if (dbUser.role === 'dealer') {
+          price = parseFloat(bundle.dealerPrice || bundle.basePrice);
+        } else if (dbUser.role === 'super_dealer') {
+          price = parseFloat(bundle.superDealerPrice || bundle.basePrice);
+        }
+
+        orderItems.push({
+          bundleId: bundle.id,
+          phone: normalizedPhone,
+          price: price,
+        });
+      }
+
+      if (orderItems.length === 0) {
+        return res.status(400).json({ error: "No valid items found" });
+      }
+
+      // Calculate total amount
+      const totalAmount = orderItems.reduce((sum, item) => sum + item.price, 0);
+
+      // Check wallet balance if payment method is wallet
+      const paymentMethod = req.body.paymentMethod || 'wallet';
+      if (paymentMethod === 'wallet') {
+        const walletBalance = parseFloat(dbUser.walletBalance || '0');
+        if (walletBalance < totalAmount) {
+          return res.status(400).json({ error: `Insufficient wallet balance. Required: GH₵${totalAmount.toFixed(2)}, Available: GH₵${walletBalance.toFixed(2)}` });
+        }
+      }
+
+      // Process the bulk order using the checkout logic
+      const checkoutData = {
+        orderItems,
+        network,
+        customerPhone: orderItems[0].phone, // Use first phone as customer phone
+        customerEmail: dbUser.email,
+        paymentMethod,
+        isBulkOrder: true,
+      };
+
+      // Call the checkout initialization
+      const checkoutResponse = await fetch(`${req.protocol}://${req.get('host')}/api/checkout/initialize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': req.headers.authorization || '',
+        },
+        body: JSON.stringify(checkoutData),
+      });
+
+      if (!checkoutResponse.ok) {
+        const errorData = await checkoutResponse.json().catch(() => ({ error: 'Checkout failed' }));
+        return res.status(checkoutResponse.status).json(errorData);
+      }
+
+      const checkoutResult = await checkoutResponse.json();
+
+      res.json({
+        processed: orderItems.length,
+        totalAmount: totalAmount.toFixed(2),
+        checkout: checkoutResult,
+      });
+
+    } catch (error: any) {
+      console.error("Bulk upload error:", error);
+      res.status(500).json({ error: "Failed to process bulk upload", details: error.message });
+    }
+  });
+
   // ============================================
   // WALLET ROUTES
   // ============================================

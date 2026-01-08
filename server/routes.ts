@@ -7,7 +7,7 @@ import jwt from "jsonwebtoken";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
-} from "@shared/schema";
+} from "../shared/schema";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack";
 import { fulfillDataBundleTransaction } from "./providers";
 

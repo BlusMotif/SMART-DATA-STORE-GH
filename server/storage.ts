@@ -8,7 +8,7 @@ import {
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
   type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage
-} from "@shared/schema";
+} from "../shared/schema";
 
 export interface IStorage {
   // Users

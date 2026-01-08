@@ -1,7 +1,7 @@
 // Database connection for CLECTECH - PostgreSQL with Drizzle ORM
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema";
 import dotenv from "dotenv";
 
 const { Pool } = pg;

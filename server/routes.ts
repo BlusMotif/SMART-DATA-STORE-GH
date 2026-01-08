@@ -2988,6 +2988,28 @@ export async function registerRoutes(
     }
   });
 
+  // Update user role
+  app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { role } = req.body;
+      
+      // Validate role
+      const validRoles = ["admin", "agent", "dealer", "super_dealer", "user", "guest"];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      const user = await storage.updateUser(req.params.id, { role });
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json(user);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update user role" });
+    }
+  });
+
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;

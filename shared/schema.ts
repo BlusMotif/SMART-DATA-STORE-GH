@@ -8,6 +8,9 @@ import { relations } from "drizzle-orm";
 export const UserRole = {
   ADMIN: "admin",
   AGENT: "agent",
+  DEALER: "dealer",
+  SUPER_DEALER: "super_dealer",
+  USER: "user",
   GUEST: "guest",
 } as const;
 
@@ -134,6 +137,9 @@ export const dataBundles = pgTable("data_bundles", {
   validity: text("validity").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
   costPrice: decimal("cost_price", { precision: 10, scale: 2 }).notNull(),
+  agentPrice: decimal("agent_price", { precision: 10, scale: 2 }),
+  dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }),
+  superDealerPrice: decimal("super_dealer_price", { precision: 10, scale: 2 }),
   isActive: boolean("is_active").notNull().default(true),
   apiCode: text("api_code"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -385,6 +391,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
 }).extend({
   id: z.string().optional(), // Allow optional id for Supabase user ID
+  role: z.enum(["admin", "agent", "dealer", "super_dealer", "user", "guest"]).default("user"),
 });
 
 export const insertAgentSchema = createInsertSchema(agents).omit({

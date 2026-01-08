@@ -142,8 +142,10 @@ export default function AdminDataBundles() {
                         <TableHead>Data</TableHead>
                         <TableHead>Validity</TableHead>
                         <TableHead>Cost</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Profit</TableHead>
+                        <TableHead>Base Price</TableHead>
+                        <TableHead>Agent</TableHead>
+                        <TableHead>Dealer</TableHead>
+                        <TableHead>Super Dealer</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -151,7 +153,6 @@ export default function AdminDataBundles() {
                     <TableBody>
                       {bundles.map((bundle) => {
                         const network = NETWORKS.find((n) => n.id === bundle.network);
-                        const profit = parseFloat(bundle.basePrice) - parseFloat(bundle.costPrice);
                         return (
                           <TableRow key={bundle.id} data-testid={`row-bundle-${bundle.id}`}>
                             <TableCell>
@@ -164,7 +165,7 @@ export default function AdminDataBundles() {
                                 {network?.name || bundle.network.toUpperCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell className="font-medium">{bundle.network.toUpperCase()} {bundle.dataAmount} - {bundle.validity} - GH₵{bundle.basePrice}</TableCell>
+                            <TableCell className="font-medium">{bundle.network.toUpperCase()} {bundle.dataAmount} - {bundle.validity}</TableCell>
                             <TableCell>{bundle.dataAmount}</TableCell>
                             <TableCell>{bundle.validity}</TableCell>
                             <TableCell className="text-muted-foreground tabular-nums">
@@ -173,8 +174,14 @@ export default function AdminDataBundles() {
                             <TableCell className="font-medium tabular-nums">
                               {formatCurrency(bundle.basePrice)}
                             </TableCell>
-                            <TableCell className="text-green-600 tabular-nums">
-                              {formatCurrency(profit)}
+                            <TableCell className="tabular-nums">
+                              {bundle.agentPrice ? formatCurrency(bundle.agentPrice) : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {bundle.dealerPrice ? formatCurrency(bundle.dealerPrice) : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {bundle.superDealerPrice ? formatCurrency(bundle.superDealerPrice) : '-'}
                             </TableCell>
                             <TableCell>
                               <Badge variant={bundle.isActive ? "default" : "secondary"}>
@@ -255,6 +262,9 @@ function BundleForm({
     validity: bundle?.validity || "",
     basePrice: bundle?.basePrice || "",
     costPrice: bundle?.costPrice || "",
+    agentPrice: bundle?.agentPrice || "",
+    dealerPrice: bundle?.dealerPrice || "",
+    superDealerPrice: bundle?.superDealerPrice || "",
     isActive: bundle?.isActive ?? true,
   });
 
@@ -337,7 +347,7 @@ function BundleForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="basePrice">Selling Price (GHS)</Label>
+          <Label htmlFor="basePrice">Base Price (GHS)</Label>
           <Input
             id="basePrice"
             type="number"
@@ -347,6 +357,45 @@ function BundleForm({
             placeholder="0.00"
             required
             data-testid="input-bundle-price"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="agentPrice">Agent Price (GHS)</Label>
+          <Input
+            id="agentPrice"
+            type="number"
+            step="0.01"
+            value={formData.agentPrice}
+            onChange={(e) => setFormData({ ...formData, agentPrice: e.target.value })}
+            placeholder="0.00"
+            data-testid="input-bundle-agent-price"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dealerPrice">Dealer Price (GHS)</Label>
+          <Input
+            id="dealerPrice"
+            type="number"
+            step="0.01"
+            value={formData.dealerPrice}
+            onChange={(e) => setFormData({ ...formData, dealerPrice: e.target.value })}
+            placeholder="0.00"
+            data-testid="input-bundle-dealer-price"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="superDealerPrice">Super Dealer Price (GHS)</Label>
+          <Input
+            id="superDealerPrice"
+            type="number"
+            step="0.01"
+            value={formData.superDealerPrice}
+            onChange={(e) => setFormData({ ...formData, superDealerPrice: e.target.value })}
+            placeholder="0.00"
+            data-testid="input-bundle-super-dealer-price"
           />
         </div>
       </div>

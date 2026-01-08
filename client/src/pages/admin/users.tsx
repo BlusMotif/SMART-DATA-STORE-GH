@@ -69,9 +69,28 @@ export default function AdminUsers() {
     },
   });
 
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: string }) =>
+      apiRequest("PATCH", `/api/admin/users/${id}/role`, { role }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "✅ User role updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to update user role",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
   const filteredUsers = users?.filter((user) => {
     if (roleFilter === "guest") return user.role === "guest";
+    if (roleFilter === "user") return user.role === "user";
     if (roleFilter === "agent") return user.role === "agent";
+    if (roleFilter === "dealer") return user.role === "dealer";
+    if (roleFilter === "super_dealer") return user.role === "super_dealer";
     if (roleFilter === "admin") return user.role === "admin";
     return true;
   });
@@ -79,7 +98,10 @@ export default function AdminUsers() {
   const stats = {
     total: users?.length || 0,
     guests: users?.filter((u) => u.role === "guest").length || 0,
+    users: users?.filter((u) => u.role === "user").length || 0,
     agents: users?.filter((u) => u.role === "agent").length || 0,
+    dealers: users?.filter((u) => u.role === "dealer").length || 0,
+    superDealers: users?.filter((u) => u.role === "super_dealer").length || 0,
     admins: users?.filter((u) => u.role === "admin").length || 0,
   };
 
@@ -126,8 +148,8 @@ export default function AdminUsers() {
                 description="All registered users"
               />
               <StatCard
-                title="Guests"
-                value={stats.guests}
+                title="Users"
+                value={stats.users}
                 icon={UserCircle}
                 description="Regular users"
               />
@@ -136,6 +158,26 @@ export default function AdminUsers() {
                 value={stats.agents}
                 icon={UserCircle}
                 description="Agent accounts"
+              />
+              <StatCard
+                title="Dealers"
+                value={stats.dealers}
+                icon={UserCircle}
+                description="Dealer accounts"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <StatCard
+                title="Super Dealers"
+                value={stats.superDealers}
+                icon={UserCircle}
+                description="Super dealer accounts"
+              />
+              <StatCard
+                title="Guests"
+                value={stats.guests}
+                icon={UserCircle}
+                description="Guest accounts"
               />
               <StatCard
                 title="Admins"
@@ -163,7 +205,10 @@ export default function AdminUsers() {
                   <SelectContent>
                     <SelectItem value="all">All Users</SelectItem>
                     <SelectItem value="guest">Guests</SelectItem>
+                    <SelectItem value="user">Users</SelectItem>
                     <SelectItem value="agent">Agents</SelectItem>
+                    <SelectItem value="dealer">Dealers</SelectItem>
+                    <SelectItem value="super_dealer">Super Dealers</SelectItem>
                     <SelectItem value="admin">Admins</SelectItem>
                   </SelectContent>
                 </Select>
@@ -200,13 +245,27 @@ export default function AdminUsers() {
                               <div className="text-sm">{user.phone || "—"}</div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={
-                                user.role === "admin" ? "default" :
-                                user.role === "agent" ? "secondary" :
-                                "outline"
-                              }>
-                                {user.role}
-                              </Badge>
+                              <Select
+                                value={user.role}
+                                onValueChange={(newRole) => {
+                                  if (newRole !== user.role) {
+                                    updateRoleMutation.mutate({ id: user.id, role: newRole });
+                                  }
+                                }}
+                                disabled={updateRoleMutation.isPending}
+                              >
+                                <SelectTrigger className="w-32">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="guest">Guest</SelectItem>
+                                  <SelectItem value="user">User</SelectItem>
+                                  <SelectItem value="agent">Agent</SelectItem>
+                                  <SelectItem value="dealer">Dealer</SelectItem>
+                                  <SelectItem value="super_dealer">Super Dealer</SelectItem>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </TableCell>
                             <TableCell>
                               {user.lastPurchase ? (

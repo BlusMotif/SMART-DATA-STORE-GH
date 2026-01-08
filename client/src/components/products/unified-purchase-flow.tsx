@@ -93,12 +93,33 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   );
 
   const sortedBundles = filteredBundles?.sort(
-    (a, b) => parseFloat(a.basePrice) - parseFloat(b.basePrice)
+    (a, b) => getBundlePrice(a) - getBundlePrice(b)
   );
 
   const selectedBundle = sortedBundles?.find(bundle => bundle.id === selectedBundleId);
   const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
-  const price = selectedBundle ? parseFloat(selectedBundle.basePrice) : 0;
+
+  // Get price based on user role
+  const getBundlePrice = (bundle: typeof selectedBundle) => {
+    if (!bundle) return 0;
+    
+    const userRole = user?.role || 'guest';
+    
+    switch (userRole) {
+      case 'super_dealer':
+        return bundle.superDealerPrice ? parseFloat(bundle.superDealerPrice) : parseFloat(bundle.basePrice);
+      case 'dealer':
+        return bundle.dealerPrice ? parseFloat(bundle.dealerPrice) : parseFloat(bundle.basePrice);
+      case 'agent':
+        return bundle.agentPrice ? parseFloat(bundle.agentPrice) : parseFloat(bundle.basePrice);
+      case 'admin':
+      case 'user':
+      default:
+        return parseFloat(bundle.basePrice);
+    }
+  };
+
+  const price = selectedBundle ? getBundlePrice(selectedBundle) : 0;
   const hasInsufficientBalance = Boolean(
     !statsLoading && userStats && price > 0 && walletBalance < price
   );
@@ -301,7 +322,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                   Select Your Data Bundle
                   {selectedBundle && !isStep1Open && (
                     <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      - {selectedBundle.dataAmount} ({formatCurrency(parseFloat(selectedBundle.basePrice))})
+                      - {selectedBundle.dataAmount} ({formatCurrency(getBundlePrice(selectedBundle))})
                     </span>
                   )}
                 </CardTitle>
@@ -327,7 +348,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                           {bundle.validity}
                         </span>
                         <span className="font-bold text-primary">
-                          {formatCurrency(parseFloat(bundle.basePrice))}
+                          {formatCurrency(getBundlePrice(bundle))}
                         </span>
                       </div>
                     </SelectItem>
@@ -339,12 +360,12 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                 <div className="mt-4 p-4 bg-muted rounded-lg">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - {formatCurrency(parseFloat(selectedBundle.basePrice))}</h3>
+                      <h3 className="font-semibold text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - {formatCurrency(getBundlePrice(selectedBundle))}</h3>
                       <NetworkBadge network={selectedBundle.network} className="mt-1" />
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
-                        {formatCurrency(parseFloat(selectedBundle.basePrice))}
+                        {formatCurrency(getBundlePrice(selectedBundle))}
                       </p>
                     </div>
                   </div>

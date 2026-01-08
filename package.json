@@ -10,7 +10,7 @@
     "dev": "cross-env NODE_ENV=development PORT=10000 DATABASE_URL=postgresql://postgres.jddstfppigucldetsxws:NUNANASMARTDATAGH@aws-1-eu-west-1.pooler.supabase.com:6543/postgres PAYSTACK_SECRET_KEY=sk_test_7a5255fd9557852d6955e7cdb1c3d5ba5b4d13cf PAYSTACK_PUBLIC_KEY=pk_test_fd2fc9be0e0f8a1b7bdc4d56b2ec88c2e0ed9f85 npx tsx server/index.ts",
     "build": "npm install && npx tsx script/build.ts",
     "preview": "vite preview --host --port $PORT",
-    "start": "NODE_ENV=production node dist/index.cjs",
+    "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "seed:admin": "npx tsx script/seed-admin.ts",
     "create:admin": "npx tsx script/create-admin.ts",

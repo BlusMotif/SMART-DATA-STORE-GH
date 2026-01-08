@@ -18,14 +18,14 @@ export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@shared": path.resolve(__dirname, "../shared"),
-      "@assets": path.resolve(__dirname, "assets"),
+      "@": path.resolve(__dirname, "client", "src"),
+      "@shared": path.resolve(__dirname, "shared"),
+      "@assets": path.resolve(__dirname, "client", "assets"),
     },
   },
-  root: ".",
+  root: "client",
   build: {
-    outDir: "../dist/public",
+    outDir: "dist/public",
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {

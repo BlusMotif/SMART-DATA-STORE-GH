@@ -110,8 +110,6 @@ function Router() {
       <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRole="agent" />
       <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRole="agent" />
       <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRole="agent" />
-      <ProtectedRoute path="/agent/bundles/:network" component={UserBundlesPage} requiredRole="agent" />
-      <ProtectedRoute path="/agent/wallet" component={WalletDashboard} requiredRole="agent" />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />

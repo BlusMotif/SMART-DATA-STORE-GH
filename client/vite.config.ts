@@ -30,7 +30,6 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        // Add hash to filenames for cache busting
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
         assetFileNames: 'assets/[name].[hash].[ext]'
@@ -38,40 +37,31 @@ export default defineConfig({
     }
   },
   server: {
-    // Use the platform-provided PORT when present so preview/dev bind correctly
-    // on hosting platforms like Render. `host: true` makes the server listen
-    // on all interfaces which is required for containerized deployments.
     host: true,
     port: Number(process.env.PORT) || 3000,
-    // Allow Render host through the dev server host checks
     allowedHosts: [
       'smartdatastoregh.onrender.com',
       'localhost',
     ],
-    // Avoid forcing HMR to a conflicting port; let Vite choose defaults when
-    // running locally. If needed, Vite's HMR will infer settings from the
-    // dev server environment.
     proxy: {
       '/api': {
-        // Proxy API requests to the backend running on the same PORT in dev.
         target: `http://localhost:${process.env.PORT || 3000}`,
         changeOrigin: true,
         secure: false,
       },
     },
     fs: {
-  // Preview server configuration used by `vite preview` (and platforms)
-  preview: {
-    host: true,
-    port: Number(process.env.PORT) || 3000,
-    allowedHosts: ['smartdatastoregh.onrender.com', 'localhost'],
-  },
       strict: true,
       deny: ["**/.*"],
     },
     watch: {
       usePolling: true,
     },
+  },
+  preview: {
+    host: true,
+    port: Number(process.env.PORT) || 3000,
+    allowedHosts: ['smartdatastoregh.onrender.com', 'localhost'],
   },
   cacheDir: 'node_modules/.vite',
   optimizeDeps: {

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +46,8 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+  const [deleteInactiveDays, setDeleteInactiveDays] = useState<number | null>(null);
+  const [showDeleteInactiveDialog, setShowDeleteInactiveDialog] = useState(false);
 
   const { data: users, isLoading } = useQuery<UserWithLastPurchase[]>({
     queryKey: ["/api/admin/users"],
@@ -63,6 +66,26 @@ export default function AdminUsers() {
     onError: (error: Error) => {
       toast({ 
         title: "Failed to delete user", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const deleteInactiveMutation = useMutation({
+    mutationFn: (days: number) => apiRequest("DELETE", `/api/admin/users/delete-inactive?days=${days}`, {}),
+    onSuccess: (data: { deletedCount: number; errors?: string[] }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({ 
+        title: `✅ Deleted ${data.deletedCount} inactive users`,
+        description: data.errors ? `Errors: ${data.errors.join(', ')}` : undefined
+      });
+      setDeleteInactiveDays(null);
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to delete inactive users", 
         description: error.message, 
         variant: "destructive" 
       });
@@ -198,20 +221,39 @@ export default function AdminUsers() {
                     Manage user accounts and track purchases
                   </CardDescription>
                 </div>
-                <Select value={roleFilter} onValueChange={setRoleFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Users</SelectItem>
-                    <SelectItem value="guest">Guests</SelectItem>
-                    <SelectItem value="user">Users</SelectItem>
-                    <SelectItem value="agent">Agents</SelectItem>
-                    <SelectItem value="dealer">Dealers</SelectItem>
-                    <SelectItem value="super_dealer">Super Dealers</SelectItem>
-                    <SelectItem value="admin">Admins</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Days"
+                      className="w-20"
+                      value={deleteInactiveDays || ""}
+                      onChange={(e) => setDeleteInactiveDays(parseInt(e.target.value) || null)}
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setShowDeleteInactiveDialog(true)}
+                      disabled={!deleteInactiveDays}
+                    >
+                      Delete Inactive
+                    </Button>
+                  </div>
+                  <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      <SelectItem value="guest">Guests</SelectItem>
+                      <SelectItem value="user">Users</SelectItem>
+                      <SelectItem value="agent">Agents</SelectItem>
+                      <SelectItem value="dealer">Dealers</SelectItem>
+                      <SelectItem value="super_dealer">Super Dealers</SelectItem>
+                      <SelectItem value="admin">Admins</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -319,6 +361,34 @@ export default function AdminUsers() {
           </div>
         </main>
       </div>
+
+      {/* Delete inactive users confirmation dialog */}
+      <AlertDialog open={showDeleteInactiveDialog} onOpenChange={setShowDeleteInactiveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Inactive Users</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete all users who haven't made a purchase in the last {deleteInactiveDays} days? 
+              This action cannot be undone. All user data and transactions will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteInactiveDays) {
+                  deleteInactiveMutation.mutate(deleteInactiveDays);
+                  setShowDeleteInactiveDialog(false);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteInactiveMutation.isPending}
+            >
+              Delete Inactive Users
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>

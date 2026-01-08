@@ -2,6 +2,9 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// Initialize Supabase immediately after loading environment variables
+initializeSupabase();
+
 import express, { type Request, Response, NextFunction, type Express } from "express";
 // @ts-ignore
 import session from "express-session";
@@ -14,6 +17,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import { initializeSupabase } from "./supabase.js";
 
 // Get the directory path - use import.meta.url for correct path in ESM
 const __filename = fileURLToPath(import.meta.url);

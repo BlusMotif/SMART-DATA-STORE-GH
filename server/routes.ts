@@ -3010,6 +3010,92 @@ export async function registerRoutes(
     }
   });
 
+  // Delete inactive users by last purchase date
+  app.delete("/api/admin/users/delete-inactive", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string);
+      if (!days || days <= 0) {
+        return res.status(400).json({ error: "Invalid days parameter. Must be a positive integer." });
+      }
+
+      const thresholdDate = new Date();
+      thresholdDate.setDate(thresholdDate.getDate() - days);
+
+      const allUsers = await storage.getUsers();
+      const supabaseServer = getSupabase();
+      if (!supabaseServer) {
+        return res.status(500).json({ error: "Server configuration error" });
+      }
+
+      const inactiveUsers = [];
+
+      for (const user of allUsers) {
+        if (user.role === UserRole.ADMIN) continue; // Don't delete admins
+
+        const transactions = await storage.getTransactions({
+          customerEmail: user.email,
+          status: TransactionStatus.COMPLETED,
+        });
+
+        if (transactions.length === 0) {
+          // No purchases ever
+          inactiveUsers.push(user);
+        } else {
+          const lastTransaction = transactions.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+          if (new Date(lastTransaction.createdAt) < thresholdDate) {
+            inactiveUsers.push(user);
+          }
+        }
+      }
+
+      let deletedCount = 0;
+      const errors = [];
+
+      for (const user of inactiveUsers) {
+        try {
+          console.log(`Deleting inactive user ${user.id}`);
+
+          // Delete agent record if exists
+          if (user.role === UserRole.AGENT) {
+            const agent = await storage.getAgentByUserId(user.id);
+            if (agent) {
+              await storage.deleteAgent(agent.id);
+            }
+          }
+
+          // Delete from database
+          await storage.deleteUser(user.id);
+
+          // Delete from Supabase Auth
+          const { error: authError } = await supabaseServer.auth.admin.deleteUser(user.id);
+          if (authError) {
+            console.error(`Failed to delete user ${user.id} from Supabase Auth:`, authError);
+            errors.push(`Failed to delete ${user.email} from auth: ${authError.message}`);
+          } else {
+            deletedCount++;
+          }
+        } catch (error: any) {
+          console.error(`Error deleting user ${user.id}:`, error);
+          errors.push(`Failed to delete ${user.email}: ${error.message}`);
+        }
+      }
+
+      res.json({ 
+        message: `Deleted ${deletedCount} inactive users`,
+        deletedCount,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (error: any) {
+      console.error("Error deleting inactive users:", error);
+      res.status(500).json({ 
+        error: "Failed to delete inactive users",
+        details: error.message 
+      });
+    }
+  });
+
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;

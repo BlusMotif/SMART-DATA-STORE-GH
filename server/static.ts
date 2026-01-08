@@ -1,9 +1,10 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-// Get the directory path - use process.cwd() for production builds
-const __dirname = path.resolve(process.cwd(), 'server');
+// Get the directory path - use import.meta.url for correct path
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "..", "dist", "public");

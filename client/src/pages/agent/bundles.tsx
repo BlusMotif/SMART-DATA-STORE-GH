@@ -79,7 +79,7 @@ export default function AgentBundlesPage() {
       // Convert hyphens to underscores for API call
       const apiNetwork = network?.replace(/-/g, '_');
       const response = await apiRequest("GET", `/api/products/data-bundles?network=${apiNetwork}`);
-      return response.json();
+      return await response.json() as DataBundle[];
     },
     enabled: !!network,
   });
@@ -113,7 +113,7 @@ export default function AgentBundlesPage() {
   }, [selectedBundle, agentData]);
 
   // Calculate total for single purchase
-  const singleTotal = agentPrice * quantity;
+  const singleTotal = agentPrice * 1;
 
   // Calculate bulk purchase total
   const bulkTotal = useMemo(() => {

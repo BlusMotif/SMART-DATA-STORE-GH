@@ -12,7 +12,7 @@ interface BreakSettings {
 
 export function BreakModeGuard({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { data: authData, isLoading: authLoading } = useAuth();
+  const { user: authData, isLoading: authLoading } = useAuth();
   const { data: breakSettings, isLoading: breakLoading } = useQuery<BreakSettings>({
     queryKey: ["/api/break-settings"],
     refetchInterval: 30000, // Check every 30 seconds
@@ -37,7 +37,7 @@ export function BreakModeGuard({ children }: { children: React.ReactNode }) {
   const isAuthRoute = authRoutes.includes(location);
 
   // Allow admins to bypass break mode
-  const isAdmin = authData?.user?.role === "admin";
+  const isAdmin = authData?.role === "admin";
   if (isAdmin || isAuthRoute) {
     return <>{children}</>;
   }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -29,11 +29,14 @@ export default function AdminBreakSettings() {
   // Fetch current break settings
   const { data: breakSettings, isLoading } = useQuery<BreakSettings>({
     queryKey: ["/api/break-settings"],
-    onSuccess: (data) => {
-      setIsEnabled(data.isEnabled);
-      setMessage(data.message);
-    },
   });
+
+  useEffect(() => {
+    if (breakSettings) {
+      setIsEnabled(breakSettings.isEnabled);
+      setMessage(breakSettings.message);
+    }
+  }, [breakSettings]);
 
   // Update break settings mutation
   const updateMutation = useMutation({

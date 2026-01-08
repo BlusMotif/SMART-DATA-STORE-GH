@@ -1812,7 +1812,7 @@ export async function registerRoutes(
           // Check if user already exists (idempotency check for duplicate verification calls)
           const existingUser = await storage.getUserByEmail(regData.email);
           if (existingUser && existingUser.role === 'agent') {
-            console.log("User already exists, returning existing account details");
+            console.log("User already exists as agent, returning existing account details");
             const existingAgent = await storage.getAgentByUserId(existingUser.id);
             
             if (existingAgent) {
@@ -1837,6 +1837,60 @@ export async function registerRoutes(
                 }
               });
             }
+          } else if (existingUser && existingUser.role !== 'agent') {
+            console.log("User exists but not agent, upgrading to agent");
+            // Update user role to agent
+            await storage.updateUserRole(existingUser.id, UserRole.AGENT);
+            // Create agent record
+            const agent = await storage.createAgent({
+              userId: existingUser.id,
+              storefrontSlug: regData.storefrontSlug,
+              businessName: regData.businessName,
+              isApproved: true,
+              paymentPending: false,
+            });
+            console.log("Agent created for existing user:", agent.id);
+            
+            // Create transaction record
+            const activationFee = 60.00;
+            const transaction = await storage.createTransaction({
+              reference: paymentData.reference,
+              type: ProductType.AGENT_ACTIVATION,
+              productId: agent.id,
+              productName: "Agent Account Activation",
+              network: null,
+              amount: activationFee.toString(),
+              costPrice: "0.00",
+              profit: activationFee.toString(),
+              customerPhone: regData.phone,
+              customerEmail: regData.email,
+              paymentMethod: "paystack",
+              status: TransactionStatus.COMPLETED,
+              paymentReference: paymentData.reference,
+              agentId: null,
+              agentProfit: "0.00",
+            });
+            
+            return res.json({
+              status: "success",
+              message: "Payment verified and agent account upgraded successfully. Please login with your credentials.",
+              data: {
+                reference: paymentData.reference,
+                amount: paymentData.amount,
+                paidAt: paymentData.paid_at,
+                agent: {
+                  id: agent.id,
+                  businessName: agent.businessName,
+                  storefrontSlug: agent.storefrontSlug,
+                },
+                user: {
+                  id: existingUser.id,
+                  email: existingUser.email,
+                  name: existingUser.name,
+                  role: 'agent',
+                }
+              }
+            });
           }
           
           // Now create the account after successful payment

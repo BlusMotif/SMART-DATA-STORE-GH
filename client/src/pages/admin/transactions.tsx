@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -11,19 +11,60 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, Menu, Layers } from "lucide-react";
+import { BarChart3, Search, Menu, Layers, Download, Edit } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
 
 export default function AdminTransactions() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editingDeliveryStatus, setEditingDeliveryStatus] = useState<string | null>(null);
+  const [deliveryStatusValue, setDeliveryStatusValue] = useState<string>("");
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
     refetchInterval: 15000, // Refetch every 15 seconds for transactions
     refetchOnWindowFocus: true,
+  });
+
+  // Update delivery status mutation
+  const updateDeliveryStatusMutation = useMutation({
+    mutationFn: async ({ transactionId, deliveryStatus }: { transactionId: string; deliveryStatus: string }) => {
+      return apiRequest("PATCH", `/api/admin/transactions/${transactionId}/delivery-status`, { deliveryStatus });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      toast({ title: "Delivery status updated successfully" });
+      setEditingDeliveryStatus(null);
+      setDeliveryStatusValue("");
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update delivery status", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Export transactions mutation
+  const exportTransactionsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("GET", "/api/admin/transactions/export");
+      return response;
+    },
+    onSuccess: (data) => {
+      // Convert to CSV and download
+      if (data && Array.isArray(data)) {
+        const csvContent = convertToCSV(data);
+        downloadCSV(csvContent, `transactions-${new Date().toISOString().split('T')[0]}.csv`);
+        toast({ title: "Transactions exported successfully" });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to export transactions", description: error.message, variant: "destructive" });
+    },
   });
 
   const filteredTransactions = transactions?.filter((tx) => {
@@ -47,6 +88,70 @@ export default function AdminTransactions() {
     completed: transactions?.filter((t) => t.status === "completed").length || 0,
     pending: transactions?.filter((t) => t.status === "pending").length || 0,
     failed: transactions?.filter((t) => t.status === "failed").length || 0,
+  };
+
+  // Helper functions
+  const convertToCSV = (data: any[]) => {
+    if (data.length === 0) return '';
+
+    const headers = Object.keys(data[0]);
+    const csvRows = [];
+
+    // Add headers
+    csvRows.push(headers.join(','));
+
+    // Add data rows
+    for (const row of data) {
+      const values = headers.map(header => {
+        const value = row[header];
+        // Handle arrays and objects
+        if (Array.isArray(value)) {
+          return `"${value.map(item => 
+            typeof item === 'object' ? JSON.stringify(item) : item
+          ).join('; ')}"`;
+        }
+        if (typeof value === 'object' && value !== null) {
+          return `"${JSON.stringify(value)}"`;
+        }
+        // Escape quotes and wrap in quotes if contains comma
+        const stringValue = String(value || '');
+        if (stringValue.includes(',') || stringValue.includes('"')) {
+          return `"${stringValue.replace(/"/g, '""')}"`;
+        }
+        return stringValue;
+      });
+      csvRows.push(values.join(','));
+    }
+
+    return csvRows.join('\n');
+  };
+
+  const downloadCSV = (csvContent: string, filename: string) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleEditDeliveryStatus = (transactionId: string, currentStatus: string) => {
+    setEditingDeliveryStatus(transactionId);
+    setDeliveryStatusValue(currentStatus || "pending");
+  };
+
+  const handleSaveDeliveryStatus = (transactionId: string) => {
+    if (deliveryStatusValue) {
+      updateDeliveryStatusMutation.mutate({ transactionId, deliveryStatus: deliveryStatusValue });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDeliveryStatus(null);
+    setDeliveryStatusValue("");
   };
 
   return (
@@ -123,6 +228,16 @@ export default function AdminTransactions() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => exportTransactionsMutation.mutate()}
+                    disabled={exportTransactionsMutation.isPending}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    {exportTransactionsMutation.isPending ? "Exporting..." : "Export CSV"}
+                  </Button>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -172,7 +287,9 @@ export default function AdminTransactions() {
                           <TableHead>Profit</TableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead>Delivery</TableHead>
                           <TableHead>Date</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -180,6 +297,7 @@ export default function AdminTransactions() {
                           const network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
+                          const deliveryStatus = (tx as any).deliveryStatus || "pending";
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
@@ -239,8 +357,64 @@ export default function AdminTransactions() {
                               <TableCell>
                                 <StatusBadge status={tx.status} />
                               </TableCell>
+                              <TableCell>
+                                {editingDeliveryStatus === tx.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <Select value={deliveryStatusValue} onValueChange={setDeliveryStatusValue}>
+                                      <SelectTrigger className="w-32 h-8">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="pending">Pending</SelectItem>
+                                        <SelectItem value="processing">Processing</SelectItem>
+                                        <SelectItem value="delivered">Delivered</SelectItem>
+                                        <SelectItem value="failed">Failed</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleSaveDeliveryStatus(tx.id)}
+                                      disabled={updateDeliveryStatusMutation.isPending}
+                                      className="h-8 px-2"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={handleCancelEdit}
+                                      className="h-8 px-2"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Badge
+                                    variant={
+                                      deliveryStatus === "delivered" ? "default" :
+                                      deliveryStatus === "processing" ? "secondary" :
+                                      deliveryStatus === "failed" ? "destructive" : "outline"
+                                    }
+                                    className="cursor-pointer"
+                                    onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
+                                  >
+                                    {deliveryStatus}
+                                  </Badge>
+                                )}
+                              </TableCell>
                               <TableCell className="text-muted-foreground text-sm">
                                 {formatDate(tx.createdAt)}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
+                                  disabled={editingDeliveryStatus === tx.id}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );

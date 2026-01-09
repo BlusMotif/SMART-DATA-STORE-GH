@@ -97,7 +97,6 @@ async function processWebhookEvent(event: any) {
               productName: "Agent Account Activation",
               network: null,
               amount: activationFee.toString(),
-              costPrice: "0.00",
               profit: activationFee.toString(),
               customerPhone: regData.phone,
               customerEmail: regData.email,
@@ -988,7 +987,6 @@ export async function registerRoutes(
           productName: "Agent Account Activation",
           network: null,
           amount: activationFee.toString(),
-          costPrice: "0.00",
           profit: activationFee.toString(),
           customerPhone: user.phone || "",
           customerEmail: user.email || null,
@@ -1502,7 +1500,6 @@ export async function registerRoutes(
         productName: `Bulk Data Bundle Purchase (${orderItems.length} items)`,
         network: null,
         amount: totalAmount.toFixed(2),
-        costPrice: "0.00", // Will be calculated per item
         profit: "0.00", // Will be calculated per item
         customerPhone: user.phone || "",
         customerEmail: user.email,
@@ -1701,8 +1698,8 @@ export async function registerRoutes(
           
           // For bulk orders with orderItems, profit is already calculated
           if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
-            // Calculate profit: agent price - cost price
-            agentProfit = amount - costPrice;
+            // Calculate profit: amount (since cost price removed)
+            agentProfit = amount;
             console.log("[Checkout] Bulk order agent profit:", agentProfit);
           }
           // For single orders, check custom pricing or apply markup
@@ -1710,8 +1707,8 @@ export async function registerRoutes(
             const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
             if (customPrice) {
               const agentPrice = parseFloat(customPrice);
-              // Agent profit is the difference between their price and cost price
-              agentProfit = agentPrice - costPrice;
+              // Agent profit is the agent price (since cost price removed)
+              agentProfit = agentPrice;
               amount = agentPrice;
             } else {
               // Fall back to markup if no custom price
@@ -1804,8 +1801,8 @@ export async function registerRoutes(
       // Calculate total amount for bulk orders
       // For orderItems format, amount is already the total
       const totalAmount = data.orderItems ? amount : (amount * numberOfRecipients);
-      const totalCostPrice = costPrice * numberOfRecipients;
-      const totalProfit = totalAmount - totalCostPrice;
+      const totalCostPrice = 0;
+      const totalProfit = totalAmount;
       const totalAgentProfit = agentProfit * numberOfRecipients;
       
       console.log("[Checkout] ========== CALCULATED TOTALS ==========");
@@ -1822,7 +1819,6 @@ export async function registerRoutes(
         productName,
         network,
         amount: totalAmount.toFixed(2),
-        costPrice: totalCostPrice.toFixed(2),
         profit: totalProfit.toFixed(2),
         customerPhone: normalizedPhone,
         customerEmail: data.customerEmail,
@@ -2143,7 +2139,6 @@ export async function registerRoutes(
               productName: "Agent Account Activation",
               network: null,
               amount: activationFee.toString(),
-              costPrice: "0.00",
               profit: activationFee.toString(),
               customerPhone: regData.phone,
               customerEmail: regData.email,
@@ -2235,7 +2230,6 @@ export async function registerRoutes(
               productName: "Agent Account Activation",
               network: null,
               amount: activationFee.toString(),
-              costPrice: "0.00",
               profit: activationFee.toString(),
               customerPhone: regData.phone,
               customerEmail: regData.email,
@@ -2434,7 +2428,6 @@ export async function registerRoutes(
                 productName: "Agent Account Activation",
                 network: null,
                 amount: activationFee.toString(),
-                costPrice: "0.00",
                 profit: activationFee.toString(),
                 customerPhone: regData.phone,
                 customerEmail: regData.email,
@@ -3786,6 +3779,87 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // ADMIN - TRANSACTIONS MANAGEMENT
+  // ============================================
+
+  // Get all transactions (admin view)
+  app.get("/api/admin/transactions", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const type = req.query.type as string | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+
+      const transactions = await storage.getTransactions({
+        status: status as any,
+        type: type as any,
+        limit,
+      });
+
+      // Add delivery status and phone numbers for admin view
+      const transactionsWithDetails = transactions.map(tx => ({
+        ...tx,
+        deliveryStatus: (tx as any).deliveryStatus || "pending",
+        phoneNumbers: (tx as any).phoneNumbers,
+        isBulkOrder: (tx as any).isBulkOrder,
+      }));
+
+      res.json(transactionsWithDetails);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load transactions" });
+    }
+  });
+
+  // Update delivery status for a transaction
+  app.patch("/api/admin/transactions/:transactionId/delivery-status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { transactionId } = req.params;
+      const { deliveryStatus } = req.body;
+
+      if (!deliveryStatus || !["pending", "processing", "delivered", "failed"].includes(deliveryStatus)) {
+        return res.status(400).json({ error: "Invalid delivery status" });
+      }
+
+      const transaction = await storage.updateTransaction(transactionId, { deliveryStatus });
+      if (!transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      res.json(transaction);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update delivery status" });
+    }
+  });
+
+  // Export transactions to CSV
+  app.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const transactions = await storage.getTransactions();
+
+      const csvData = transactions.map(tx => ({
+        reference: tx.reference,
+        productName: tx.productName,
+        network: tx.network,
+        amount: tx.amount,
+        profit: tx.profit,
+        customerPhone: tx.customerPhone,
+        customerEmail: tx.customerEmail,
+        status: tx.status,
+        deliveryStatus: (tx as any).deliveryStatus || "pending",
+        createdAt: tx.createdAt.toISOString(),
+        completedAt: tx.completedAt?.toISOString() || "",
+        phoneNumbers: (tx as any).phoneNumbers ? 
+          (tx as any).phoneNumbers.map((p: any) => p.phone).join("; ") : 
+          "",
+        isBulkOrder: (tx as any).isBulkOrder ? "Yes" : "No",
+      }));
+
+      res.json(csvData);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to export transactions" });
+    }
+  });
+
+  // ============================================
   // ADMIN - API CONFIGURATION
   // ============================================
   app.get("/api/admin/api-config", requireAuth, requireAdmin, async (req, res) => {
@@ -4131,7 +4205,6 @@ export async function registerRoutes(
         type: "wallet_topup",
         productName: "Wallet Top-up",
         amount: parseFloat(amount).toFixed(2),
-        costPrice: "0.00",
         profit: "0.00",
         customerPhone: dbUser.phone || "",
         customerEmail: dbUser.email,
@@ -4341,7 +4414,6 @@ export async function registerRoutes(
         productName: effectiveProductName,
         network,
         amount: purchaseAmount.toFixed(2),
-        costPrice: costPrice.toFixed(2),
         profit: profit.toFixed(2),
         customerPhone,
         customerEmail: dbUser.email,

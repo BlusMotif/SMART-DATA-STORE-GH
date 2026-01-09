@@ -336,69 +336,36 @@ export default function AdminSettings() {
               </CardContent>
             </Card>
 
-            {/* Security Settings */}
+            {/* Processing Settings */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Security Settings
+                  <Smartphone className="h-5 w-5" />
+                  Processing Settings
                 </CardTitle>
                 <CardDescription>
-                  Configure security and access controls
+                  Configure automatic processing and delivery options
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label>Auto-approve Agents</Label>
+                    <Label>Auto-Process Data Bundles</Label>
                     <p className="text-sm text-muted-foreground">
-                      Automatically approve new agent registrations
+                      Automatically send data bundles to providers after payment
                     </p>
                   </div>
                   <Switch
-                    checked={settings.auto_approve_agents === "true"}
+                    checked={settings.data_bundle_auto_processing === "true"}
                     onCheckedChange={(checked) => {
-                      handleSettingChange("auto_approve_agents", checked ? "true" : "false");
-                      handleSaveSetting("auto_approve_agents", "Auto-approve new agent registrations");
+                      handleSettingChange("data_bundle_auto_processing", checked ? "true" : "false");
+                      handleSaveSetting("data_bundle_auto_processing", "Auto-process data bundle orders via API");
                     }}
                   />
                 </div>
-                <Separator />
-                <div className="space-y-2">
-                  <Label htmlFor="minWithdrawal">Minimum Withdrawal (GHS)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="minWithdrawal"
-                      type="number"
-                      value={settings.min_withdrawal || "10"}
-                      onChange={(e) => handleSettingChange("min_withdrawal", e.target.value)}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => handleSaveSetting("min_withdrawal", "Minimum withdrawal amount in GHS")}
-                      disabled={updateSettingMutation.isPending}
-                    >
-                      <Save className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="maxWithdrawal">Maximum Withdrawal (GHS)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="maxWithdrawal"
-                      type="number"
-                      value={settings.max_withdrawal || "5000"}
-                      onChange={(e) => handleSettingChange("max_withdrawal", e.target.value)}
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => handleSaveSetting("max_withdrawal", "Maximum withdrawal amount in GHS")}
-                      disabled={updateSettingMutation.isPending}
-                    >
-                      <Save className="h-4 w-4" />
-                    </Button>
-                  </div>
+                <div className="text-xs text-muted-foreground">
+                  When enabled: Orders are automatically sent to data providers after payment.
+                  When disabled: Orders remain pending for manual processing and export.
                 </div>
               </CardContent>
             </Card>

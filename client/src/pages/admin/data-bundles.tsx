@@ -141,11 +141,12 @@ export default function AdminDataBundles() {
                         <TableHead>Name</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead>Validity</TableHead>
-                        <TableHead>Cost</TableHead>
                         <TableHead>Base Price</TableHead>
                         <TableHead>Agent</TableHead>
                         <TableHead>Dealer</TableHead>
                         <TableHead>Super Dealer</TableHead>
+                        <TableHead>Master</TableHead>
+                        <TableHead>Admin</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -168,9 +169,6 @@ export default function AdminDataBundles() {
                             <TableCell className="font-medium">{bundle.network.toUpperCase()} {bundle.dataAmount} - {bundle.validity}</TableCell>
                             <TableCell>{bundle.dataAmount}</TableCell>
                             <TableCell>{bundle.validity}</TableCell>
-                            <TableCell className="text-muted-foreground tabular-nums">
-                              {formatCurrency(bundle.costPrice)}
-                            </TableCell>
                             <TableCell className="font-medium tabular-nums">
                               {formatCurrency(bundle.basePrice)}
                             </TableCell>
@@ -182,6 +180,12 @@ export default function AdminDataBundles() {
                             </TableCell>
                             <TableCell className="tabular-nums">
                               {bundle.superDealerPrice ? formatCurrency(bundle.superDealerPrice) : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {bundle.masterPrice ? formatCurrency(bundle.masterPrice) : '-'}
+                            </TableCell>
+                            <TableCell className="tabular-nums">
+                              {bundle.adminPrice ? formatCurrency(bundle.adminPrice) : '-'}
                             </TableCell>
                             <TableCell>
                               <Badge variant={bundle.isActive ? "default" : "secondary"}>
@@ -261,10 +265,11 @@ function BundleForm({
     dataAmount: bundle?.dataAmount || "",
     validity: bundle?.validity || "",
     basePrice: bundle?.basePrice || "",
-    costPrice: bundle?.costPrice || "",
     agentPrice: bundle?.agentPrice || "",
     dealerPrice: bundle?.dealerPrice || "",
     superDealerPrice: bundle?.superDealerPrice || "",
+    masterPrice: bundle?.masterPrice || "",
+    adminPrice: bundle?.adminPrice || "",
     isActive: bundle?.isActive ?? true,
   });
 
@@ -334,19 +339,6 @@ function BundleForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="costPrice">Cost Price (GHS)</Label>
-          <Input
-            id="costPrice"
-            type="number"
-            step="0.01"
-            value={formData.costPrice}
-            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
-            placeholder="0.00"
-            required
-            data-testid="input-bundle-cost"
-          />
-        </div>
-        <div className="space-y-2">
           <Label htmlFor="basePrice">Base Price (GHS)</Label>
           <Input
             id="basePrice"
@@ -361,7 +353,7 @@ function BundleForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <div className="space-y-2">
           <Label htmlFor="agentPrice">Agent Price (GHS)</Label>
           <Input
@@ -396,6 +388,30 @@ function BundleForm({
             onChange={(e) => setFormData({ ...formData, superDealerPrice: e.target.value })}
             placeholder="0.00"
             data-testid="input-bundle-super-dealer-price"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="masterPrice">Master Price (GHS)</Label>
+          <Input
+            id="masterPrice"
+            type="number"
+            step="0.01"
+            value={formData.masterPrice}
+            onChange={(e) => setFormData({ ...formData, masterPrice: e.target.value })}
+            placeholder="0.00"
+            data-testid="input-bundle-master-price"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="adminPrice">Admin Price (GHS)</Label>
+          <Input
+            id="adminPrice"
+            type="number"
+            step="0.01"
+            value={formData.adminPrice}
+            onChange={(e) => setFormData({ ...formData, adminPrice: e.target.value })}
+            placeholder="0.00"
+            data-testid="input-bundle-admin-price"
           />
         </div>
       </div>

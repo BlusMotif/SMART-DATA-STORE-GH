@@ -27,7 +27,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { NetworkBadge } from "@/components/products/network-badge";
-import { Phone, Mail, Loader2, ShieldCheck, Wifi, Clock, Wallet, CreditCard, CheckCircle, AlertCircle, ShoppingCart, ChevronDown, ChevronUp, Package, Layers } from "lucide-react";
+import { Phone, Mail, Loader2, ShieldCheck, Wifi, Clock, Wallet, CreditCard, CheckCircle, AlertCircle, ShoppingCart, ChevronDown, ChevronUp, Package, Layers, FileSpreadsheet, Upload } from "lucide-react";
+import * as XLSX from 'xlsx';
 import type { DataBundle } from "@shared/schema";
 
 const singleOrderSchema = z.object({
@@ -41,11 +42,20 @@ const singleOrderSchema = z.object({
 
 const bulkOrderSchema = z.object({
   phoneNumbers: z.string()
-    .min(10, "Enter at least one phone number")
+    .min(10, "Enter at least one phone number with data amount")
     .refine((val) => {
-      const numbers = val.split(/[\n,]/).map(n => n.trim()).filter(n => n);
-      return numbers.every(n => /^0[0-9]{9}$/.test(n));
-    }, "All phone numbers must be valid (10 digits starting with 0)"),
+      const lines = val.split('\n').map(l => l.trim()).filter(l => l);
+      return lines.every(line => {
+        const parts = line.split(/\s+/);
+        return parts.length >= 2 && /^0[0-9]{9}$/.test(parts[0]);
+      });
+    }, "Each line must start with a valid phone number (10 digits starting with 0) followed by data amount")
+    .refine((val) => {
+      const lines = val.split('\n').map(l => l.trim()).filter(l => l);
+      const phoneNumbers = lines.map(line => line.split(/\s+/)[0]);
+      const uniquePhones = new Set(phoneNumbers);
+      return phoneNumbers.length === uniquePhones.size;
+    }, "Duplicate phone numbers found. Please remove duplicates before proceeding."),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
 });
@@ -70,16 +80,71 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   const { user } = useAuth();
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderType, setOrderType] = useState<"single" | "bulk">("single");
+  const [orderType, setOrderType] = useState<"single" | "bulk" | "excel">("single");
   const [isStep1Open, setIsStep1Open] = useState(true);
   const [isStep2Open, setIsStep2Open] = useState(false);
+  const [excelFile, setExcelFile] = useState<File | null>(null);
 
-  // Disable bulk orders for AT Ishare network
+  // Calculate total for bulk orders
   useEffect(() => {
-    if (network === "at_ishare" && orderType === "bulk") {
-      setOrderType("single");
+    if (orderType === "bulk" && bulkForm.watch("phoneNumbers")) {
+      const lines = bulkForm.watch("phoneNumbers").split('\n').map(l => l.trim()).filter(l => l);
+      let total = 0;
+      for (const line of lines) {
+        const parts = line.split(/\s+/);
+        if (parts.length < 2) continue;
+        let dataAmount = parts.slice(1).join(' ').toLowerCase();
+        if (!dataAmount.includes('mb') && !dataAmount.includes('gb')) {
+          dataAmount += 'gb';
+        }
+        const bundle = filteredBundles?.find(b => b.dataAmount.toLowerCase() === dataAmount);
+        if (bundle) {
+          total += parseFloat(bundle.customPrice || '0');
+        }
+      }
+      setTotalAmount(total);
+    } else {
+      setTotalAmount(price);
     }
-  }, [network, orderType]);
+  }, [orderType, bulkForm.watch("phoneNumbers"), filteredBundles, price]);
+
+  const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const lines: string[] = [];
+      json.forEach((row: any) => {
+        if (row[0] && row[1]) {
+          lines.push(`${row[0]} ${row[1]}`);
+        }
+      });
+
+      // Check for duplicate phone numbers
+      const phoneNumbers = lines.map(line => line.split(/\s+/)[0]);
+      const duplicates = phoneNumbers.filter((phone, index) => phoneNumbers.indexOf(phone) !== index);
+      const uniqueDuplicates = [...new Set(duplicates)];
+
+      if (uniqueDuplicates.length > 0) {
+        toast({
+          title: "Duplicate Phone Numbers Found",
+          description: `Please remove duplicate numbers: ${uniqueDuplicates.join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      bulkForm.setValue('phoneNumbers', lines.join('\n'));
+      setOrderType('bulk'); // Switch to bulk after upload
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   // Fetch data bundles for the network
   const { data: dataBundles, isLoading: bundlesLoading } = useQuery<DataBundle[]>({
@@ -157,6 +222,15 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
       const phoneNumbers = isBulk 
         ? (data as BulkOrderFormData).phoneNumbers.split(/[\n,]/).map(n => n.trim()).filter(n => n)
         : [(data as SingleOrderFormData).customerPhone];
+
+      // Check for duplicate phone numbers in bulk orders
+      if (isBulk) {
+        const phoneNumbersOnly = phoneNumbers.map(line => line.split(/\s+/)[0]);
+        const uniquePhones = new Set(phoneNumbersOnly);
+        if (phoneNumbersOnly.length !== uniquePhones.size) {
+          throw new Error("Duplicate phone numbers found. Please remove duplicates before proceeding.");
+        }
+      }
 
       console.log("[Frontend] ========== PAYMENT INITIALIZATION ==========");
       console.log("[Frontend] Order type:", orderType);
@@ -242,42 +316,83 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   });
 
   const onSubmit = (data: SingleOrderFormData | BulkOrderFormData) => {
-    if (!selectedBundle) {
+    const isBulk = 'phoneNumbers' in data;
+    
+    let totalAmount = 0;
+    let phoneNumbers: string[] = [];
+    let orderItems: any[] = [];
+
+    if (isBulk) {
+      const lines = (data as BulkOrderFormData).phoneNumbers.split('\n').map(l => l.trim()).filter(l => l);
+      for (const line of lines) {
+        const parts = line.split(/\s+/);
+        if (parts.length < 2) continue;
+        const phone = normalizePhoneNumber(parts[0]);
+        const dataAmount = parts.slice(1).join(' ').toLowerCase();
+        phoneNumbers.push(phone);
+        
+        // Find bundle by dataAmount
+        const bundle = filteredBundles.find(b => b.dataAmount.toLowerCase() === dataAmount);
+        if (!bundle) {
+          toast({
+            title: "Bundle Not Found",
+            description: `No bundle found for ${dataAmount} in ${network}`,
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        const price = parseFloat(bundle.customPrice || '0');
+        totalAmount += price;
+        orderItems.push({
+          phone,
+          bundleName: `${bundle.dataAmount} ${bundle.validity}`,
+          dataAmount: bundle.dataAmount,
+          price: price.toFixed(2),
+        });
+        
+        // Validate network but don't deny
+        const validation = validatePhoneNetwork(phone, bundle.network);
+        if (!validation.isValid) {
+          toast({
+            title: "⚠️ Network Mismatch",
+            description: `${phone}: This number belongs to a different network. Purchase allowed but delivery may fail.`,
+            variant: "default",
+            duration: 5000,
+          });
+        }
+      }
+    } else {
+      const phone = normalizePhoneNumber((data as SingleOrderFormData).customerPhone);
+      phoneNumbers = [phone];
+      totalAmount = price;
+      
+      // Validate network but don't deny
+      const validation = validatePhoneNetwork(phone, selectedBundle.network);
+      if (!validation.isValid) {
+        toast({
+          title: "⚠️ Network Mismatch",
+          description: `${phone}: This number belongs to a different network. Purchase allowed but delivery may fail.`,
+          variant: "default",
+          duration: 5000,
+        });
+      }
+    }
+
+    if (phoneNumbers.length === 0) {
       toast({
-        title: "No Bundle Selected",
-        description: "Please select a data bundle to continue",
+        title: "No Valid Orders",
+        description: "Please enter valid phone numbers",
         variant: "destructive",
       });
       return;
     }
-
-    const isBulk = 'phoneNumbers' in data;
-    const phoneNumbers = isBulk 
-      ? (data as BulkOrderFormData).phoneNumbers.split(/[\n,]/).map(n => normalizePhoneNumber(n.trim())).filter(n => n)
-      : [normalizePhoneNumber((data as SingleOrderFormData).customerPhone)];
-
-    // Validate all phone numbers
-    for (const phone of phoneNumbers) {
-      const validation = validatePhoneNetwork(phone, selectedBundle.network);
-      if (!validation.isValid) {
-        const prefixes = getNetworkPrefixes(selectedBundle.network);
-        toast({
-          title: "❌ Phone Number Mismatch",
-          description: `${phone}: ${validation.error || `This bundle is for ${selectedBundle.network.toUpperCase()} network. Valid prefixes: ${prefixes.join(", ")}`}`,
-          variant: "destructive",
-          duration: 8000,
-        });
-        return;
-      }
-    }
-
-    const totalAmount = price * phoneNumbers.length;
     
     if (data.paymentMethod === "wallet" && walletBalance < totalAmount) {
       const shortfall = totalAmount - walletBalance;
       toast({
         title: "⚠️ Insufficient Wallet Balance",
-        description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${phoneNumbers.length} order(s). Please top up or use Paystack.`,
+        description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)}. Please top up or use Paystack.`,
         variant: "destructive",
         duration: 7000,
       });
@@ -285,7 +400,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     }
 
     setIsProcessing(true);
-    initializePaymentMutation.mutate(data);
+    initializePaymentMutation.mutate({ ...data, orderItems, totalAmount });
   };
 
   if (bundlesLoading) {
@@ -415,8 +530,8 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                 {/* Order Type Selection */}
                 <div>
                   <Label className="text-base font-semibold mb-3 block">Order Type</Label>
-                  <Tabs value={orderType} onValueChange={(v) => setOrderType(v as "single" | "bulk")} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 p-1 bg-muted/50 border-2 border-black rounded-lg">
+                  <Tabs value={orderType} onValueChange={(v) => setOrderType(v as "single" | "bulk" | "excel")} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 p-1 bg-muted/50 border-2 border-black rounded-lg">
                       <TabsTrigger 
                         value="single" 
                         className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all"
@@ -433,6 +548,17 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         Bulk Order
                         {network === "at_ishare" && (
                           <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger 
+                        value="excel" 
+                        disabled={!user || user.role === 'guest'}
+                        className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FileSpreadsheet className="h-4 w-4" />
+                        Excel Upload
+                        {(!user || user.role === 'guest') && (
+                          <span className="text-xs text-muted-foreground ml-1">(Login Required)</span>
                         )}
                       </TabsTrigger>
                     </TabsList>
@@ -621,12 +747,12 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                             {singleForm.watch("paymentMethod") === "wallet" ? (
                               <>
                                 <Wallet className="h-4 w-4" />
-                                Pay from Wallet - {formatCurrency(price)}
+                                Pay from Wallet - {formatCurrency(totalAmount)}
                               </>
                             ) : (
                               <>
-                                <ShoppingCart className="h-4 w-4" />
-                                Complete Purchase - {formatCurrency(price)}
+                                <CreditCard className="h-4 w-4" />
+                                Pay with Card - {formatCurrency(totalAmount)}
                               </>
                             )}
                           </>
@@ -731,6 +857,34 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         </Alert>
                       )}
 
+                      {/* Excel Upload Section */}
+                      {orderType === "excel" && (
+                        <div className="space-y-4">
+                          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                            <div className="text-sm font-medium mb-1">Upload Excel File</div>
+                            <div className="text-xs text-muted-foreground mb-4">
+                              Upload an Excel file (.xlsx, .xls) with phone numbers and data amounts
+                            </div>
+                            <Input
+                              type="file"
+                              accept=".xlsx,.xls"
+                              onChange={handleExcelUpload}
+                              className="max-w-xs mx-auto"
+                              disabled={!user}
+                            />
+                            {!user && (
+                              <div className="text-xs text-destructive mt-2">
+                                You must be logged in to use Excel upload
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            <strong>Excel Format:</strong> Column A: Phone Numbers, Column B: Data Amount (e.g., "1GB", "500MB")
+                          </div>
+                        </div>
+                      )}
+
                       <FormField
                         control={bulkForm.control}
                         name="phoneNumbers"
@@ -751,6 +905,51 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                               </span>
                             </FormDescription>
                             <FormMessage />
+                            {(() => {
+                              const lines = field.value.split('\n').map(l => l.trim()).filter(l => l);
+                              const phoneNumbers = lines.map(line => line.split(/\s+/)[0]).filter(phone => phone);
+                              const duplicates = phoneNumbers.filter((phone, index) => phoneNumbers.indexOf(phone) !== index);
+                              const uniqueDuplicates = [...new Set(duplicates)];
+
+                              if (uniqueDuplicates.length > 0) {
+                                return (
+                                  <div className="text-sm text-destructive mt-2 flex items-start gap-2">
+                                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1">
+                                      <strong>Duplicate phone numbers detected:</strong> {uniqueDuplicates.join(", ")}
+                                      <br />
+                                      <span className="text-xs">Please remove duplicates before proceeding.</span>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="ml-2 h-6 text-xs"
+                                        onClick={() => {
+                                          const lines = field.value.split('\n').map(l => l.trim()).filter(l => l);
+                                          const seen = new Set<string>();
+                                          const uniqueLines = lines.filter(line => {
+                                            const phone = line.split(/\s+/)[0];
+                                            if (seen.has(phone)) {
+                                              return false;
+                                            }
+                                            seen.add(phone);
+                                            return true;
+                                          });
+                                          bulkForm.setValue('phoneNumbers', uniqueLines.join('\n'));
+                                          toast({
+                                            title: "Duplicates Removed",
+                                            description: `Removed ${lines.length - uniqueLines.length} duplicate entries.`,
+                                          });
+                                        }}
+                                      >
+                                        Remove Duplicates
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
                             {field.value && (
                               <div className="text-sm text-muted-foreground mt-2">
                                 <strong>{field.value.split(/[\n,]/).map(n => n.trim()).filter(n => n).length}</strong> phone number(s) entered

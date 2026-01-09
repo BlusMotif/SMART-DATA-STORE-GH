@@ -60,7 +60,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "..", "public");
+  const distPath = path.resolve(__dirname, "../../dist/public");
   console.log(`Serving static files from: ${distPath}`);
   
   if (!fs.existsSync(distPath)) {
@@ -334,13 +334,13 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Use the provided PORT when available (Render sets this). Fall back to 3000
+  // Use the provided PORT when available (Render sets this). Fall back to 10000
   // for local development so the app still runs without additional env config.
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = Number(process.env.PORT) || 10000;
   httpServer.listen(
     {
       port: PORT,
-      host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1",
+      host: "0.0.0.0",
       reusePort: true,
     },
     () => {

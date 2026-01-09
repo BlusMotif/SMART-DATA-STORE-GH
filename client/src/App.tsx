@@ -104,14 +104,14 @@ function Router() {
       <ProtectedRoute path="/user/bundles/:network" component={UserBundlesPage} />
       <ProtectedRoute path="/user/history" component={UserHistoryPage} />
       <ProtectedRoute path="/user/support" component={UserSupportPage} />
-      <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRole="agent" />
-      <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRole="agent" />
-      <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRole="agent" />
-      <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRole="agent" />
-      <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRole="agent" />
-      <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRole="agent" />
-      <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRole="agent" />
-      <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRole="agent" />
+      <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer"]} />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />

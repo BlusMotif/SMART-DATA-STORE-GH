@@ -6,6 +6,7 @@ interface ProtectedRouteProps {
   path: string;
   component: React.ComponentType<any>;
   requiredRole?: string;
+  requiredRoles?: string[];
   fallbackPath?: string;
 }
 
@@ -13,6 +14,7 @@ export function ProtectedRoute({
   path,
   component: Component,
   requiredRole,
+  requiredRoles,
   fallbackPath = "/login"
 }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
@@ -36,6 +38,11 @@ export function ProtectedRoute({
 
         // Check role if required
         if (requiredRole && user.role !== requiredRole) {
+          return <Redirect to="/" />;
+        }
+
+        // Check roles if required
+        if (requiredRoles && !requiredRoles.includes(user.role)) {
           return <Redirect to="/" />;
         }
 

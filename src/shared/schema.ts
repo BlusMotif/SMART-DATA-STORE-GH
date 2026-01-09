@@ -45,7 +45,8 @@ export const ProductType = {
 export const NetworkProvider = {
   MTN: "mtn",
   TELECEL: "telecel",
-  AIRTELTIGO: "airteltigo",
+  AT_BIGTIME: "at_bigtime",
+  AT_ISHARE: "at_ishare",
 } as const;
 
 // Result checker type enum
@@ -168,7 +169,6 @@ export const resultCheckers = pgTable("result_checkers", {
   serialNumber: text("serial_number").notNull().unique(),
   pin: text("pin").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  costPrice: decimal("cost_price", { precision: 10, scale: 2 }).notNull(),
   isSold: boolean("is_sold").notNull().default(false),
   soldAt: timestamp("sold_at"),
   soldToPhone: text("sold_to_phone"),
@@ -191,7 +191,6 @@ export const transactions = pgTable("transactions", {
   productName: text("product_name").notNull(),
   network: text("network"),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  costPrice: decimal("cost_price", { precision: 12, scale: 2 }).notNull(),
   profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),

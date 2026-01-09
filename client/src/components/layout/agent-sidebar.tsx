@@ -91,7 +91,7 @@ const sidebarNavItems = [
 
 export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
-  const { logout, isLoggingOut } = useAuth();
+  const { logout, isLoggingOut, user } = useAuth();
 
   const { data: profileData, error } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
@@ -133,7 +133,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
           />
           <div className="flex flex-col">
             <span className="font-semibold text-sm">{APP_NAME}</span>
-            <span className="text-xs text-muted-foreground">Agent Portal</span>
+            <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Super Dealer Portal' : 'Reseller Portal'}</span>
           </div>
         </div>
 
@@ -196,7 +196,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
         </div>
         <div className="flex flex-col">
           <span className="font-semibold text-sm">{agent?.businessName || APP_NAME}</span>
-          <span className="text-xs text-muted-foreground">Agent Portal</span>
+          <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Super Dealer Portal' : 'Reseller Portal'}</span>
         </div>
       </div>
 

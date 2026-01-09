@@ -1078,7 +1078,7 @@ export async function registerRoutes(
 
       // Apply role-based pricing
       const pricedBundles = bundles.map(bundle => {
-        let price = parseFloat(bundle.basePrice);
+        let price = parseFloat(bundle.basePrice || '0');
 
         // Apply role-based pricing
         if (userRole === 'agent' && bundle.agentPrice) {
@@ -1092,6 +1092,8 @@ export async function registerRoutes(
         } else if (userRole === 'admin' && bundle.adminPrice) {
           price = parseFloat(bundle.adminPrice);
         }
+
+        if (isNaN(price)) price = 0;
 
         return {
           ...bundle,

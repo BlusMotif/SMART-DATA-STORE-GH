@@ -129,8 +129,8 @@ export default function AgentBundlesPage() {
         const gbAmount = parseFloat(parts[1]);
         if (!isNaN(gbAmount) && gbAmount > 0) {
           const matchingBundle = bundles.find(b => {
-            const bundleName = b.name.toLowerCase();
-            const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+            const dataAmount = b.dataAmount.toLowerCase();
+            const gbMatch = dataAmount.match(/(\d+(?:\.\d+)?)/);
             if (gbMatch) {
               const bundleGB = parseFloat(gbMatch[1]);
               return bundleGB === gbAmount;
@@ -139,9 +139,8 @@ export default function AgentBundlesPage() {
           });
           
           if (matchingBundle) {
-            const basePrice = parseFloat(matchingBundle.basePrice);
-            const markup = agentData?.agent?.markupPercentage || 0;
-            const agentPrice = basePrice + (basePrice * markup / 100);
+            const agentPrice = matchingBundle.agentPrice ? parseFloat(matchingBundle.agentPrice) : 
+              parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100);
             total += agentPrice;
             count++;
           }
@@ -468,11 +467,11 @@ export default function AgentBundlesPage() {
     let totalAmount = 0;
 
     for (const item of parsedData) {
-      // Find a bundle that matches the GB amount (looking for bundles with the GB in the name)
+      // Find a bundle that matches the GB amount (looking for bundles with the GB in the dataAmount)
       const matchingBundle = bundles?.find(b => {
-        const bundleName = b.name.toLowerCase();
-        // Try to extract GB from bundle name (e.g., "5GB" -> 5)
-        const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+        const dataAmount = b.dataAmount.toLowerCase();
+        // Try to extract GB from dataAmount (e.g., "5GB" -> 5)
+        const gbMatch = dataAmount.match(/(\d+(?:\.\d+)?)/);
         if (gbMatch) {
           const bundleGB = parseFloat(gbMatch[1]);
           return bundleGB === item.gb;
@@ -490,9 +489,19 @@ export default function AgentBundlesPage() {
         return;
       }
 
-      const basePrice = parseFloat(matchingBundle.basePrice);
-      const markup = agentData?.agent?.markupPercentage || 0;
-      const agentPrice = basePrice + (basePrice * markup / 100);
+      // Validate phone network but don't deny - just alert
+      const validation = validatePhoneNetwork(item.phone, network);
+      if (!validation.isValid) {
+        toast({
+          title: "⚠️ Network Mismatch",
+          description: `${item.phone}: ${validation.error}. Purchase will proceed but may fail if network doesn't match.`,
+          variant: "default",
+          duration: 6000,
+        });
+      }
+
+      const agentPrice = matchingBundle.agentPrice ? parseFloat(matchingBundle.agentPrice) : 
+        parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100);
 
       orderItems.push({
         phone: item.phone,

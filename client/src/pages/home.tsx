@@ -5,7 +5,7 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Card } from "@/components/ui/card";
 import { APP_NAME } from "@/lib/constants";
-import { ArrowRight, Truck, Shield } from "lucide-react";
+import { ArrowRight, Truck, Shield, Headphones, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";

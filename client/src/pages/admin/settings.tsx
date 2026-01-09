@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Bell, CreditCard, Shield, Smartphone, Save, X, Menu, Users, Key } from "lucide-react";
+import { Settings, Bell, CreditCard, Shield, Smartphone, Save, X, Menu, Users, Key, Plus, Trash2 } from "lucide-react";
 
 interface Setting {
   key: string;
@@ -29,6 +29,15 @@ interface User {
   createdAt: string;
 }
 
+interface Announcement {
+  id: string;
+  title: string;
+  message: string;
+  isActive: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
 export default function AdminSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -42,6 +51,11 @@ export default function AdminSettings() {
     name: "",
     phone: "",
   });
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: "",
+    message: "",
+  });
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   // Fetch settings from database
   const { data: settingsData, isLoading: settingsLoading } = useQuery<Setting[]>({
@@ -52,6 +66,12 @@ export default function AdminSettings() {
   // Fetch users for credential management
   const { data: usersData, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+    refetchInterval: 30000,
+  });
+
+  // Fetch announcements
+  const { data: announcementsData, isLoading: announcementsLoading } = useQuery<Announcement[]>({
+    queryKey: ["/api/admin/announcements"],
     refetchInterval: 30000,
   });
 
@@ -85,6 +105,49 @@ export default function AdminSettings() {
     },
   });
 
+  // Create announcement mutation
+  const createAnnouncementMutation = useMutation({
+    mutationFn: async (data: { title: string; message: string }) => {
+      return apiRequest("POST", "/api/admin/announcements", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
+      setAnnouncementForm({ title: "", message: "" });
+      toast({ title: "Announcement created successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to create announcement", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Update announcement mutation
+  const updateAnnouncementMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      return apiRequest("PATCH", `/api/admin/announcements/${id}`, { isActive });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
+      toast({ title: "Announcement updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update announcement", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Delete announcement mutation
+  const deleteAnnouncementMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/admin/announcements/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
+      toast({ title: "Announcement deleted successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete announcement", description: error.message, variant: "destructive" });
+    },
+  });
+
   // Initialize settings when data loads
   useEffect(() => {
     if (settingsData) {
@@ -101,6 +164,12 @@ export default function AdminSettings() {
       setUsers(usersData);
     }
   }, [usersData]);
+
+  useEffect(() => {
+    if (announcementsData) {
+      setAnnouncements(announcementsData);
+    }
+  }, [announcementsData]);
 
   const handleSettingChange = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -138,6 +207,28 @@ export default function AdminSettings() {
     }
 
     updateCredentialsMutation.mutate({ userId: selectedUser.id, data });
+  };
+
+  const handleCreateAnnouncement = () => {
+    if (!announcementForm.title.trim() || !announcementForm.message.trim()) {
+      toast({ title: "Title and message are required", variant: "destructive" });
+      return;
+    }
+
+    createAnnouncementMutation.mutate({
+      title: announcementForm.title.trim(),
+      message: announcementForm.message.trim(),
+    });
+  };
+
+  const handleToggleAnnouncement = (id: string, isActive: boolean) => {
+    updateAnnouncementMutation.mutate({ id, isActive: !isActive });
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    if (confirm("Are you sure you want to delete this announcement?")) {
+      deleteAnnouncementMutation.mutate(id);
+    }
   };
 
   return (
@@ -409,6 +500,90 @@ export default function AdminSettings() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Announcement Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Announcement Management
+                </CardTitle>
+                <CardDescription>
+                  Create and manage system announcements for users
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="announcementTitle">Title</Label>
+                    <Input
+                      id="announcementTitle"
+                      value={announcementForm.title}
+                      onChange={(e) => setAnnouncementForm(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Announcement title"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="announcementMessage">Message</Label>
+                    <textarea
+                      id="announcementMessage"
+                      className="w-full p-2 border rounded-md resize-none"
+                      rows={3}
+                      value={announcementForm.message}
+                      onChange={(e) => setAnnouncementForm(prev => ({ ...prev, message: e.target.value }))}
+                      placeholder="Announcement message"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleCreateAnnouncement}
+                    disabled={createAnnouncementMutation.isPending}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {createAnnouncementMutation.isPending ? "Creating..." : "Create Announcement"}
+                  </Button>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label>Existing Announcements</Label>
+                  {announcements.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No announcements yet</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {announcements.map(announcement => (
+                        <div key={announcement.id} className="flex items-center justify-between p-3 border rounded-md">
+                          <div className="flex-1">
+                            <h4 className="font-medium">{announcement.title}</h4>
+                            <p className="text-sm text-muted-foreground">{announcement.message}</p>
+                            <p className="text-xs text-muted-foreground">
+                              By {announcement.createdBy} • {new Date(announcement.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={announcement.isActive}
+                              onCheckedChange={() => handleToggleAnnouncement(announcement.id, announcement.isActive)}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAnnouncement(announcement.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>

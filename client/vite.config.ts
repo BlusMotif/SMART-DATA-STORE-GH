@@ -20,7 +20,7 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
     alias: {
       "@": path.resolve(__dirname, "src"),
-      "@shared": path.resolve(__dirname, "../shared"),
+      "@shared": path.resolve(__dirname, "../src/shared"),
       "@assets": path.resolve(__dirname, "assets"),
     },
   },
@@ -40,6 +40,7 @@ export default defineConfig({
     cssCodeSplit: true,
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
+      input: "./index.html",
       output: {
         entryFileNames: "assets/[name].[hash].js",
         chunkFileNames: "assets/[name].[hash].js",

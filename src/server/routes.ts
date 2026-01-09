@@ -265,7 +265,7 @@ async function processWebhookEvent(event: any) {
     }
   }
 }
-import { getSupabaseServer } from "./supabase.js";
+import { getSupabaseServer } from "./index.js";
 import { 
   validatePhoneNetwork, 
   getNetworkMismatchError, 
@@ -1036,7 +1036,49 @@ export async function registerRoutes(
     const network = req.query.network as string | undefined;
     try {
       const bundles = await storage.getDataBundles({ network, isActive: true });
-      res.json(bundles);
+
+      // Check if user is authenticated to apply role-based pricing
+      let userRole = 'guest';
+      try {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7);
+          const supabaseServer = getSupabase();
+          if (supabaseServer) {
+            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+            if (!error && user && user.email) {
+              const dbUser = await storage.getUserByEmail(user.email);
+              if (dbUser) {
+                userRole = dbUser.role;
+              }
+            }
+          }
+        }
+      } catch (authError) {
+        // Ignore auth errors, treat as guest
+        console.log('Auth check failed, treating as guest');
+      }
+
+      // Apply role-based pricing
+      const pricedBundles = bundles.map(bundle => {
+        let price = parseFloat(bundle.basePrice);
+
+        // Apply role-based pricing
+        if (userRole === 'agent' && bundle.agentPrice) {
+          price = parseFloat(bundle.agentPrice);
+        } else if (userRole === 'dealer' && bundle.dealerPrice) {
+          price = parseFloat(bundle.dealerPrice);
+        } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
+          price = parseFloat(bundle.superDealerPrice);
+        }
+
+        return {
+          ...bundle,
+          customPrice: price.toFixed(2),
+        };
+      });
+
+      res.json(pricedBundles);
     } catch (error: any) {
       console.error("Database error:", error);
       res.status(500).json({ error: "Failed to fetch data bundles" });
@@ -2992,16 +3034,54 @@ export async function registerRoutes(
   app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { role } = req.body;
-      
+      const userId = req.params.id;
+
       // Validate role
       const validRoles = ["admin", "agent", "dealer", "super_dealer", "user", "guest"];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
 
-      const user = await storage.updateUser(req.params.id, { role });
+      // Get current user
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const oldRole = currentUser.role;
+
+      // Update user role
+      const user = await storage.updateUser(userId, { role });
       if (!user) {
         return res.status(404).json({ error: "User not found" });
+      }
+
+      // Handle role change implications
+      if (oldRole === 'agent' && role !== 'agent') {
+        // User was an agent, now is not - deactivate agent record
+        const agent = await storage.getAgentByUserId(userId);
+        if (agent) {
+          await storage.updateAgent(agent.id, { isApproved: false });
+          console.log(`Deactivated agent record for user ${userId} due to role change from ${oldRole} to ${role}`);
+        }
+      } else if (oldRole !== 'agent' && role === 'agent') {
+        // User is now an agent - check if agent record exists
+        const existingAgent = await storage.getAgentByUserId(userId);
+        if (!existingAgent) {
+          // Create agent record with default values
+          await storage.createAgent({
+            userId: userId,
+            storefrontSlug: `${user.name?.toLowerCase().replace(/\s+/g, '') || 'user'}${userId.slice(-4)}`,
+            businessName: `${user.name || 'User'}'s Store`,
+            isApproved: false, // Admin needs to approve
+            paymentPending: false,
+          });
+          console.log(`Created agent record for user ${userId} due to role change to ${role}`);
+        } else if (!existingAgent.isApproved) {
+          // Reactivate if exists but not approved
+          await storage.updateAgent(existingAgent.id, { isApproved: true });
+          console.log(`Reactivated agent record for user ${userId}`);
+        }
       }
 
       res.json(user);
@@ -4270,14 +4350,53 @@ export async function registerRoutes(
         return res.status(400).json({ error: "At least one field must be provided" });
       }
 
+      // Get current user data
+      const currentUser = await storage.getUser(userId);
+      if (!currentUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
       const updateData: any = {};
-      if (email) updateData.email = email;
+      const supabaseUpdates: any = {};
+
+      if (email && email !== currentUser.email) {
+        updateData.email = email;
+        supabaseUpdates.email = email;
+      }
       if (password) {
         const hashedPassword = await bcrypt.hash(password, 10);
         updateData.password = hashedPassword;
+        supabaseUpdates.password = password;
       }
-      if (name) updateData.name = name;
-      if (phone !== undefined) updateData.phone = phone;
+      if (name && name !== currentUser.name) {
+        updateData.name = name;
+        supabaseUpdates.user_metadata = { ...supabaseUpdates.user_metadata, name };
+      }
+      if (phone !== undefined && phone !== currentUser.phone) {
+        updateData.phone = phone;
+        supabaseUpdates.phone = phone;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "No changes detected" });
+      }
+
+      // Update Supabase Auth if email or password changed
+      if (supabaseUpdates.email || supabaseUpdates.password || supabaseUpdates.phone) {
+        const supabaseServer = getSupabase();
+        if (supabaseServer) {
+          try {
+            const { error } = await supabaseServer.auth.admin.updateUserById(userId, supabaseUpdates);
+            if (error) {
+              console.error("Failed to update Supabase Auth:", error);
+              return res.status(500).json({ error: "Failed to update authentication credentials" });
+            }
+          } catch (authError) {
+            console.error("Supabase Auth update error:", authError);
+            return res.status(500).json({ error: "Failed to update authentication credentials" });
+          }
+        }
+      }
 
       const updatedUser = await storage.updateUser(userId, updateData);
       if (!updatedUser) {

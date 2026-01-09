@@ -75,7 +75,7 @@ export default function NetworkProductsPage() {
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Data Delivery Time</h3>
                   <p className="text-muted-foreground">
-                    Data takes between 10 to 30 minutes — maximum 60 minutes (1 hour) — to be credited.
+                    Delivery time is between 20min to 4hrs
                   </p>
                 </div>
               </div>

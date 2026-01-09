@@ -3,6 +3,43 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Initialize Supabase immediately after loading environment variables
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+let supabaseServerInstance: SupabaseClient | null = null;
+
+function initializeSupabase() {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  console.log('Supabase initialization:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseServiceRoleKey,
+    urlLength: supabaseUrl?.length,
+    keyLength: supabaseServiceRoleKey?.length
+  });
+
+  if (supabaseUrl && supabaseServiceRoleKey) {
+    supabaseServerInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+    console.log('✅ Supabase server client initialized successfully');
+  } else {
+    console.error('❌ Supabase server client failed to initialize - missing environment variables');
+  }
+  
+  return supabaseServerInstance;
+}
+
+export function getSupabaseServer(): SupabaseClient | null {
+  return supabaseServerInstance;
+}
+
+// For backward compatibility
+export let supabaseServer: SupabaseClient | null = null;
+
 initializeSupabase();
 
 import express, { type Request, Response, NextFunction, type Express } from "express";
@@ -17,14 +54,13 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { initializeSupabase } from "./supabase.js";
 
 // Get the directory path - use import.meta.url for correct path in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "..", "public");
+  const distPath = path.resolve(__dirname, "..", "..", "dist", "public");
   console.log(`Serving static files from: ${distPath}`);
   
   if (!fs.existsSync(distPath)) {
@@ -199,7 +235,7 @@ global.upload = upload;
 
 // CORS configuration
 // Determine allowed frontend origin using environment variable or sensible defaults
-const FRONTEND_URL = process.env.FRONTEND_URL
+const FRONTEND_URL = process.env.APP_URL
   || (process.env.NODE_ENV === "production"
     ? "https://smartdatastoregh.onrender.com"
     : `http://localhost:${process.env.PORT || 3000}`);

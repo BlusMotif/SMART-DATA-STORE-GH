@@ -60,7 +60,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "..", "..", "..", "dist", "public");
+  const distPath = path.resolve(__dirname, "..", "public");
   console.log(`Serving static files from: ${distPath}`);
   
   if (!fs.existsSync(distPath)) {

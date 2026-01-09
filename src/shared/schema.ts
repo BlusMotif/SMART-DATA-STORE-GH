@@ -201,7 +201,7 @@ export const transactions = pgTable("transactions", {
   network: text("network"),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
-  customerPhone: text("customer_phone").notNull(),
+  customerPhone: text("customer_phone"),
   customerEmail: text("customer_email"),
   phoneNumbers: jsonb("phone_numbers"), // Array of phone numbers for bulk orders
   isBulkOrder: boolean("is_bulk_order").default(false),

@@ -5003,7 +5003,7 @@ export async function registerRoutes(
         pin: transaction.deliveredPin,
         serialNumber: transaction.deliveredSerial,
         customerName: dbUser.name,
-        customerPhone: transaction.customerPhone,
+        customerPhone: transaction.customerPhone || undefined,
         purchaseDate: transaction.completedAt || transaction.createdAt,
         transactionReference: transaction.reference,
       });

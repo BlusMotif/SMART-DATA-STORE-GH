@@ -47,7 +47,7 @@ export interface IStorage {
   createResultCheckersBulk(checkers: InsertResultChecker[]): Promise<ResultChecker[]>;
   updateResultChecker(id: string, data: Partial<InsertResultChecker>): Promise<ResultChecker | undefined>;
   deleteResultChecker(id: string): Promise<boolean>;
-  markResultCheckerSold(id: string, transactionId: string, phone: string): Promise<ResultChecker | undefined>;
+  markResultCheckerSold(id: string, transactionId: string, phone: string | null): Promise<ResultChecker | undefined>;
 
   // Transactions
   getTransaction(id: string): Promise<Transaction | undefined>;
@@ -104,7 +104,7 @@ export interface IStorage {
   // Rankings
   getTopCustomers(limit?: number): Promise<Array<{
     customerEmail: string;
-    customerPhone: string;
+    customerPhone: string | null;
     totalPurchases: number;
     totalSpent: number;
     lastPurchase: Date;
@@ -337,7 +337,7 @@ export class DatabaseStorage implements IStorage {
     return db.insert(resultCheckers).values(checkers).returning();
   }
 
-  async markResultCheckerSold(id: string, transactionId: string, phone: string): Promise<ResultChecker | undefined> {
+  async markResultCheckerSold(id: string, transactionId: string, phone: string | null): Promise<ResultChecker | undefined> {
     const [checker] = await db.update(resultCheckers).set({
       isSold: true,
       soldAt: new Date(),
@@ -820,7 +820,7 @@ export class DatabaseStorage implements IStorage {
   // Rankings Methods
   async getTopCustomers(limit: number = 10): Promise<Array<{
     customerEmail: string;
-    customerPhone: string;
+    customerPhone: string | null;
     totalPurchases: number;
     totalSpent: number;
     lastPurchase: Date;

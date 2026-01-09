@@ -336,15 +336,15 @@ app.use((req, res, next) => {
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Use the provided PORT when available (Render sets this). Fall back to 3000
   // for local development so the app still runs without additional env config.
-  const port = parseInt(process.env.PORT || "10000", 10);
+  const PORT = Number(process.env.PORT) || 3000;
   httpServer.listen(
     {
-      port,
+      port: PORT,
       host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1",
       reusePort: true,
     },
     () => {
-      log(`serving on port ${port}`);
+      log(`serving on port ${PORT}`);
     },
   );
 })();

@@ -139,6 +139,8 @@ export const agents = pgTable("agents", {
   isApproved: boolean("is_approved").notNull().default(false),
   paymentPending: boolean("payment_pending").notNull().default(true),
   activationFee: decimal("activation_fee", { precision: 10, scale: 2 }).default("60.00"),
+  whatsappSupportLink: text("whatsapp_support_link"),
+  whatsappChannelLink: text("whatsapp_channel_link"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   userIdIdx: index("agents_user_id_idx").on(table.userId),

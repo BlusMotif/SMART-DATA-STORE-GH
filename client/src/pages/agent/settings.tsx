@@ -20,6 +20,8 @@ const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   phone: z.string().optional(),
+  whatsappSupportLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  whatsappChannelLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 });
 
 const passwordSchema = z.object({
@@ -57,15 +59,19 @@ export default function AgentSettings() {
       name: "",
       email: "",
       phone: "",
+      whatsappSupportLink: "",
+      whatsappChannelLink: "",
     },
   });
 
   useEffect(() => {
-    if (profile?.user) {
+    if (profile) {
       profileForm.reset({
-        name: profile.user.name || "",
-        email: profile.user.email || "",
-        phone: profile.user.phone || "",
+        name: profile.user?.name || "",
+        email: profile.user?.email || "",
+        phone: profile.user?.phone || "",
+        whatsappSupportLink: profile.whatsappSupportLink || "",
+        whatsappChannelLink: profile.whatsappChannelLink || "",
       });
     }
   }, [profile, profileForm]);
@@ -211,6 +217,46 @@ export default function AgentSettings() {
                           </FormControl>
                           <FormDescription>
                             Used for account recovery and notifications
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={profileForm.control}
+                      name="whatsappSupportLink"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp Support Link</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://wa.me/1234567890"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Link to your WhatsApp for customer support. Leave empty to hide from storefront.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={profileForm.control}
+                      name="whatsappChannelLink"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp Channel Link</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://whatsapp.com/channel/..."
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Link to your WhatsApp Channel. Leave empty to hide from storefront.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

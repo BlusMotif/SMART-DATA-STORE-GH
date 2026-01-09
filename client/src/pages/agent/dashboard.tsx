@@ -218,6 +218,47 @@ export default function AgentDashboard() {
               </CardContent>
             </Card>
 
+            {/* WhatsApp Links */}
+            <Card>
+              <CardHeader>
+                <CardTitle>WhatsApp Links</CardTitle>
+                <CardDescription>Manage your WhatsApp support and channel links</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium">WhatsApp Support Link</p>
+                    <p className="text-xs text-muted-foreground">
+                      {agent?.whatsappSupportLink ? (
+                        <a href={agent.whatsappSupportLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          {agent.whatsappSupportLink}
+                        </a>
+                      ) : (
+                        "Not set"
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">WhatsApp Channel Link</p>
+                    <p className="text-xs text-muted-foreground">
+                      {agent?.whatsappChannelLink ? (
+                        <a href={agent.whatsappChannelLink} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          {agent.whatsappChannelLink}
+                        </a>
+                      ) : (
+                        "Not set"
+                      )}
+                    </p>
+                  </div>
+                  <Link href="/agent/settings">
+                    <Button variant="outline" size="sm">
+                      Edit Links
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card className="lg:col-span-2">
                 <CardHeader className="flex flex-row items-center justify-between gap-2">

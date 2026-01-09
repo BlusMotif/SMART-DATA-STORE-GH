@@ -2750,6 +2750,43 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/agent/profile", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent profile not found" });
+      }
+
+      const { name, email, phone, whatsappSupportLink, whatsappChannelLink } = req.body;
+
+      // Update user info
+      if (name !== undefined || email !== undefined || phone !== undefined) {
+        await storage.updateUser(dbUser.id, {
+          ...(name !== undefined && { name }),
+          ...(email !== undefined && { email }),
+          ...(phone !== undefined && { phone }),
+        });
+      }
+
+      // Update agent WhatsApp links
+      if (whatsappSupportLink !== undefined || whatsappChannelLink !== undefined) {
+        await storage.updateAgent(agent.id, {
+          ...(whatsappSupportLink !== undefined && { whatsappSupportLink }),
+          ...(whatsappChannelLink !== undefined && { whatsappChannelLink }),
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
   app.get("/api/agent/transactions", requireAuth, requireAgent, async (req, res) => {
     try {
       // Get user from database using email from JWT
@@ -3223,6 +3260,22 @@ export async function registerRoutes(
       res.json(agent);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update agent" });
+    }
+  });
+
+  app.patch("/api/admin/agents/:id/whatsapp", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { whatsappSupportLink, whatsappChannelLink } = req.body;
+      const agent = await storage.updateAgent(req.params.id, {
+        whatsappSupportLink: whatsappSupportLink || null,
+        whatsappChannelLink: whatsappChannelLink || null,
+      });
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+      res.json(agent);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update WhatsApp links" });
     }
   });
 

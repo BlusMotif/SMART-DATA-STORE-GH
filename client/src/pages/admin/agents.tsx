@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -9,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,11 +24,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { Users, CheckCircle, XCircle, Clock, Store, Menu, Trash2 } from "lucide-react";
+import { Users, CheckCircle, XCircle, Clock, Store, Menu, Trash2, Edit } from "lucide-react";
 import type { Agent } from "@shared/schema";
+
+const whatsappSchema = z.object({
+  whatsappSupportLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  whatsappChannelLink: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+});
+
+type WhatsappFormData = z.infer<typeof whatsappSchema>;
 
 interface AgentWithUser extends Agent {
   user: { name: string; email: string; phone: string } | null;
@@ -34,6 +53,15 @@ export default function AdminAgents() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteAgentId, setDeleteAgentId] = useState<string | null>(null);
+  const [editAgentId, setEditAgentId] = useState<string | null>(null);
+
+  const whatsappForm = useForm<WhatsappFormData>({
+    resolver: zodResolver(whatsappSchema),
+    defaultValues: {
+      whatsappSupportLink: "",
+      whatsappChannelLink: "",
+    },
+  });
 
   const { data: agents, isLoading } = useQuery<AgentWithUser[]>({
     queryKey: ["/api/admin/agents"],
@@ -52,6 +80,24 @@ export default function AdminAgents() {
     onError: (error: Error) => {
       toast({ 
         title: "Failed to delete agent", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const updateWhatsappMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: WhatsappFormData }) =>
+      apiRequest("PATCH", `/api/admin/agents/${id}/whatsapp`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/agents"] });
+      toast({ title: "✅ WhatsApp links updated successfully" });
+      setEditAgentId(null);
+      whatsappForm.reset();
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to update WhatsApp links", 
         description: error.message, 
         variant: "destructive" 
       });
@@ -210,6 +256,19 @@ export default function AdminAgents() {
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                onClick={() => {
+                                  setEditAgentId(agent.id);
+                                  whatsappForm.reset({
+                                    whatsappSupportLink: agent.whatsappSupportLink || "",
+                                    whatsappChannelLink: agent.whatsappChannelLink || "",
+                                  });
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => setDeleteAgentId(agent.id)}
                               >
@@ -253,6 +312,65 @@ export default function AdminAgents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit WhatsApp Links Dialog */}
+      <Dialog open={!!editAgentId} onOpenChange={(open) => !open && setEditAgentId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit WhatsApp Links</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={whatsappForm.handleSubmit((data) => {
+              if (editAgentId) {
+                updateWhatsappMutation.mutate({ id: editAgentId, data });
+              }
+            })}
+            className="space-y-4"
+          >
+            <div>
+              <Label htmlFor="whatsappSupportLink">WhatsApp Support Link</Label>
+              <Input
+                id="whatsappSupportLink"
+                placeholder="https://wa.me/1234567890"
+                {...whatsappForm.register("whatsappSupportLink")}
+              />
+              {whatsappForm.formState.errors.whatsappSupportLink && (
+                <p className="text-sm text-destructive mt-1">
+                  {whatsappForm.formState.errors.whatsappSupportLink.message}
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="whatsappChannelLink">WhatsApp Channel Link</Label>
+              <Input
+                id="whatsappChannelLink"
+                placeholder="https://whatsapp.com/channel/..."
+                {...whatsappForm.register("whatsappChannelLink")}
+              />
+              {whatsappForm.formState.errors.whatsappChannelLink && (
+                <p className="text-sm text-destructive mt-1">
+                  {whatsappForm.formState.errors.whatsappChannelLink.message}
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditAgentId(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateWhatsappMutation.isPending}
+              >
+                {updateWhatsappMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

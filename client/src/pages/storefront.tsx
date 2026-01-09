@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { useAuth } from "@/hooks/use-auth";
-import { Store, Shield, LogOut, User } from "lucide-react";
+import { Store, Shield, LogOut, User, MessageCircle } from "lucide-react";
 import type { Agent } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -145,6 +145,34 @@ export default function StorefrontPage() {
               <Shield className="h-4 w-4" />
               <span>Secure payments powered by Paystack</span>
             </div>
+            
+            {/* WhatsApp Support Links */}
+            {(agent.whatsappSupportLink || agent.whatsappChannelLink) && (
+              <div className="flex items-center justify-center gap-4 mt-6">
+                {agent.whatsappSupportLink && (
+                  <a
+                    href={agent.whatsappSupportLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">WhatsApp Support</span>
+                  </a>
+                )}
+                {agent.whatsappChannelLink && (
+                  <a
+                    href={agent.whatsappChannelLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">WhatsApp Channel</span>
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </section>
 

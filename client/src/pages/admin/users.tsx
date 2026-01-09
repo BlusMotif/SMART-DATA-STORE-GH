@@ -48,6 +48,7 @@ export default function AdminUsers() {
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleteInactiveDays, setDeleteInactiveDays] = useState<number | null>(null);
   const [showDeleteInactiveDialog, setShowDeleteInactiveDialog] = useState(false);
+  const [editedRoles, setEditedRoles] = useState<Record<string, string>>({});
 
   const { data: users, isLoading } = useQuery<UserWithLastPurchase[]>({
     queryKey: ["/api/admin/users"],
@@ -288,11 +289,9 @@ export default function AdminUsers() {
                             </TableCell>
                             <TableCell>
                               <Select
-                                value={user.role}
+                                value={editedRoles[user.id] || user.role}
                                 onValueChange={(newRole) => {
-                                  if (newRole !== user.role) {
-                                    updateRoleMutation.mutate({ id: user.id, role: newRole });
-                                  }
+                                  setEditedRoles(prev => ({ ...prev, [user.id]: newRole }));
                                 }}
                                 disabled={updateRoleMutation.isPending}
                               >
@@ -308,6 +307,24 @@ export default function AdminUsers() {
                                   <SelectItem value="admin">Admin</SelectItem>
                                 </SelectContent>
                               </Select>
+                              {editedRoles[user.id] && editedRoles[user.id] !== user.role && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="ml-2"
+                                  onClick={() => {
+                                    updateRoleMutation.mutate({ id: user.id, role: editedRoles[user.id] });
+                                    setEditedRoles(prev => {
+                                      const newEdited = { ...prev };
+                                      delete newEdited[user.id];
+                                      return newEdited;
+                                    });
+                                  }}
+                                  disabled={updateRoleMutation.isPending}
+                                >
+                                  Save
+                                </Button>
+                              )}
                             </TableCell>
                             <TableCell>
                               {user.lastPurchase ? (

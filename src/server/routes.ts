@@ -3064,22 +3064,22 @@ export async function registerRoutes(
           await storage.updateAgent(agent.id, { isApproved: false });
           console.log(`Deactivated agent record for user ${userId} due to role change from ${oldRole} to ${role}`);
         }
-      } else if (oldRole !== 'agent' && role === 'agent') {
-        // User is now an agent - check if agent record exists
+      } else if (oldRole !== 'agent' && oldRole !== 'dealer' && oldRole !== 'super_dealer' && (role === 'agent' || role === 'dealer' || role === 'super_dealer')) {
+        // User is now an agent/dealer/super_dealer - check if agent record exists
         const existingAgent = await storage.getAgentByUserId(userId);
         if (!existingAgent) {
-          // Create agent record with default values
+          // Create agent record with default values and auto approve
           await storage.createAgent({
             userId: userId,
             storefrontSlug: `${user.name?.toLowerCase().replace(/\s+/g, '') || 'user'}${userId.slice(-4)}`,
             businessName: `${user.name || 'User'}'s Store`,
-            isApproved: false, // Admin needs to approve
-            paymentPending: false,
+            isApproved: true, // Auto approve since admin changed role
+            paymentPending: false, // No payment needed
           });
-          console.log(`Created agent record for user ${userId} due to role change to ${role}`);
+          console.log(`Created and auto-approved agent record for user ${userId} due to role change to ${role}`);
         } else if (!existingAgent.isApproved) {
           // Reactivate if exists but not approved
-          await storage.updateAgent(existingAgent.id, { isApproved: true });
+          await storage.updateAgent(existingAgent.id, { isApproved: true, paymentPending: false });
           console.log(`Reactivated agent record for user ${userId}`);
         }
       }

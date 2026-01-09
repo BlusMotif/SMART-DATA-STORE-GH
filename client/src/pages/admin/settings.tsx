@@ -42,7 +42,9 @@ export default function AdminSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [settings, setSettings] = useState<Record<string, string>>({});
+  const [settings, setSettings] = useState<Record<string, string>>({
+    data_bundle_auto_processing: "false", // Default to disabled
+  });
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [credentialForm, setCredentialForm] = useState({
@@ -80,12 +82,45 @@ export default function AdminSettings() {
     mutationFn: async ({ key, value, description }: { key: string; value: string; description?: string }) => {
       return apiRequest("PUT", `/api/admin/settings/${key}`, { value, description });
     },
+    onMutate: async ({ key, value }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["/api/admin/settings"] });
+
+      // Snapshot the previous value
+      const previousSettings = queryClient.getQueryData<Setting[]>(["/api/admin/settings"]);
+
+      // Optimistically update the cache
+      queryClient.setQueryData<Setting[]>(["/api/admin/settings"], (old) => {
+        if (!old) return old;
+        return old.map(setting =>
+          setting.key === key ? { ...setting, value } : setting
+        );
+      });
+
+      // Also update local state optimistically
+      setSettings(prev => ({ ...prev, [key]: value }));
+
+      // Return a context object with the snapshotted value
+      return { previousSettings };
+    },
+    onError: (err, { key }, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousSettings) {
+        queryClient.setQueryData(["/api/admin/settings"], context.previousSettings);
+        // Also rollback local state
+        const previousMap: Record<string, string> = {};
+        context.previousSettings.forEach(setting => {
+          previousMap[setting.key] = setting.value;
+        });
+        setSettings(previousMap);
+      }
+      toast({ title: "Failed to update setting", description: err.message, variant: "destructive" });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
       toast({ title: "Setting updated successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to update setting", description: error.message, variant: "destructive" });
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
     },
   });
 
@@ -151,7 +186,9 @@ export default function AdminSettings() {
   // Initialize settings when data loads
   useEffect(() => {
     if (settingsData) {
-      const settingsMap: Record<string, string> = {};
+      const settingsMap: Record<string, string> = {
+        data_bundle_auto_processing: "false", // Default to disabled
+      };
       settingsData.forEach(setting => {
         settingsMap[setting.key] = setting.value;
       });

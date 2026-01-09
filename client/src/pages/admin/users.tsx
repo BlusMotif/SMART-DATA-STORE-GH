@@ -23,7 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { UserCircle, Trash2, ShoppingBag, Menu } from "lucide-react";
+import { UserCircle, Trash2, ShoppingBag, Menu, Search } from "lucide-react";
 
 interface UserWithLastPurchase {
   id: string;
@@ -44,6 +44,7 @@ interface UserWithLastPurchase {
 export default function AdminUsers() {
   const { toast } = useToast();
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [deleteInactiveDays, setDeleteInactiveDays] = useState<number | null>(null);
@@ -110,13 +111,22 @@ export default function AdminUsers() {
   });
 
   const filteredUsers = users?.filter((user) => {
-    if (roleFilter === "guest") return user.role === "guest";
-    if (roleFilter === "user") return user.role === "user";
-    if (roleFilter === "agent") return user.role === "agent";
-    if (roleFilter === "dealer") return user.role === "dealer";
-    if (roleFilter === "super_dealer") return user.role === "super_dealer";
-    if (roleFilter === "admin") return user.role === "admin";
-    return true;
+    // Role filter
+    const roleMatch = roleFilter === "all" ||
+      (roleFilter === "guest" && user.role === "guest") ||
+      (roleFilter === "user" && user.role === "user") ||
+      (roleFilter === "agent" && user.role === "agent") ||
+      (roleFilter === "dealer" && user.role === "dealer") ||
+      (roleFilter === "super_dealer" && user.role === "super_dealer") ||
+      (roleFilter === "admin" && user.role === "admin");
+
+    // Search filter
+    const searchMatch = !searchQuery ||
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (user.phone && user.phone.includes(searchQuery));
+
+    return roleMatch && searchMatch;
   });
 
   const stats = {
@@ -239,6 +249,15 @@ export default function AdminUsers() {
                     >
                       Delete Inactive
                     </Button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search users..."
+                      className="w-64 pl-10"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                   </div>
                   <Select value={roleFilter} onValueChange={setRoleFilter}>
                     <SelectTrigger className="w-40">

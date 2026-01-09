@@ -1044,13 +1044,57 @@ export async function registerRoutes(
       }
     });
 
+  // Helper function to get default bundles for a network
+  function getDefaultBundlesForNetwork(network: string) {
+    const bundleConfigs: Record<string, any[]> = {
+      at_bigtime: [
+        { name: 'Daily Bundle', network: 'at_bigtime', dataAmount: '500MB', validity: '1 Day', basePrice: '2.00', agentPrice: '1.80', dealerPrice: '1.70', superDealerPrice: '1.60', masterPrice: '1.50', adminPrice: '1.40', isActive: true },
+        { name: 'Weekly Bundle', network: 'at_bigtime', dataAmount: '2GB', validity: '7 Days', basePrice: '8.00', agentPrice: '7.20', dealerPrice: '6.80', superDealerPrice: '6.40', masterPrice: '6.00', adminPrice: '5.60', isActive: true },
+        { name: 'Monthly Bundle', network: 'at_bigtime', dataAmount: '5GB', validity: '30 Days', basePrice: '20.00', agentPrice: '18.00', dealerPrice: '17.00', superDealerPrice: '16.00', masterPrice: '15.00', adminPrice: '14.00', isActive: true }
+      ],
+      at_ishare: [
+        { name: 'Daily iShare', network: 'at_ishare', dataAmount: '750MB', validity: '1 Day', basePrice: '2.50', agentPrice: '2.25', dealerPrice: '2.13', superDealerPrice: '2.00', masterPrice: '1.88', adminPrice: '1.75', isActive: true },
+        { name: 'Weekly iShare', network: 'at_ishare', dataAmount: '3GB', validity: '7 Days', basePrice: '10.00', agentPrice: '9.00', dealerPrice: '8.50', superDealerPrice: '8.00', masterPrice: '7.50', adminPrice: '7.00', isActive: true },
+        { name: 'Monthly iShare', network: 'at_ishare', dataAmount: '8GB', validity: '30 Days', basePrice: '25.00', agentPrice: '22.50', dealerPrice: '21.25', superDealerPrice: '20.00', masterPrice: '18.75', adminPrice: '17.50', isActive: true }
+      ],
+      mtn: [
+        { name: 'MTN 500MB', network: 'mtn', dataAmount: '500MB', validity: '1 Day', basePrice: '1.50', agentPrice: '1.35', dealerPrice: '1.28', superDealerPrice: '1.20', masterPrice: '1.13', adminPrice: '1.05', isActive: true },
+        { name: 'MTN 1GB', network: 'mtn', dataAmount: '1GB', validity: '1 Day', basePrice: '3.00', agentPrice: '2.70', dealerPrice: '2.55', superDealerPrice: '2.40', masterPrice: '2.25', adminPrice: '2.10', isActive: true },
+        { name: 'MTN 2GB', network: 'mtn', dataAmount: '2GB', validity: '3 Days', basePrice: '6.00', agentPrice: '5.40', dealerPrice: '5.10', superDealerPrice: '4.80', masterPrice: '4.50', adminPrice: '4.20', isActive: true }
+      ],
+      telecel: [
+        { name: 'Telecel 500MB', network: 'telecel', dataAmount: '500MB', validity: '1 Day', basePrice: '1.50', agentPrice: '1.35', dealerPrice: '1.28', superDealerPrice: '1.20', masterPrice: '1.13', adminPrice: '1.05', isActive: true },
+        { name: 'Telecel 1GB', network: 'telecel', dataAmount: '1GB', validity: '1 Day', basePrice: '3.00', agentPrice: '2.70', dealerPrice: '2.55', superDealerPrice: '2.40', masterPrice: '2.25', adminPrice: '2.10', isActive: true },
+        { name: 'Telecel 2GB', network: 'telecel', dataAmount: '2GB', validity: '3 Days', basePrice: '6.00', agentPrice: '5.40', dealerPrice: '5.10', superDealerPrice: '4.80', masterPrice: '4.50', adminPrice: '4.20', isActive: true }
+      ]
+    };
+
+    return bundleConfigs[network] || [];
+  }
+
   // ============================================
   // PRODUCTS - DATA BUNDLES
   // ============================================
   app.get("/api/products/data-bundles", async (req, res) => {
     const network = req.query.network as string | undefined;
     try {
-      const bundles = await storage.getDataBundles({ network, isActive: true });
+      let bundles = await storage.getDataBundles({ network, isActive: true });
+
+      // If no bundles exist for the requested network, create default ones
+      if (network && bundles.length === 0) {
+        console.log(`No bundles found for network: ${network}, creating default bundles...`);
+        const defaultBundles = getDefaultBundlesForNetwork(network);
+        for (const bundleData of defaultBundles) {
+          try {
+            await storage.createDataBundle(bundleData);
+            console.log(`Created default bundle: ${bundleData.name} for ${network}`);
+          } catch (createError) {
+            console.error(`Failed to create bundle ${bundleData.name}:`, createError);
+          }
+        }
+        // Re-fetch bundles after creation
+        bundles = await storage.getDataBundles({ network, isActive: true });
+      }
 
       // Check if user is authenticated to apply role-based pricing
       let userRole = 'guest';
@@ -1825,6 +1869,7 @@ export async function registerRoutes(
         phoneNumbers: (isBulkOrder && phoneNumbersData) ? phoneNumbersData : undefined,
         isBulkOrder: isBulkOrder || false,
         status: TransactionStatus.PENDING,
+        paymentStatus: "pending",
         agentId,
         agentProfit: totalAgentProfit.toFixed(2),
       });
@@ -1972,9 +2017,15 @@ export async function registerRoutes(
       }
       
       if (!paystackVerification || paystackVerification.data.status !== "success") {
-        // Payment not successful after retries
+        // Payment not successful after retries - update payment status to failed
         const status = paystackVerification?.data.status || "unknown";
         console.log("[Verify] Payment not successful after retries, final status:", status);
+        
+        // Update transaction payment status to failed
+        await storage.updateTransaction(transaction.id, {
+          paymentStatus: status === "abandoned" ? "cancelled" : "failed"
+        });
+        
         return res.json({
           success: false,
           status: status,
@@ -2004,6 +2055,7 @@ export async function registerRoutes(
       // Update transaction as completed
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
+        paymentStatus: "paid",
         completedAt: new Date(),
         deliveredPin,
         deliveredSerial,
@@ -2144,6 +2196,7 @@ export async function registerRoutes(
               customerEmail: regData.email,
               paymentMethod: "paystack",
               status: TransactionStatus.COMPLETED,
+              paymentStatus: "paid",
               paymentReference: paymentData.reference,
               agentId: null,
               agentProfit: "0.00",
@@ -2235,6 +2288,7 @@ export async function registerRoutes(
               customerEmail: regData.email,
               paymentMethod: "paystack",
               status: TransactionStatus.COMPLETED,
+              paymentStatus: "paid",
               paymentReference: paymentData.reference,
               agentId: null,
               agentProfit: "0.00",
@@ -3495,8 +3549,8 @@ export async function registerRoutes(
   // Get active announcements for users
   app.get("/api/announcements/active", requireAuth, async (req, res) => {
     try {
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser || dbUser.role === 'guest') {
+      // Show announcements to all authenticated users (not guests)
+      if (req.user?.role === 'guest') {
         return res.json([]); // Don't show announcements to guests
       }
 

@@ -213,6 +213,7 @@ export default function AgentTransactions() {
                           <TableHead>Amount</TableHead>
                           <TableHead>My Profit</TableHead>
                           <TableHead>Customer</TableHead>
+                          <TableHead>Payment Status</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Date</TableHead>
                         </TableRow>
@@ -282,6 +283,18 @@ export default function AgentTransactions() {
                                 ) : (
                                   tx.customerPhone
                                 )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    (tx as any).paymentStatus === "paid" ? "default" :
+                                    (tx as any).paymentStatus === "failed" ? "destructive" :
+                                    (tx as any).paymentStatus === "cancelled" ? "outline" :
+                                    "secondary"
+                                  }
+                                >
+                                  {(tx as any).paymentStatus || "pending"}
+                                </Badge>
                               </TableCell>
                               <TableCell>
                                 <StatusBadge status={tx.status} />

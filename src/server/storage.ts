@@ -1,4 +1,4 @@
-﻿import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray } from "drizzle-orm";
+﻿import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt } from "drizzle-orm";
 import { db } from "./db.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
@@ -114,9 +114,11 @@ export interface IStorage {
     totalProfit: number;
     totalTransactions: number;
     pendingWithdrawals: number;
-    activeAgents: number;
+    totalAgents: number;
     pendingAgents: number;
     activationRevenue: number;
+    todayRevenue: number;
+    todayTransactions: number;
     dataBundleStock: number;
     resultCheckerStock: number;
   }>;
@@ -401,7 +403,7 @@ export class DatabaseStorage implements IStorage {
     return query;
   }
 
-  async getTransactionsForExport(): Promise<Pick<Transaction, "id" | "reference" | "productName" | "customerPhone" | "phoneNumbers" | "amount" | "deliveryStatus" | "createdAt">[]> {
+  async getTransactionsForExport(): Promise<Pick<Transaction, "id" | "reference" | "productName" | "customerPhone" | "phoneNumbers" | "amount" | "paymentStatus" | "deliveryStatus" | "createdAt">[]> {
     return db.select({
       id: transactions.id,
       reference: transactions.reference,
@@ -409,6 +411,7 @@ export class DatabaseStorage implements IStorage {
       customerPhone: transactions.customerPhone,
       phoneNumbers: transactions.phoneNumbers,
       amount: transactions.amount,
+      paymentStatus: transactions.paymentStatus,
       deliveryStatus: transactions.deliveryStatus,
       createdAt: transactions.createdAt,
     }).from(transactions).where(eq(transactions.type, "data_bundle")).orderBy(desc(transactions.createdAt));
@@ -543,9 +546,11 @@ export class DatabaseStorage implements IStorage {
     totalProfit: number;
     totalTransactions: number;
     pendingWithdrawals: number;
-    activeAgents: number;
+    totalAgents: number;
     pendingAgents: number;
     activationRevenue: number;
+    todayRevenue: number;
+    todayTransactions: number;
     dataBundleStock: number;
     resultCheckerStock: number;
   }> {
@@ -565,12 +570,23 @@ export class DatabaseStorage implements IStorage {
     }).from(withdrawals).where(eq(withdrawals.status, "pending"));
 
     const [agentStats] = await db.select({
-      active: sql`count(*)`,
-    }).from(agents).where(eq(agents.isApproved, true));
+      total: sql`count(*)`,
+    }).from(agents);
 
     const [pendingAgentStats] = await db.select({
       pending: sql`count(*)`,
     }).from(agents).where(eq(agents.paymentPending, true));
+
+    // Get today's stats
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const [todayStats] = await db.select({
+      revenue: sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
+      transactions: sql`count(*)`,
+    }).from(transactions).where(and(gte(transactions.createdAt, today), lt(transactions.createdAt, tomorrow)));
 
     const [bundleStats] = await db.select({
       count: sql`count(*)`,
@@ -585,9 +601,11 @@ export class DatabaseStorage implements IStorage {
       totalProfit: Number(txStats?.totalProfit || 0),
       totalTransactions: Number(txStats?.totalTransactions || 0),
       pendingWithdrawals: Number(withdrawalStats?.pending || 0),
-      activeAgents: Number(agentStats?.active || 0),
+      totalAgents: Number(agentStats?.total || 0),
       pendingAgents: Number(pendingAgentStats?.pending || 0),
       activationRevenue: Number(activationStats?.revenue || 0),
+      todayRevenue: Number(todayStats?.revenue || 0),
+      todayTransactions: Number(todayStats?.transactions || 0),
       dataBundleStock: Number(bundleStats?.count || 0),
       resultCheckerStock: Number(checkerStats?.count || 0),
     };

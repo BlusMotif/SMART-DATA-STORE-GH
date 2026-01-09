@@ -34,6 +34,15 @@ export const DeliveryStatus = {
   FAILED: "failed",
 } as const;
 
+// Payment status enum
+export const PaymentStatus = {
+  PENDING: "pending",
+  PAID: "paid",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
+  REFUNDED: "refunded",
+} as const;
+
 // Product type enum
 export const ProductType = {
   DATA_BUNDLE: "data_bundle",
@@ -200,6 +209,7 @@ export const transactions = pgTable("transactions", {
   status: text("status").notNull().default("pending"),
   deliveryStatus: text("delivery_status").notNull().default("pending"),
   paymentReference: text("payment_reference"),
+  paymentStatus: text("payment_status").notNull().default("pending"),
   agentId: varchar("agent_id", { length: 36 }),
   agentProfit: decimal("agent_profit", { precision: 12, scale: 2 }).default("0.00"),
   apiResponse: jsonb("api_response"),

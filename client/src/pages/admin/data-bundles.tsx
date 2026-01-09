@@ -275,7 +275,19 @@ function BundleForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    // Convert empty strings to null for price fields
+    const processedData = {
+      ...formData,
+      basePrice: formData.basePrice === "" ? null : formData.basePrice,
+      agentPrice: formData.agentPrice === "" ? null : formData.agentPrice,
+      dealerPrice: formData.dealerPrice === "" ? null : formData.dealerPrice,
+      superDealerPrice: formData.superDealerPrice === "" ? null : formData.superDealerPrice,
+      masterPrice: formData.masterPrice === "" ? null : formData.masterPrice,
+      adminPrice: formData.adminPrice === "" ? null : formData.adminPrice,
+    };
+    
+    onSubmit(processedData);
   };
 
   return (

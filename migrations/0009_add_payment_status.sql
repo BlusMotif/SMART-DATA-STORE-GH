@@ -1,0 +1,1 @@
+ALTER TABLE transactions ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'pending';

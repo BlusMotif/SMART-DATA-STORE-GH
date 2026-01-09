@@ -279,40 +279,26 @@ export default function CheckoutSuccessPage() {
                   {status === "completed" && transaction.type === "result_checker" && transaction.deliveredPin && (
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                       <h4 className="font-semibold text-green-800 dark:text-green-300 mb-3">Your Result Checker Details</h4>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-green-700 dark:text-green-400">Serial Number</span>
-                          <div className="flex items-center gap-2">
-                            <code className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono" data-testid="text-serial">
-                              {transaction.deliveredSerial}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => copyToClipboard(transaction.deliveredSerial!)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-green-700 dark:text-green-400">PIN</span>
-                          <div className="flex items-center gap-2">
-                            <code className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-sm font-mono" data-testid="text-pin">
-                              {transaction.deliveredPin}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => copyToClipboard(transaction.deliveredPin!)}
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                      <p className="text-sm text-green-700 dark:text-green-400 mb-3">
+                        Your result checker credentials have been generated successfully. Download your PDF below for safe keeping.
+                      </p>
+                      <Button
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = `/api/result-checker/${transaction.id}/pdf`;
+                          link.download = `${transaction.productName.replace(/\s+/g, '-')}-${transaction.reference}.pdf`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="w-full gap-2"
+                        data-testid="button-download-pdf"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download PDF Credentials
+                      </Button>
                     </div>
                   )}
 

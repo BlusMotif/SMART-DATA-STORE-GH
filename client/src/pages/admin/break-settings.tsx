@@ -28,7 +28,7 @@ export default function AdminBreakSettings() {
 
   // Fetch current break settings
   const { data: breakSettings, isLoading } = useQuery<BreakSettings>({
-    queryKey: ["/api/break-settings"],
+    queryKey: ["/api/admin/break-settings"],
   });
 
   useEffect(() => {

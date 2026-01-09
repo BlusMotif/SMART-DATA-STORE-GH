@@ -26,10 +26,6 @@ import { normalizePhoneNumber } from "@/lib/network-validator";
 import { Phone, Mail, Loader2, ShieldCheck, FileCheck, Wallet, CreditCard, CheckCircle, AlertCircle, ShoppingCart } from "lucide-react";
 
 const checkoutSchema = z.object({
-  customerPhone: z.string()
-    .min(10, "Phone number must be exactly 10 digits")
-    .max(10, "Phone number must be exactly 10 digits")
-    .regex(/^0[0-9]{9}$/, "Phone number must start with 0 and be 10 digits (e.g., 0241234567)"),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
 });
@@ -87,7 +83,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
   const form = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      customerPhone: user?.phone || "",
       customerEmail: "",
       paymentMethod: "paystack",
     },
@@ -105,7 +100,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
           productId: `${type}-${year}`,
           productName: `${type.toUpperCase()} Result Checker ${year}`,
           amount: price.toFixed(2),
-          customerPhone: data.customerPhone,
           agentSlug: agentSlug || undefined,
         };
 
@@ -115,7 +109,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
         const payload = {
           productType: "result_checker",
           productId: `${type}-${year}`,
-          customerPhone: data.customerPhone,
           customerEmail: data.customerEmail || undefined,
           agentSlug: agentSlug || undefined,
         };
@@ -173,7 +166,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
       return;
     }
 
-    const normalizedPhone = normalizePhoneNumber(data.customerPhone);
+    const normalizedPhone = "0000000000"; // Dummy phone for result checkers
     
     if (data.paymentMethod === "wallet" && hasInsufficientBalance) {
       const shortfall = price - walletBalance;
@@ -381,30 +374,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
 
                 <FormField
                   control={form.control}
-                  name="customerPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number *</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="0241234567"
-                            className="pl-10"
-                            {...field}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        We'll send the result checker PIN to this number
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
                   name="customerEmail"
                   render={({ field }) => (
                     <FormItem>
@@ -436,8 +405,8 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                     </p>
                     <p className="text-green-700 dark:text-green-400">
                       {form.watch("paymentMethod") === "wallet"
-                        ? "Your PIN will be delivered instantly after payment from your wallet."
-                        : "Your payment is processed securely through Paystack. We never store your card details."}
+                        ? "Your result checker PIN and serial number will be generated instantly and available for download."
+                        : "Your payment is processed securely through Paystack. Your result checker will be available for download after payment."}
                     </p>
                   </div>
                 </div>

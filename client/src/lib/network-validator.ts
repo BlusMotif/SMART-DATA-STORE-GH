@@ -49,20 +49,8 @@ export function isValidPhoneLength(phone: string): boolean {
  * Detects network from phone number
  */
 export function detectNetwork(phone: string): GhanaNetwork | null {
-  const normalized = normalizePhoneNumber(phone);
-  
-  if (!isValidPhoneLength(normalized)) {
-    return null;
-  }
-  
-  const prefix = normalized.substring(0, 3);
-  
-  for (const [network, prefixes] of Object.entries(NETWORK_PREFIXES)) {
-    if (prefixes.includes(prefix)) {
-      return network as GhanaNetwork;
-    }
-  }
-  
+  // Phone number prefix validation has been removed
+  // Always return null to indicate no network detection
   return null;
 }
 
@@ -104,25 +92,7 @@ export function validatePhoneNetwork(
     };
   }
   
-  const detectedNetwork = detectNetwork(normalized);
-  const prefix = normalized.substring(0, 3);
-  
-  if (!detectedNetwork) {
-    return {
-      isValid: false,
-      error: `Invalid prefix '${prefix}'. Not a valid Ghana mobile number`,
-    };
-  }
-  
-  if (detectedNetwork.toLowerCase() !== expectedNetwork.toLowerCase()) {
-    const validPrefixes = getNetworkPrefixes(expectedNetwork);
-    return {
-      isValid: false,
-      error: `This number belongs to ${getNetworkDisplayName(
-        detectedNetwork
-      )}. ${getNetworkDisplayName(expectedNetwork)} numbers start with: ${validPrefixes.join(", ")}`,
-    };
-  }
-  
+  // Phone number prefix validation has been removed
+  // Always consider the number valid
   return { isValid: true };
 }

@@ -58,20 +58,8 @@ export function isValidPhoneLength(phone: string): boolean {
  * @returns The detected network or null if invalid
  */
 export function detectNetwork(phone: string): GhanaNetwork | null {
-  const normalized = normalizePhoneNumber(phone);
-  
-  if (!isValidPhoneLength(normalized)) {
-    return null;
-  }
-  
-  const prefix = normalized.substring(0, 3);
-  
-  for (const [network, prefixes] of Object.entries(NETWORK_PREFIXES)) {
-    if (prefixes.includes(prefix)) {
-      return network as GhanaNetwork;
-    }
-  }
-  
+  // Phone number prefix validation has been removed
+  // Always return null to indicate no network detection
   return null;
 }
 
@@ -85,13 +73,9 @@ export function validatePhoneNetwork(
   phone: string,
   expectedNetwork: string
 ): boolean {
-  const detectedNetwork = detectNetwork(phone);
-  
-  if (!detectedNetwork) {
-    return false;
-  }
-  
-  return detectedNetwork.toLowerCase() === expectedNetwork.toLowerCase();
+  // Phone number prefix validation has been removed
+  // Always return true to allow any phone number
+  return true;
 }
 
 /**
@@ -104,23 +88,9 @@ export function getNetworkMismatchError(
   phone: string,
   expectedNetwork: string
 ): string {
-  const detectedNetwork = detectNetwork(phone);
-  const normalized = normalizePhoneNumber(phone);
-  const prefix = normalized.substring(0, 3);
-  
-  if (!isValidPhoneLength(normalized)) {
-    return "Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)";
-  }
-  
-  if (!detectedNetwork) {
-    return `Invalid phone number. The prefix '${prefix}' does not belong to any supported network (MTN, Telecel, or AirtelTigo)`;
-  }
-  
-  const networkName = getNetworkDisplayName(detectedNetwork);
-  const expectedName = getNetworkDisplayName(expectedNetwork);
-  const validPrefixes = NETWORK_PREFIXES[expectedNetwork as GhanaNetwork] || [];
-  
-  return `Phone number mismatch! This number (${prefix}) belongs to ${networkName}, but you selected ${expectedName}. ${expectedName} numbers start with: ${validPrefixes.join(", ")}`;
+  // Phone number prefix validation has been removed
+  // No mismatch errors are generated
+  return "";
 }
 
 /**
@@ -166,7 +136,6 @@ export function validatePhoneNumberDetailed(
   error: string | null;
 } {
   const normalized = normalizePhoneNumber(phone);
-  const detectedNetwork = detectNetwork(phone);
   
   if (!isValidPhoneLength(normalized)) {
     return {
@@ -178,34 +147,12 @@ export function validatePhoneNumberDetailed(
     };
   }
   
-  if (!detectedNetwork) {
-    return {
-      isValid: false,
-      normalized,
-      detectedNetwork: null,
-      matchesExpected: false,
-      error: `Invalid prefix '${normalized.substring(0, 3)}'. Not a valid Ghana mobile number`,
-    };
-  }
-  
-  const matchesExpected = expectedNetwork
-    ? detectedNetwork.toLowerCase() === expectedNetwork.toLowerCase()
-    : true;
-  
-  if (expectedNetwork && !matchesExpected) {
-    return {
-      isValid: false,
-      normalized,
-      detectedNetwork,
-      matchesExpected: false,
-      error: getNetworkMismatchError(phone, expectedNetwork),
-    };
-  }
-  
+  // Phone number prefix validation has been removed
+  // Always consider the number valid
   return {
     isValid: true,
     normalized,
-    detectedNetwork,
+    detectedNetwork: null,
     matchesExpected: true,
     error: null,
   };

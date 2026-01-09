@@ -17,7 +17,7 @@ import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Plus, FileCheck, Package, AlertCircle, Menu } from "lucide-react";
+import { Plus, FileCheck, Package, AlertCircle, Menu, Edit, Trash2 } from "lucide-react";
 import type { ResultChecker } from "@shared/schema";
 
 interface StockSummary {
@@ -31,6 +31,8 @@ interface StockSummary {
 export default function AdminResultCheckers() {
   const { toast } = useToast();
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingChecker, setEditingChecker] = useState<ResultChecker | null>(null);
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -102,6 +104,37 @@ export default function AdminResultCheckers() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async (data: { id: string; updates: Partial<ResultChecker> }) => {
+      const response = await apiRequest("PUT", `/api/admin/result-checkers/${data.id}`, data.updates);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers/summary"] });
+      setIsEditOpen(false);
+      setEditingChecker(null);
+      toast({ title: "Result checker updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update checker", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/admin/result-checkers/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers/summary"] });
+      toast({ title: "Result checker deleted successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete checker", description: error.message, variant: "destructive" });
+    },
+  });
+
   const filteredCheckers = checkers?.filter((checker) => {
     if (selectedType !== "all" && checker.type !== selectedType) return false;
     if (selectedYear !== "all" && checker.year.toString() !== selectedYear) return false;
@@ -114,6 +147,17 @@ export default function AdminResultCheckers() {
   const totalStock = stockSummary?.reduce((acc, s) => acc + s.total, 0) || 0;
   const availableStock = stockSummary?.reduce((acc, s) => acc + s.available, 0) || 0;
   const soldStock = stockSummary?.reduce((acc, s) => acc + s.sold, 0) || 0;
+
+  const handleEdit = (checker: ResultChecker) => {
+    setEditingChecker(checker);
+    setIsEditOpen(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this result checker?")) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -161,6 +205,20 @@ export default function AdminResultCheckers() {
                   onSubmit={(data) => bulkAddMutation.mutate(data)}
                   isLoading={bulkAddMutation.isPending}
                 />
+              </DialogContent>
+            </Dialog>
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Edit Result Checker</DialogTitle>
+                </DialogHeader>
+                {editingChecker && (
+                  <EditForm
+                    checker={editingChecker}
+                    onSubmit={(updates) => updateMutation.mutate({ id: editingChecker.id, updates })}
+                    isLoading={updateMutation.isPending}
+                  />
+                )}
               </DialogContent>
             </Dialog>
             <ThemeToggle />
@@ -272,6 +330,7 @@ export default function AdminResultCheckers() {
                         <TableHead>Status</TableHead>
                         <TableHead>Sold To</TableHead>
                         <TableHead>Date</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -298,6 +357,27 @@ export default function AdminResultCheckers() {
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {checker.soldAt ? formatDate(checker.soldAt) : formatDate(checker.createdAt)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(checker)}
+                                disabled={checker.isSold}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDelete(checker.id)}
+                                disabled={checker.isSold}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                Delete
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -465,6 +545,126 @@ function BulkAddForm({
 
       <Button type="submit" className="w-full" disabled={isLoading} data-testid="button-submit-checkers">
         {isLoading ? "Adding..." : "Add Result Checkers"}
+      </Button>
+    </form>
+  );
+}
+
+function EditForm({
+  checker,
+  onSubmit,
+  isLoading,
+}: {
+  checker: ResultChecker;
+  onSubmit: (updates: Partial<ResultChecker>) => void;
+  isLoading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    type: checker.type,
+    year: checker.year.toString(),
+    serialNumber: checker.serialNumber,
+    pin: checker.pin,
+    basePrice: checker.basePrice,
+    costPrice: checker.costPrice,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      type: formData.type,
+      year: parseInt(formData.year),
+      serialNumber: formData.serialNumber,
+      pin: formData.pin,
+      basePrice: formData.basePrice,
+      costPrice: formData.costPrice,
+    });
+  };
+
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="edit-type">Type</Label>
+          <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RESULT_CHECKER_TYPES.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="edit-year">Year</Label>
+          <Select value={formData.year} onValueChange={(value) => setFormData({ ...formData, year: value })}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((y) => (
+                <SelectItem key={y} value={y.toString()}>
+                  {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="edit-serial">Serial Number</Label>
+        <Input
+          id="edit-serial"
+          value={formData.serialNumber}
+          onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="edit-pin">PIN</Label>
+        <Input
+          id="edit-pin"
+          value={formData.pin}
+          onChange={(e) => setFormData({ ...formData, pin: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="edit-base-price">Base Price</Label>
+          <Input
+            id="edit-base-price"
+            type="number"
+            step="0.01"
+            value={formData.basePrice}
+            onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="edit-cost-price">Cost Price</Label>
+          <Input
+            id="edit-cost-price"
+            type="number"
+            step="0.01"
+            value={formData.costPrice}
+            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+
+      <Button type="submit" className="w-full" disabled={isLoading}>
+        {isLoading ? "Updating..." : "Update Result Checker"}
       </Button>
     </form>
   );

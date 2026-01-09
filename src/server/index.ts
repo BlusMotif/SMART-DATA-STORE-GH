@@ -249,7 +249,7 @@ global.upload = upload;
 const FRONTEND_URL = process.env.APP_URL
   || (process.env.NODE_ENV === "production"
     ? "https://smartdatastoregh.onrender.com"
-    : `http://localhost:${process.env.PORT || 3000}`);
+    : `http://localhost:${process.env.PORT || 10000}`);
 
 app.use(cors({
   origin: FRONTEND_URL,

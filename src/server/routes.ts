@@ -7,7 +7,7 @@ import * as jwt from "jsonwebtoken";
 import multer from "multer";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
-  UserRole, TransactionStatus, ProductType, WithdrawalStatus
+  UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack.js";
 import { fulfillDataBundleTransaction } from "./providers.js";
@@ -173,11 +173,30 @@ async function processWebhookEvent(event: any) {
       let deliveredSerial: string | undefined;
 
       if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
-        const checker = await storage.getResultChecker(transaction.productId);
+        const [type, yearStr] = transaction.productId.split("-");
+        const year = parseInt(yearStr);
+        
+        // Try to get an available pre-generated checker first
+        let checker = await storage.getResultChecker(transaction.productId);
         if (checker && !checker.isSold) {
           await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
           deliveredPin = checker.pin;
           deliveredSerial = checker.serialNumber;
+        } else {
+          // Auto-generate PIN and serial if no available checker exists
+          deliveredPin = Math.random().toString(36).substring(2, 10).toUpperCase();
+          deliveredSerial = Math.random().toString(36).substring(2, 12).toUpperCase();
+
+          // Create a new result checker record
+          const newChecker = await storage.createResultChecker({
+            type,
+            year,
+            serialNumber: deliveredSerial,
+            pin: deliveredPin,
+            basePrice: transaction.amount,
+          });
+
+          console.log("Auto-generated result checker via Paystack:", newChecker.id);
         }
       }
 
@@ -431,8 +450,9 @@ const requireAgent = async (req: Request, res: Response, next: NextFunction) => 
       return res.status(403).json({ error: "Agent access required" });
     }
 
-    // Check role from req.user (already set by requireAuth middleware)
-    if (req.user.role !== UserRole.AGENT) {
+    // Check if user has agent-level access or higher (agent, dealer, super_dealer, master, admin)
+    const agentRoles = [UserRole.AGENT, UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
+    if (!req.user.role || !agentRoles.includes(req.user.role as typeof UserRole.AGENT)) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Agent access required" });
     }
@@ -1276,11 +1296,26 @@ export async function registerRoutes(
           slug: agent.storefrontSlug,
         },
         dataBundles: bundles.map(b => {
-          // Use custom price if set, otherwise use base price
+          // Use custom price if set, otherwise use role-based price for the agent's role
           const customPrice = pricingMap.get(b.id);
+          let price = parseFloat(b.basePrice || '0');
+
+          // Apply role-based pricing based on agent's role
+          if (user?.role === 'agent' && b.agentPrice) {
+            price = parseFloat(b.agentPrice);
+          } else if (user?.role === 'dealer' && b.dealerPrice) {
+            price = parseFloat(b.dealerPrice);
+          } else if (user?.role === 'super_dealer' && b.superDealerPrice) {
+            price = parseFloat(b.superDealerPrice);
+          } else if (user?.role === 'master' && b.masterPrice) {
+            price = parseFloat(b.masterPrice);
+          } else if (user?.role === 'admin' && b.adminPrice) {
+            price = parseFloat(b.adminPrice);
+          }
+
           return {
             ...b,
-            customPrice: parseFloat(customPrice || b.basePrice),
+            customPrice: parseFloat(customPrice || price.toString()),
           };
         }),
         resultCheckers: resultCheckerStock,
@@ -2553,11 +2588,32 @@ export async function registerRoutes(
       let deliveredSerial: string | undefined;
 
       if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
-        const checker = await storage.getResultChecker(transaction.productId);
-        if (checker && !checker.isSold) {
+        const [type, yearStr] = transaction.productId.split("-");
+        const year = parseInt(yearStr);
+        
+        // Try to get an available pre-generated checker first
+        let checker = await storage.getAvailableResultChecker(type, year);
+        
+        if (checker) {
+          // Use pre-generated checker
           await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
           deliveredPin = checker.pin;
           deliveredSerial = checker.serialNumber;
+        } else {
+          // Generate PIN and serial automatically
+          deliveredSerial = `RC${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+          deliveredPin = Math.random().toString(36).substring(2, 10).toUpperCase();
+          
+          // Create a new result checker record
+          const newChecker = await storage.createResultChecker({
+            type,
+            year,
+            serialNumber: deliveredSerial,
+            pin: deliveredPin,
+            basePrice: transaction.amount,
+          });
+          
+          console.log("Auto-generated result checker via Paystack:", newChecker.id);
         }
       }
 
@@ -3704,6 +3760,43 @@ export async function registerRoutes(
     }
   });
 
+  app.put("/api/admin/result-checkers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { type, year, serialNumber, pin, basePrice } = req.body;
+
+      const updateData: Partial<InsertResultChecker> = {};
+      if (type !== undefined) updateData.type = type;
+      if (year !== undefined) updateData.year = year;
+      if (serialNumber !== undefined) updateData.serialNumber = serialNumber;
+      if (pin !== undefined) updateData.pin = pin;
+      if (basePrice !== undefined) updateData.basePrice = basePrice;
+
+      const checker = await storage.updateResultChecker(id, updateData);
+      if (!checker) {
+        return res.status(404).json({ error: "Result checker not found" });
+      }
+
+      res.json(checker);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update result checker" });
+    }
+  });
+
+  app.delete("/api/admin/result-checkers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteResultChecker(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Result checker not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete result checker" });
+    }
+  });
+
   app.get("/api/admin/transactions/recent", requireAuth, requireAdmin, async (req, res) => {
     try {
       const transactions = await storage.getTransactions({ limit: 10 });
@@ -4488,19 +4581,40 @@ export async function registerRoutes(
       let deliveredSerial: string | undefined;
 
       if (productType === ProductType.RESULT_CHECKER && productId) {
-        const checker = await storage.getResultChecker(productId);
-        if (checker && !checker.isSold) {
+        const [type, yearStr] = productId.split("-");
+        const year = parseInt(yearStr);
+        
+        // Try to get an available pre-generated checker first
+        let checker = await storage.getAvailableResultChecker(type, year);
+        
+        if (checker) {
+          // Use pre-generated checker
           await storage.markResultCheckerSold(checker.id, transaction.id, customerPhone);
           deliveredPin = checker.pin;
           deliveredSerial = checker.serialNumber;
+        } else {
+          // Generate PIN and serial automatically
+          deliveredSerial = `RC${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+          deliveredPin = Math.random().toString(36).substring(2, 10).toUpperCase();
           
-          await storage.updateTransaction(transaction.id, {
-            status: TransactionStatus.COMPLETED,
-            completedAt: new Date(),
-            deliveredPin,
-            deliveredSerial,
+          // Create a new result checker record
+          const newChecker = await storage.createResultChecker({
+            type,
+            year,
+            serialNumber: deliveredSerial,
+            pin: deliveredPin,
+            basePrice: purchaseAmount.toString(),
           });
+          
+          console.log("Auto-generated result checker:", newChecker.id);
         }
+        
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.COMPLETED,
+          completedAt: new Date(),
+          deliveredPin,
+          deliveredSerial,
+        });
       } else {
         // For data bundles, mark as completed immediately
         await storage.updateTransaction(transaction.id, {
@@ -4839,6 +4953,68 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to update user credentials" });
+    }
+  });
+
+  // Generate and download result checker PDF
+  app.get("/api/result-checker/:transactionId/pdf", requireAuth, async (req, res) => {
+    try {
+      const { transactionId } = req.params;
+
+      // Get user from database
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Get transaction
+      const transaction = await storage.getTransaction(transactionId);
+      if (!transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      // Verify user owns this transaction
+      if (transaction.customerEmail !== dbUser.email) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Verify it's a result checker transaction
+      if (transaction.type !== ProductType.RESULT_CHECKER) {
+        return res.status(400).json({ error: "Invalid transaction type" });
+      }
+
+      // Verify transaction is completed and has credentials
+      if (transaction.status !== TransactionStatus.COMPLETED || !transaction.deliveredPin || !transaction.deliveredSerial) {
+        return res.status(400).json({ error: "Transaction not completed or credentials not available" });
+      }
+
+      // Parse productId to get type and year
+      const [type, yearStr] = transaction.productId!.split("-");
+      const year = parseInt(yearStr);
+
+      // Generate PDF
+      const { generateResultCheckerPDF } = await import('./utils/pdf-generator.js');
+      const pdfBuffer = await generateResultCheckerPDF({
+        type,
+        year,
+        pin: transaction.deliveredPin,
+        serialNumber: transaction.deliveredSerial,
+        customerName: dbUser.name,
+        customerPhone: transaction.customerPhone,
+        purchaseDate: transaction.completedAt || transaction.createdAt,
+        transactionReference: transaction.reference,
+      });
+
+      // Set headers for PDF download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${type.toUpperCase()}-Result-Checker-${year}-${transaction.reference}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      // Send PDF buffer
+      res.send(pdfBuffer);
+    } catch (error: any) {
+      console.error("PDF generation error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate PDF" });
     }
   });
 

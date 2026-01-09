@@ -4,7 +4,7 @@
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
-    "outDir": "dist",
+    "outDir": "./dist/src",
     "rootDir": "src",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",

@@ -2,7 +2,7 @@
   "name": "rest-express",
   "version": "1.0.0",
   "type": "module",
-  "main": "dist/server/index.js",
+  "main": "dist/src/server/index.js",
   "engines": {
     "node": "20.x"
   },
@@ -13,7 +13,7 @@
     "build:client": "cd client && npm install && npm run build",
     "build:server": "npx tsc --project .",
     "preview": "vite preview --host --port $PORT",
-    "start": "node dist/server/index.js",
+    "start": "node dist/src/server/index.js",
     "check": "tsc",
     "seed:admin": "npx tsx script/seed-admin.ts",
     "create:admin": "npx tsx script/create-admin.ts",

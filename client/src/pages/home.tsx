@@ -14,7 +14,7 @@ import resultLogo from "@assets/result_1765780772205.jpg";
 import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
-import { Truck, Shield, Headphones, DollarSign } from "lucide-react";
+import { OrderTracker } from "@/components/order-tracker";
 
 const bannerImages = [banner1, banner2, banner3];
 
@@ -192,6 +192,19 @@ export default function HomePage() {
                 );
               })}
             </div>
+          </div>
+        </section>
+
+        {/* Order Tracking Section */}
+        <section className="py-16 px-4 bg-gray-50">
+          <div className="container mx-auto max-w-4xl">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-4">Track Your Orders</h2>
+              <p className="text-lg text-muted-foreground">
+                Easily track your data bundle and result checker orders using your transaction ID or beneficiary phone number.
+              </p>
+            </div>
+            <OrderTracker />
           </div>
         </section>
 

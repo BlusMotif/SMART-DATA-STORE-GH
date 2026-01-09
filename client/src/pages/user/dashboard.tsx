@@ -22,7 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 // Using plain inputs for the small upgrade dialog (avoid react-hook-form Controller requirements)
-import { Input } from "@/components/ui/input";
+import { OrderTracker } from "@/components/order-tracker";
 
 export default function UserDashboard() {
   const { user, agent } = useAuth();
@@ -426,6 +426,17 @@ export default function UserDashboard() {
                     </Link>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Order Tracker */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Track Your Orders</CardTitle>
+                <CardDescription>Check the status of your data bundle purchases</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <OrderTracker />
               </CardContent>
             </Card>
           </div>

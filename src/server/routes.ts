@@ -3881,6 +3881,50 @@ export async function registerRoutes(
     }
   });
 
+  // Order tracking - search by beneficiary number or transaction ID
+  app.get("/api/track-order", async (req, res) => {
+    try {
+      const { q } = req.query;
+
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({ error: "Search query is required" });
+      }
+
+      const trimmedQuery = q.trim();
+
+      // Search by transaction ID/reference first
+      let transaction = await storage.getTransactionByReference(trimmedQuery);
+
+      // If not found, search by beneficiary phone number
+      if (!transaction) {
+        transaction = await storage.getTransactionByBeneficiaryPhone(trimmedQuery);
+      }
+
+      if (!transaction) {
+        return res.status(404).json({ error: "Order not found. Please check your transaction ID or beneficiary phone number." });
+      }
+
+      // Return limited transaction info for tracking
+      res.json({
+        id: transaction.id,
+        reference: transaction.reference,
+        productName: transaction.productName,
+        customerPhone: transaction.customerPhone,
+        amount: transaction.amount,
+        status: transaction.status,
+        deliveryStatus: transaction.deliveryStatus,
+        createdAt: transaction.createdAt,
+        completedAt: transaction.completedAt,
+        phoneNumbers: transaction.phoneNumbers, // For bulk orders
+        isBulkOrder: transaction.isBulkOrder,
+      });
+
+    } catch (error: any) {
+      console.error('Order tracking error:', error);
+      res.status(500).json({ error: "Failed to track order" });
+    }
+  });
+
   // Bulk upload data bundles
   app.post("/api/user/bulk-upload", requireAuth, async (req, res) => {
     try {

@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu, Package } from "lucide-react";
-import type { Transaction, Agent } from "@shared/schema";
+import { OrderTracker } from "@/components/order-tracker";
 
 interface AgentStats {
   balance: number;
@@ -315,6 +315,17 @@ export default function AgentDashboard() {
               </Card>
             )}
           </div>
+
+          {/* Order Tracker */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Track Orders</CardTitle>
+              <CardDescription>Check the status of your customers' purchases</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OrderTracker />
+            </CardContent>
+          </Card>
         </main>
       </div>
     </div>

@@ -50,6 +50,7 @@ export interface IStorage {
   // Transactions
   getTransaction(id: string): Promise<Transaction | undefined>;
   getTransactionByReference(reference: string): Promise<Transaction | undefined>;
+  getTransactionByBeneficiaryPhone(phone: string): Promise<Transaction | undefined>;
   getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
@@ -367,6 +368,19 @@ export class DatabaseStorage implements IStorage {
 
   async getTransactionByReference(reference: string): Promise<Transaction | undefined> {
     const [transaction] = await db.select().from(transactions).where(eq(transactions.reference, reference)).limit(1);
+    return transaction;
+  }
+
+  async getTransactionByBeneficiaryPhone(phone: string): Promise<Transaction | undefined> {
+    // First try exact match on customerPhone
+    let [transaction] = await db.select().from(transactions).where(eq(transactions.customerPhone, phone)).orderBy(desc(transactions.createdAt)).limit(1);
+
+    // If not found, search in phoneNumbers array for bulk orders
+    if (!transaction) {
+      const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers}::text LIKE ${'%' + phone + '%'}).orderBy(desc(transactions.createdAt)).limit(1);
+      transaction = allTransactions[0];
+    }
+
     return transaction;
   }
 

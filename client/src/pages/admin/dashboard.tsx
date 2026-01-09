@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Trophy, Award, Medal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Transaction } from "@shared/schema";
+import { OrderTracker } from "@/components/order-tracker";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -285,6 +285,17 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Order Tracker */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Track Orders</CardTitle>
+              <CardDescription>Search and monitor order status across the platform</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <OrderTracker />
+            </CardContent>
+          </Card>
         </main>
       </div>
     </div>

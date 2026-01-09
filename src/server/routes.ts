@@ -1667,13 +1667,16 @@ export async function registerRoutes(
       console.log("[Checkout] data.isBulkOrder:", data.isBulkOrder);
       console.log("[Checkout] ================================================");
       
-      // Normalize and validate phone number format
-      const normalizedPhone = normalizePhoneNumber(data.customerPhone);
-      
-      if (!isValidPhoneLength(normalizedPhone)) {
-        return res.status(400).json({ 
-          error: "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)" 
-        });
+      // Normalize and validate phone number format (only if provided)
+      let normalizedPhone: string | undefined;
+      if (data.customerPhone) {
+        normalizedPhone = normalizePhoneNumber(data.customerPhone);
+        
+        if (!isValidPhoneLength(normalizedPhone)) {
+          return res.status(400).json({ 
+            error: "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)" 
+          });
+        }
       }
       
       // Validate email format if provided
@@ -1743,8 +1746,8 @@ export async function registerRoutes(
           return res.status(404).json({ error: "Product not found" });
         }
         
-        // Validate that phone number matches the selected network
-        if (!validatePhoneNetwork(normalizedPhone, product.network)) {
+        // Validate that phone number matches the selected network (only if phone provided)
+        if (normalizedPhone && !validatePhoneNetwork(normalizedPhone, product.network)) {
           const errorMsg = getNetworkMismatchError(normalizedPhone, product.network);
           return res.status(400).json({ error: errorMsg });
         }
@@ -1910,7 +1913,7 @@ export async function registerRoutes(
       });
 
       // Initialize Paystack payment
-      const customerEmail = data.customerEmail || `${normalizedPhone}@clectech.com`;
+      const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
       const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success?reference=${reference}`;
 
       console.log("[Checkout] Paystack initialization:", { 

@@ -557,7 +557,7 @@ export const agentRegisterSchema = z.object({
 export const purchaseSchema = z.object({
   productId: z.string().optional(),
   productType: z.enum(["data_bundle", "result_checker"]),
-  customerPhone: z.string().min(10, "Phone must be at least 10 digits"),
+  customerPhone: z.string().optional(),
   customerEmail: z.union([z.string().email(), z.literal("")]).optional(),
   agentSlug: z.string().optional(),
   phoneNumbers: z.array(z.object({
@@ -574,6 +574,15 @@ export const purchaseSchema = z.object({
     price: z.number(),
   })).optional(),
   totalAmount: z.number().optional(),
+}).refine((data) => {
+  // customerPhone is required for data_bundle, optional for result_checker
+  if (data.productType === "data_bundle" && (!data.customerPhone || data.customerPhone.length < 10)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Phone number is required for data bundle purchases and must be at least 10 digits",
+  path: ["customerPhone"],
 }).refine((data) => {
   // If orderItems exist, productId is not required
   if (data.orderItems && data.orderItems.length > 0) return true;

@@ -10,6 +10,7 @@ export const UserRole = {
   AGENT: "agent",
   DEALER: "dealer",
   SUPER_DEALER: "super_dealer",
+  MASTER: "master",
   USER: "user",
   GUEST: "guest",
 } as const;
@@ -147,6 +148,7 @@ export const dataBundles = pgTable("data_bundles", {
   agentPrice: decimal("agent_price", { precision: 10, scale: 2 }),
   dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }),
   superDealerPrice: decimal("super_dealer_price", { precision: 10, scale: 2 }),
+  masterPrice: decimal("master_price", { precision: 10, scale: 2 }),
   adminPrice: decimal("admin_price", { precision: 10, scale: 2 }),
   isActive: boolean("is_active").notNull().default(true),
   apiCode: text("api_code"),

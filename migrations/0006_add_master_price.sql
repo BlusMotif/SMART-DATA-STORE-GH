@@ -1,0 +1,1 @@
+ALTER TABLE "data_bundles" ADD COLUMN "master_price" numeric(10, 2);

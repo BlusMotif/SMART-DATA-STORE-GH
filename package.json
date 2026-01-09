@@ -2,7 +2,7 @@
   "name": "rest-express",
   "version": "1.0.0",
   "type": "module",
-  "main": "src/dist/server/index.js",
+  "main": "dist/server/index.js",
   "engines": {
     "node": "20.x"
   },

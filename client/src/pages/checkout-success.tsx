@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Download, Phone as PhoneIcon } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Phone as PhoneIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { generateReceipt } from "@/lib/pdf-receipt";
 import type { Transaction } from "@shared/schema";
 
 export default function CheckoutSuccessPage() {
@@ -55,26 +54,6 @@ export default function CheckoutSuccessPage() {
       title: "Copied!",
       description: "Details copied to clipboard",
     });
-  };
-
-  const downloadReceipt = () => {
-    if (!transaction) return;
-
-    try {
-      generateReceipt(transaction as any);
-      toast({
-        title: "✅ Receipt Downloaded!",
-        description: "Your professional PDF receipt has been saved to your downloads folder.",
-        duration: 3000,
-      });
-    } catch (error) {
-      toast({
-        title: "❌ Download Failed",
-        description: "Failed to generate receipt. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      });
-    }
   };
 
   if (!reference && !paystackReference) {
@@ -349,12 +328,6 @@ export default function CheckoutSuccessPage() {
               )}
 
               <div className="flex flex-col gap-3">
-                {status === "completed" && (
-                  <Button onClick={downloadReceipt} variant="secondary" className="gap-2">
-                    <Download className="h-4 w-4" />
-                    Download Receipt
-                  </Button>
-                )}
                 <Button onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-continue-shopping">
                   Continue Shopping
                   <ArrowRight className="h-4 w-4" />

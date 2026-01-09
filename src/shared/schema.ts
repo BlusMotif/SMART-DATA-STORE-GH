@@ -25,6 +25,14 @@ export const TransactionStatus = {
   REFUNDED: "refunded",
 } as const;
 
+// Delivery status enum
+export const DeliveryStatus = {
+  PENDING: "pending",
+  PROCESSING: "processing",
+  DELIVERED: "delivered",
+  FAILED: "failed",
+} as const;
+
 // Product type enum
 export const ProductType = {
   DATA_BUNDLE: "data_bundle",
@@ -136,10 +144,11 @@ export const dataBundles = pgTable("data_bundles", {
   dataAmount: text("data_amount").notNull(),
   validity: text("validity").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  costPrice: decimal("cost_price", { precision: 10, scale: 2 }).notNull(),
   agentPrice: decimal("agent_price", { precision: 10, scale: 2 }),
   dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }),
   superDealerPrice: decimal("super_dealer_price", { precision: 10, scale: 2 }),
+  masterPrice: decimal("master_price", { precision: 10, scale: 2 }),
+  adminPrice: decimal("admin_price", { precision: 10, scale: 2 }),
   isActive: boolean("is_active").notNull().default(true),
   apiCode: text("api_code"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -189,6 +198,7 @@ export const transactions = pgTable("transactions", {
   isBulkOrder: boolean("is_bulk_order").default(false),
   paymentMethod: text("payment_method").notNull().default("paystack"), // "paystack" or "wallet"
   status: text("status").notNull().default("pending"),
+  deliveryStatus: text("delivery_status").notNull().default("pending"),
   paymentReference: text("payment_reference"),
   agentId: varchar("agent_id", { length: 36 }),
   agentProfit: decimal("agent_profit", { precision: 12, scale: 2 }).default("0.00"),

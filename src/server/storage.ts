@@ -53,6 +53,8 @@ export interface IStorage {
   getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
+  updateTransactionDeliveryStatus(id: string, deliveryStatus: string): Promise<Transaction | undefined>;
+  getTransactionsForExport(): Promise<Pick<Transaction, "id" | "reference" | "productName" | "customerPhone" | "phoneNumbers" | "amount" | "deliveryStatus" | "createdAt">[]>;
   getTransactionStats(agentId?: string): Promise<{ total: number; completed: number; pending: number; revenue: number; profit: number }>;
 
   // Withdrawals
@@ -385,6 +387,19 @@ export class DatabaseStorage implements IStorage {
     return query;
   }
 
+  async getTransactionsForExport(): Promise<Pick<Transaction, "id" | "reference" | "productName" | "customerPhone" | "phoneNumbers" | "amount" | "deliveryStatus" | "createdAt">[]> {
+    return db.select({
+      id: transactions.id,
+      reference: transactions.reference,
+      productName: transactions.productName,
+      customerPhone: transactions.customerPhone,
+      phoneNumbers: transactions.phoneNumbers,
+      amount: transactions.amount,
+      deliveryStatus: transactions.deliveryStatus,
+      createdAt: transactions.createdAt,
+    }).from(transactions).where(eq(transactions.type, "data_bundle")).orderBy(desc(transactions.createdAt));
+  }
+
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const [created] = await db.insert(transactions).values(transaction).returning();
     return created;
@@ -392,6 +407,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined> {
     const [transaction] = await db.update(transactions).set(data).where(eq(transactions.id, id)).returning();
+    return transaction;
+  }
+
+  async updateTransactionDeliveryStatus(id: string, deliveryStatus: string): Promise<Transaction | undefined> {
+    const [transaction] = await db.update(transactions).set({ deliveryStatus }).where(eq(transactions.id, id)).returning();
     return transaction;
   }
 

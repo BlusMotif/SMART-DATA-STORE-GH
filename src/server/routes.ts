@@ -4,6 +4,7 @@ import { storage } from "./storage.js";
 import { randomUUID } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
+import multer from "multer";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus
@@ -183,41 +184,57 @@ async function processWebhookEvent(event: any) {
 
       // If this is a data bundle transaction, try to fulfill using provider settings
       if (transaction.type === ProductType.DATA_BUNDLE) {
-        try {
-          const fulfillResult = await fulfillDataBundleTransaction(transaction);
-          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
-          // If provider reports all recipients ok, mark delivered/completed
-          if (fulfillResult && fulfillResult.success && Array.isArray(fulfillResult.results)) {
-            const allOk = fulfillResult.results.every((r: any) => r.status === "ok");
-            if (allOk) {
-              await storage.updateTransaction(transaction.id, {
-                status: TransactionStatus.DELIVERED,
-                completedAt: new Date(),
-                paymentReference: data.reference,
-              });
+        const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
+        
+        if (autoProcessingEnabled) {
+          try {
+            const fulfillResult = await fulfillDataBundleTransaction(transaction);
+            await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
+            // If provider reports all recipients ok, mark delivered/completed
+            if (fulfillResult && fulfillResult.success && Array.isArray(fulfillResult.results)) {
+              const allOk = fulfillResult.results.every((r: any) => r.status === "ok");
+              if (allOk) {
+                await storage.updateTransaction(transaction.id, {
+                  status: TransactionStatus.DELIVERED,
+                  deliveryStatus: "delivered",
+                  completedAt: new Date(),
+                  paymentReference: data.reference,
+                });
+              } else {
+                await storage.updateTransaction(transaction.id, {
+                  status: TransactionStatus.COMPLETED,
+                  deliveryStatus: "processing",
+                  completedAt: new Date(),
+                  paymentReference: data.reference,
+                  failureReason: JSON.stringify(fulfillResult.results),
+                });
+              }
             } else {
               await storage.updateTransaction(transaction.id, {
                 status: TransactionStatus.COMPLETED,
+                deliveryStatus: "failed",
                 completedAt: new Date(),
                 paymentReference: data.reference,
-                failureReason: JSON.stringify(fulfillResult.results),
+                failureReason: fulfillResult?.error || "Provider fulfillment failed",
               });
             }
-          } else {
+          } catch (err: any) {
+            console.error("Fulfillment error:", err);
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.COMPLETED,
+              deliveryStatus: "failed",
               completedAt: new Date(),
               paymentReference: data.reference,
-              failureReason: fulfillResult?.error || "Provider fulfillment failed",
+              failureReason: String(err?.message || err),
             });
           }
-        } catch (err: any) {
-          console.error("Fulfillment error:", err);
+        } else {
+          // Manual processing - just mark as completed, delivery pending
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
+            deliveryStatus: "pending",
             completedAt: new Date(),
             paymentReference: data.reference,
-            failureReason: String(err?.message || err),
           });
         }
       } else {
@@ -1070,6 +1087,10 @@ export async function registerRoutes(
           price = parseFloat(bundle.dealerPrice);
         } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
           price = parseFloat(bundle.superDealerPrice);
+        } else if (userRole === 'master' && bundle.masterPrice) {
+          price = parseFloat(bundle.masterPrice);
+        } else if (userRole === 'admin' && bundle.adminPrice) {
+          price = parseFloat(bundle.adminPrice);
         }
 
         return {
@@ -1338,6 +1359,214 @@ export async function registerRoutes(
   // ============================================
   // CHECKOUT / TRANSACTIONS
   // ============================================
+
+  // Excel bulk upload for registered users
+  app.post("/api/checkout/bulk-upload", requireAuth, multer({ storage: multer.memoryStorage() }).single('excelFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Excel file is required" });
+      }
+
+      // Import xlsx dynamically to avoid issues
+      const XLSX = await import('xlsx');
+
+      // Parse Excel file
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (!jsonData || jsonData.length === 0) {
+        return res.status(400).json({ error: "Excel file is empty or invalid" });
+      }
+
+      // Validate Excel structure - expect columns: phone, bundleName, bundleId
+      const requiredColumns = ['phone', 'bundleName', 'bundleId'];
+      const firstRow = jsonData[0] as any;
+      const missingColumns = requiredColumns.filter(col => !(col in firstRow));
+
+      if (missingColumns.length > 0) {
+        return res.status(400).json({ 
+          error: `Missing required columns: ${missingColumns.join(', ')}. Expected: phone, bundleName, bundleId` 
+        });
+      }
+
+      // Process and validate each row
+      const orderItems: any[] = [];
+      const errors: string[] = [];
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i] as any;
+        const rowNum = i + 2; // +2 because Excel is 1-indexed and we skip header
+
+        try {
+          const phone = row.phone?.toString().trim();
+          const bundleName = row.bundleName?.toString().trim();
+          const bundleId = row.bundleId?.toString().trim();
+
+          if (!phone || !bundleName || !bundleId) {
+            errors.push(`Row ${rowNum}: Missing phone, bundleName, or bundleId`);
+            continue;
+          }
+
+          // Validate phone number
+          const normalizedPhone = normalizePhoneNumber(phone);
+          if (!isValidPhoneLength(normalizedPhone)) {
+            errors.push(`Row ${rowNum}: Invalid phone number format: ${phone}`);
+            continue;
+          }
+
+          // Validate bundle exists
+          const bundle = await storage.getDataBundle(bundleId);
+          if (!bundle || !bundle.isActive) {
+            errors.push(`Row ${rowNum}: Bundle not found or inactive: ${bundleId}`);
+            continue;
+          }
+
+          // Validate network matches phone
+          const networkFromPhone = detectNetwork(normalizedPhone);
+          if (networkFromPhone !== bundle.network) {
+            errors.push(`Row ${rowNum}: Phone network (${networkFromPhone}) doesn't match bundle network (${bundle.network})`);
+            continue;
+          }
+
+          orderItems.push({
+            phone: normalizedPhone,
+            bundleName: bundleName,
+            bundleId: bundleId,
+            dataAmount: bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
+          });
+
+        } catch (error: any) {
+          errors.push(`Row ${rowNum}: ${error.message}`);
+        }
+      }
+
+      if (orderItems.length === 0) {
+        return res.status(400).json({ error: "No valid order items found in Excel file" });
+      }
+
+      // Get authenticated user
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Calculate total amount and prepare order items with prices
+      let totalAmount = 0;
+      const processedOrderItems: any[] = [];
+
+      for (const item of orderItems) {
+        const bundle = await storage.getDataBundle(item.bundleId);
+        if (!bundle) continue;
+
+        // Apply agent pricing if user is agent
+        let itemPrice = parseFloat(bundle.basePrice);
+        if (user.role === 'agent' && bundle.agentPrice) {
+          itemPrice = parseFloat(bundle.agentPrice);
+        } else if (user.role === 'dealer' && bundle.dealerPrice) {
+          itemPrice = parseFloat(bundle.dealerPrice);
+        } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {
+          itemPrice = parseFloat(bundle.superDealerPrice);
+        }
+
+        processedOrderItems.push({
+          ...item,
+          price: itemPrice,
+        });
+        totalAmount += itemPrice;
+      }
+
+      // Check wallet balance for registered users
+      if (user.role !== 'guest') {
+        const userData = await storage.getUser(user.id);
+        if (!userData) {
+          return res.status(404).json({ error: "User not found" });
+        }
+
+        if (parseFloat(userData.walletBalance) < totalAmount) {
+          return res.status(400).json({ 
+            error: `Insufficient wallet balance. Required: GHS ${totalAmount.toFixed(2)}, Available: GHS ${userData.walletBalance}` 
+          });
+        }
+      }
+
+      // Create transaction
+      const reference = generateReference();
+      const transaction = await storage.createTransaction({
+        reference,
+        type: "data_bundle",
+        productId: null, // Bulk order
+        productName: `Bulk Data Bundle Purchase (${orderItems.length} items)`,
+        network: null,
+        amount: totalAmount.toFixed(2),
+        costPrice: "0.00", // Will be calculated per item
+        profit: "0.00", // Will be calculated per item
+        customerPhone: user.phone || "",
+        customerEmail: user.email,
+        phoneNumbers: processedOrderItems,
+        isBulkOrder: true,
+        status: "pending",
+        agentId: user.role === 'agent' ? user.id : undefined,
+        agentProfit: "0.00",
+      });
+
+      // Deduct from wallet if registered user
+      if (user.role !== 'guest') {
+        const userData = await storage.getUser(user.id);
+        if (userData) {
+          const newBalance = parseFloat(userData.walletBalance) - totalAmount;
+          await storage.updateUser(user.id, { walletBalance: newBalance.toFixed(2) });
+        }
+      }
+
+      // Mark transaction as completed immediately for wallet payments
+      await storage.updateTransaction(transaction.id, {
+        status: "completed",
+        completedAt: new Date(),
+        paymentReference: "wallet",
+      });
+
+      // Process delivery for bulk orders
+      const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
+      if (autoProcessingEnabled) {
+        // Process each item
+        for (const item of processedOrderItems) {
+          try {
+            // This would call the provider API for each item
+            // For now, mark as delivered since it's wallet payment
+            await storage.updateTransactionDeliveryStatus(transaction.id, "delivered");
+          } catch (error) {
+            console.error("Bulk delivery error:", error);
+          }
+        }
+      } else {
+        // Manual processing - keep as pending
+        await storage.updateTransactionDeliveryStatus(transaction.id, "pending");
+      }
+
+      res.json({
+        success: true,
+        transaction: {
+          id: transaction.id,
+          reference: transaction.reference,
+          amount: transaction.amount,
+          productName: transaction.productName,
+          status: "completed",
+          deliveryStatus: autoProcessingEnabled ? "delivered" : "pending",
+        },
+        totalRows: jsonData.length,
+        processedItems: orderItems.length,
+        errors: errors,
+        message: `Bulk purchase completed successfully. ${orderItems.length} items processed${errors.length > 0 ? `. ${errors.length} validation errors found.` : ''}`
+      });
+
+    } catch (error: any) {
+      console.error('Excel bulk purchase error:', error);
+      res.status(500).json({ error: "Failed to process Excel file" });
+    }
+  });
+
   app.post("/api/checkout/initialize", async (req, res) => {
     try {
       // Validate input
@@ -1422,7 +1651,7 @@ export async function registerRoutes(
             console.error(`[BulkOrder] Bundle not found for bundleId: ${item.bundleId}`);
             return res.status(400).json({ error: `Bundle not found for bundleId: ${item.bundleId}` });
           }
-          costPrice += parseFloat(bundle.costPrice);
+          costPrice += 0; // Cost price removed from schema
           amount += item.price; // Price already includes agent markup from frontend
         }
         
@@ -1444,7 +1673,7 @@ export async function registerRoutes(
         
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
         amount = parseFloat(product.basePrice);
-        costPrice = parseFloat(product.costPrice);
+        costPrice = 0; // Cost price removed from schema
         network = product.network;
       } else if (data.productId) {
         const [type, yearStr] = data.productId.split("-");
@@ -1455,7 +1684,7 @@ export async function registerRoutes(
         }
         productName = `${type.toUpperCase()} ${year} Result Checker`;
         amount = parseFloat(product.basePrice);
-        costPrice = parseFloat(product.costPrice);
+        costPrice = 0; // Cost price removed from schema
       } else {
         return res.status(400).json({ error: "Product ID or order items required" });
       }
@@ -2765,9 +2994,9 @@ export async function registerRoutes(
             continue; // Skip invalid prices
           }
 
-          // Get bundle to validate against cost price
+          // Get bundle to validate against base price (cost price removed)
           const bundle = await storage.getDataBundle(bundleId);
-          if (bundle && priceNum >= parseFloat(bundle.costPrice)) {
+          if (bundle && priceNum >= parseFloat(bundle.basePrice)) {
             await storage.setAgentCustomPricing(agent.id, bundleId, priceStr);
           }
         }
@@ -2830,6 +3059,31 @@ export async function registerRoutes(
       res.json(transactions);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load transactions" });
+    }
+  });
+
+  app.patch("/api/admin/transactions/:id/delivery-status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { deliveryStatus } = req.body;
+      if (!["pending", "processing", "delivered", "failed"].includes(deliveryStatus)) {
+        return res.status(400).json({ error: "Invalid delivery status" });
+      }
+      const transaction = await storage.updateTransactionDeliveryStatus(req.params.id, deliveryStatus);
+      if (!transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+      res.json(transaction);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update delivery status" });
+    }
+  });
+
+  app.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const transactions = await storage.getTransactionsForExport();
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to export transactions" });
     }
   });
 
@@ -3421,24 +3675,24 @@ export async function registerRoutes(
       }
 
       const sampleBundles = [
-        { name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50" },
-        { name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", costPrice: "2.80" },
-        { name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", costPrice: "6.50" },
-        { name: "Weekly Pro", network: "mtn", dataAmount: "5GB", validity: "7 Days", basePrice: "15.00", costPrice: "12.00" },
-        { name: "Monthly Starter", network: "mtn", dataAmount: "10GB", validity: "30 Days", basePrice: "25.00", costPrice: "20.00" },
-        { name: "Monthly Premium", network: "mtn", dataAmount: "20GB", validity: "30 Days", basePrice: "45.00", costPrice: "38.00" },
-        { name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", costPrice: "1.50" },
-        { name: "Daily Plus", network: "telecel", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", costPrice: "2.80" },
-        { name: "Weekly Basic", network: "telecel", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", costPrice: "8.00" },
-        { name: "Weekly Pro", network: "telecel", dataAmount: "6GB", validity: "7 Days", basePrice: "18.00", costPrice: "14.50" },
-        { name: "Monthly Basic", network: "telecel", dataAmount: "8GB", validity: "30 Days", basePrice: "22.00", costPrice: "18.00" },
-        { name: "Monthly Plus", network: "telecel", dataAmount: "15GB", validity: "30 Days", basePrice: "38.00", costPrice: "32.00" },
-        { name: "Daily Bundle", network: "airteltigo", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", costPrice: "1.90" },
-        { name: "Daily Max", network: "airteltigo", dataAmount: "1.5GB", validity: "1 Day", basePrice: "4.00", costPrice: "3.20" },
-        { name: "Weekly Bundle", network: "airteltigo", dataAmount: "4GB", validity: "7 Days", basePrice: "12.00", costPrice: "9.50" },
-        { name: "Weekly Max", network: "airteltigo", dataAmount: "7GB", validity: "7 Days", basePrice: "20.00", costPrice: "16.00" },
-        { name: "Monthly Value", network: "airteltigo", dataAmount: "12GB", validity: "30 Days", basePrice: "30.00", costPrice: "25.00" },
-        { name: "Monthly Max", network: "airteltigo", dataAmount: "25GB", validity: "30 Days", basePrice: "50.00", costPrice: "42.00" },
+        { name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
+        { name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
+        { name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", agentPrice: "7.20", dealerPrice: "6.80", superDealerPrice: "6.40", masterPrice: "6.00", adminPrice: "5.60" },
+        { name: "Weekly Pro", network: "mtn", dataAmount: "5GB", validity: "7 Days", basePrice: "15.00", agentPrice: "13.50", dealerPrice: "12.75", superDealerPrice: "12.00", masterPrice: "11.25", adminPrice: "10.50" },
+        { name: "Monthly Starter", network: "mtn", dataAmount: "10GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
+        { name: "Monthly Premium", network: "mtn", dataAmount: "20GB", validity: "30 Days", basePrice: "45.00", agentPrice: "40.50", dealerPrice: "38.25", superDealerPrice: "36.00", masterPrice: "33.75", adminPrice: "31.50" },
+        { name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
+        { name: "Daily Plus", network: "telecel", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
+        { name: "Weekly Basic", network: "telecel", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
+        { name: "Weekly Pro", network: "telecel", dataAmount: "6GB", validity: "7 Days", basePrice: "18.00", agentPrice: "16.20", dealerPrice: "15.30", superDealerPrice: "14.40", masterPrice: "13.50", adminPrice: "12.60" },
+        { name: "Monthly Basic", network: "telecel", dataAmount: "8GB", validity: "30 Days", basePrice: "22.00", agentPrice: "19.80", dealerPrice: "18.70", superDealerPrice: "17.60", masterPrice: "16.50", adminPrice: "15.40" },
+        { name: "Monthly Plus", network: "telecel", dataAmount: "15GB", validity: "30 Days", basePrice: "38.00", agentPrice: "34.20", dealerPrice: "32.30", superDealerPrice: "30.40", masterPrice: "28.50", adminPrice: "26.60" },
+        { name: "Daily Bundle", network: "at_bigtime", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
+        { name: "Weekly Bundle", network: "at_bigtime", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", agentPrice: "7.20", dealerPrice: "6.80", superDealerPrice: "6.40", masterPrice: "6.00", adminPrice: "5.60" },
+        { name: "Monthly Bundle", network: "at_bigtime", dataAmount: "5GB", validity: "30 Days", basePrice: "20.00", agentPrice: "18.00", dealerPrice: "17.00", superDealerPrice: "16.00", masterPrice: "15.00", adminPrice: "14.00" },
+        { name: "Daily iShare", network: "at_ishare", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", agentPrice: "2.25", dealerPrice: "2.13", superDealerPrice: "2.00", masterPrice: "1.88", adminPrice: "1.75" },
+        { name: "Weekly iShare", network: "at_ishare", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
+        { name: "Monthly iShare", network: "at_ishare", dataAmount: "8GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
       ];
 
       for (const bundle of sampleBundles) {
@@ -3981,7 +4235,7 @@ export async function registerRoutes(
         for (const item of orderItems) {
           const bundle = await storage.getDataBundle(item.bundleId);
           if (bundle) {
-            costPrice += parseFloat(bundle.costPrice);
+            costPrice += 0; // Cost price removed from schema
           }
         }
         

@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, gte, lte, or, like } from "drizzle-orm";
+﻿import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray } from "drizzle-orm";
 import { db } from "./db.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
@@ -300,7 +300,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getResultCheckerStock(type: string, year: number): Promise<number> {
-    const result = await db.select({ count: sql<number>`count(*)` })
+    const result = await db.select({ count: count() })
       .from(resultCheckers)
       .where(and(
         eq(resultCheckers.type, type),
@@ -347,7 +347,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db.select({
       type: resultCheckers.type,
       year: resultCheckers.year,
-      total: sql<number>`count(*)`,
+      total: count(),
       available: sql<number>`count(case when ${resultCheckers.isSold} = false then 1 end)`,
       sold: sql<number>`count(case when ${resultCheckers.isSold} = true then 1 end)`,
     })
@@ -377,7 +377,7 @@ export class DatabaseStorage implements IStorage {
 
     // If not found, search in phoneNumbers array for bulk orders
     if (!transaction) {
-      const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers}::text LIKE ${'%' + phone + '%'}).orderBy(desc(transactions.createdAt)).limit(1);
+      const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers}::text LIKE ${'%' + phone + '%'}`).orderBy(desc(transactions.createdAt)).limit(1);
       transaction = allTransactions[0];
     }
 
@@ -432,12 +432,18 @@ export class DatabaseStorage implements IStorage {
   async getTransactionStats(agentId?: string): Promise<{ total: number; completed: number; pending: number; revenue: number; profit: number }> {
     const conditions = agentId ? [eq(transactions.agentId, agentId)] : [];
     
+    const totalSql = sql`count(*)`;
+    const completedSql = sql`sum(case when status = 'completed' then 1 else 0 end)`;
+    const pendingSql = sql`sum(case when status = 'pending' then 1 else 0 end)`;
+    const revenueSql = sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`;
+    const profitSql = sql`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`;
+    
     const stats = await db.select({
-      total: sql<number>`count(*)`,
-      completed: sql<number>`sum(case when status = 'completed' then 1 else 0 end)`,
-      pending: sql<number>`sum(case when status = 'pending' then 1 else 0 end)`,
-      revenue: sql<number>`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
-      profit: sql<number>`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`,
+      total: totalSql,
+      completed: completedSql,
+      pending: pendingSql,
+      revenue: revenueSql,
+      profit: profitSql,
     }).from(transactions).where(conditions.length > 0 ? and(...conditions) : undefined);
 
     return {
@@ -544,34 +550,34 @@ export class DatabaseStorage implements IStorage {
     resultCheckerStock: number;
   }> {
     const [txStats] = await db.select({
-      totalTransactions: sql<number>`count(*)`,
-      totalRevenue: sql<number>`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
-      totalProfit: sql<number>`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`,
+      totalTransactions: sql`count(*)`,
+      totalRevenue: sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
+      totalProfit: sql`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`,
     }).from(transactions);
 
     // Get agent activation revenue
     const [activationStats] = await db.select({
-      revenue: sql<number>`coalesce(sum(case when status = 'completed' and type = 'agent_activation' then amount::numeric else 0 end), 0)`,
+      revenue: sql`coalesce(sum(case when status = 'completed' and type = 'agent_activation' then amount::numeric else 0 end), 0)`,
     }).from(transactions);
 
     const [withdrawalStats] = await db.select({
-      pending: sql<number>`count(*)`,
+      pending: sql`count(*)`,
     }).from(withdrawals).where(eq(withdrawals.status, "pending"));
 
     const [agentStats] = await db.select({
-      active: sql<number>`count(*)`,
+      active: sql`count(*)`,
     }).from(agents).where(eq(agents.isApproved, true));
 
     const [pendingAgentStats] = await db.select({
-      pending: sql<number>`count(*)`,
+      pending: sql`count(*)`,
     }).from(agents).where(eq(agents.paymentPending, true));
 
     const [bundleStats] = await db.select({
-      count: sql<number>`count(*)`,
+      count: sql`count(*)`,
     }).from(dataBundles).where(eq(dataBundles.isActive, true));
 
     const [checkerStats] = await db.select({
-      count: sql<number>`count(*)`,
+      count: sql`count(*)`,
     }).from(resultCheckers).where(eq(resultCheckers.isSold, false));
 
     return {
@@ -680,11 +686,11 @@ export class DatabaseStorage implements IStorage {
     const chatIds = userChats.map(chat => chat.id);
     
     // Count unread messages from admin in user's chats
-    const result = await db.select({ count: sql<number>`count(*)` })
+    const result = await db.select({ count: count() })
       .from(chatMessages)
       .where(
         and(
-          sql`${chatMessages.chatId} IN ${chatIds}`,
+          chatIds.length > 0 ? inArray(chatMessages.chatId, chatIds) : eq(chatMessages.chatId, ''),
           eq(chatMessages.senderType, 'admin'),
           eq(chatMessages.isRead, false)
         )
@@ -695,7 +701,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUnreadAdminMessagesCount(): Promise<number> {
     // Count all unread messages from users across all chats
-    const result = await db.select({ count: sql<number>`count(*)` })
+    const result = await db.select({ count: sql`count(*)` })
       .from(chatMessages)
       .where(
         and(
@@ -790,16 +796,16 @@ export class DatabaseStorage implements IStorage {
     lastPurchase: Date;
   }>> {
     const results = await db.select({
-      customerEmail: sql<string>`MAX(${transactions.customerEmail})`,
+      customerEmail: max(transactions.customerEmail),
       customerPhone: transactions.customerPhone,
-      totalPurchases: sql<number>`count(*)`,
-      totalSpent: sql<number>`sum(${transactions.amount}::numeric)`,
-      lastPurchase: sql<Date>`max(${transactions.createdAt})`,
+      totalPurchases: count(),
+      totalSpent: sum(transactions.amount),
+      lastPurchase: sql<Date>`coalesce(max(${transactions.createdAt}), '1970-01-01'::timestamp)`,
     })
       .from(transactions)
       .where(eq(transactions.status, 'completed'))
       .groupBy(transactions.customerPhone)
-      .orderBy(desc(sql`sum(${transactions.amount}::numeric)`))
+      .orderBy(desc(sum(transactions.amount)))
       .limit(limit);
 
     return results.map(r => ({
@@ -862,12 +868,13 @@ export class DatabaseStorage implements IStorage {
 
   async getAllSettings(): Promise<Array<{ key: string; value: string; description?: string }>> {
     const result = await db.select().from(settings);
-    return result.map(s => ({
-      key: s.key,
-      value: s.value,
-      description: s.description || undefined,
+    return result.map(setting => ({
+      key: setting.key,
+      value: setting.value,
+      description: setting.description || undefined,
     }));
   }
 }
+
 
 export const storage = new DatabaseStorage();

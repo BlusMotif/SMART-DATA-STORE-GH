@@ -26,6 +26,7 @@ export const pool = new Pool({
   max: 20, // Maximum connections in pool
   idleTimeoutMillis: 30000, // Close idle connections after 30s
   connectionTimeoutMillis: 10000, // Wait max 10s for connection
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 });
 
 // Add error handling for the pool

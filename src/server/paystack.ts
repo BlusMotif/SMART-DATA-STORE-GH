@@ -87,7 +87,7 @@ export async function initializePayment(params: {
     }),
   });
 
-  const data = await response.json();
+  const data = await response.json() as any;
 
   if (!response.ok || !data.status) {
     throw new Error(data.message || "Failed to initialize payment");
@@ -117,7 +117,7 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
 
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     if (!response.ok) {
       throw new Error(data.message || "Failed to verify payment");
@@ -251,7 +251,7 @@ export async function createTransferRecipient(params: {
     }),
   });
 
-  const data = await response.json();
+  const data = await response.json() as any;
 
   if (!response.ok || !data.status) {
     throw new Error(data.message || "Failed to create transfer recipient");
@@ -296,7 +296,7 @@ export async function initiateTransfer(params: {
     }),
   });
 
-  const data = await response.json();
+  const data = await response.json() as any;
 
   if (!response.ok || !data.status) {
     throw new Error(data.message || "Failed to initiate transfer");
@@ -326,7 +326,7 @@ export async function verifyTransfer(reference: string): Promise<PaystackTransfe
 
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     if (!response.ok) {
       throw new Error(data.message || "Failed to verify transfer");

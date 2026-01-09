@@ -2,20 +2,18 @@
   "include": ["src/**/*"],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "incremental": false,
     "outDir": "dist",
     "rootDir": "src",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2020",
     "strict": true,
-    "lib": ["esnext", "dom", "dom.iterable"],
-    "jsx": "preserve",
+    "lib": ["esnext"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "baseUrl": ".",
-    "types": ["node", "vite/client"],
+    "types": ["node"],
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./src/shared/*"]

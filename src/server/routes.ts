@@ -878,7 +878,7 @@ export async function registerRoutes(
         }),
       });
 
-      const paystackData = await paystackResponse.json();
+      const paystackData = await paystackResponse.json() as any;
 
       if (!paystackData.status) {
         console.error("Paystack initialization failed:", paystackData);
@@ -1026,7 +1026,7 @@ export async function registerRoutes(
           }),
         });
 
-        const paystackData = await paystackResponse.json();
+        const paystackData = await paystackResponse.json() as any;
         console.log("Paystack response status:", paystackData.status, "data:", paystackData);
         console.log("Paystack response full:", JSON.stringify(paystackData, null, 2));
         if (!paystackData.status) {

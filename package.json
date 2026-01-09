@@ -13,7 +13,7 @@
     "build:client": "cd client && npm install && npm run build",
     "build:server": "npx tsc --project . --outDir dist",
     "preview": "vite preview --host --port $PORT",
-    "start": "cross-env NODE_ENV=production node dist/server/index.js",
+    "start": "node dist/server/index.js",
     "check": "tsc",
     "seed:admin": "npx tsx script/seed-admin.ts",
     "create:admin": "npx tsx script/create-admin.ts",

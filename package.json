@@ -5,9 +5,9 @@
   "main": "server/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "cd Smartdatastoregh/client && vite",
-    "build": "cd Smartdatastoregh/client && vite build",
-    "start": "cross-env NODE_ENV=production tsx Smartdatastoregh/server/index.ts"
+    "dev": "cd Smartdatastoregh && npm run dev",
+    "build": "cd Smartdatastoregh && npm run build",
+    "start": "node Smartdatastoregh/dist/server/index.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

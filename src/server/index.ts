@@ -60,7 +60,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "..", "..", "dist", "public");
+  const distPath = path.resolve(__dirname, "..", "..", "..", "dist", "public");
   console.log(`Serving static files from: ${distPath}`);
   
   if (!fs.existsSync(distPath)) {
@@ -78,6 +78,17 @@ function serveStatic(app: Express) {
 
   // Serve static files
   app.use(express.static(distPath));
+
+  // Root route - serve index.html
+  app.get("/", (req: Request, res: Response) => {
+    const indexPath = path.resolve(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      console.error(`Could not find index.html at: ${indexPath}`);
+      res.status(500).send("Application not built properly");
+    }
+  });
 
   // SPA fallback - serve index.html for all non-API routes
   app.get("*", (req: Request, res: Response) => {

@@ -1902,7 +1902,7 @@ export async function registerRoutes(
         network,
         amount: totalAmount.toFixed(2),
         profit: totalProfit.toFixed(2),
-        customerPhone: normalizedPhone,
+        customerPhone: normalizedPhone || null,
         customerEmail: data.customerEmail,
         phoneNumbers: (isBulkOrder && phoneNumbersData) ? phoneNumbersData : undefined,
         isBulkOrder: isBulkOrder || false,
@@ -1931,7 +1931,7 @@ export async function registerRoutes(
           metadata: {
             transactionId: transaction.id,
             productName: productName,
-            customerPhone: normalizedPhone,
+            customerPhone: normalizedPhone || null,
             isBulkOrder: isBulkOrder || false,
             numberOfRecipients: numberOfRecipients,
           },

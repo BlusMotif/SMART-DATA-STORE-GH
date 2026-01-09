@@ -372,7 +372,6 @@ export default function AdminResultCheckers() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDelete(checker.id)}
-                                disabled={checker.isSold}
                                 className="text-destructive hover:text-destructive"
                               >
                                 Delete

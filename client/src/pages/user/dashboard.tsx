@@ -372,6 +372,12 @@ export default function UserDashboard() {
                       <span className="text-xs">Telecel</span>
                     </Button>
                   </Link>
+                  <Link href="/user/vouchers">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Package className="h-5 w-5" />
+                      <span className="text-xs">Vouchers</span>
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>

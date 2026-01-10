@@ -1771,6 +1771,7 @@ export async function registerRoutes(
       let productName: string;
       let amount: number;
       let costPrice: number;
+      let agentProfit: number = 0;
       let network: string | null = null;
 
       // Handle new bulk format with orderItems
@@ -1933,7 +1934,6 @@ export async function registerRoutes(
       }
 
       let agentId: string | undefined;
-      let agentProfit = 0;
 
       if (data.agentSlug) {
         const agent = await storage.getAgentBySlug(data.agentSlug);

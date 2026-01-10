@@ -552,7 +552,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                       </TabsTrigger>
                       <TabsTrigger 
                         value="excel" 
-                        disabled={!user || user.role === 'guest'}
+                        disabled={!user || user.role === 'guest' || network === "at_ishare"}
                         className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <FileSpreadsheet className="h-4 w-4" />
@@ -560,12 +560,15 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         {(!user || user.role === 'guest') && (
                           <span className="text-xs text-muted-foreground ml-1">(Login Required)</span>
                         )}
+                        {network === "at_ishare" && user && user.role !== 'guest' && (
+                          <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>
+                        )}
                       </TabsTrigger>
                     </TabsList>
                   </Tabs>
                   {network === "at_ishare" && (
                     <p className="text-sm text-muted-foreground mt-2">
-                      Bulk orders are not available for AT Ishare network.
+                      Bulk orders and Excel uploads are not available for AT Ishare network.
                     </p>
                   )}
                 </div>

@@ -81,6 +81,14 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}): P
     const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
     const errorMessage = errorData.error || errorData.message || `API request failed: ${response.status} ${response.statusText}`;
     console.error('API Error:', { endpoint, status: response.status, error: errorData });
+    
+    // If unauthorized, sign out the user
+    if (response.status === 401) {
+      await supabase.auth.signOut();
+      window.location.href = '/login';
+      throw new Error('Session expired. Please log in again.');
+    }
+    
     throw new Error(errorMessage);
   }
 

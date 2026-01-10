@@ -597,11 +597,19 @@ export default function UserBundlesPage() {
                   <ShoppingCart className="h-4 w-4 mr-2" />
                   Single Purchase
                 </TabsTrigger>
-                <TabsTrigger value="bulk">
+                <TabsTrigger value="bulk" disabled={network === "at_ishare"}>
                   <Package className="h-4 w-4 mr-2" />
                   Bulk Purchase
+                  {network === "at_ishare" && (
+                    <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>
+                  )}
                 </TabsTrigger>
               </TabsList>
+              {network === "at_ishare" && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Bulk purchases are not available for AT iShare network.
+                </p>
+              )}
 
               {/* Single Purchase Tab */}
               <TabsContent value="single" className="space-y-6">

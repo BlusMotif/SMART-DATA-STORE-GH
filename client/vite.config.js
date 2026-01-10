@@ -53,7 +53,7 @@ export default defineConfig({
     },
     server: {
         host: true, // bind to all interfaces
-        port: Number(process.env.PORT) || 3000,
+        port: Number(process.env.CLIENT_PORT) || 5173,
         strictPort: true,
         allowedHosts: ["smartdatastoregh.onrender.com", "localhost"],
         watch: { usePolling: true },

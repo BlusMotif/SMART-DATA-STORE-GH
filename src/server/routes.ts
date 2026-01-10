@@ -1531,6 +1531,13 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Authentication required" });
       }
 
+      // Check if any bundle is for AT iShare network (bulk purchases not allowed)
+      const hasAtIshareBundle = orderItems.some(item => {
+        // We already validated bundles exist, so we can safely get them
+        // But to avoid extra DB calls, we'll check during price calculation
+        return false; // Will check during the loop below
+      });
+
       // Calculate total amount and prepare order items with prices
       let totalAmount = 0;
       const processedOrderItems: any[] = [];
@@ -1538,6 +1545,11 @@ export async function registerRoutes(
       for (const item of orderItems) {
         const bundle = await storage.getDataBundle(item.bundleId);
         if (!bundle) continue;
+
+        // Check for AT iShare bundles
+        if (bundle.network === "at_ishare") {
+          return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
+        }
 
         // Apply agent pricing if user is agent
         let itemPrice = parseFloat(bundle.basePrice);
@@ -1820,6 +1832,11 @@ export async function registerRoutes(
           }))
         : data.phoneNumbers;
       const isBulkOrder = !!(data.isBulkOrder || (data.orderItems && data.orderItems.length > 0));
+      
+      // Validate that bulk orders are not allowed for AT iShare network
+      if (isBulkOrder && network === "at_ishare") {
+        return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
+      }
       
       console.log("[Checkout] ========== RAW DATA EXTRACTION ==========");
       console.log("[Checkout] data object keys:", Object.keys(data));
@@ -4343,6 +4360,11 @@ export async function registerRoutes(
 
       if (!network || !data) {
         return res.status(400).json({ error: "Network and data are required" });
+      }
+
+      // Disable bulk uploads for AT iShare network
+      if (network === "at_ishare") {
+        return res.status(400).json({ error: "Bulk uploads are not available for AT iShare network" });
       }
 
       // Parse the data format: phone_number GB_amount (one per line)

@@ -124,7 +124,10 @@ export function BulkUploadSection() {
               <SelectContent>
                 <SelectItem value={NetworkProvider.MTN}>MTN</SelectItem>
                 <SelectItem value={NetworkProvider.TELECEL}>Telecel</SelectItem>
-                <SelectItem value={NetworkProvider.AIRTELTIGO}>AirtelTigo</SelectItem>
+                <SelectItem value={NetworkProvider.AT_BIGTIME}>AirtelTigo BIG TIME</SelectItem>
+                <SelectItem value={NetworkProvider.AT_ISHARE} disabled>
+                  AirtelTigo iShare (Bulk upload not available)
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

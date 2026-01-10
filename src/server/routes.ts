@@ -1800,10 +1800,11 @@ export async function registerRoutes(
           else if (data.productType === ProductType.DATA_BUNDLE && data.productId) {
             const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
             if (customPrice) {
-              const agentPrice = parseFloat(customPrice);
-              // Agent profit is the agent price (since cost price removed)
-              agentProfit = agentPrice;
-              amount = agentPrice;
+              const agentSellingPrice = parseFloat(customPrice);
+              const adminAgentPrice = product.agentPrice ? parseFloat(product.agentPrice) : parseFloat(product.basePrice);
+              // Agent profit is the difference between selling price and admin-set agent price
+              agentProfit = agentSellingPrice - adminAgentPrice;
+              amount = agentSellingPrice;
             } else {
               // Fall back to markup if no custom price
               const markup = parseFloat(agent.customPricingMarkup || "0");

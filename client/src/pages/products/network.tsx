@@ -302,9 +302,12 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                   <Select value={selectedBundleId} onValueChange={(v) => setSelectedBundleId(v)}>
                     <SelectTrigger className="w-full"><SelectValue placeholder="Choose a data bundle" /></SelectTrigger>
                     <SelectContent>
-                      {sortedBundles?.map((b: any) => (
-                        <SelectItem key={b.id} value={b.id}>{b.network.toUpperCase()} {b.dataAmount} - {b.validity} - GH₵{b.basePrice}</SelectItem>
-                      ))}
+                      {sortedBundles?.map((b: any) => {
+                        const price = b.customPrice ? b.customPrice : parseFloat(b.basePrice);
+                        return (
+                          <SelectItem key={b.id} value={b.id}>{b.network.toUpperCase()} {b.dataAmount} - {b.validity} - GH₵{price.toFixed(2)}</SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 )}
@@ -313,8 +316,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               {selectedBundle && (
                 <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{selectedBundle.basePrice}</p>
-                  <p className="text-2xl font-bold text-primary mt-2">GH₵{selectedBundle.basePrice}</p>
+                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{(selectedBundle.customPrice ? selectedBundle.customPrice : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-primary mt-2">GH₵{(selectedBundle.customPrice ? selectedBundle.customPrice : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
                 </div>
               )}
 

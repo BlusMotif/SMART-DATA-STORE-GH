@@ -309,7 +309,8 @@ export default function AgentStorefront() {
                         const network = NETWORKS.find((n) => n.id === bundle.network);
                         const customPrice = getCustomPrice(bundle.id);
                         const effectivePrice = customPrice || bundle.basePrice;
-                        const profit = parseFloat(effectivePrice) - parseFloat(bundle.basePrice);
+                        const agentPrice = bundle.agentPrice || bundle.basePrice;
+                        const profit = parseFloat(effectivePrice) - parseFloat(agentPrice);
                         return (
                           <TableRow key={bundle.id} data-testid={`row-bundle-${bundle.id}`}>
                             <TableCell>
@@ -335,7 +336,7 @@ export default function AgentStorefront() {
                               <Input
                                 type="number"
                                 step="0.01"
-                                placeholder={bundle.basePrice}
+                                placeholder={agentPrice}
                                 value={customPrices[bundle.id] || ""}
                                 onChange={(e) =>
                                   setCustomPrices((prev) => ({

@@ -106,10 +106,10 @@ export default function AgentBundlesPage() {
 
   // Calculate agent price for selected bundle
   const agentPrice = useMemo(() => {
-    if (!selectedBundle || !agentData?.agent) return 0;
-    const basePrice = parseFloat(selectedBundle.basePrice);
-    const markup = agentData.agent.markupPercentage || 0;
-    return basePrice + (basePrice * markup / 100);
+    if (!selectedBundle) return 0;
+    // Use custom agent price if set, otherwise calculate with markup
+    return selectedBundle.agentPrice ? parseFloat(selectedBundle.agentPrice) : 
+      parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100);
   }, [selectedBundle, agentData]);
 
   // Calculate total for single purchase
@@ -628,10 +628,12 @@ export default function AgentBundlesPage() {
                   <Smartphone className="h-4 w-4 mr-2" />
                   Single Purchase
                 </TabsTrigger>
-                <TabsTrigger value="bulk">
-                  <Package className="h-4 w-4 mr-2" />
-                  Bulk Purchase
-                </TabsTrigger>
+                {network !== "at_ishare" && (
+                  <TabsTrigger value="bulk">
+                    <Package className="h-4 w-4 mr-2" />
+                    Bulk Purchase
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {/* Single Purchase Tab */}
@@ -831,7 +833,8 @@ export default function AgentBundlesPage() {
               </TabsContent>
 
               {/* Bulk Purchase Tab */}
-              <TabsContent value="bulk" className="space-y-6">
+              {network !== "at_ishare" && (
+                <TabsContent value="bulk" className="space-y-6">
                 <Card>
                     <CardHeader>
                       <CardTitle>Bulk Purchase</CardTitle>
@@ -960,6 +963,7 @@ export default function AgentBundlesPage() {
                     </CardContent>
                   </Card>
               </TabsContent>
+              )}
             </Tabs>
           </div>
         </main>

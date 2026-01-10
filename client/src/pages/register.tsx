@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { APP_NAME } from "@/lib/constants";
+import { getAgentId } from "@/lib/store-context";
 import { Loader2, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import siteLogo from "@assets/logo_1765774201026.png";
 
@@ -86,10 +87,12 @@ export default function RegisterPage() {
     }
   };
 
+  const agentStore = typeof window !== "undefined" ? getAgentId() : null;
+
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
       <nav className="mb-6 px-2">
-        <Link href="/" data-testid="link-back-home">
+        <Link href={agentStore ? `/store/${agentStore}` : "/"} data-testid="link-back-home">
           <Button variant="outline" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Home

@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { getAgentId } from "@/lib/store-context";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { UnifiedResultCheckerFlow } from "@/components/products/unified-result-checker-flow";
@@ -10,13 +11,15 @@ export default function ResultCheckersPage() {
   // Get agent slug from URL
   const agentSlug = new URLSearchParams(window.location.search).get("agent");
 
+  const agentStore = typeof window !== "undefined" ? getAgentId() : null;
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       
       <main className="flex-1 py-8 px-4">
         <div className="container mx-auto max-w-4xl">
-          <Link href="/">
+          <Link href={agentStore ? `/store/${agentStore}` : "/"}>
             <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back">
               <ArrowLeft className="h-4 w-4" />
               Back to Products

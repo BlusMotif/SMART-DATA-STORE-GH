@@ -44,6 +44,7 @@ import AdminBreakSettings from "@/pages/admin/break-settings";
 import AdminApiConfiguration from "@/pages/admin/api-configuration";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import AgentPublicStorefront from "@/pages/agent/public-storefront";
+import { getAgentId } from "@/lib/store-context";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
 import NetworkProductsPage from "@/pages/products/network";
 import ResultCheckersPage from "@/pages/products/result-checkers";
@@ -61,8 +62,8 @@ function StorefrontGuard({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   
   useEffect(() => {
-    const agentStore = localStorage.getItem("agentStore");
-    
+    const agentStore = getAgentId();
+
     // Allowed paths for storefront users: store, products, checkout, success pages, auth pages
     const allowedPaths = [
       "/store/",
@@ -72,13 +73,21 @@ function StorefrontGuard({ children }: { children: React.ReactNode }) {
       "/login",
       "/register"
     ];
-    
+
     const isAllowedPath = allowedPaths.some(path => location.startsWith(path));
-    
-    // If user came from an agent store and tries to access restricted app routes
-    if (agentStore && !isAllowedPath && location !== "/") {
-      // Redirect them back to the store
-      navigate(`/store/${agentStore}`);
+
+    // If user is in agent storefront context
+    if (agentStore) {
+      // If on root, immediately redirect to the agent store (fail-safe)
+      if (location === "/") {
+        navigate(`/store/${agentStore}`);
+        return;
+      }
+
+      // If trying to access non-allowed app routes, redirect back to the agent store
+      if (!isAllowedPath && !location.startsWith(`/store/${agentStore}`)) {
+        navigate(`/store/${agentStore}`);
+      }
     }
   }, [location, navigate]);
   

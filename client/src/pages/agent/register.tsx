@@ -23,6 +23,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
 import { Loader2, Mail, Lock, User, Phone, Store, Link2, Eye, EyeOff, ArrowLeft, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import siteLogo from "@assets/logo_1765774201026.png";
+import { getAgentId } from "@/lib/store-context";
 
 const agentRegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -116,7 +117,7 @@ export default function AgentRegisterPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
       <nav className="mb-6 px-2">
-        <Link href="/" data-testid="link-back-home">
+        <Link href={typeof window !== "undefined" && getAgentId() ? `/store/${getAgentId()}` : "/"} data-testid="link-back-home">
           <Button variant="outline" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Home

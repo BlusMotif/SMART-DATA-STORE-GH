@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Link } from "wouter";
+import { getAgentId } from "@/lib/store-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -186,7 +187,7 @@ export default function AgentActivationCompletePage() {
                       Try Again
                     </Button>
                   </Link>
-                  <Link href="/" className="flex-1">
+                  <Link href={typeof window !== "undefined" && getAgentId() ? `/store/${getAgentId()}` : "/"} className="flex-1">
                     <Button variant="outline" className="w-full">
                       Back to Home
                     </Button>
@@ -220,7 +221,7 @@ export default function AgentActivationCompletePage() {
                       Try Again
                     </Button>
                   </Link>
-                  <Link href="/" className="flex-1">
+                  <Link href={typeof window !== "undefined" && getAgentId() ? `/store/${getAgentId()}` : "/"} className="flex-1">
                     <Button className="w-full">
                       Back to Home
                     </Button>

@@ -100,6 +100,17 @@ export default function AgentPublicStorefront() {
 
   const agent = data?.agent;
 
+  // Persist agent store context so downstream pages (checkout, receipt) know this is an agent storefront
+  useEffect(() => {
+    if (slug) {
+      try {
+        localStorage.setItem("agentStore", slug);
+      } catch (e) {
+        // ignore storage errors
+      }
+    }
+  }, [slug]);
+
   // Agent products come from agent-scoped source only and are not available until `data` is loaded
   const dataBundles = data?.dataBundles || [];
 

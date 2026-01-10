@@ -112,6 +112,7 @@ export default function AgentStorefront() {
       apiRequest("POST", "/api/agent/pricing", { prices }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products/data-bundles"] });
       toast({ title: "Pricing updated successfully" });
     },
     onError: (error: Error) => {

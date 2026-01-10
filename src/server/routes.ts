@@ -1835,12 +1835,16 @@ export async function registerRoutes(
               // Agent profit is the difference between selling price and admin-set agent price
               agentProfit = agentSellingPrice - adminAgentPrice;
               amount = agentSellingPrice;
+              // For agent transactions, the system's cost is the base price
+              costPrice = parseFloat(product.basePrice);
             } else {
               // Fall back to markup if no custom price
               const markup = parseFloat(agent.customPricingMarkup || "0");
               const agentPrice = amount * (1 + markup / 100);
               agentProfit = agentPrice - amount;
               amount = agentPrice;
+              // For agent transactions, the system's cost is the base price
+              costPrice = parseFloat(product.basePrice);
             }
           } else {
             // For result checkers, use markup
@@ -1848,6 +1852,8 @@ export async function registerRoutes(
             const agentPrice = amount * (1 + markup / 100);
             agentProfit = agentPrice - amount;
             amount = agentPrice;
+            // For result checkers, cost is 0
+            costPrice = 0;
           }
         }
       }

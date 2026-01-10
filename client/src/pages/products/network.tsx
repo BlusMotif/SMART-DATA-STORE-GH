@@ -134,7 +134,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     queryFn: async () => {
       const res = await apiRequest('GET', `/api/products/data-bundles?network=${network}${agentSlug ? `&agent=${agentSlug}` : ''}`);
       return res.json();
-    }
+    },
+    refetchOnMount: true,
   });
 
   const { data: agent } = useQuery({

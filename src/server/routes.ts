@@ -1697,6 +1697,38 @@ export async function registerRoutes(
         paymentReference: "wallet",
       });
 
+      // Financial integrity: credit agent only their profit, and record admin revenue separately
+      if (user.role === 'agent' && parseFloat(transaction.agentProfit || "0") > 0) {
+        const agentProfitValue = parseFloat(transaction.agentProfit || "0");
+        const adminRevenue = parseFloat((parseFloat(transaction.amount) - agentProfitValue).toFixed(2));
+
+        // Safety check
+        if (Math.abs(agentProfitValue + adminRevenue - parseFloat(transaction.amount)) > 0.01) {
+          console.error("INVALID_BULK_PAYOUT detected for transaction", transaction.id);
+          throw new Error("INVALID_BULK_PAYOUT");
+        }
+
+        // Credit agent balance with PROFIT only
+        await storage.updateAgentBalance(user.id, agentProfitValue, true);
+
+        // Record admin revenue as its own transaction for accounting
+        const adminRef = `ADMINREV-${transaction.reference}`;
+        await storage.createTransaction({
+          reference: adminRef,
+          type: "admin_revenue",
+          productId: null,
+          productName: `Admin revenue for bulk transaction ${transaction.reference}`,
+          network: null,
+          amount: adminRevenue.toFixed(2),
+          profit: "0.00",
+          customerPhone: "",
+          customerEmail: null,
+          isBulkOrder: false,
+          status: "completed",
+          paymentStatus: "paid",
+        });
+      }
+
       // Process delivery for bulk orders
       const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
       if (autoProcessingEnabled) {
@@ -1977,9 +2009,9 @@ export async function registerRoutes(
           
           // For bulk orders with orderItems, profit is already calculated
           if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
-            // Calculate profit: amount (since cost price removed)
-            agentProfit = amount;
-            console.log("[Checkout] Bulk order agent profit:", agentProfit);
+            // For bulk orders using orderItems, `agentProfit` was already computed above
+            // and represents the total profit for the whole bulk (sum of (agentPrice - adminPrice)).
+            console.log("[Checkout] Bulk order computed agent profit:", agentProfit);
           }
           // For single orders, check custom pricing or apply markup
           else if (data.productType === ProductType.DATA_BUNDLE && data.productId) {
@@ -2305,10 +2337,37 @@ export async function registerRoutes(
       });
       console.log("[Verify] Transaction updated to completed");
 
-      // Credit agent if applicable
+      // Credit agent if applicable and record admin revenue
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
-        await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+        const agentProfitValue = parseFloat(transaction.agentProfit || "0");
+        const totalPaid = parseFloat(transaction.amount || "0");
+        const adminRevenue = parseFloat((totalPaid - agentProfitValue).toFixed(2));
+
+        // Safety check
+        if (Math.abs(agentProfitValue + adminRevenue - totalPaid) > 0.01) {
+          console.error("INVALID_BULK_PAYOUT detected for webhook transaction", transaction.reference);
+          throw new Error("INVALID_BULK_PAYOUT");
+        }
+
+        await storage.updateAgentBalance(transaction.agentId, agentProfitValue, true);
         console.log("[Verify] Agent credited");
+
+        // Record admin revenue transaction
+        const adminRef = `ADMINREV-${transaction.reference}`;
+        await storage.createTransaction({
+          reference: adminRef,
+          type: "admin_revenue",
+          productId: null,
+          productName: `Admin revenue for transaction ${transaction.reference}`,
+          network: null,
+          amount: adminRevenue.toFixed(2),
+          profit: "0.00",
+          customerPhone: "",
+          customerEmail: null,
+          isBulkOrder: false,
+          status: TransactionStatus.COMPLETED,
+          paymentStatus: "paid",
+        });
       }
 
       console.log("[Verify] Verification complete, sending success response");
@@ -5003,9 +5062,37 @@ export async function registerRoutes(
         });
       }
 
-      // Credit agent
+      // Credit agent (wallet payments): only credit PROFIT and record admin revenue
       if (agentId && agentProfit > 0) {
-        await storage.updateAgentBalance(agentId, agentProfit, true);
+        const totalPaid = parseFloat(purchaseAmount.toFixed(2));
+        const agentProfitValue = parseFloat(agentProfit.toFixed(2));
+        const adminRevenue = parseFloat((totalPaid - agentProfitValue).toFixed(2));
+
+        // Safety check
+        if (Math.abs(agentProfitValue + adminRevenue - totalPaid) > 0.01) {
+          console.error("INVALID_BULK_PAYOUT detected for wallet transaction", transaction.reference);
+          throw new Error("INVALID_BULK_PAYOUT");
+        }
+
+        // Credit agent with profit only
+        await storage.updateAgentBalance(agentId, agentProfitValue, true);
+
+        // Record admin revenue as a separate transaction for accounting
+        const adminRef = `ADMINREV-${transaction.reference}`;
+        await storage.createTransaction({
+          reference: adminRef,
+          type: "admin_revenue",
+          productId: null,
+          productName: `Admin revenue for transaction ${transaction.reference}`,
+          network: null,
+          amount: adminRevenue.toFixed(2),
+          profit: "0.00",
+          customerPhone: "",
+          customerEmail: null,
+          isBulkOrder: false,
+          status: TransactionStatus.COMPLETED,
+          paymentStatus: "paid",
+        });
       }
 
       res.json({

@@ -110,7 +110,9 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
           <div className="mt-3 flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
               <Trophy className="h-3 w-3" />
-              <span>Rank #{rankData.rank}</span>
+              <span>
+                {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
+              </span>
             </div>
           </div>
         )}

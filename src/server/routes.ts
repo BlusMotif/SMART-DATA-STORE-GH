@@ -1131,11 +1131,10 @@ export async function registerRoutes(
             const customPrice = pricingMap.get(bundle.id);
             if (customPrice !== undefined) {
               price = parseFloat(customPrice);
-            } else if (bundle.agentPrice) {
-              price = parseFloat(bundle.agentPrice);
             } else {
-              // If no custom price and no agent price, use base price * 0.9 as default agent price
-              price = parseFloat(bundle.basePrice || '0') * 0.9;
+              // Unique default price per agent based on agent ID
+              const uniqueFactor = 0.9 + (agent.id.charCodeAt(0) % 10) * 0.005; // 0.9 to 0.945
+              price = parseFloat(bundle.basePrice || '0') * uniqueFactor;
             }
             return {
               ...bundle,
@@ -1337,11 +1336,10 @@ export async function registerRoutes(
             const customPrice = pricingMap.get(b.id);
             if (customPrice) {
               price = parseFloat(customPrice);
-            } else if (b.agentPrice) {
-              price = parseFloat(b.agentPrice);
             } else {
-              // If no custom price and no agent price, use base price * 0.9 as default agent price
-              price = parseFloat(b.basePrice || '0') * 0.9;
+              // Unique default price per agent based on agent ID
+              const uniqueFactor = 0.9 + (agent.id.charCodeAt(0) % 10) * 0.005; // 0.9 to 0.945
+              price = parseFloat(b.basePrice || '0') * uniqueFactor;
             }
           }
 

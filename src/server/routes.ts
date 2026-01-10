@@ -1133,8 +1133,10 @@ export async function registerRoutes(
               price = parseFloat(customPrice);
             } else if (bundle.agentPrice) {
               price = parseFloat(bundle.agentPrice);
+            } else {
+              // If no custom price and no agent price, use base price * 0.9 as default agent price
+              price = parseFloat(bundle.basePrice || '0') * 0.9;
             }
-            // If no custom price and no agent price, keep base price
             return {
               ...bundle,
               customPrice: price.toFixed(2),
@@ -1337,8 +1339,10 @@ export async function registerRoutes(
               price = parseFloat(customPrice);
             } else if (b.agentPrice) {
               price = parseFloat(b.agentPrice);
+            } else {
+              // If no custom price and no agent price, use base price * 0.9 as default agent price
+              price = parseFloat(b.basePrice || '0') * 0.9;
             }
-            // If no custom price and no agent price, keep base price
           }
 
           return {

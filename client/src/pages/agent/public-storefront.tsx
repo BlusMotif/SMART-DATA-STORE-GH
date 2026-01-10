@@ -92,23 +92,21 @@ export default function AgentPublicStorefront() {
   }, []);
 
   // Queries
-  const { data, isLoading } = useQuery<StorefrontData>({
+  const { data, isLoading } = useQuery<StorefrontData & { dataBundles?: Array<any> }>({
     queryKey: ["/api/store", slug],
     enabled: !!slug,
     refetchInterval: 30000,
   });
 
-  const { data: dataBundles } = useQuery<DataBundle[]>({
-    queryKey: ["/api/products/data-bundles"],
-    refetchInterval: 30000,
-  });
-
   const agent = data?.agent;
-  
-  // Filter bundles by selected network
+
+  // Agent products come from agent-scoped source only and are not available until `data` is loaded
+  const dataBundles = data?.dataBundles || [];
+
+  // Filter bundles by selected network (use agent product `price`)
   const networkBundles = dataBundles?.filter(
     (bundle) => bundle.network === selectedNetwork && bundle.isActive
-  )?.sort((a, b) => parseFloat(a.basePrice) - parseFloat(b.basePrice));
+  )?.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
 
   const selectedBundle = networkBundles?.find(bundle => bundle.id === selectedBundleId);
 
@@ -255,7 +253,7 @@ export default function AgentPublicStorefront() {
         }
       }
 
-      const totalAmount = parseFloat(selectedBundle.basePrice) * phoneNumbersList.length;
+      const totalAmount = parseFloat(selectedBundle.price) * phoneNumbersList.length;
 
       const payload = {
         productType: "data_bundle",
@@ -518,7 +516,7 @@ export default function AgentPublicStorefront() {
                               <AlertDescription>
                                 <div className="flex items-center justify-between">
                                   <span>Total Amount:</span>
-                                  <span className="text-2xl font-bold">{formatCurrency(selectedBundle.basePrice)}</span>
+                                  <span className="text-2xl font-bold">{formatCurrency(selectedBundle.price)}</span>
                                 </div>
                               </AlertDescription>
                             </Alert>
@@ -755,7 +753,7 @@ export default function AgentPublicStorefront() {
                               <div className="grid gap-2 mt-2">
                                 {networkBundles.map((bundle) => {
                                   const validCount = validationResults.filter(r => r.isValid && r.network === selectedNetwork).length;
-                                  const totalPrice = parseFloat(bundle.basePrice) * validCount;
+                                  const totalPrice = parseFloat(bundle.price) * validCount;
                                   
                                   return (
                                     <Label key={bundle.id} htmlFor={`bulk-${bundle.id}`} className="cursor-pointer">
@@ -769,7 +767,7 @@ export default function AgentPublicStorefront() {
                                               {bundle.dataAmount} - {bundle.validity}
                                             </div>
                                             <div className="text-xs text-muted-foreground">
-                                              {formatCurrency(bundle.basePrice)} × {validCount} = {formatCurrency(totalPrice.toFixed(2))}
+                                              {formatCurrency(bundle.price)} × {validCount} = {formatCurrency(totalPrice.toFixed(2))}
                                             </div>
                                           </div>
                                         </div>
@@ -817,12 +815,12 @@ export default function AgentPublicStorefront() {
                                       </div>
                                       <div className="flex items-center justify-between">
                                         <span>Unit Price:</span>
-                                        <span className="font-bold">{formatCurrency(selectedBundle.basePrice)}</span>
+                                        <span className="font-bold">{formatCurrency(selectedBundle.price)}</span>
                                       </div>
                                       <div className="flex items-center justify-between text-lg">
                                         <span>Total Amount:</span>
                                         <span className="font-bold text-primary">
-                                          {formatCurrency((parseFloat(selectedBundle.basePrice) * validationResults.filter(r => r.isValid && r.network === selectedNetwork).length).toFixed(2))}
+                                          {formatCurrency((parseFloat(selectedBundle.price) * validationResults.filter(r => r.isValid && r.network === selectedNetwork).length).toFixed(2))}
                                         </span>
                                       </div>
                                     </div>

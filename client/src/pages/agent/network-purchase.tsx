@@ -104,24 +104,19 @@ export default function AgentNetworkPurchasePage() {
     queryKey: [`/api/store/${slug}`],
     enabled: !!slug,
   });
-
-  // Fetch data bundles
-  const { data: dataBundles, isLoading: bundlesLoading } = useQuery<DataBundle[]>({
-    queryKey: ["/api/products/data-bundles"],
-    refetchInterval: 30000,
-  });
+  // Agent-scoped products are provided via `/api/store/:slug` as `dataBundles` with `price`.
+  const dataBundles = agent?.dataBundles || [];
 
   const filteredBundles = dataBundles?.filter(
     (bundle) => bundle.network === network && bundle.isActive
   );
 
   const sortedBundles = filteredBundles?.sort(
-    (a, b) => parseFloat(a.basePrice) - parseFloat(b.basePrice)
+    (a, b) => parseFloat(a.price) - parseFloat(b.price)
   );
 
   const selectedBundle = sortedBundles?.find(bundle => bundle.id === selectedBundleId);
-  const agentMarkup = agent?.agent?.customPricingMarkup ? parseFloat(agent.agent.customPricingMarkup) : 0;
-  const price = selectedBundle ? parseFloat(selectedBundle.basePrice) * (1 + agentMarkup / 100) : 0;
+  const price = selectedBundle ? parseFloat(selectedBundle.price) : 0;
 
   const singleForm = useForm<SingleOrderFormData>({
     resolver: zodResolver(singleOrderSchema),
@@ -165,8 +160,7 @@ export default function AgentNetworkPurchasePage() {
           });
           
           if (matchingBundle) {
-            const basePrice = parseFloat(matchingBundle.basePrice);
-            const agentPrice = basePrice * (1 + markup / 100);
+            const agentPrice = parseFloat(matchingBundle.price);
             total += agentPrice;
             count++;
           }
@@ -496,8 +490,7 @@ export default function AgentNetworkPurchasePage() {
         return;
       }
 
-      const basePrice = parseFloat(matchingBundle.basePrice);
-      const agentPrice = basePrice * (1 + markup / 100);
+      const agentPrice = parseFloat(matchingBundle.price);
 
       orderItems.push({
         phone: item.phone,
@@ -626,8 +619,8 @@ export default function AgentNetworkPurchasePage() {
                           <SelectContent>
                             {sortedBundles?.map((bundle) => (
                               <SelectItem key={bundle.id} value={bundle.id}>
-                                {bundle.name} - {bundle.validity} - {formatCurrency(parseFloat(bundle.basePrice))}
-                              </SelectItem>
+                                  {bundle.name} - {bundle.validity} - {formatCurrency(parseFloat(bundle.price))}
+                                </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>

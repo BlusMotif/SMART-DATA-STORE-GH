@@ -146,12 +146,21 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     reader.readAsArrayBuffer(file);
   };
 
-  // Fetch data bundles for the network
-  const { data: dataBundles, isLoading: bundlesLoading } = useQuery<DataBundle[]>({
+  // Fetch public data bundles and agent-scoped bundles when agentSlug provided
+  const { data: publicBundles, isLoading: publicBundlesLoading } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
+
+  const { data: agentStore, isLoading: agentStoreLoading } = useQuery<any>({
+    queryKey: agentSlug ? [`/api/store/${agentSlug}`] : [],
+    enabled: !!agentSlug,
+    refetchInterval: 30000,
+  });
+
+  const dataBundles = agentSlug ? (agentStore?.dataBundles || []) : (publicBundles || []);
+  const bundlesLoading = agentSlug ? agentStoreLoading : publicBundlesLoading;
 
   // Fetch user stats to get wallet balance
   const { data: userStats, isLoading: statsLoading } = useQuery<UserStats>({
@@ -164,9 +173,11 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     (bundle) => bundle.network === network && bundle.isActive
   );
 
-  const sortedBundles = filteredBundles?.sort(
-    (a, b) => getBundlePrice(a) - getBundlePrice(b)
-  );
+  const sortedBundles = filteredBundles?.sort((a, b) => {
+    // If agentSlug, bundles include `price` (agent price). Use that directly.
+    if (agentSlug) return parseFloat(a.price) - parseFloat(b.price);
+    return getBundlePrice(a) - getBundlePrice(b);
+  });
 
   const selectedBundle = sortedBundles?.find(bundle => bundle.id === selectedBundleId);
   const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
@@ -174,7 +185,8 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   // Get price based on user role
   const getBundlePrice = (bundle: typeof selectedBundle) => {
     if (!bundle) return 0;
-    
+    // For agent storefronts, bundle.price will be provided and must be used.
+    if (agentSlug && (bundle as any).price) return parseFloat((bundle as any).price);
     const userRole = user?.role || 'guest';
     
     switch (userRole) {

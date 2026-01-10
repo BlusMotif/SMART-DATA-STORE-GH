@@ -1344,9 +1344,7 @@ export async function registerRoutes(
       }
 
       const user = await storage.getUser(agent.userId);
-      const bundles = await storage.getDataBundles({ isActive: true });
-
-      // Get agent's custom pricing
+      // Load only agent-scoped products: use agent custom pricing entries
       const customPricing = await storage.getAgentCustomPricing(agent.id);
       const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
 
@@ -1375,25 +1373,24 @@ export async function registerRoutes(
           businessDescription: agent.businessDescription,
           slug: agent.storefrontSlug,
         },
-        dataBundles: bundles.map(b => {
-          let price = parseFloat(b.basePrice || '0');
-
-          if (user?.role === 'agent') {
-            const customPrice = pricingMap.get(b.id);
-            if (customPrice) {
-              price = parseFloat(customPrice);
-            } else {
-              // Unique default price per agent based on agent ID
-              const uniqueFactor = 0.9 + (agent.id.charCodeAt(0) % 10) * 0.005; // 0.9 to 0.945
-              price = parseFloat(b.basePrice || '0') * uniqueFactor;
-            }
-          }
-
+        // Only expose agent-scoped products. Do NOT include admin prices.
+        dataBundles: await Promise.all(customPricing.map(async (p) => {
+          const b = await storage.getDataBundle(p.bundleId);
+          if (!b || !b.isActive) return null;
+          // price must come from agent-scoped source only: customPrice || agentPrice
+          const price = p.customPrice ? parseFloat(p.customPrice) : (b.agentPrice ? parseFloat(b.agentPrice) : null);
+          if (price === null) return null; // do not expose admin/base price here
           return {
-            ...b,
-            customPrice: price,
+            id: b.id,
+            name: b.name,
+            network: b.network,
+            dataAmount: b.dataAmount,
+            validity: b.validity,
+            apiCode: b.apiCode,
+            isActive: b.isActive,
+            price: price.toFixed(2),
           };
-        }),
+        })).then(arr => arr.filter(Boolean)),
         resultCheckers: resultCheckerStock,
       });
     } catch (error: any) {

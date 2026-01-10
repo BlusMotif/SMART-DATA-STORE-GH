@@ -1126,14 +1126,15 @@ export async function registerRoutes(
           const customPricing = await storage.getAgentCustomPricing(agent.id);
           const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
 
-          pricedBundles = bundles.map(bundle => {
-            // Agent selling price must be the agent's edited price (customPrice)
-            // or the stored `agentPrice`. Do NOT add admin/base price on top.
-            const customPrice = pricingMap.get(bundle.id);
-            const sellingPrice = customPrice !== undefined
-              ? parseFloat(customPrice)
-              : (bundle.agentPrice ? parseFloat(bundle.agentPrice) : parseFloat(bundle.adminPrice || bundle.basePrice || '0'));
+          // Enforce explicit agent_sell_price for every bundle in this network
+          const missing = bundles.filter(b => !pricingMap.has(b.id));
+          if (missing.length > 0) {
+            return res.status(500).json({ error: `Agent storefront error: missing agent_sell_price for ${missing.length} bundles. Please configure agent prices.` });
+          }
 
+          pricedBundles = bundles.map(bundle => {
+            const customPrice = pricingMap.get(bundle.id) as string;
+            const sellingPrice = parseFloat(customPrice);
             return {
               ...bundle,
               effective_price: sellingPrice.toFixed(2),
@@ -1620,22 +1621,20 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
         }
 
-        // Determine final selling price. For agents, prefer any custom price, then stored agentPrice.
+        // Determine final selling price. For agents, REQUIRE an explicit agent_sell_price (custom price).
         let itemPrice = parseFloat(bundle.basePrice);
         if (user.role === 'agent') {
-          // Check for agent-specific custom price
-          try {
-            const custom = await storage.getAgentPriceForBundle(user.id, bundle.id);
-            if (custom) {
-              itemPrice = parseFloat(custom);
-            } else if (bundle.agentPrice) {
-              itemPrice = parseFloat(bundle.agentPrice);
-            } else {
-              itemPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
-            }
-          } catch (e) {
-            itemPrice = bundle.agentPrice ? parseFloat(bundle.agentPrice) : parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+          const custom = await storage.getAgentPriceForBundle(user.id, bundle.id);
+          if (!custom) {
+            return res.status(400).json({ error: `Missing agent_sell_price for bundle ${bundle.name} (${bundle.id}). Configure agent prices before bulk upload.` });
           }
+          itemPrice = parseFloat(custom);
+        }
+        else if (user.role === 'dealer' && bundle.dealerPrice) {
+          itemPrice = parseFloat(bundle.dealerPrice);
+        } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {
+          itemPrice = parseFloat(bundle.superDealerPrice);
+        }
         } else if (user.role === 'dealer' && bundle.dealerPrice) {
           itemPrice = parseFloat(bundle.dealerPrice);
         } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {
@@ -1823,11 +1822,20 @@ export async function registerRoutes(
           }
         }
         
-        // Calculate total amount from orderItems. Use agent-supplied item.price as final selling price.
-        // Also compute total agent commission = sum(item.price - admin_price_for_bundle).
+        // Calculate total amount from orderItems. For agent storefronts, REQUIRE agent_sell_price per item.
         costPrice = 0;
         amount = 0;
         let computedAgentProfit = 0;
+
+        // If this request targets an agent storefront, resolve the agent and enforce explicit agent prices
+        let storefrontAgent: any = null;
+        if (data.agentSlug) {
+          storefrontAgent = await storage.getAgentBySlug(data.agentSlug);
+          if (!storefrontAgent || !storefrontAgent.isApproved) {
+            return res.status(400).json({ error: "Invalid agent storefront" });
+          }
+        }
+
         for (const item of data.orderItems) {
           const bundle = await storage.getDataBundle(item.bundleId);
           if (!bundle) {
@@ -1835,11 +1843,25 @@ export async function registerRoutes(
             return res.status(400).json({ error: `Bundle not found for bundleId: ${item.bundleId}` });
           }
           costPrice += 0; // Cost price removed from schema
-          const itemPrice = Number(item.price);
-          amount += itemPrice; // item.price is final selling price (agent price)
+
+          // For agent storefront, require explicit agent price
+          let itemPrice: number;
+          if (storefrontAgent) {
+            const custom = await storage.getAgentPriceForBundle(storefrontAgent.id, bundle.id);
+            if (!custom) {
+              return res.status(400).json({ error: `Missing agent_sell_price for bundle ${bundle.name} (${bundle.id}) in storefront ${data.agentSlug}` });
+            }
+            itemPrice = parseFloat(custom);
+          } else {
+            // Fallback for non-agent bulk (e.g., dealer flow) - use bundle base/admin as before
+            itemPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+          }
+
+          amount += itemPrice;
           const adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
           computedAgentProfit += (itemPrice - adminPrice);
         }
+
         // store computed agent profit for later use
         agentProfit = computedAgentProfit;
         

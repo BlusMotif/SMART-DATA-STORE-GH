@@ -8,6 +8,8 @@ import {
   LogOut,
   X,
   Menu,
+  Settings,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { APP_NAME } from "@/lib/constants";
 import siteLogo from "@assets/logo_1765774201026.png";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 const sidebarNavItems = [
   {
@@ -29,12 +33,12 @@ const sidebarNavItems = [
   },
   {
     title: "AT iShare Bundles",
-    href: "/user/bundles/at-ishare",
+    href: "/user/bundles/at_ishare",
     icon: Smartphone,
   },
   {
     title: "AT BIG TIME Bundles",
-    href: "/user/bundles/at-bigtime",
+    href: "/user/bundles/at_bigtime",
     icon: Smartphone,
   },
   {
@@ -46,6 +50,11 @@ const sidebarNavItems = [
     title: "Top Up Wallet",
     href: "/user/wallet",
     icon: Wallet,
+  },
+  {
+    title: "Settings",
+    href: "/user/settings",
+    icon: Settings,
   },
   {
     title: "Order History",
@@ -62,6 +71,12 @@ const sidebarNavItems = [
 export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user, agent } = useAuth();
+
+  const { data: rankData } = useQuery({
+    queryKey: ["user-rank"],
+    queryFn: () => apiRequest("/api/user/rank"),
+    enabled: !!user,
+  });
 
   return (
     <div className="flex h-screen w-64 flex-col border-r bg-background relative">
@@ -90,6 +105,15 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
             <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
           </div>
         </div>
+        {/* Rank Badge */}
+        {rankData && (
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+              <Trophy className="h-3 w-3" />
+              <span>Rank #{rankData.rank}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1 px-3 py-4">
@@ -124,9 +148,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
             variant="default"
             className="w-full justify-start gap-3 mb-3 bg-primary text-primary-foreground"
             onClick={() => {
-              // Dispatch custom event to open upgrade modal on dashboard
-              window.dispatchEvent(new Event('open-upgrade-modal'));
-              onClose?.();
+              window.location.href = '/user/dashboard?upgrade=true';
             }}
           >
             <Smartphone className="h-4 w-4" />

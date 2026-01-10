@@ -54,6 +54,7 @@ import UserBundlesPage from "@/pages/user/bundles";
 import UserHistoryPage from "@/pages/user/history";
 import UserSupportPage from "@/pages/user/support";
 import UserVouchersPage from "@/pages/user/vouchers";
+import UserSettingsPage from "@/pages/user/settings";
 
 // Component to restrict agent store users to storefront only
 function StorefrontGuard({ children }: { children: React.ReactNode }) {
@@ -103,6 +104,7 @@ function Router() {
       <ProtectedRoute path="/user/dashboard" component={UserDashboard} />
       <ProtectedRoute path="/user/wallet" component={WalletDashboard} />
       <ProtectedRoute path="/user/bundles/:network" component={UserBundlesPage} />
+      <ProtectedRoute path="/user/settings" component={UserSettingsPage} />
       <ProtectedRoute path="/user/vouchers" component={UserVouchersPage} />
       <ProtectedRoute path="/user/history" component={UserHistoryPage} />
       <ProtectedRoute path="/user/support" component={UserSupportPage} />

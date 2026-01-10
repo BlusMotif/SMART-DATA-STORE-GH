@@ -1127,21 +1127,16 @@ export async function registerRoutes(
           const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
 
           pricedBundles = bundles.map(bundle => {
-            // Base price for agents: agentPrice ?? adminPrice ?? basePrice
-            let price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
+            // Agent selling price must be the agent's edited price (customPrice)
+            // or the stored `agentPrice`. Do NOT add admin/base price on top.
             const customPrice = pricingMap.get(bundle.id);
-            if (customPrice !== undefined) {
-              price = parseFloat(customPrice);
-            } else {
-              // Apply markup to base agent price if no custom price
-              const markup = parseFloat(agent.customPricingMarkup || "0");
-              if (markup > 0) {
-                price = price * (1 + markup / 100);
-              }
-            }
+            const sellingPrice = customPrice !== undefined
+              ? parseFloat(customPrice)
+              : (bundle.agentPrice ? parseFloat(bundle.agentPrice) : parseFloat(bundle.adminPrice || bundle.basePrice || '0'));
+
             return {
               ...bundle,
-              effective_price: price.toFixed(2),
+              effective_price: sellingPrice.toFixed(2),
             };
           });
         } else {
@@ -1355,13 +1350,13 @@ export async function registerRoutes(
           const available = await storage.getResultCheckerStock(type, year);
           if (available > 0) {
             const checker = await storage.getAvailableResultChecker(type, year);
-            const markup = parseFloat(agent.customPricingMarkup || "0");
+            // Agent selling price for checkers must be explicit; do NOT apply markup here.
             const basePrice = parseFloat(checker?.basePrice || "0");
             resultCheckerStock.push({
               type,
               year,
               available,
-              price: (basePrice * (1 + markup / 100)).toFixed(2),
+              price: basePrice.toFixed(2),
             });
           }
         }
@@ -1808,9 +1803,11 @@ export async function registerRoutes(
           }
         }
         
-        // Calculate cost price and amount from orderItems (prices already include agent markup)
+        // Calculate total amount from orderItems. Use agent-supplied item.price as final selling price.
+        // Also compute total agent commission = sum(item.price - admin_price_for_bundle).
         costPrice = 0;
         amount = 0;
+        let computedAgentProfit = 0;
         for (const item of data.orderItems) {
           const bundle = await storage.getDataBundle(item.bundleId);
           if (!bundle) {
@@ -1818,8 +1815,13 @@ export async function registerRoutes(
             return res.status(400).json({ error: `Bundle not found for bundleId: ${item.bundleId}` });
           }
           costPrice += 0; // Cost price removed from schema
-          amount += item.price; // Price already includes agent markup from frontend
+          const itemPrice = Number(item.price);
+          amount += itemPrice; // item.price is final selling price (agent price)
+          const adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+          computedAgentProfit += (itemPrice - adminPrice);
         }
+        // store computed agent profit for later use
+        agentProfit = computedAgentProfit;
         
         console.log("[Checkout] Bulk order total amount (from orderItems):", amount);
         console.log("[Checkout] Bulk order total cost price:", costPrice);
@@ -1848,15 +1850,12 @@ export async function registerRoutes(
             userRole = 'agent';
             agentId = agent.id;
             
-            // For agent storefront, use agent pricing
+            // For agent storefront, use agent pricing. Do NOT add markup here.
             const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
             if (customPrice) {
               amount = parseFloat(customPrice);
             } else {
-              // Use agent price with markup
-              const agentPrice = product.agentPrice ? parseFloat(product.agentPrice) : parseFloat(product.adminPrice || product.basePrice || '0');
-              const markup = parseFloat(agent.customPricingMarkup || "0");
-              amount = agentPrice * (1 + markup / 100);
+              amount = product.agentPrice ? parseFloat(product.agentPrice) : parseFloat(product.adminPrice || product.basePrice || '0');
             }
           } else {
             amount = parseFloat(product.adminPrice || product.basePrice || '0');
@@ -1950,30 +1949,25 @@ export async function registerRoutes(
           // For single orders, check custom pricing or apply markup
           else if (data.productType === ProductType.DATA_BUNDLE && data.productId) {
             const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
+            const adminPrice = parseFloat(product.adminPrice || product.basePrice || '0');
             if (customPrice) {
               const agentSellingPrice = parseFloat(customPrice);
-              const adminAgentPrice = product.agentPrice ? parseFloat(product.agentPrice) : parseFloat(product.basePrice);
-              // Agent profit is the difference between selling price and admin-set agent price
-              agentProfit = agentSellingPrice - adminAgentPrice;
+              // Agent commission = selling price - admin price
+              agentProfit = agentSellingPrice - adminPrice;
               amount = agentSellingPrice;
-              // For agent transactions, the system's cost is the base price
               costPrice = parseFloat(product.basePrice);
             } else {
-              // Fall back to markup if no custom price
-              const markup = parseFloat(agent.customPricingMarkup || "0");
-              const agentPrice = amount * (1 + markup / 100);
-              agentProfit = agentPrice - amount;
-              amount = agentPrice;
-              // For agent transactions, the system's cost is the base price
+              // Use stored agentPrice if present; otherwise fall back to admin/base price
+              const agentSellingPrice = product.agentPrice ? parseFloat(product.agentPrice) : adminPrice;
+              agentProfit = agentSellingPrice - adminPrice;
+              amount = agentSellingPrice;
               costPrice = parseFloat(product.basePrice);
             }
           } else {
-            // For result checkers, use markup
-            const markup = parseFloat(agent.customPricingMarkup || "0");
-            const agentPrice = amount * (1 + markup / 100);
-            agentProfit = agentPrice - amount;
-            amount = agentPrice;
-            // For result checkers, cost is 0
+            // For result checkers, agent selling price equals amount (no extra markup).
+            const adminPrice = parseFloat(product.basePrice || '0');
+            agentProfit = amount - adminPrice;
+            // amount remains as provided
             costPrice = 0;
           }
         }

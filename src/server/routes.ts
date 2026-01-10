@@ -1819,7 +1819,7 @@ export async function registerRoutes(
             dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
           }))
         : data.phoneNumbers;
-      const isBulkOrder = data.isBulkOrder || (data.orderItems && data.orderItems.length > 0);
+      const isBulkOrder = !!(data.isBulkOrder || (data.orderItems && data.orderItems.length > 0));
       
       console.log("[Checkout] ========== RAW DATA EXTRACTION ==========");
       console.log("[Checkout] data object keys:", Object.keys(data));
@@ -4157,6 +4157,120 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load user stats" });
+    }
+  });
+
+  app.get("/api/user/rank", requireAuth, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Calculate user's total spent from completed transactions only
+      const transactions = await storage.getTransactions({
+        customerEmail: req.user!.email,
+        status: "completed",
+      });
+      const userTotalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+      // Get all users' total spent from completed transactions
+      const allUsers = await storage.getUsers();
+      const userRanks = await Promise.all(allUsers.map(async (u) => {
+        const txns = await storage.getTransactions({
+          customerEmail: u.email,
+          status: "completed",
+        });
+        const total = txns.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        return { email: u.email, totalSpent: total };
+      }));
+
+      // Sort by totalSpent descending
+      userRanks.sort((a, b) => b.totalSpent - a.totalSpent);
+
+      // Find user's rank (1-based)
+      const userRank = userRanks.findIndex(u => u.email === req.user!.email) + 1;
+
+      res.json({
+        rank: userRank,
+        totalUsers: userRanks.length,
+        totalSpent: userTotalSpent
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to get rank" });
+    }
+  });
+
+  app.put("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { name, phone } = req.body;
+
+      // Validate input
+      if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2)) {
+        return res.status(400).json({ error: "Name must be at least 2 characters" });
+      }
+
+      if (phone !== undefined && (typeof phone !== 'string' || phone.trim().length < 10)) {
+        return res.status(400).json({ error: "Phone number must be at least 10 digits" });
+      }
+
+      // Update user profile
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name.trim();
+      if (phone !== undefined) updateData.phone = phone.trim();
+
+      const updatedUser = await storage.updateUser(dbUser.id, updateData);
+      if (!updatedUser) {
+        return res.status(500).json({ error: "Failed to update profile" });
+      }
+
+      res.json({
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          phone: updatedUser.phone,
+          role: updatedUser.role,
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
+  app.put("/api/user/profile", requireAuth, async (req, res) => {
+    try {
+      const { name, email } = req.body;
+
+      if (!name || typeof name !== 'string' || name.trim().length < 2) {
+        return res.status(400).json({ error: "Name must be at least 2 characters" });
+      }
+
+      if (!email || typeof email !== 'string' || !email.includes('@')) {
+        return res.status(400).json({ error: "Valid email is required" });
+      }
+
+      // Get current user
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update user profile
+      await storage.updateUser(dbUser.id, {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+      });
+
+      res.json({ message: "Profile updated successfully" });
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      res.status(500).json({ error: "Failed to update profile" });
     }
   });
 

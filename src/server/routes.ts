@@ -1097,6 +1097,7 @@ export async function registerRoutes(
   // ============================================
   app.get("/api/products/data-bundles", async (req, res) => {
     const network = req.query.network as string | undefined;
+    const agentSlug = req.query.agent as string | undefined;
     try {
       let bundles = await storage.getDataBundles({ network, isActive: true });
 
@@ -1116,52 +1117,84 @@ export async function registerRoutes(
         bundles = await storage.getDataBundles({ network, isActive: true });
       }
 
-      // Check if user is authenticated to apply role-based pricing
-      let userRole = 'guest';
-      try {
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          const token = authHeader.substring(7);
-          const supabaseServer = getSupabase();
-          if (supabaseServer) {
-            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-            if (!error && user && user.email) {
-              const dbUser = await storage.getUserByEmail(user.email);
-              if (dbUser) {
-                userRole = dbUser.role;
+      let pricedBundles;
+
+      if (agentSlug) {
+        // Handle agent storefront pricing
+        const agent = await storage.getAgentBySlug(agentSlug);
+        if (agent && agent.isApproved) {
+          const customPricing = await storage.getAgentCustomPricing(agent.id);
+          const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
+
+          pricedBundles = bundles.map(bundle => {
+            let price = parseFloat(bundle.basePrice || '0');
+            const customPrice = pricingMap.get(bundle.id);
+            if (customPrice !== undefined) {
+              price = parseFloat(customPrice);
+            } else if (bundle.agentPrice) {
+              price = parseFloat(bundle.agentPrice);
+            }
+            // If no custom price and no agent price, keep base price
+            return {
+              ...bundle,
+              customPrice: price.toFixed(2),
+            };
+          });
+        } else {
+          // Invalid agent, use base price
+          pricedBundles = bundles.map(bundle => ({
+            ...bundle,
+            customPrice: bundle.basePrice,
+          }));
+        }
+      } else {
+        // Check if user is authenticated to apply role-based pricing
+        let userRole = 'guest';
+        try {
+          const authHeader = req.headers.authorization;
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            const supabaseServer = getSupabase();
+            if (supabaseServer) {
+              const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+              if (!error && user && user.email) {
+                const dbUser = await storage.getUserByEmail(user.email);
+                if (dbUser) {
+                  userRole = dbUser.role;
+                }
               }
             }
           }
+        } catch (authError) {
+          // Ignore auth errors, treat as guest
+          console.log('Auth check failed, treating as guest');
         }
-      } catch (authError) {
-        // Ignore auth errors, treat as guest
-        console.log('Auth check failed, treating as guest');
-      }
-
-      // Apply role-based pricing
-      const pricedBundles = bundles.map(bundle => {
-        let price = parseFloat(bundle.basePrice || '0');
 
         // Apply role-based pricing
-        if (userRole === 'agent' && bundle.agentPrice) {
-          price = parseFloat(bundle.agentPrice);
-        } else if (userRole === 'dealer' && bundle.dealerPrice) {
-          price = parseFloat(bundle.dealerPrice);
-        } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
-          price = parseFloat(bundle.superDealerPrice);
-        } else if (userRole === 'master' && bundle.masterPrice) {
-          price = parseFloat(bundle.masterPrice);
-        } else if (userRole === 'admin' && bundle.adminPrice) {
-          price = parseFloat(bundle.adminPrice);
-        }
+        pricedBundles = bundles.map(bundle => {
+          let price = parseFloat(bundle.basePrice || '0');
 
-        if (isNaN(price)) price = 0;
+          // Apply role-based pricing
+          if (userRole === 'agent' && bundle.agentPrice) {
+            price = parseFloat(bundle.agentPrice);
+          } else if (userRole === 'dealer' && bundle.dealerPrice) {
+            price = parseFloat(bundle.dealerPrice);
+          } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
+            price = parseFloat(bundle.superDealerPrice);
+          } else if (userRole === 'master' && bundle.masterPrice) {
+            price = parseFloat(bundle.masterPrice);
+          } else if (userRole === 'admin' && bundle.adminPrice) {
+            price = parseFloat(bundle.adminPrice);
+          }
 
-        return {
-          ...bundle,
-          customPrice: price.toFixed(2),
-        };
-      });
+          if (isNaN(price)) price = 0;
+
+          return {
+            ...bundle,
+            customPrice: price.toFixed(2),
+          };
+        });
+      }
 
       res.json(pricedBundles);
     } catch (error: any) {

@@ -132,16 +132,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const { data: bundles, isLoading } = useQuery({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
-      if (agentSlug) {
-        // For agent storefronts, get bundles with custom pricing
-        const res = await apiRequest('GET', `/api/store/${agentSlug}`);
-        const data = await res.json();
-        return data.dataBundles || [];
-      } else {
-        // For public storefronts, get regular bundles
-        const res = await apiRequest('GET', `/api/products/data-bundles?network=${network}`);
-        return res.json();
-      }
+      const res = await apiRequest('GET', `/api/products/data-bundles?network=${network}${agentSlug ? `&agent=${agentSlug}` : ''}`);
+      return res.json();
     }
   });
 

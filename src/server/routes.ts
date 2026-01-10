@@ -1296,26 +1296,21 @@ export async function registerRoutes(
           slug: agent.storefrontSlug,
         },
         dataBundles: bundles.map(b => {
-          // Use custom price if set, otherwise use role-based price for the agent's role
-          const customPrice = pricingMap.get(b.id);
           let price = parseFloat(b.basePrice || '0');
 
-          // Apply role-based pricing based on agent's role
-          if (user?.role === 'agent' && b.agentPrice) {
-            price = parseFloat(b.agentPrice);
-          } else if (user?.role === 'dealer' && b.dealerPrice) {
-            price = parseFloat(b.dealerPrice);
-          } else if (user?.role === 'super_dealer' && b.superDealerPrice) {
-            price = parseFloat(b.superDealerPrice);
-          } else if (user?.role === 'master' && b.masterPrice) {
-            price = parseFloat(b.masterPrice);
-          } else if (user?.role === 'admin' && b.adminPrice) {
-            price = parseFloat(b.adminPrice);
+          if (user?.role === 'agent') {
+            const customPrice = pricingMap.get(b.id);
+            if (customPrice) {
+              price = parseFloat(customPrice);
+            } else if (b.agentPrice) {
+              price = parseFloat(b.agentPrice);
+            }
+            // If no custom price and no agent price, keep base price
           }
 
           return {
             ...b,
-            customPrice: parseFloat(customPrice || price.toString()),
+            customPrice: price,
           };
         }),
         resultCheckers: resultCheckerStock,

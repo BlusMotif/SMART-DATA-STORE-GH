@@ -29,8 +29,9 @@ export default function NetworkProductsPage() {
   const { network } = useParams<{ network: string }>();
   const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
   
-  // Get agent slug from URL
-  const agentSlug = new URLSearchParams(window.location.search).get("agent");
+  // Get agent slug from URL query param or localStorage
+  const agentSlugFromQuery = new URLSearchParams(window.location.search).get("agent");
+  const agentSlug = agentSlugFromQuery || localStorage.getItem("agentStore");
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -156,8 +157,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
   const sortedBundles = bundles?.filter((b: any) => b.network === network && b.isActive)
     .sort((a: any, b: any) => {
-      const priceA = a.customPrice ? parseFloat(a.customPrice) : parseFloat(a.basePrice);
-      const priceB = b.customPrice ? parseFloat(b.customPrice) : parseFloat(b.basePrice);
+      const priceA = typeof a.customPrice === 'number' ? a.customPrice : parseFloat(a.basePrice);
+      const priceB = typeof b.customPrice === 'number' ? b.customPrice : parseFloat(b.basePrice);
       return priceA - priceB;
     });
 
@@ -177,7 +178,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
             return m ? parseFloat(m[1]) === gb : false;
           });
           if (match) { 
-            const price = match.customPrice ? parseFloat(match.customPrice) : parseFloat(match.basePrice);
+            const price = typeof match.customPrice === 'number' ? match.customPrice : parseFloat(match.basePrice);
             total += price; 
             count++; 
           }
@@ -244,7 +245,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       if (!match) { toast({ title: 'Bundle Not Found', description: `No ${it.gb}GB bundle for ${network}`, variant: 'destructive' }); return; }
       
       // Use customPrice for agent bundles, basePrice for public bundles
-      const price = match.customPrice ? parseFloat(match.customPrice) : parseFloat(match.basePrice);
+      const price = typeof match.customPrice === 'number' ? match.customPrice : parseFloat(match.basePrice);
       orderItems.push({ phone: it.phone, bundleId: match.id, bundleName: match.name, price });
       total += price;
     }
@@ -303,7 +304,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                     <SelectTrigger className="w-full"><SelectValue placeholder="Choose a data bundle" /></SelectTrigger>
                     <SelectContent>
                       {sortedBundles?.map((b: any) => {
-                        const price = b.customPrice ? b.customPrice : parseFloat(b.basePrice);
+                        const price = typeof b.customPrice === 'number' ? b.customPrice : parseFloat(b.basePrice);
                         return (
                           <SelectItem key={b.id} value={b.id}>{b.network.toUpperCase()} {b.dataAmount} - {b.validity} - GH₵{price.toFixed(2)}</SelectItem>
                         );
@@ -316,8 +317,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               {selectedBundle && (
                 <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{(selectedBundle.customPrice ? selectedBundle.customPrice : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
-                  <p className="text-2xl font-bold text-primary mt-2">GH₵{(selectedBundle.customPrice ? selectedBundle.customPrice : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
+                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{(typeof selectedBundle.customPrice === 'number' ? selectedBundle.customPrice : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-primary mt-2">GH₵{(typeof selectedBundle.customPrice === 'number' ? selectedBundle.customPrice : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
                 </div>
               )}
 

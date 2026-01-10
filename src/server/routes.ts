@@ -1609,6 +1609,7 @@ export async function registerRoutes(
       // Calculate total amount and prepare order items with prices
       let totalAmount = 0;
       const processedOrderItems: any[] = [];
+      let computedAgentProfit = 0;
 
       for (const item of orderItems) {
         const bundle = await storage.getDataBundle(item.bundleId);
@@ -1619,14 +1620,32 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
         }
 
-        // Apply agent pricing if user is agent
+        // Determine final selling price. For agents, prefer any custom price, then stored agentPrice.
         let itemPrice = parseFloat(bundle.basePrice);
-        if (user.role === 'agent' && bundle.agentPrice) {
-          itemPrice = parseFloat(bundle.agentPrice);
+        if (user.role === 'agent') {
+          // Check for agent-specific custom price
+          try {
+            const custom = await storage.getAgentPriceForBundle(user.id, bundle.id);
+            if (custom) {
+              itemPrice = parseFloat(custom);
+            } else if (bundle.agentPrice) {
+              itemPrice = parseFloat(bundle.agentPrice);
+            } else {
+              itemPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+            }
+          } catch (e) {
+            itemPrice = bundle.agentPrice ? parseFloat(bundle.agentPrice) : parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+          }
         } else if (user.role === 'dealer' && bundle.dealerPrice) {
           itemPrice = parseFloat(bundle.dealerPrice);
         } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {
           itemPrice = parseFloat(bundle.superDealerPrice);
+        }
+
+        // Compute agent commission per item (selling price - admin price)
+        const adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+        if (user.role === 'agent') {
+          computedAgentProfit += (itemPrice - adminPrice);
         }
 
         processedOrderItems.push({
@@ -1666,7 +1685,7 @@ export async function registerRoutes(
         isBulkOrder: true,
         status: "pending",
         agentId: user.role === 'agent' ? user.id : undefined,
-        agentProfit: "0.00",
+        agentProfit: user.role === 'agent' ? computedAgentProfit.toFixed(2) : "0.00",
       });
 
       // Deduct from wallet if registered user

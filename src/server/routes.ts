@@ -2757,7 +2757,8 @@ export async function registerRoutes(
       res.json({
         agent: {
           ...agent,
-          balance: dbUser.walletBalance, // Use user's wallet balance for agent dashboard
+          profitBalance: agent.balance, // Agent's profit balance for withdrawals
+          walletBalance: dbUser.walletBalance, // User's wallet balance for top-ups
           user: { name: user?.name, email: user?.email, phone: user?.phone },
         },
         stats,

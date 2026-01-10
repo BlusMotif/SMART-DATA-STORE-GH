@@ -54,12 +54,12 @@ const sidebarNavItems = [
   },
   {
     title: "AT iShare Bundles",
-    href: "/agent/bundles/at-ishare",
+    href: "/agent/bundles/at_ishare",
     icon: Smartphone,
   },
   {
     title: "AT BIG TIME Bundles",
-    href: "/agent/bundles/at-bigtime",
+    href: "/agent/bundles/at_bigtime",
     icon: Smartphone,
   },
   {
@@ -118,13 +118,6 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
   if (error) {
     return (
       <div className="flex h-screen w-64 flex-col border-r bg-background relative">
-        {onClose && (
-          <div className="absolute top-4 right-4 lg:hidden z-10">
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
         <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
           <img
             src={siteLogo}
@@ -203,11 +196,14 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
       {agent && (
         <div className="border-b p-4">
           <div className="rounded-lg bg-primary/5 p-4">
-            <p className="text-xs text-muted-foreground mb-1">Available Balance</p>
-            <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-balance">
-              {formatCurrency(agent.balance)}
+            <p className="text-xs text-muted-foreground mb-1">Profit Balance</p>
+            <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-profit-balance">
+              {formatCurrency(agent.profitBalance)}
             </p>
             <p className="text-xs text-muted-foreground mt-2">
+              Wallet Balance: {formatCurrency(agent.walletBalance)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
               Total Profit: {formatCurrency(agent.totalProfit)}
             </p>
           </div>
@@ -231,7 +227,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
                 >
                   <item.icon className="h-4 w-4" />
                   <span className="flex-1 text-left">{item.title}</span>
-                  {isSupport && unreadCount > 0 && (
+                  {isSupport && unreadCount > 0 && user?.role === 'admin' && (
                     <Badge variant="destructive" className="ml-auto">
                       {unreadCount}
                     </Badge>

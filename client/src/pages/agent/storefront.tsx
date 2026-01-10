@@ -299,7 +299,7 @@ export default function AgentStorefront() {
                       <TableRow>
                         <TableHead>Network</TableHead>
                         <TableHead>Bundle</TableHead>
-                        <TableHead>Default Price</TableHead>
+                        <TableHead>Agent Price</TableHead>
                         <TableHead>Your Price</TableHead>
                         <TableHead>Your Profit</TableHead>
                       </TableRow>
@@ -309,7 +309,7 @@ export default function AgentStorefront() {
                         const network = NETWORKS.find((n) => n.id === bundle.network);
                         const customPrice = getCustomPrice(bundle.id);
                         const effectivePrice = customPrice || bundle.basePrice;
-                        const profit = parseFloat(effectivePrice) - parseFloat(bundle.costPrice);
+                        const profit = parseFloat(effectivePrice) - parseFloat(bundle.basePrice);
                         return (
                           <TableRow key={bundle.id} data-testid={`row-bundle-${bundle.id}`}>
                             <TableCell>
@@ -329,7 +329,7 @@ export default function AgentStorefront() {
                               </div>
                             </TableCell>
                             <TableCell className="tabular-nums text-muted-foreground">
-                              {formatCurrency(bundle.basePrice)}
+                              {formatCurrency(bundle.agentPrice || bundle.basePrice)}
                             </TableCell>
                             <TableCell>
                               <Input

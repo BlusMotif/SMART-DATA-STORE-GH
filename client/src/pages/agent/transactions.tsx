@@ -161,19 +161,19 @@ export default function AgentTransactions() {
                     View all your customer orders and earnings
                   </CardDescription>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 w-48"
+                      className="pl-9 w-full sm:w-48"
                       data-testid="input-search"
                     />
                   </div>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-32" data-testid="filter-status">
+                    <SelectTrigger className="w-full sm:w-32" data-testid="filter-status">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -188,7 +188,7 @@ export default function AgentTransactions() {
                     </SelectContent>
                   </Select>
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-40" data-testid="filter-type">
+                    <SelectTrigger className="w-full sm:w-40" data-testid="filter-type">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>

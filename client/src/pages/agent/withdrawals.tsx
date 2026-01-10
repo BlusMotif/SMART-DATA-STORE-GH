@@ -111,7 +111,7 @@ export default function AgentWithdrawals() {
 
   const onSubmit = (data: WithdrawalFormData) => {
     const amount = parseFloat(data.amount);
-    const balance = parseFloat(agent?.balance || "0");
+    const balance = parseFloat(agent?.profitBalance || "0");
     
     if (amount < 10) {
       toast({ 
@@ -198,8 +198,8 @@ export default function AgentWithdrawals() {
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <div className="p-4 bg-muted rounded-lg mb-4">
-                      <p className="text-sm text-muted-foreground">Available Balance</p>
-                      <p className="text-2xl font-bold">{formatCurrency(agent?.balance || 0)}</p>
+                      <p className="text-sm text-muted-foreground">Profit Balance</p>
+                      <p className="text-2xl font-bold">{formatCurrency(agent?.profitBalance || 0)}</p>
                     </div>
 
                     <FormField
@@ -356,8 +356,8 @@ export default function AgentWithdrawals() {
           <div className="max-w-7xl mx-auto space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <StatCard
-                title="Available Balance"
-                value={formatCurrency(agent?.balance || 0)}
+                title="Profit Balance"
+                value={formatCurrency(agent?.profitBalance || 0)}
                 icon={Wallet}
                 description="Ready to withdraw"
               />

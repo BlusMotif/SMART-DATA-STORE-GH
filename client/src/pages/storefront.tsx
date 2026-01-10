@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { useAuth } from "@/hooks/use-auth";
-import { Store, Shield, LogOut, User, MessageCircle } from "lucide-react";
+import { Store, Shield, LogOut, User, MessageCircle, Phone } from "lucide-react";
 import type { Agent } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -248,13 +248,45 @@ export default function StorefrontPage() {
 
       {/* Simple Footer */}
       <footer className="border-t py-8 px-4 bg-muted/30">
-        <div className="container mx-auto max-w-6xl text-center">
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} {agent.businessName}. Powered by SmartDataStore
-          </p>
-          <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
-            <Shield className="h-3 w-3" />
-            <span>Secure payments • Fast delivery • 24/7 support</span>
+        <div className="container mx-auto max-w-6xl">
+          <div className="flex flex-col items-center gap-4">
+            {/* WhatsApp Links */}
+            {(agent.whatsappSupportLink || agent.whatsappChannelLink) && (
+              <div className="flex items-center gap-4">
+                {agent.whatsappSupportLink && (
+                  <a
+                    href={agent.whatsappSupportLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-green-600 hover:text-green-700 transition-colors"
+                  >
+                    <Phone className="h-4 w-4" />
+                    <span className="text-sm font-medium">Support</span>
+                  </a>
+                )}
+                {agent.whatsappChannelLink && (
+                  <a
+                    href={agent.whatsappChannelLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-green-600 hover:text-green-700 transition-colors"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Channel</span>
+                  </a>
+                )}
+              </div>
+            )}
+            
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                © {new Date().getFullYear()} {agent.businessName}. Powered by SmartDataStore
+              </p>
+              <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
+                <Shield className="h-3 w-3" />
+                <span>Secure payments • Fast delivery • 24/7 support</span>
+              </div>
+            </div>
           </div>
         </div>
       </footer>

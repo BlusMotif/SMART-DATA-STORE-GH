@@ -39,12 +39,12 @@ const NetworkInfo = {
     color: "bg-yellow-400",
     logo: mtnLogo,
   },
-  "at-ishare": {
+  "at_ishare": {
     name: "AirtelTigo iShare",
     color: "bg-red-500",
     logo: airteltigoLogo,
   },
-  "at-bigtime": {
+  "at_bigtime": {
     name: "AirtelTigo BIG TIME",
     color: "bg-red-600",
     logo: airteltigoLogo,

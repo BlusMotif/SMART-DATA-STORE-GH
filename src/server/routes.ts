@@ -1629,12 +1629,6 @@ export async function registerRoutes(
             return res.status(400).json({ error: `Missing agent_sell_price for bundle ${bundle.name} (${bundle.id}). Configure agent prices before bulk upload.` });
           }
           itemPrice = parseFloat(custom);
-        }
-        else if (user.role === 'dealer' && bundle.dealerPrice) {
-          itemPrice = parseFloat(bundle.dealerPrice);
-        } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {
-          itemPrice = parseFloat(bundle.superDealerPrice);
-        }
         } else if (user.role === 'dealer' && bundle.dealerPrice) {
           itemPrice = parseFloat(bundle.dealerPrice);
         } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {

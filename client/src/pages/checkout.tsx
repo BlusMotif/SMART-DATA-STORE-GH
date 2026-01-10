@@ -79,7 +79,7 @@ export default function CheckoutPage() {
 
   const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
   const price = isDataBundle 
-    ? (bundle?.basePrice ? parseFloat(bundle.basePrice) : 0)
+    ? (bundle?.effective_price ? parseFloat(bundle.effective_price) : 0)
     : (checkerInfo?.price ? parseFloat(String(checkerInfo.price)) : 0);
   
   // Only check insufficient balance if we have valid data loaded

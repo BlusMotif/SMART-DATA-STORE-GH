@@ -1127,25 +1127,28 @@ export async function registerRoutes(
           const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
 
           pricedBundles = bundles.map(bundle => {
-            let price = parseFloat(bundle.basePrice || '0');
+            // Base price for agents: agentPrice ?? adminPrice ?? basePrice
+            let price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
             const customPrice = pricingMap.get(bundle.id);
             if (customPrice !== undefined) {
               price = parseFloat(customPrice);
             } else {
-              // Unique default price per agent based on agent ID
-              const uniqueFactor = 0.9 + (agent.id.charCodeAt(0) % 10) * 0.005; // 0.9 to 0.945
-              price = parseFloat(bundle.basePrice || '0') * uniqueFactor;
+              // Apply markup to base agent price if no custom price
+              const markup = parseFloat(agent.customPricingMarkup || "0");
+              if (markup > 0) {
+                price = price * (1 + markup / 100);
+              }
             }
             return {
               ...bundle,
-              customPrice: price.toFixed(2),
+              effective_price: price.toFixed(2),
             };
           });
         } else {
-          // Invalid agent, use base price
+          // Invalid agent, use admin price
           pricedBundles = bundles.map(bundle => ({
             ...bundle,
-            customPrice: bundle.basePrice,
+            effective_price: parseFloat(bundle.adminPrice || bundle.basePrice || '0').toFixed(2),
           }));
         }
       } else {
@@ -1173,11 +1176,11 @@ export async function registerRoutes(
 
         // Apply role-based pricing
         pricedBundles = bundles.map(bundle => {
-          let price = parseFloat(bundle.basePrice || '0');
+          let price = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
 
           // Apply role-based pricing
-          if (userRole === 'agent' && bundle.agentPrice) {
-            price = parseFloat(bundle.agentPrice);
+          if (userRole === 'agent') {
+            price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
           } else if (userRole === 'dealer' && bundle.dealerPrice) {
             price = parseFloat(bundle.dealerPrice);
           } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
@@ -1192,7 +1195,7 @@ export async function registerRoutes(
 
           return {
             ...bundle,
-            customPrice: price.toFixed(2),
+            effective_price: price.toFixed(2),
           };
         });
       }
@@ -1225,7 +1228,50 @@ export async function registerRoutes(
       if (!bundle || !bundle.isActive) {
         return res.status(404).json({ error: "Data bundle not found" });
       }
-      res.json(bundle);
+
+      // Apply role-based pricing
+      let userRole = 'guest';
+      try {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7);
+          const supabaseServer = getSupabase();
+          if (supabaseServer) {
+            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+            if (!error && user && user.email) {
+              const dbUser = await storage.getUserByEmail(user.email);
+              if (dbUser) {
+                userRole = dbUser.role;
+              }
+            }
+          }
+        }
+      } catch (authError) {
+        // Ignore auth errors, treat as guest
+        console.log('Auth check failed, treating as guest');
+      }
+
+      let price = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+
+      // Apply role-based pricing
+      if (userRole === 'agent') {
+        price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
+      } else if (userRole === 'dealer' && bundle.dealerPrice) {
+        price = parseFloat(bundle.dealerPrice);
+      } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
+        price = parseFloat(bundle.superDealerPrice);
+      } else if (userRole === 'master' && bundle.masterPrice) {
+        price = parseFloat(bundle.masterPrice);
+      } else if (userRole === 'admin' && bundle.adminPrice) {
+        price = parseFloat(bundle.adminPrice);
+      }
+
+      if (isNaN(price)) price = 0;
+
+      res.json({
+        ...bundle,
+        effective_price: price.toFixed(2),
+      });
     } catch (error: any) {
       console.error("Database error:", error);
       res.status(500).json({ error: "Failed to fetch data bundle" });
@@ -1794,10 +1840,88 @@ export async function registerRoutes(
           return res.status(400).json({ error: errorMsg });
         }
         
+        // Apply role-based pricing for single purchases
+        let userRole = 'guest';
+        let agentId: string | undefined;
+        
+        // Check for agent storefront
+        if (data.agentSlug) {
+          const agent = await storage.getAgentBySlug(data.agentSlug);
+          if (agent && agent.isApproved) {
+            userRole = 'agent';
+            agentId = agent.id;
+            
+            // For agent storefront, use agent pricing
+            const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
+            if (customPrice) {
+              amount = parseFloat(customPrice);
+            } else {
+              // Use agent price with markup
+              const agentPrice = product.agentPrice ? parseFloat(product.agentPrice) : parseFloat(product.adminPrice || product.basePrice || '0');
+              const markup = parseFloat(agent.customPricingMarkup || "0");
+              amount = agentPrice * (1 + markup / 100);
+            }
+          } else {
+            amount = parseFloat(product.adminPrice || product.basePrice || '0');
+          }
+        } else {
+          // Check authenticated user role
+          try {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+              const token = authHeader.substring(7);
+              const supabaseServer = getSupabase();
+              if (supabaseServer) {
+                const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+                if (!error && user && user.email) {
+                  const dbUser = await storage.getUserByEmail(user.email);
+                  if (dbUser) {
+                    userRole = dbUser.role;
+                  }
+                }
+              }
+            }
+          } catch (authError) {
+            // Ignore auth errors, treat as guest
+          }
+          
+          // Apply role-based pricing
+          if (userRole === 'agent') {
+            amount = parseFloat(product.agentPrice || product.adminPrice || product.basePrice || '0');
+          } else if (userRole === 'dealer' && product.dealerPrice) {
+            amount = parseFloat(product.dealerPrice);
+          } else if (userRole === 'super_dealer' && product.superDealerPrice) {
+            amount = parseFloat(product.superDealerPrice);
+          } else if (userRole === 'master' && product.masterPrice) {
+            amount = parseFloat(product.masterPrice);
+          } else if (userRole === 'admin' && product.adminPrice) {
+            amount = parseFloat(product.adminPrice);
+          } else {
+            amount = parseFloat(product.adminPrice || product.basePrice || '0');
+          }
+        }
+        
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
-        amount = parseFloat(product.basePrice);
         costPrice = 0; // Cost price removed from schema
         network = product.network;
+        
+        // Validate amount from frontend
+        const expectedAmount = amount;
+        if (data.amount) {
+          const frontendAmount = parseFloat(data.amount);
+          console.log("[Checkout] Frontend amount:", frontendAmount);
+          console.log("[Checkout] Backend expected amount:", expectedAmount);
+          if (Math.abs(frontendAmount - expectedAmount) > 0.01) {
+            return res.status(400).json({ error: "Price mismatch. Please refresh and try again." });
+          }
+          amount = frontendAmount; // Use frontend amount if validation passes
+        }
+        
+        console.log("[Checkout] Single purchase pricing:");
+        console.log("[Checkout] admin_price:", product.adminPrice);
+        console.log("[Checkout] agent_price:", product.agentPrice);
+        console.log("[Checkout] user_role:", userRole);
+        console.log("[Checkout] final_amount:", amount);
       } else if (data.productId) {
         const [type, yearStr] = data.productId.split("-");
         const year = parseInt(yearStr);

@@ -30,6 +30,7 @@ interface DataBundle {
   network: string;
   validity: string;
   basePrice: string;
+  effective_price: string;
   description?: string;
 }
 

@@ -30,6 +30,7 @@ interface DataBundle {
   network: string;
   validity: string;
   basePrice: string;
+  effective_price: string;
   description?: string;
 }
 
@@ -117,7 +118,7 @@ export default function UserBundlesPage() {
           });
           
           if (matchingBundle) {
-            total += parseFloat(matchingBundle.basePrice);
+            total += parseFloat(matchingBundle.effective_price);
             count++;
           }
         }
@@ -134,7 +135,7 @@ export default function UserBundlesPage() {
       if (!bundle) throw new Error("Bundle not found");
       
       const phoneNumbers = [data.phoneNumber];
-      const price = parseFloat(bundle.basePrice);
+      const price = parseFloat(bundle.effective_price);
       const isBulk = false;
 
       console.log("[Frontend] Single order payment initialization");
@@ -268,7 +269,7 @@ export default function UserBundlesPage() {
         if (!bundle) throw new Error("Bundle not found");
         
         const phoneNumbers = data.phoneNumbers;
-        const price = parseFloat(bundle.basePrice);
+        const price = parseFloat(bundle.effective_price);
         const totalAmount = price * phoneNumbers.length;
 
         console.log("[Frontend] ========== LEGACY BULK FORMAT ==========");

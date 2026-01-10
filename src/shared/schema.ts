@@ -562,6 +562,7 @@ export const purchaseSchema = z.object({
   customerPhone: z.string().optional(),
   customerEmail: z.union([z.string().email(), z.literal("")]).optional(),
   agentSlug: z.string().optional(),
+  amount: z.string().optional(),
   phoneNumbers: z.array(z.object({
     phone: z.string(),
     bundleName: z.string(),

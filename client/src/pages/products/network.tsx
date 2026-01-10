@@ -151,8 +151,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
   const sortedBundles = bundles?.filter((b: any) => b.network === network && b.isActive)
     .sort((a: any, b: any) => {
-      const priceA = a.customPrice ? parseFloat(a.customPrice) : parseFloat(a.basePrice);
-      const priceB = b.customPrice ? parseFloat(b.customPrice) : parseFloat(b.basePrice);
+      const priceA = parseFloat(a.effective_price);
+      const priceB = parseFloat(b.effective_price);
       return priceA - priceB;
     });
 
@@ -172,7 +172,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
             return m ? parseFloat(m[1]) === gb : false;
           });
           if (match) { 
-            const price = match.customPrice ? parseFloat(match.customPrice) : parseFloat(match.basePrice);
+            const price = parseFloat(match.effective_price);
             total += price; 
             count++; 
           }
@@ -189,25 +189,48 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     }
   });
 
-  const handleSingle = () => {
+  const handleSingle = async () => {
     if (!selectedBundle) { toast({ title: 'No bundle selected', variant: 'destructive' }); return; }
     const normalized = normalizePhoneNumber(phone.trim());
     if (!normalized) { toast({ title: 'Invalid phone', variant: 'destructive' }); return; }
     const validation = validatePhoneNetwork(normalized, selectedBundle.network);
     if (!validation.isValid) { toast({ title: 'Phone mismatch', description: validation.error || 'Network mismatch', variant: 'destructive' }); return; }
 
-    const payload = {
-      productType: 'data_bundle',
-      productId: selectedBundle.id,
-      customerPhone: normalized,
-      isBulkOrder: false,
-      agentSlug: agentSlug || undefined,
-    };
+    // Re-fetch bundle to validate price
+    try {
+      const res = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`);
+      const currentBundle = await res.json();
+      
+      console.log("[Frontend] Price validation:");
+      console.log("[Frontend] UI effective_price:", selectedBundle.effective_price);
+      console.log("[Frontend] Backend effective_price:", currentBundle.effective_price);
+      
+      if (Math.abs(parseFloat(selectedBundle.effective_price) - parseFloat(currentBundle.effective_price)) > 0.01) {
+        toast({ title: 'Price changed', description: 'Please refresh and try again', variant: 'destructive' });
+        return;
+      }
+      
+      const amount = parseFloat(currentBundle.effective_price);
+      
+      const payload = {
+        productType: 'data_bundle',
+        productId: selectedBundle.id,
+        customerPhone: normalized,
+        amount: amount.toFixed(2),
+        isBulkOrder: false,
+        agentSlug: agentSlug || undefined,
+      };
 
-    checkoutMutation.mutate(payload, {
-      onSuccess: (data) => { if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' }); },
-      onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
-    });
+      console.log("[Frontend] Single purchase payload:");
+      console.log("[Frontend] amount:", amount);
+
+      checkoutMutation.mutate(payload, {
+        onSuccess: (data) => { if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' }); },
+        onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
+      });
+    } catch (error) {
+      toast({ title: 'Error', description: 'Failed to validate price', variant: 'destructive' });
+    }
   };
 
   const handleBulk = () => {
@@ -238,8 +261,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       const match = sortedBundles.find((b: any) => { const m = b.name.match(/(\d+(?:\.\d+)?)\s*gb/i); return m ? parseFloat(m[1]) === it.gb : false; });
       if (!match) { toast({ title: 'Bundle Not Found', description: `No ${it.gb}GB bundle for ${network}`, variant: 'destructive' }); return; }
       
-      // Use customPrice for agent bundles, basePrice for public bundles
-      const price = match.customPrice ? parseFloat(match.customPrice) : parseFloat(match.basePrice);
+      // Use effective_price for all bundles
+      const price = parseFloat(match.effective_price);
       orderItems.push({ phone: it.phone, bundleId: match.id, bundleName: match.name, price });
       total += price;
     }

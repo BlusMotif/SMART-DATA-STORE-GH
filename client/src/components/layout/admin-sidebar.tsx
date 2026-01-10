@@ -83,6 +83,11 @@ const sidebarNavItems = [
     icon: Settings,
   },
   {
+    title: "Break Settings",
+    href: "/admin/break-settings",
+    icon: AlertTriangle,
+  },
+  {
     title: "Settings",
     href: "/admin/settings",
     icon: Settings,

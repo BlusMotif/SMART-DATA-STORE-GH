@@ -136,6 +136,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       return res.json();
     },
     refetchOnMount: true,
+    staleTime: 0, // Always consider data stale for agent storefronts
   });
 
   const { data: agent } = useQuery({

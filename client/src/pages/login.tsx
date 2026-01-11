@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { APP_NAME } from "@/lib/constants";
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import siteLogo from "@assets/logo_1765774201026.png";
-import { getAgentId } from "@/lib/store-context";
+import { getAgentId, clearAgentStore } from "@/lib/store-context";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -71,6 +71,8 @@ export default function LoginPage() {
     try {
       const result = await login({ email: data.email, password: data.password });
       if (result.user) {
+        // Clear agent store context after successful login
+        clearAgentStore();
         toast({
           title: "Welcome back!",
           description: "You have successfully logged in.",

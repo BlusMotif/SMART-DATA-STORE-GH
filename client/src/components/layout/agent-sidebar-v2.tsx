@@ -77,14 +77,6 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
             <span className="font-semibold text-sm">{APP_NAME}</span>
             <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Super Dealer Portal' : 'Reseller Portal'}</span>
           </div>
-
-          {onClose && (
-            <div className="ml-auto lg:hidden">
-              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close sidebar">
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
         </div>
 
         <ScrollArea className="flex-1 px-3 py-4">
@@ -139,14 +131,6 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
             <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Reseller Portal' : 'Reseller Portal'}</span>
           </div>
         </div>
-
-        {onClose && (
-          <div className="ml-auto lg:hidden">
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close sidebar">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
       </div>
 
       {agent && (

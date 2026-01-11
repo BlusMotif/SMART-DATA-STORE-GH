@@ -3809,7 +3809,7 @@ export async function registerRoutes(
       const userId = req.params.id;
 
       // Validate role
-      const validRoles = ["admin", "agent", "dealer", "super_dealer", "user", "guest"];
+      const validRoles = ["admin", "agent", "dealer", "super_dealer", "master", "user", "guest"];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
@@ -3836,8 +3836,8 @@ export async function registerRoutes(
           await storage.updateAgent(agent.id, { isApproved: false });
           console.log(`Deactivated agent record for user ${userId} due to role change from ${oldRole} to ${role}`);
         }
-      } else if (oldRole !== 'agent' && oldRole !== 'dealer' && oldRole !== 'super_dealer' && (role === 'agent' || role === 'dealer' || role === 'super_dealer')) {
-        // User is now an agent/dealer/super_dealer - check if agent record exists
+      } else if (oldRole !== 'agent' && oldRole !== 'dealer' && oldRole !== 'super_dealer' && oldRole !== 'master' && (role === 'agent' || role === 'dealer' || role === 'super_dealer' || role === 'master')) {
+        // User is now an agent/dealer/super_dealer/master - check if agent record exists
         const existingAgent = await storage.getAgentByUserId(userId);
         if (!existingAgent) {
           // Create agent record with default values and auto approve

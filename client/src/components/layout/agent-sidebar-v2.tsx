@@ -56,10 +56,11 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/support/admin/unread-count"],
+    enabled: user?.role === 'admin',
     queryFn: async () => {
       try {
-        const response = await apiRequest("GET", "/api/support/admin/unread-count");
-        const data = await response.json();
+        const res = await apiRequest("GET", "/api/support/admin/unread-count");
+        const data = await res.json();
         return data.count || 0;
       } catch (error) {
         return 0;

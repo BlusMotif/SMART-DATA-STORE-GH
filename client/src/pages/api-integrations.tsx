@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Loader2, Plus, Key, Trash2, Copy, Check, AlertCircle, Code } from "lucide-react";
-import { apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface ApiKey {
@@ -40,12 +40,9 @@ export default function ApiIntegrationsPage() {
 
   const createKeyMutation = useMutation({
     mutationFn: async (name: string) => {
-      const response = await apiRequest("/api/user/api-keys", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      return response as ApiKey;
+      const res = await apiRequest("POST", "/api/user/api-keys", { name });
+      const json = await res.json();
+      return json as ApiKey;
     },
     onSuccess: (newKey) => {
       setCreatedKey(newKey.key);
@@ -68,9 +65,7 @@ export default function ApiIntegrationsPage() {
 
   const deleteKeyMutation = useMutation({
     mutationFn: async (keyId: string) => {
-      await apiRequest(`/api/user/api-keys/${keyId}`, {
-        method: "DELETE",
-      });
+      await apiRequest("DELETE", `/api/user/api-keys/${keyId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/user/api-keys"] });

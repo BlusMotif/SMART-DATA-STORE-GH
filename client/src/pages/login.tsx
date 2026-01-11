@@ -55,6 +55,15 @@ export default function LoginPage() {
       } else if (role === "agent") {
         console.log("Redirecting agent to /agent/dashboard");
         setLocation("/agent/dashboard");
+      } else if (role === "dealer") {
+        console.log("Redirecting dealer to /dealer/dashboard");
+        setLocation("/dealer/dashboard");
+      } else if (role === "super_dealer") {
+        console.log("Redirecting super dealer to /super-dealer/dashboard");
+        setLocation("/super-dealer/dashboard");
+      } else if (role === "master") {
+        console.log("Redirecting master to /master/dashboard");
+        setLocation("/master/dashboard");
       } else if (role === "user") {
         console.log("Redirecting user to /user/dashboard");
         setLocation("/user/dashboard");

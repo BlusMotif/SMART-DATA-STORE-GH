@@ -12,6 +12,8 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: window.sessionStorage, // Use sessionStorage instead of localStorage - clears when browser closes
+    // Persist sessions across browser restarts so API requests keep the token
+    // Use localStorage to avoid "session expired" when the browser is closed
+    storage: window.localStorage,
   },
 });

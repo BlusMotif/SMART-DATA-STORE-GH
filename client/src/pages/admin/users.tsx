@@ -118,6 +118,7 @@ export default function AdminUsers() {
       (roleFilter === "agent" && user.role === "agent") ||
       (roleFilter === "dealer" && user.role === "dealer") ||
       (roleFilter === "super_dealer" && user.role === "super_dealer") ||
+      (roleFilter === "master" && user.role === "master") ||
       (roleFilter === "admin" && user.role === "admin");
 
     // Search filter
@@ -135,7 +136,8 @@ export default function AdminUsers() {
     users: users?.filter((u) => u.role === "user").length || 0,
     agents: users?.filter((u) => u.role === "agent").length || 0,
     dealers: users?.filter((u) => u.role === "dealer").length || 0,
-    superDealers: users?.filter((u) => u.role === "super_dealer").length || 0,
+      superDealers: users?.filter((u) => u.role === "super_dealer").length || 0,
+      masters: users?.filter((u) => u.role === "master").length || 0,
     admins: users?.filter((u) => u.role === "admin").length || 0,
   };
 
@@ -270,6 +272,7 @@ export default function AdminUsers() {
                       <SelectItem value="agent">Agents</SelectItem>
                       <SelectItem value="dealer">Dealers</SelectItem>
                       <SelectItem value="super_dealer">Super Dealers</SelectItem>
+                      <SelectItem value="master">Master</SelectItem>
                       <SelectItem value="admin">Admins</SelectItem>
                     </SelectContent>
                   </Select>
@@ -323,6 +326,7 @@ export default function AdminUsers() {
                                   <SelectItem value="agent">Agent</SelectItem>
                                   <SelectItem value="dealer">Dealer</SelectItem>
                                   <SelectItem value="super_dealer">Super Dealer</SelectItem>
+                                  <SelectItem value="master">Master</SelectItem>
                                   <SelectItem value="admin">Admin</SelectItem>
                                 </SelectContent>
                               </Select>

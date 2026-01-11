@@ -127,14 +127,14 @@ function Router() {
       <ProtectedRoute path="/dealer/dashboard" component={DealerDashboard} requiredRole="dealer" />
       <ProtectedRoute path="/super-dealer/dashboard" component={SuperDealerDashboard} requiredRole="super_dealer" />
       <ProtectedRoute path="/master/dashboard" component={MasterDashboard} requiredRole="master" />
-      <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer"]} />
-      <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer"]} />
+      <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />

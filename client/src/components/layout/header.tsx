@@ -33,7 +33,10 @@ export function Header() {
   const getDashboardLink = () => {
     if (!user) return "/login";
     if (user.role === "admin") return "/admin";
-    if (user.role === "agent") return "/agent";
+    if (user.role === "agent") return "/agent/dashboard";
+    if (user.role === "dealer") return "/dealer/dashboard";
+    if (user.role === "super_dealer") return "/super-dealer/dashboard";
+    if (user.role === "master") return "/master/dashboard";
     if (user.role === "user") return "/user/dashboard";
     return "/";
   };

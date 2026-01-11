@@ -259,6 +259,9 @@ const FRONTEND_URL = process.env.APP_URL
 app.use(cors({
   origin: FRONTEND_URL,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
 }));
 
 // Session configuration

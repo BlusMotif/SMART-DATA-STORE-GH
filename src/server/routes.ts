@@ -1368,6 +1368,8 @@ export async function registerRoutes(
           businessName: agent.businessName,
           businessDescription: agent.businessDescription,
           slug: agent.storefrontSlug,
+          whatsappSupportLink: agent.whatsappSupportLink,
+          whatsappChannelLink: agent.whatsappChannelLink,
         },
         // Only expose agent-scoped products. Do NOT include admin prices.
         dataBundles: await Promise.all(customPricing.map(async (p) => {

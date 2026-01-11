@@ -794,6 +794,7 @@ export async function registerRoutes(
           console.log("Creating user in database:", user.email);
           try {
             const newUser = await storage.createUser({
+              id: user.id, // Persist Supabase user ID to avoid FK mismatches
               email: user.email!,
               password: "", // Password not needed since auth is handled by Supabase
               name: user.user_metadata?.name || user.email!.split('@')[0],

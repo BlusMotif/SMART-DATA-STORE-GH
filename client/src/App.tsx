@@ -23,6 +23,9 @@ import AgentRegisterPage from "@/pages/agent/register";
 import AgentActivationCompletePage from "@/pages/agent/activation-complete";
 import AgentUpgradePage from "@/pages/agent/upgrade";
 import AgentDashboard from "@/pages/agent/dashboard";
+import DealerDashboard from "@/pages/dealer/dashboard";
+import SuperDealerDashboard from "@/pages/super-dealer/dashboard";
+import MasterDashboard from "@/pages/master/dashboard";
 import AgentTransactions from "@/pages/agent/transactions";
 import AgentWithdrawals from "@/pages/agent/withdrawals";
 import AgentStorefront from "@/pages/agent/storefront";
@@ -121,6 +124,9 @@ function Router() {
       <ProtectedRoute path="/user/history" component={UserHistoryPage} />
       <ProtectedRoute path="/user/support" component={UserSupportPage} />
       <ProtectedRoute path="/dashboard/api-integrations" component={ApiIntegrationsPage} />
+      <ProtectedRoute path="/dealer/dashboard" component={DealerDashboard} requiredRole="dealer" />
+      <ProtectedRoute path="/super-dealer/dashboard" component={SuperDealerDashboard} requiredRole="super_dealer" />
+      <ProtectedRoute path="/master/dashboard" component={MasterDashboard} requiredRole="master" />
       <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer"]} />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer"]} />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer"]} />

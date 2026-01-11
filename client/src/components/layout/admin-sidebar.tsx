@@ -15,6 +15,7 @@ import {
   MessageCircle,
   Trophy,
   AlertTriangle,
+  Code,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,11 @@ const sidebarNavItems = [
     title: "API Configuration",
     href: "/admin/api-configuration",
     icon: Settings,
+  },
+  {
+    title: "API & Integrations",
+    href: "/dashboard/api-integrations",
+    icon: Code,
   },
   {
     title: "Break Settings",

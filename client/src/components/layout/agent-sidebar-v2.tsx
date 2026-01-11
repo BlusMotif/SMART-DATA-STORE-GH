@@ -70,7 +70,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   if (error) {
     return (
-      <div className="flex h-screen w-64 flex-col border-r bg-background relative">
+      <div className="flex h-full w-64 flex-col border-r bg-background relative">
         <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-4' : ''}`}>
           <img src={siteLogo} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
           <div className="flex flex-col">
@@ -122,7 +122,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   }
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-background relative">
+    <div className="flex h-full w-64 flex-col border-r bg-background relative">
       <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-4' : ''}`}>
         <div className="flex-1 flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">CT</div>

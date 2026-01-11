@@ -40,7 +40,12 @@ export function getSupabaseServer(): SupabaseClient | null {
 // For backward compatibility
 export let supabaseServer: SupabaseClient | null = null;
 
-initializeSupabase();
+// Allow skipping Supabase initialization for local dev/smoke tests
+if (process.env.SKIP_DB === 'true') {
+  console.log('SKIP_DB=true — skipping Supabase initialization (no DB will be used)');
+} else {
+  initializeSupabase();
+}
 
 import express, { type Request, Response, NextFunction, type Express } from "express";
 // @ts-ignore

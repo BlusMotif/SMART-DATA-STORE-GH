@@ -5603,8 +5603,40 @@ export async function registerRoutes(
       // Generate a secure API key
       const key = `sk_${randomBytes(32).toString('hex')}`;
 
+      // Resolve the database user id to use for the foreign key.
+      // Some installations have pre-existing users with a different local id
+      // (created before Supabase IDs were adopted). Prefer the DB user id
+      // when it exists to avoid foreign key violations.
+      let resolvedUserId = req.user!.id;
+      try {
+        const dbUser = await storage.getUserByEmail(req.user!.email!);
+        if (dbUser) {
+          resolvedUserId = dbUser.id;
+        } else {
+          // Create a DB user record with the Supabase id so future ops match
+          try {
+            await storage.createUser({
+              id: req.user!.id,
+              email: req.user!.email!,
+              password: "",
+              name: req.user!.user_metadata?.name || req.user!.email!.split('@')[0],
+              phone: (req as any).user?.phone || null,
+              role: 'user',
+              isActive: true,
+            });
+          } catch (createErr) {
+            // If creation fails due to unique email constraint, fetch the existing user and use its id
+            console.error('Failed to create DB user for API key creation:', createErr);
+            const fallback = await storage.getUserByEmail(req.user!.email!);
+            if (fallback) resolvedUserId = fallback.id;
+          }
+        }
+      } catch (err) {
+        console.error('Error resolving DB user id for API key creation:', err);
+      }
+
       const apiKey = await storage.createApiKey({
-        userId: req.user!.id,
+        userId: resolvedUserId,
         name: name.trim(),
         key,
         permissions: {},

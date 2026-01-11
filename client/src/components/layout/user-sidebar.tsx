@@ -10,6 +10,7 @@ import {
   Menu,
   Settings,
   Trophy,
+  Code,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,11 @@ const sidebarNavItems = [
     title: "Top Up Wallet",
     href: "/user/wallet",
     icon: Wallet,
+  },
+  {
+    title: "API & Integrations",
+    href: "/dashboard/api-integrations",
+    icon: Code,
   },
   {
     title: "Settings",

@@ -124,24 +124,6 @@ export const users = pgTable("users", {
 }));
 
 // ============================================
-// API KEYS TABLE
-// ============================================
-export const apiKeys = pgTable("api_keys", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  name: text("name").notNull(),
-  key: text("key").notNull().unique(),
-  permissions: jsonb("permissions").notNull().default({}),
-  isActive: boolean("is_active").notNull().default(true),
-  lastUsed: timestamp("last_used"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-}, (table) => ({
-  userIdIdx: index("api_keys_user_id_idx").on(table.userId),
-  keyIdx: index("api_keys_key_idx").on(table.key),
-  activeIdx: index("api_keys_active_idx").on(table.isActive),
-}));
-
-// ============================================
 // AGENTS TABLE
 // ============================================
 export const agents = pgTable("agents", {
@@ -315,19 +297,21 @@ export const auditLogs = pgTable("audit_logs", {
 }));
 
 // ============================================
-// AGENT CUSTOM PRICING TABLE
+// AGENT PRICING TABLE
 // ============================================
-export const agentCustomPricing = pgTable("agent_custom_pricing", {
+export const agentPricing = pgTable("agent_pricing", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id, { onDelete: "cascade" }),
   bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
-  customPrice: decimal("custom_price", { precision: 10, scale: 2 }).notNull(),
+  agentPrice: decimal("agent_price", { precision: 10, scale: 2 }).notNull(),
+  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
+  agentProfit: decimal("agent_profit", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
-  agentIdx: index("agent_custom_pricing_agent_idx").on(table.agentId),
-  bundleIdx: index("agent_custom_pricing_bundle_idx").on(table.bundleId),
-  uniqueAgentBundle: index("agent_custom_pricing_unique").on(table.agentId, table.bundleId),
+  agentIdx: index("agent_pricing_agent_idx").on(table.agentId),
+  bundleIdx: index("agent_pricing_bundle_idx").on(table.bundleId),
+  uniqueAgentBundle: index("agent_pricing_unique").on(table.agentId, table.bundleId),
 }));
 
 // ============================================
@@ -366,15 +350,22 @@ export const chatMessages = pgTable("chat_messages", {
 }));
 
 // ============================================
-// SETTINGS TABLE
+// API KEYS TABLE
 // ============================================
-export const settings = pgTable("settings", {
+export const apiKeys = pgTable("api_keys", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   key: text("key").notNull().unique(),
-  value: text("value").notNull(),
-  description: text("description"),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+  permissions: jsonb("permissions").notNull().default({}),
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("api_keys_user_idx").on(table.userId),
+  keyIdx: index("api_keys_key_idx").on(table.key),
+  activeIdx: index("api_keys_active_idx").on(table.isActive),
+}));
 
 // ============================================
 // ANNOUNCEMENTS TABLE
@@ -391,6 +382,16 @@ export const announcements = pgTable("announcements", {
   activeIdx: index("announcements_active_idx").on(table.isActive),
   createdAtIdx: index("announcements_created_at_idx").on(table.createdAt),
 }));
+
+// ============================================
+// SETTINGS TABLE
+// ============================================
+export const settings = pgTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
 
 // ============================================
 // RELATIONS
@@ -527,6 +528,10 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
   updatedAt: true,
 });
 
+export const insertSettingsSchema = createInsertSchema(settings).omit({
+  updatedAt: true,
+});
+
 // ============================================
 // TYPES
 // ============================================
@@ -565,6 +570,9 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type Announcement = typeof announcements.$inferSelect;
+
+export type InsertSettings = z.infer<typeof insertSettingsSchema>;
+export type Settings = typeof settings.$inferSelect;
 
 // ============================================
 // VALIDATION SCHEMAS

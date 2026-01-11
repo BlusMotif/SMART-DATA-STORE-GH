@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import multer from "multer";
@@ -1158,8 +1158,8 @@ export async function registerRoutes(
         // Handle agent storefront pricing
         const agent = await storage.getAgentBySlug(agentSlug);
         if (agent && agent.isApproved) {
-          const customPricing = await storage.getAgentCustomPricing(agent.id);
-          const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
+          const customPricing = await storage.getAgentPricing(agent.id);
+          const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.agentPrice]));
 
           // Enforce explicit agent_sell_price for every bundle in this network
           const missing = bundles.filter(b => !pricingMap.has(b.id));
@@ -1376,8 +1376,8 @@ export async function registerRoutes(
 
       const user = await storage.getUser(agent.userId);
       // Load only agent-scoped products: use agent custom pricing entries
-      const customPricing = await storage.getAgentCustomPricing(agent.id);
-      const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.customPrice]));
+      const customPricing = await storage.getAgentPricing(agent.id);
+      const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.agentPrice]));
 
       const currentYear = new Date().getFullYear();
       const resultCheckerStock = [];
@@ -1411,7 +1411,7 @@ export async function registerRoutes(
           const b = await storage.getDataBundle(p.bundleId);
           if (!b || !b.isActive) return null;
           // price must come from agent-scoped source only: customPrice || agentPrice
-          const price = p.customPrice ? parseFloat(p.customPrice) : (b.agentPrice ? parseFloat(b.agentPrice) : null);
+          const price = p.agentPrice ? parseFloat(p.agentPrice) : (b.agentPrice ? parseFloat(b.agentPrice) : null);
           if (price === null) return null; // do not expose admin/base price here
           return {
             id: b.id,
@@ -1660,12 +1660,15 @@ export async function registerRoutes(
 
         // Determine final selling price. For agents, REQUIRE an explicit agent_sell_price (custom price).
         let itemPrice = parseFloat(bundle.basePrice);
+        let adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+        
         if (user.role === 'agent') {
-          const custom = await storage.getAgentPriceForBundle(user.id, bundle.id);
-          if (!custom) {
-            return res.status(400).json({ error: `Missing agent_sell_price for bundle ${bundle.name} (${bundle.id}). Configure agent prices before bulk upload.` });
+          const agentPricing = await storage.getAgentPricingForBundle(user.id, bundle.id);
+          if (!agentPricing) {
+            return res.status(400).json({ error: `Missing agent pricing for bundle ${bundle.name} (${bundle.id}). Configure agent prices before bulk upload.` });
           }
-          itemPrice = parseFloat(custom);
+          itemPrice = parseFloat(agentPricing.agentPrice);
+          adminPrice = parseFloat(agentPricing.adminBasePrice);
         } else if (user.role === 'dealer' && bundle.dealerPrice) {
           itemPrice = parseFloat(bundle.dealerPrice);
         } else if (user.role === 'super_dealer' && bundle.superDealerPrice) {
@@ -1673,7 +1676,6 @@ export async function registerRoutes(
         }
 
         // Compute agent commission per item (selling price - admin price)
-        const adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
         if (user.role === 'agent') {
           computedAgentProfit += (itemPrice - adminPrice);
         }
@@ -1956,9 +1958,10 @@ export async function registerRoutes(
             agentId = agent.id;
             
             // For agent storefront, use agent pricing. Do NOT add markup here.
-            const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
-            if (customPrice) {
-              amount = parseFloat(customPrice);
+            const agentPricing = await storage.getAgentPricingForBundle(agent.id, data.productId);
+            if (agentPricing) {
+              amount = parseFloat(agentPricing.agentPrice);
+              agentProfit = parseFloat(agentPricing.agentProfit);
             } else {
               amount = product.agentPrice ? parseFloat(product.agentPrice) : parseFloat(product.adminPrice || product.basePrice || '0');
             }
@@ -3413,7 +3416,7 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Agent not found" });
       }
 
-      const pricing = await storage.getAgentCustomPricing(agent.id);
+      const pricing = await storage.getAgentPricing(agent.id);
       res.json(pricing);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load pricing" });
@@ -3439,27 +3442,33 @@ export async function registerRoutes(
       }
 
       // Update or delete pricing for each bundle
-      for (const [bundleId, price] of Object.entries(prices)) {
-        const priceStr = price as string;
-        if (!priceStr || priceStr === '') {
-          // Delete custom pricing if empty
-          await storage.deleteAgentCustomPricing(agent.id, bundleId);
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { agentPrice?: string; adminBasePrice?: string; agentProfit?: string };
+        
+        if (!priceObj.agentPrice || !priceObj.adminBasePrice || !priceObj.agentProfit) {
+          // Delete pricing if any field is missing
+          await storage.deleteAgentPricing(agent.id, bundleId);
         } else {
-          // Validate price
-          const priceNum = parseFloat(priceStr);
-          if (isNaN(priceNum) || priceNum < 0) {
+          // Validate prices
+          const agentPriceNum = parseFloat(priceObj.agentPrice);
+          const adminBasePriceNum = parseFloat(priceObj.adminBasePrice);
+          const agentProfitNum = parseFloat(priceObj.agentProfit);
+          
+          if (isNaN(agentPriceNum) || isNaN(adminBasePriceNum) || isNaN(agentProfitNum) || 
+              agentPriceNum < 0 || adminBasePriceNum < 0 || agentProfitNum < 0) {
             continue; // Skip invalid prices
           }
 
-          // Get bundle to validate against base price (cost price removed)
-          const bundle = await storage.getDataBundle(bundleId);
-          if (bundle && priceNum >= parseFloat(bundle.basePrice)) {
-            await storage.setAgentCustomPricing(agent.id, bundleId, priceStr);
+          // Validate that agent_price = admin_base_price + agent_profit
+          if (Math.abs(agentPriceNum - (adminBasePriceNum + agentProfitNum)) > 0.01) {
+            continue; // Skip if calculation doesn't match
           }
+
+          await storage.setAgentPricing(agent.id, bundleId, priceObj.agentPrice, priceObj.adminBasePrice, priceObj.agentProfit);
         }
       }
 
-      const updatedPricing = await storage.getAgentCustomPricing(agent.id);
+      const updatedPricing = await storage.getAgentPricing(agent.id);
       res.json(updatedPricing);
     } catch (error: any) {
       console.error("Error updating pricing:", error);
@@ -5556,7 +5565,7 @@ export async function registerRoutes(
       }
 
       // Generate a secure API key
-      const key = `sk_${randomUUID().replace(/-/g, '')}`;
+      const key = `sk_${randomBytes(32).toString('hex')}`;
 
       const apiKey = await storage.createApiKey({
         userId: req.user!.id,

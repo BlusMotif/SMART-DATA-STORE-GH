@@ -28,7 +28,9 @@ type StorefrontFormData = z.infer<typeof storefrontSchema>;
 
 interface AgentPricing {
   bundleId: string;
-  customPrice: string;
+  agentPrice: string;
+  adminBasePrice: string;
+  agentProfit: string;
 }
 
 interface AgentProfileResponse {
@@ -66,7 +68,7 @@ export default function AgentStorefront() {
     refetchOnWindowFocus: true,
   });
 
-  const [customPrices, setCustomPrices] = useState<Record<string, string>>({});
+  const [customPrices, setCustomPrices] = useState<Record<string, { agentPrice: string; adminBasePrice: string; agentProfit: string }>>({});
 
   const form = useForm<StorefrontFormData>({
     resolver: zodResolver(storefrontSchema),
@@ -87,9 +89,13 @@ export default function AgentStorefront() {
 
   useEffect(() => {
     if (agentPricing && agentPricing.length > 0) {
-      const prices: Record<string, string> = {};
+      const prices: Record<string, { agentPrice: string; adminBasePrice: string; agentProfit: string }> = {};
       agentPricing.forEach((p) => {
-        prices[p.bundleId] = p.customPrice;
+        prices[p.bundleId] = {
+          agentPrice: p.agentPrice,
+          adminBasePrice: p.adminBasePrice,
+          agentProfit: p.agentProfit,
+        };
       });
       setCustomPrices(prices);
     }
@@ -108,7 +114,7 @@ export default function AgentStorefront() {
   });
 
   const updatePricingMutation = useMutation({
-    mutationFn: (prices: Record<string, string>) =>
+    mutationFn: (prices: Record<string, { agentPrice: string; adminBasePrice: string; agentProfit: string }>) =>
       apiRequest("POST", "/api/agent/pricing", { prices }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/pricing"] });
@@ -139,9 +145,21 @@ export default function AgentStorefront() {
   };
 
   const getCustomPrice = (bundleId: string) => {
-    if (customPrices[bundleId]) return customPrices[bundleId];
+    if (customPrices[bundleId]) return customPrices[bundleId].agentPrice;
     const existing = agentPricing?.find((p) => p.bundleId === bundleId);
-    return existing?.customPrice || "";
+    return existing?.agentPrice || "";
+  };
+
+  const getAdminBasePrice = (bundleId: string) => {
+    if (customPrices[bundleId]) return customPrices[bundleId].adminBasePrice;
+    const existing = agentPricing?.find((p) => p.bundleId === bundleId);
+    return existing?.adminBasePrice || bundle.basePrice;
+  };
+
+  const getAgentProfit = (bundleId: string) => {
+    if (customPrices[bundleId]) return customPrices[bundleId].agentProfit;
+    const existing = agentPricing?.find((p) => p.bundleId === bundleId);
+    return existing?.agentProfit || "0";
   };
 
   return (
@@ -302,7 +320,7 @@ export default function AgentStorefront() {
                       <TableRow>
                         <TableHead>Network</TableHead>
                         <TableHead>Bundle</TableHead>
-                        <TableHead>Agent Price</TableHead>
+                        <TableHead>Admin Base Price</TableHead>
                         <TableHead>Your Price</TableHead>
                         <TableHead>Your Profit</TableHead>
                       </TableRow>
@@ -310,10 +328,12 @@ export default function AgentStorefront() {
                     <TableBody>
                       {bundles.map((bundle) => {
                         const network = NETWORKS.find((n) => n.id === bundle.network);
-                        const customPrice = getCustomPrice(bundle.id);
-                        const effectivePrice = customPrice || bundle.basePrice;
-                        const agentPrice = bundle.agentPrice || bundle.basePrice;
-                        const profit = parseFloat(effectivePrice) - parseFloat(agentPrice);
+                        const adminBasePrice = getAdminBasePrice(bundle.id);
+                        const agentPrice = getCustomPrice(bundle.id);
+                        const agentProfit = getAgentProfit(bundle.id);
+                        const calculatedProfit = agentPrice && adminBasePrice ? 
+                          (parseFloat(agentPrice) - parseFloat(adminBasePrice)).toFixed(2) : "0";
+                        
                         return (
                           <TableRow key={bundle.id} data-testid={`row-bundle-${bundle.id}`}>
                             <TableCell>
@@ -332,27 +352,52 @@ export default function AgentStorefront() {
                                 {bundle.dataAmount} - {bundle.validity}
                               </div>
                             </TableCell>
-                            <TableCell className="tabular-nums text-muted-foreground">
-                              {formatCurrency(bundle.agentPrice || bundle.basePrice)}
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder={bundle.basePrice}
+                                value={customPrices[bundle.id]?.adminBasePrice || ""}
+                                onChange={(e) =>
+                                  setCustomPrices((prev) => ({
+                                    ...prev,
+                                    [bundle.id]: {
+                                      ...prev[bundle.id],
+                                      adminBasePrice: e.target.value,
+                                      agentProfit: prev[bundle.id]?.agentPrice && e.target.value ? 
+                                        (parseFloat(prev[bundle.id].agentPrice) - parseFloat(e.target.value)).toFixed(2) : 
+                                        prev[bundle.id]?.agentProfit || "",
+                                    },
+                                  }))
+                                }
+                                className="w-24 tabular-nums"
+                                data-testid={`input-admin-base-price-${bundle.id}`}
+                              />
                             </TableCell>
                             <TableCell>
                               <Input
                                 type="number"
                                 step="0.01"
-                                placeholder={agentPrice}
-                                value={customPrices[bundle.id] || ""}
+                                placeholder={bundle.agentPrice || bundle.basePrice}
+                                value={customPrices[bundle.id]?.agentPrice || ""}
                                 onChange={(e) =>
                                   setCustomPrices((prev) => ({
                                     ...prev,
-                                    [bundle.id]: e.target.value,
+                                    [bundle.id]: {
+                                      ...prev[bundle.id],
+                                      agentPrice: e.target.value,
+                                      agentProfit: e.target.value && prev[bundle.id]?.adminBasePrice ? 
+                                        (parseFloat(e.target.value) - parseFloat(prev[bundle.id].adminBasePrice)).toFixed(2) : 
+                                        prev[bundle.id]?.agentProfit || "",
+                                    },
                                   }))
                                 }
                                 className="w-24 tabular-nums"
-                                data-testid={`input-price-${bundle.id}`}
+                                data-testid={`input-agent-price-${bundle.id}`}
                               />
                             </TableCell>
-                            <TableCell className={`tabular-nums font-medium ${profit > 0 ? "text-green-600" : "text-red-600"}`}>
-                              {formatCurrency(profit)}
+                            <TableCell className={`tabular-nums font-medium ${parseFloat(agentProfit) > 0 ? "text-green-600" : "text-red-600"}`}>
+                              {formatCurrency(agentProfit)}
                             </TableCell>
                           </TableRow>
                         );

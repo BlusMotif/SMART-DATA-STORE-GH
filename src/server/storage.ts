@@ -1,8 +1,9 @@
 ﻿import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt } from "drizzle-orm";
 import { db } from "./db.js";
+import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, agentCustomPricing, announcements, apiKeys,
+  supportChats, chatMessages, agentPricing, announcements, apiKeys,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -95,11 +96,12 @@ export interface IStorage {
   getUnreadUserMessagesCount(userId: string): Promise<number>;
   getUnreadAdminMessagesCount(): Promise<number>;
 
-  // Agent Custom Pricing
-  getAgentCustomPricing(agentId: string): Promise<Array<{ bundleId: string; customPrice: string }>>;
-  setAgentCustomPricing(agentId: string, bundleId: string, customPrice: string): Promise<void>;
-  deleteAgentCustomPricing(agentId: string, bundleId: string): Promise<void>;
+  // Agent Pricing
+  getAgentPricing(agentId: string): Promise<Array<{ bundleId: string; agentPrice: string; adminBasePrice: string; agentProfit: string }>>;
+  setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string): Promise<void>;
+  deleteAgentPricing(agentId: string, bundleId: string): Promise<void>;
   getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null>;
+  getAgentPricingForBundle(agentId: string, bundleId: string): Promise<{ agentPrice: string; adminBasePrice: string; agentProfit: string } | null>;
 
   // Rankings
   getTopCustomers(limit?: number): Promise<Array<{
@@ -750,78 +752,108 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.count || 0);
   }
 
-  // Agent Custom Pricing Methods
-  async getAgentCustomPricing(agentId: string): Promise<Array<{ bundleId: string; customPrice: string }>> {
+  // Agent Pricing Methods
+  async getAgentPricing(agentId: string): Promise<Array<{ bundleId: string; agentPrice: string; adminBasePrice: string; agentProfit: string }>> {
     const pricing = await db.select({
-      bundleId: agentCustomPricing.bundleId,
-      customPrice: agentCustomPricing.customPrice,
+      bundleId: agentPricing.bundleId,
+      agentPrice: agentPricing.agentPrice,
+      adminBasePrice: agentPricing.adminBasePrice,
+      agentProfit: agentPricing.agentProfit,
     })
-      .from(agentCustomPricing)
-      .where(eq(agentCustomPricing.agentId, agentId));
+      .from(agentPricing)
+      .where(eq(agentPricing.agentId, agentId));
     
     return pricing.map(p => ({
       bundleId: p.bundleId,
-      customPrice: p.customPrice || "0",
+      agentPrice: p.agentPrice || "0",
+      adminBasePrice: p.adminBasePrice || "0",
+      agentProfit: p.agentProfit || "0",
     }));
   }
 
-  async setAgentCustomPricing(agentId: string, bundleId: string, customPrice: string): Promise<void> {
+  async setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string): Promise<void> {
     // Check if pricing exists
     const [existing] = await db.select()
-      .from(agentCustomPricing)
+      .from(agentPricing)
       .where(
         and(
-          eq(agentCustomPricing.agentId, agentId),
-          eq(agentCustomPricing.bundleId, bundleId)
+          eq(agentPricing.agentId, agentId),
+          eq(agentPricing.bundleId, bundleId)
         )
       )
       .limit(1);
 
     if (existing) {
       // Update existing
-      await db.update(agentCustomPricing)
+      await db.update(agentPricing)
         .set({ 
-          customPrice, 
+          agentPrice, 
+          adminBasePrice,
+          agentProfit,
           updatedAt: new Date() 
         })
         .where(
           and(
-            eq(agentCustomPricing.agentId, agentId),
-            eq(agentCustomPricing.bundleId, bundleId)
+            eq(agentPricing.agentId, agentId),
+            eq(agentPricing.bundleId, bundleId)
           )
         );
     } else {
       // Insert new
-      await db.insert(agentCustomPricing).values({
+      await db.insert(agentPricing).values({
         agentId,
         bundleId,
-        customPrice,
+        agentPrice,
+        adminBasePrice,
+        agentProfit,
       });
     }
   }
 
-  async deleteAgentCustomPricing(agentId: string, bundleId: string): Promise<void> {
-    await db.delete(agentCustomPricing)
+  async deleteAgentPricing(agentId: string, bundleId: string): Promise<void> {
+    await db.delete(agentPricing)
       .where(
         and(
-          eq(agentCustomPricing.agentId, agentId),
-          eq(agentCustomPricing.bundleId, bundleId)
+          eq(agentPricing.agentId, agentId),
+          eq(agentPricing.bundleId, bundleId)
         )
       );
   }
 
   async getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null> {
-    const [result] = await db.select({ customPrice: agentCustomPricing.customPrice })
-      .from(agentCustomPricing)
+    const [result] = await db.select({ agentPrice: agentPricing.agentPrice })
+      .from(agentPricing)
       .where(
         and(
-          eq(agentCustomPricing.agentId, agentId),
-          eq(agentCustomPricing.bundleId, bundleId)
+          eq(agentPricing.agentId, agentId),
+          eq(agentPricing.bundleId, bundleId)
         )
       )
       .limit(1);
     
-    return result?.customPrice || null;
+    return result?.agentPrice || null;
+  }
+
+  async getAgentPricingForBundle(agentId: string, bundleId: string): Promise<{ agentPrice: string; adminBasePrice: string; agentProfit: string } | null> {
+    const [result] = await db.select({
+      agentPrice: agentPricing.agentPrice,
+      adminBasePrice: agentPricing.adminBasePrice,
+      agentProfit: agentPricing.agentProfit
+    })
+      .from(agentPricing)
+      .where(
+        and(
+          eq(agentPricing.agentId, agentId),
+          eq(agentPricing.bundleId, bundleId)
+        )
+      )
+      .limit(1);
+    
+    return result ? {
+      agentPrice: result.agentPrice,
+      adminBasePrice: result.adminBasePrice,
+      agentProfit: result.agentProfit
+    } : null;
   }
 
   // Rankings Methods

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { APP_NAME } from "@/lib/constants";
 import { ArrowRight, Truck, Shield, Headphones, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
@@ -22,6 +23,7 @@ const bannerImages = [banner1, banner2, banner3];
 // Fetch data bundles from backend
 export default function HomePage() {
   const [currentBanner, setCurrentBanner] = useState(0);
+  const { user, isAuthenticated } = useAuth();
 
   // Product categories for homepage
   const productCategories = [
@@ -90,12 +92,17 @@ export default function HomePage() {
     },
   ];
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
+  const getAgentCtaLink = () => {
+    if (!isAuthenticated || !user) return "/agent/register";
+    if (user.role === "agent" || user.role === "dealer" || user.role === "super_dealer") return "/agent/dashboard";
+    return "/agent/register";
+  };
+
+  const getAgentCtaText = () => {
+    if (!isAuthenticated || !user) return "Start Earning Today";
+    if (user.role === "agent" || user.role === "dealer" || user.role === "super_dealer") return "Go to Dashboard";
+    return "Become an Agent";
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -215,9 +222,9 @@ export default function HomePage() {
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
               Start your own digital products business. Get your custom storefront and earn profits on every sale.
             </p>
-            <Link href="/agent/register">
+            <Link href={getAgentCtaLink()}>
               <Button size="lg" className="gap-2" data-testid="button-cta-agent">
-                Start Earning Today
+                {getAgentCtaText()}
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>

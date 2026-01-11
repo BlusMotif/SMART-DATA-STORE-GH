@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { AgentSidebar } from "@/components/layout/agent-sidebar";
+import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

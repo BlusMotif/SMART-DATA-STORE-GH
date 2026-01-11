@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AgentSidebar } from "@/components/layout/agent-sidebar";
+import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Loader2, Wallet, TrendingUp, Clock, CheckCircle, XCircle, ArrowUpRight, ArrowDownRight, Calendar, CreditCard, Menu } from "lucide-react";
 import { Link } from "wouter";

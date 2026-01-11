@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AgentSidebar } from "@/components/layout/agent-sidebar";
+import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SupportChat } from "@/components/user/support-chat";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";

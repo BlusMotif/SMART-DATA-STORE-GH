@@ -1704,8 +1704,8 @@ export async function registerRoutes(
 
         // Safety check
         if (Math.abs(agentProfitValue + adminRevenue - parseFloat(transaction.amount)) > 0.01) {
-          console.error("INVALID_BULK_PAYOUT detected for transaction", transaction.id);
-          throw new Error("INVALID_BULK_PAYOUT");
+          console.error("AGENT_PROFIT_MISMATCH detected for transaction", transaction.id);
+          throw new Error("AGENT_PROFIT_MISMATCH");
         }
 
         // Credit agent balance with PROFIT only
@@ -3000,12 +3000,23 @@ export async function registerRoutes(
       const user = await storage.getUser(dbUser.id);
       const stats = await storage.getTransactionStats(agent.id);
 
+      // Compute withdrawals sum (exclude rejected withdrawals)
+      const withdrawals = await storage.getWithdrawals({ agentId: agent.id });
+      const withdrawnTotal = withdrawals
+        .filter(w => w.status !== 'rejected')
+        .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
+
+      // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
+      const totalProfit = parseFloat(agent.totalProfit || '0');
+      const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
+
       res.json({
         agent: {
           ...agent,
-          profitBalance: agent.balance, // Agent's profit balance for withdrawals
-          walletBalance: dbUser.walletBalance, // User's wallet balance for top-ups
+          profitBalance: profitBalance, // Computed withdrawable profit
+          walletBalance: parseFloat(dbUser.walletBalance || '0'), // User's wallet balance for top-ups
           user: { name: user?.name, email: user?.email, phone: user?.phone },
+          totalWithdrawals: withdrawnTotal,
         },
         stats,
       });

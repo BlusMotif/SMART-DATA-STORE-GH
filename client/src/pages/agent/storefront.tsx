@@ -150,10 +150,10 @@ export default function AgentStorefront() {
     return existing?.agentPrice || "";
   };
 
-  const getAdminBasePrice = (bundleId: string) => {
+  const getAdminBasePrice = (bundleId: string, bundleBasePrice: string) => {
     if (customPrices[bundleId]) return customPrices[bundleId].adminBasePrice;
     const existing = agentPricing?.find((p) => p.bundleId === bundleId);
-    return existing?.adminBasePrice || bundle.basePrice;
+    return existing?.adminBasePrice || bundleBasePrice;
   };
 
   const getAgentProfit = (bundleId: string) => {
@@ -328,7 +328,7 @@ export default function AgentStorefront() {
                     <TableBody>
                       {bundles.map((bundle) => {
                         const network = NETWORKS.find((n) => n.id === bundle.network);
-                        const adminBasePrice = getAdminBasePrice(bundle.id);
+                        const adminBasePrice = getAdminBasePrice(bundle.id, bundle.basePrice);
                         const agentPrice = getCustomPrice(bundle.id);
                         const agentProfit = getAgentProfit(bundle.id);
                         const calculatedProfit = agentPrice && adminBasePrice ? 

@@ -3164,6 +3164,41 @@ export async function registerRoutes(
     }
   });
 
+  // Get agent transaction stats
+  app.get("/api/agent/transactions/stats", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      const transactions = await storage.getTransactions({ agentId: agent.id });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
+      const totalRevenue = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      const totalProfit = transactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+
+      const stats = {
+        totalTransactions: transactions.length,
+        totalRevenue: Number(totalRevenue.toFixed(2)),
+        totalProfit: Number(totalProfit.toFixed(2)),
+        todayTransactions: todayTransactions.length,
+      };
+
+      res.json(stats);
+    } catch (error: any) {
+      console.error("Error loading agent transaction stats:", error);
+      res.status(500).json({ error: "Failed to load transaction stats" });
+    }
+  });
+
   app.get("/api/agent/transactions/recent", requireAuth, requireAgent, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);

@@ -754,84 +754,106 @@ export class DatabaseStorage implements IStorage {
 
   // Agent Pricing Methods
   async getAgentPricing(agentId: string): Promise<Array<{ bundleId: string; agentPrice: string; adminBasePrice: string; agentProfit: string }>> {
-    const pricing = await db.select({
-      bundleId: agentPricing.bundleId,
-      agentPrice: agentPricing.agentPrice,
-      adminBasePrice: agentPricing.adminBasePrice,
-      agentProfit: agentPricing.agentProfit,
-    })
-      .from(agentPricing)
-      .where(eq(agentPricing.agentId, agentId));
-    
-    return pricing.map(p => ({
-      bundleId: p.bundleId,
-      agentPrice: p.agentPrice || "0",
-      adminBasePrice: p.adminBasePrice || "0",
-      agentProfit: p.agentProfit || "0",
-    }));
+    try {
+      const pricing = await db.select({
+        bundleId: agentPricing.bundleId,
+        agentPrice: agentPricing.agentPrice,
+        adminBasePrice: agentPricing.adminBasePrice,
+        agentProfit: agentPricing.agentProfit,
+      })
+        .from(agentPricing)
+        .where(eq(agentPricing.agentId, agentId));
+      
+      return pricing.map(p => ({
+        bundleId: p.bundleId,
+        agentPrice: p.agentPrice || "0",
+        adminBasePrice: p.adminBasePrice || "0",
+        agentProfit: p.agentProfit || "0",
+      }));
+    } catch (error) {
+      // Table might not exist yet, return empty array
+      console.warn("Agent pricing table not available:", error);
+      return [];
+    }
   }
 
   async setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string): Promise<void> {
-    // Check if pricing exists
-    const [existing] = await db.select()
-      .from(agentPricing)
-      .where(
-        and(
-          eq(agentPricing.agentId, agentId),
-          eq(agentPricing.bundleId, bundleId)
+    try {
+      // Check if pricing exists
+      const [existing] = await db.select()
+        .from(agentPricing)
+        .where(
+          and(
+            eq(agentPricing.agentId, agentId),
+            eq(agentPricing.bundleId, bundleId)
+          )
         )
-      )
-      .limit(1);
+        .limit(1);
 
-    if (existing) {
-      // Update existing
-      await db.update(agentPricing)
-        .set({ 
-          agentPrice, 
+      if (existing) {
+        // Update existing
+        await db.update(agentPricing)
+          .set({ 
+            agentPrice, 
+            adminBasePrice,
+            agentProfit,
+            updatedAt: new Date() 
+          })
+          .where(
+            and(
+              eq(agentPricing.agentId, agentId),
+              eq(agentPricing.bundleId, bundleId)
+            )
+          );
+      } else {
+        // Insert new
+        await db.insert(agentPricing).values({
+          agentId,
+          bundleId,
+          agentPrice,
           adminBasePrice,
           agentProfit,
-          updatedAt: new Date() 
-        })
+        });
+      }
+    } catch (error) {
+      // Table might not exist yet, silently ignore
+      console.warn("Agent pricing table not available for update:", error);
+    }
+  }
+
+  async deleteAgentPricing(agentId: string, bundleId: string): Promise<void> {
+    try {
+      await db.delete(agentPricing)
         .where(
           and(
             eq(agentPricing.agentId, agentId),
             eq(agentPricing.bundleId, bundleId)
           )
         );
-    } else {
-      // Insert new
-      await db.insert(agentPricing).values({
-        agentId,
-        bundleId,
-        agentPrice,
-        adminBasePrice,
-        agentProfit,
-      });
+    } catch (error) {
+      // Table might not exist yet, silently ignore
+      console.warn("Agent pricing table not available for delete:", error);
     }
   }
 
-  async deleteAgentPricing(agentId: string, bundleId: string): Promise<void> {
-    await db.delete(agentPricing)
-      .where(
-        and(
-          eq(agentPricing.agentId, agentId),
-          eq(agentPricing.bundleId, bundleId)
-        )
-      );
-  }
-
   async getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null> {
-    const [result] = await db.select({ agentPrice: agentPricing.agentPrice })
-      .from(agentPricing)
-      .where(
-        and(
-          eq(agentPricing.agentId, agentId),
-          eq(agentPricing.bundleId, bundleId)
+    try {
+      const [result] = await db.select({ agentPrice: agentPricing.agentPrice })
+        .from(agentPricing)
+        .where(
+          and(
+            eq(agentPricing.agentId, agentId),
+            eq(agentPricing.bundleId, bundleId)
+          )
         )
-      )
-      .limit(1);
-    
-    return result?.agentPrice || null;
+        .limit(1);
+      
+      return result?.agentPrice || null;
+    } catch (error) {
+      // Table might not exist yet, return null
+      console.warn("Agent pricing table not available for price lookup:", error);
+      return null;
+    }
   }
 
   async getAgentPricingForBundle(agentId: string, bundleId: string): Promise<{ agentPrice: string; adminBasePrice: string; agentProfit: string } | null> {

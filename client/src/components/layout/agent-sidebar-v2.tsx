@@ -11,6 +11,7 @@ import {
   X,
   Smartphone,
   CreditCard,
+  Code,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ const sidebarNavItems = [
   { title: "AT BIG TIME Bundles", href: "/agent/bundles/at_bigtime", icon: Smartphone },
   { title: "TELECEL Bundles", href: "/agent/bundles/telecel", icon: Smartphone },
   { title: "Top Up Wallet", href: "/agent/wallet", icon: CreditCard },
+  { title: "API & Integrations", href: "/dashboard/api-integrations", icon: Code },
   { title: "Withdrawals", href: "/agent/withdrawals", icon: Wallet },
   { title: "Settings", href: "/agent/settings", icon: Settings },
   { title: "Support Chat", href: "/agent/support", icon: MessageCircle },

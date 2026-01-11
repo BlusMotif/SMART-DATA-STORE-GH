@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatCard } from "@/components/ui/stat-card";
@@ -9,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Trophy, Award, Medal } from "lucide-react";
+import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Trophy, Award, Medal, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderTracker } from "@/components/order-tracker";
 
@@ -285,6 +286,24 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* API & Integrations */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code className="h-5 w-5" />
+                API & Integrations
+              </CardTitle>
+              <CardDescription>
+                Connect your app, automate actions, and integrate with third-party services
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild>
+                <Link href="/dashboard/api-integrations">Manage API Keys</Link>
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* Order Tracker */}
           <Card>

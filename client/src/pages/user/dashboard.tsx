@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Loader2, ShoppingCart, CreditCard, Wallet, Menu, Package } from "lucide-react";
+import { Loader2, ShoppingCart, CreditCard, Wallet, Menu, Package, Code } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/api";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -186,6 +186,12 @@ export default function UserDashboard() {
                     <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
                       <Package className="h-5 w-5" />
                       <span className="text-xs">Vouchers</span>
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard/api-integrations">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Code className="h-5 w-5" />
+                      <span className="text-xs">API & Integrations</span>
                     </Button>
                   </Link>
                 </div>

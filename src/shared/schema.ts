@@ -124,6 +124,24 @@ export const users = pgTable("users", {
 }));
 
 // ============================================
+// API KEYS TABLE
+// ============================================
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  key: text("key").notNull().unique(),
+  permissions: jsonb("permissions").notNull().default({}),
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdIdx: index("api_keys_user_id_idx").on(table.userId),
+  keyIdx: index("api_keys_key_idx").on(table.key),
+  activeIdx: index("api_keys_active_idx").on(table.isActive),
+}));
+
+// ============================================
 // AGENTS TABLE
 // ============================================
 export const agents = pgTable("agents", {
@@ -377,10 +395,18 @@ export const announcements = pgTable("announcements", {
 // ============================================
 // RELATIONS
 // ============================================
-export const usersRelations = relations(users, ({ one }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   agent: one(agents, {
     fields: [users.id],
     references: [agents.userId],
+  }),
+  apiKeys: many(apiKeys),
+}));
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  user: one(users, {
+    fields: [apiKeys.userId],
+    references: [users.id],
   }),
 }));
 
@@ -430,6 +456,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
 }).extend({
   id: z.string().optional(), // Allow optional id for Supabase user ID
   role: z.enum(["admin", "agent", "dealer", "super_dealer", "user", "guest"]).default("user"),
+});
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+  lastUsed: true,
 });
 
 export const insertAgentSchema = createInsertSchema(agents).omit({
@@ -500,6 +532,9 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
 // ============================================
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;
 
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;

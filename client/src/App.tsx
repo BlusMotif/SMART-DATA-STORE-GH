@@ -57,6 +57,9 @@ import UserSupportPage from "@/pages/user/support";
 import UserVouchersPage from "@/pages/user/vouchers";
 import UserSettingsPage from "@/pages/user/settings";
 
+// API & Integrations
+import ApiIntegrationsPage from "@/pages/api-integrations";
+
 // Component to restrict agent store users to storefront only
 function StorefrontGuard({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
@@ -117,6 +120,7 @@ function Router() {
       <ProtectedRoute path="/user/vouchers" component={UserVouchersPage} />
       <ProtectedRoute path="/user/history" component={UserHistoryPage} />
       <ProtectedRoute path="/user/support" component={UserSupportPage} />
+      <ProtectedRoute path="/dashboard/api-integrations" component={ApiIntegrationsPage} />
       <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer"]} />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer"]} />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer"]} />

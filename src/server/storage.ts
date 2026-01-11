@@ -2,13 +2,13 @@
 import { db } from "./db.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, agentCustomPricing, announcements,
+  supportChats, chatMessages, agentCustomPricing, announcements, apiKeys,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
   type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
-  type Announcement, type InsertAnnouncement
+  type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -124,6 +124,13 @@ export interface IStorage {
     dataBundleStock: number;
     resultCheckerStock: number;
   }>;
+
+  // API Keys
+  getApiKeys(userId: string): Promise<ApiKey[]>;
+  getApiKeyByKey(key: string): Promise<ApiKey | undefined>;
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined>;
+  deleteApiKey(id: string): Promise<boolean>;
 
   // Settings
   getSetting(key: string): Promise<string | undefined>;
@@ -873,6 +880,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAnnouncement(id: string): Promise<boolean> {
     const result = await db.delete(announcements).where(eq(announcements.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
+  // API KEYS
+  // ============================================
+  async getApiKeys(userId: string): Promise<ApiKey[]> {
+    return await db.select().from(apiKeys).where(eq(apiKeys.userId, userId));
+  }
+
+  async getApiKeyByKey(key: string): Promise<ApiKey | undefined> {
+    const result = await db.select().from(apiKeys).where(eq(apiKeys.key, key)).limit(1);
+    return result[0];
+  }
+
+  async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
+    const result = await db.insert(apiKeys).values(apiKey).returning();
+    return result[0];
+  }
+
+  async updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined> {
+    const result = await db.update(apiKeys).set(data).where(eq(apiKeys.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteApiKey(id: string): Promise<boolean> {
+    const result = await db.delete(apiKeys).where(eq(apiKeys.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 

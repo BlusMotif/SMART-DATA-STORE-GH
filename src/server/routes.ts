@@ -351,6 +351,16 @@ declare global {
           role?: string;
         };
       };
+      apiKey?: {
+        id: string;
+        userId: string;
+        name: string;
+        key: string;
+        permissions: any;
+        isActive: boolean;
+        lastUsed: Date | null;
+        createdAt: Date;
+      };
     }
   }
 }
@@ -481,6 +491,31 @@ const requireSupport = async (req: Request, res: Response, next: NextFunction) =
   } catch (error) {
     console.error('Support auth error:', error);
     res.status(403).json({ error: "Support access required" });
+  }
+};
+
+const requireApiKey = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "API key required" });
+    }
+
+    const key = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    const apiKey = await storage.getApiKeyByKey(key);
+    if (!apiKey || !apiKey.isActive) {
+      return res.status(401).json({ error: "Invalid API key" });
+    }
+
+    // Update last used timestamp
+    await storage.updateApiKey(apiKey.id, { lastUsed: new Date() });
+
+    req.apiKey = apiKey;
+    next();
+  } catch (error) {
+    console.error('API key auth error:', error);
+    res.status(401).json({ error: "Invalid API key" });
   }
 };
 
@@ -5495,6 +5530,120 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("PDF generation error:", error);
       res.status(500).json({ error: error.message || "Failed to generate PDF" });
+    }
+  });
+
+  // ============================================
+  // API KEYS
+  // ============================================
+
+  // Get user's API keys
+  app.get("/api/user/api-keys", requireAuth, async (req, res) => {
+    try {
+      const apiKeys = await storage.getApiKeys(req.user!.id);
+      res.json(apiKeys);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch API keys" });
+    }
+  });
+
+  // Create new API key
+  app.post("/api/user/api-keys", requireAuth, async (req, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        return res.status(400).json({ error: "API key name is required" });
+      }
+
+      // Generate a secure API key
+      const key = `sk_${randomUUID().replace(/-/g, '')}`;
+
+      const apiKey = await storage.createApiKey({
+        userId: req.user!.id,
+        name: name.trim(),
+        key,
+        permissions: {},
+        isActive: true,
+      });
+
+      // Return the key (this is the only time it will be shown)
+      res.json({
+        ...apiKey,
+        key, // Include the key in response
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create API key" });
+    }
+  });
+
+  // Revoke API key
+  app.delete("/api/user/api-keys/:id", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Find API key by ID
+      const apiKeys = await storage.getApiKeys(req.user!.id);
+      const apiKey = apiKeys.find(k => k.id === id);
+      
+      if (!apiKey) {
+        return res.status(404).json({ error: "API key not found" });
+      }
+
+      await storage.deleteApiKey(apiKey.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to revoke API key" });
+    }
+  });
+
+  // ============================================
+  // API ENDPOINTS (API KEY AUTHENTICATED)
+  // ============================================
+
+  // Get user balance
+  app.get("/api/v1/user/balance", requireApiKey, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.apiKey!.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        balance: user.walletBalance,
+        currency: "GHS"
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get balance" });
+    }
+  });
+
+  // Get user transactions
+  app.get("/api/v1/user/transactions", requireApiKey, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.apiKey!.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { limit = 10, offset = 0 } = req.query;
+      const transactions = await storage.getTransactions({
+        customerEmail: user.email,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      });
+
+      res.json({
+        transactions: transactions.map(t => ({
+          id: t.id,
+          reference: t.reference,
+          type: t.type,
+          amount: t.amount,
+          status: t.status,
+          createdAt: t.createdAt
+        }))
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get transactions" });
     }
   });
 

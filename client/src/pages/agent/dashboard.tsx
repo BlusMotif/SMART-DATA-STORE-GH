@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu, Package } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu, Package, Code } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 
 interface AgentStats {
@@ -183,7 +183,7 @@ export default function AgentDashboard() {
                 <CardDescription>Start selling data bundles</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
                   <Link href="/agent/bundles/mtn">
                     <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
                       <Package className="h-5 w-5" />
@@ -212,6 +212,12 @@ export default function AgentDashboard() {
                     <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
                       <Wallet className="h-5 w-5" />
                       <span className="text-xs">Top Up Wallet</span>
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard/api-integrations">
+                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
+                      <Code className="h-5 w-5" />
+                      <span className="text-xs">API & Integrations</span>
                     </Button>
                   </Link>
                 </div>

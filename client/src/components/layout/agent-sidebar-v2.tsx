@@ -12,6 +12,7 @@ import {
   Smartphone,
   CreditCard,
   Code,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,13 @@ const sidebarNavItems = [
 export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user } = useAuth();
+
+  // Get user rank
+  const { data: rankData } = useQuery({
+    queryKey: ["user-rank"],
+    queryFn: () => apiRequest("/api/user/rank"),
+    enabled: !!user,
+  });
 
   const { data: profileData, error } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
@@ -144,17 +152,20 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
     <div className="flex h-full w-64 flex-col border-r bg-background relative">
       <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-4' : ''}`}>
         <div className="flex-1 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">CT</div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
+            {user?.name?.charAt(0).toUpperCase() || 'A'}
+          </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sm">{agent?.businessName || APP_NAME}</span>
-            {user?.role && (
-              <Badge 
-                variant={getRankingBadge(user.role).variant} 
-                className="text-xs w-fit mt-1 px-2 py-0.5 h-5"
-              >
-                <span className="mr-1">{getRankingBadge(user.role).icon}</span>
-                {getRankingBadge(user.role).label}
-              </Badge>
+            <span className="font-semibold text-sm">{user?.name || 'Agent'}</span>
+            {rankData && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                  <Trophy className="h-3 w-3" />
+                  <span>
+                    {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
+                  </span>
+                </div>
+              </div>
             )}
             <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Reseller Portal' : 'Reseller Portal'}</span>
           </div>

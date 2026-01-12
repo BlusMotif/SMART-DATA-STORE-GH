@@ -124,6 +124,13 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
 
+  // Get user rank
+  const { data: rankData } = useQuery({
+    queryKey: ["user-rank"],
+    queryFn: () => apiRequest("/api/user/rank"),
+    enabled: !!user,
+  });
+
   // Get unread message count for admin
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/support/admin/unread-count"],
@@ -155,15 +162,16 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
           className="h-8 w-8 rounded-lg object-contain"
         />
         <div className="flex flex-col">
-          <span className="font-semibold text-sm">{APP_NAME}</span>
-          {user?.role && (
-            <Badge 
-              variant={getRankingBadge(user.role).variant} 
-              className="text-xs w-fit mt-1 px-2 py-0.5 h-5"
-            >
-              <span className="mr-1">{getRankingBadge(user.role).icon}</span>
-              {getRankingBadge(user.role).label}
-            </Badge>
+          <span className="font-semibold text-sm">{user?.name || 'Admin'}</span>
+          {rankData && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                <Trophy className="h-3 w-3" />
+                <span>
+                  {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
+                </span>
+              </div>
+            </div>
           )}
           <span className="text-xs text-muted-foreground">Admin Panel</span>
         </div>

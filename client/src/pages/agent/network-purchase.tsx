@@ -100,12 +100,12 @@ export default function AgentNetworkPurchasePage() {
   const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
 
   // Fetch agent data
-  const { data: agent, isLoading: agentLoading } = useQuery<{ agent: Agent & { user: { name: string } } }>({
+  const { data: storeData, isLoading: agentLoading } = useQuery<{ store: { businessName: string; businessDescription: string; slug: string; whatsappSupportLink?: string; whatsappChannelLink?: string; role: string }; dataBundles: DataBundle[] }>({
     queryKey: [`/api/store/${role}/${slug}`],
     enabled: !!role && !!slug,
   });
   // Agent-scoped products are provided via `/api/store/:slug` as `dataBundles` with `price`.
-  const dataBundles = agent?.dataBundles || [];
+  const dataBundles = storeData?.dataBundles || [];
 
   const filteredBundles = dataBundles?.filter(
     (bundle) => bundle.network === network && bundle.isActive
@@ -137,7 +137,7 @@ export default function AgentNetworkPurchasePage() {
   // Calculate bulk purchase total with agent markup
   const bulkTotal = useMemo(() => {
     const phoneNumbers = bulkForm.watch("phoneNumbers");
-    if (!phoneNumbers?.trim() || !sortedBundles || !agent?.agent) return null;
+    if (!phoneNumbers?.trim() || !sortedBundles || !storeData?.store) return null;
     
     const lines = phoneNumbers.split('\n').filter(line => line.trim());
     const markup = agent.agent.customPricingMarkup ? parseFloat(agent.agent.customPricingMarkup) : 0;
@@ -169,7 +169,7 @@ export default function AgentNetworkPurchasePage() {
     }
     
     return count > 0 ? { total, count } : null;
-  }, [bulkForm.watch("phoneNumbers"), sortedBundles, agent?.agent]);
+  }, [bulkForm.watch("phoneNumbers"), sortedBundles, storeData?.store]);
 
   const initializePaymentMutation = useMutation({
     mutationFn: async (data: SingleOrderFormData | BulkOrderFormData | {
@@ -466,7 +466,7 @@ export default function AgentNetworkPurchasePage() {
     // Find matching bundles for each GB amount
     const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
     let totalAmount = 0;
-    const markup = agent?.agent?.customPricingMarkup ? parseFloat(agent.agent.customPricingMarkup) : 0;
+    const markup = 0; // Pricing is already resolved in the API
 
     for (const item of parsedData) {
       // Find a bundle that matches the GB amount
@@ -546,7 +546,7 @@ export default function AgentNetworkPurchasePage() {
               Back
             </Button>
           </Link>
-          <h1 className="text-xl font-bold">{agent?.agent.businessName}</h1>
+          <h1 className="text-xl font-bold">{storeData?.store.businessName}</h1>
           <div className="w-20" /> {/* Spacer for centering */}
         </div>
       </header>

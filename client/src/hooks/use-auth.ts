@@ -16,35 +16,32 @@ export function useAuth() {
   // Get current session for enabling the query
   const [currentSession, setCurrentSession] = useState<any>(null);
 
-  // Initialize session on mount
+  // Initialize session on mount and listen to auth state changes
   useEffect(() => {
-    // Get the current session when the component mounts
+    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        console.log("Initial session found:", session.user.id);
         setCurrentSession(session);
       }
     });
-  }, []);
 
-  // Update current session when auth state changes - simplified to avoid auto login/logout
-  useEffect(() => {
+    // Listen to auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log("Auth event:", event);
-        
-        // Only handle explicit sign out
+
         if (event === "SIGNED_OUT") {
           console.log("User signed out");
           setCurrentSession(null);
           queryClient.setQueryData(["/api/auth/me"], { user: null });
-        }
-        // Handle token refresh silently - update session only
-        else if (event === "TOKEN_REFRESHED" && session) {
+        } else if (event === "TOKEN_REFRESHED" && session) {
           console.log("Token refreshed");
           setCurrentSession(session);
+        } else if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
+          console.log("Session established:", event);
+          setCurrentSession(session);
         }
-        // Ignore all other events (SIGNED_IN, INITIAL_SESSION, USER_UPDATED) to prevent unwanted behavior
+        // Ignore USER_UPDATED events to prevent unnecessary re-renders
       }
     );
 
@@ -60,6 +57,8 @@ export function useAuth() {
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
     queryFn: async () => {
       // Prevent duplicate calls
       if (isFetchingUser.current) {

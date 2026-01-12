@@ -122,7 +122,7 @@ const sidebarNavItems = [
 
 export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
-  const { logout, isLoggingOut } = useAuth();
+  const { user, logout, isLoggingOut } = useAuth();
 
   // Get unread message count for admin
   const { data: unreadCount = 0 } = useQuery<number>({

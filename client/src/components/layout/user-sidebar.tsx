@@ -136,6 +136,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
               </div>
             )}
           </div>
+        </div>
       </div>
 
       <ScrollArea className="flex-1 px-3 py-4">

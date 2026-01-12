@@ -12,14 +12,31 @@ import type { Agent } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
-import resultLogo from "@assets/result_1765780772205.jpg";
+import { ROLE_LABELS } from "@/lib/constants";
 
 interface StorefrontData {
-  agent: Agent & { user: { name: string } };
+  store: {
+    businessName: string;
+    businessDescription: string;
+    slug: string;
+    whatsappSupportLink?: string;
+    whatsappChannelLink?: string;
+    role: string;
+  };
+  dataBundles: Array<{
+    id: string;
+    name: string;
+    network: string;
+    dataAmount: string;
+    validity: string;
+    apiCode?: string;
+    isActive: boolean;
+    price: string;
+  }>;
 }
 
 export default function StorefrontPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { role, slug } = useParams<{ role: string; slug: string }>();
   const [, setLocation] = useLocation();
   const { user, logout } = useAuth();
 
@@ -37,8 +54,8 @@ export default function StorefrontPage() {
   };
 
   const { data, isLoading, error } = useQuery<StorefrontData>({
-    queryKey: ["/api/store", slug],
-    enabled: !!slug,
+    queryKey: ["/api/store", role, slug],
+    enabled: !!role && !!slug,
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
@@ -93,7 +110,7 @@ export default function StorefrontPage() {
     );
   }
 
-  const { agent } = data;
+  const { store } = data;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -102,11 +119,11 @@ export default function StorefrontPage() {
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground text-lg font-bold">
-              {agent.businessName.charAt(0).toUpperCase()}
+              {store.businessName.charAt(0).toUpperCase()}
             </div>
             <div>
-              <h1 className="font-semibold text-lg">{agent.businessName}</h1>
-              <p className="text-xs text-muted-foreground">Agent Store</p>
+              <h1 className="font-semibold text-lg">{store.businessName}</h1>
+              <p className="text-xs text-muted-foreground">{ROLE_LABELS[store.role as keyof typeof ROLE_LABELS] || 'Store'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -122,7 +139,7 @@ export default function StorefrontPage() {
                 </Button>
               </>
             ) : (
-              <StorefrontAuthDialog agentSlug={slug!} agentName={agent.businessName} />
+              <StorefrontAuthDialog agentSlug={slug!} agentName={store.businessName} />
             )}
             <ThemeToggle />
           </div>
@@ -133,13 +150,13 @@ export default function StorefrontPage() {
         <section className="py-12 px-4 bg-gradient-to-b from-primary/5 to-background">
           <div className="container mx-auto max-w-6xl text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground text-2xl font-bold mx-auto mb-4">
-              {agent.businessName.charAt(0).toUpperCase()}
+              {store.businessName.charAt(0).toUpperCase()}
             </div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2" data-testid="text-store-name">
-              {agent.businessName}
+              {store.businessName}
             </h1>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              {agent.businessDescription || `Welcome to ${agent.businessName}. Browse our selection of data bundles and result checkers.`}
+              {store.businessDescription || `Welcome to ${store.businessName}. Browse our selection of data bundles and result checkers.`}
             </p>
             <div className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground">
               <Shield className="h-4 w-4" />
@@ -147,11 +164,11 @@ export default function StorefrontPage() {
             </div>
             
             {/* WhatsApp Support Links */}
-            {(agent.whatsappSupportLink || agent.whatsappChannelLink) && (
+            {(store.whatsappSupportLink || store.whatsappChannelLink) && (
               <div className="flex items-center justify-center gap-4 mt-6">
-                {agent.whatsappSupportLink && (
+                {store.whatsappSupportLink && (
                   <a
-                    href={agent.whatsappSupportLink}
+                    href={store.whatsappSupportLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -160,9 +177,9 @@ export default function StorefrontPage() {
                     <span className="text-sm font-medium">WhatsApp Support</span>
                   </a>
                 )}
-                {agent.whatsappChannelLink && (
+                {store.whatsappChannelLink && (
                   <a
-                    href={agent.whatsappChannelLink}
+                    href={store.whatsappChannelLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -181,7 +198,7 @@ export default function StorefrontPage() {
           <div className="container mx-auto max-w-4xl">
             <h2 className="text-2xl font-bold text-center mb-8">Browse Our Products</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
               {/* MTN Logo */}
               <Card 
                 className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
@@ -226,21 +243,6 @@ export default function StorefrontPage() {
                   AirtelTigo Data Bundles
                 </p>
               </Card>
-
-              {/* Result Checker Logo */}
-              <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
-                onClick={() => navigateToProduct('result-checkers')}
-              >
-                <img
-                  src={resultLogo}
-                  alt="Result Checkers"
-                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
-                />
-                <p className="text-sm font-medium text-center text-muted-foreground">
-                  Result Checkers
-                </p>
-              </Card>
             </div>
           </div>
         </section>
@@ -251,11 +253,11 @@ export default function StorefrontPage() {
         <div className="container mx-auto max-w-6xl">
           <div className="flex flex-col items-center gap-4">
             {/* WhatsApp Links */}
-            {(agent.whatsappSupportLink || agent.whatsappChannelLink) && (
+            {(store.whatsappSupportLink || store.whatsappChannelLink) && (
               <div className="flex items-center gap-4">
-                {agent.whatsappSupportLink && (
+                {store.whatsappSupportLink && (
                   <a
-                    href={agent.whatsappSupportLink}
+                    href={store.whatsappSupportLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-green-600 hover:text-green-700 transition-colors"
@@ -264,9 +266,9 @@ export default function StorefrontPage() {
                     <span className="text-sm font-medium">Support</span>
                   </a>
                 )}
-                {agent.whatsappChannelLink && (
+                {store.whatsappChannelLink && (
                   <a
-                    href={agent.whatsappChannelLink}
+                    href={store.whatsappChannelLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 text-green-600 hover:text-green-700 transition-colors"
@@ -280,7 +282,7 @@ export default function StorefrontPage() {
             
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
-                © {new Date().getFullYear()} {agent.businessName}. Powered by SmartDataStore
+                © {new Date().getFullYear()} {store.businessName}. Powered by SmartDataStore
               </p>
               <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
                 <Shield className="h-3 w-3" />

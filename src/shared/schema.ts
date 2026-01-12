@@ -315,6 +315,76 @@ export const agentPricing = pgTable("agent_pricing", {
 }));
 
 // ============================================
+// DEALER PRICING TABLE
+// ============================================
+export const dealerPricing = pgTable("dealer_pricing", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  dealerId: varchar("dealer_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
+  dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }).notNull(),
+  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
+  dealerProfit: decimal("dealer_profit", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  dealerIdx: index("dealer_pricing_dealer_idx").on(table.dealerId),
+  bundleIdx: index("dealer_pricing_bundle_idx").on(table.bundleId),
+  uniqueDealerBundle: index("dealer_pricing_unique").on(table.dealerId, table.bundleId),
+}));
+
+// ============================================
+// SUPER DEALER PRICING TABLE
+// ============================================
+export const superDealerPricing = pgTable("super_dealer_pricing", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  superDealerId: varchar("super_dealer_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
+  superDealerPrice: decimal("super_dealer_price", { precision: 10, scale: 2 }).notNull(),
+  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
+  superDealerProfit: decimal("super_dealer_profit", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  superDealerIdx: index("super_dealer_pricing_super_dealer_idx").on(table.superDealerId),
+  bundleIdx: index("super_dealer_pricing_bundle_idx").on(table.bundleId),
+  uniqueSuperDealerBundle: index("super_dealer_pricing_unique").on(table.superDealerId, table.bundleId),
+}));
+
+// ============================================
+// MASTER PRICING TABLE
+// ============================================
+export const masterPricing = pgTable("master_pricing", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  masterId: varchar("master_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
+  masterPrice: decimal("master_price", { precision: 10, scale: 2 }).notNull(),
+  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
+  masterProfit: decimal("master_profit", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  masterIdx: index("master_pricing_master_idx").on(table.masterId),
+  bundleIdx: index("master_pricing_bundle_idx").on(table.bundleId),
+  uniqueMasterBundle: index("master_pricing_unique").on(table.masterId, table.bundleId),
+}));
+
+// ============================================
+// ROLE BASE PRICES TABLE
+// ============================================
+export const roleBasePrices = pgTable("role_base_prices", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // admin, agent, dealer, super_dealer, master
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  bundleIdx: index("role_base_prices_bundle_idx").on(table.bundleId),
+  roleIdx: index("role_base_prices_role_idx").on(table.role),
+  uniqueBundleRole: index("role_base_prices_unique").on(table.bundleId, table.role),
+}));
+
+// ============================================
 // SUPPORT CHATS TABLE
 // ============================================
 export const supportChats = pgTable("support_chats", {
@@ -473,6 +543,30 @@ export const insertAgentSchema = createInsertSchema(agents).omit({
   totalProfit: true,
 });
 
+export const insertDealerPricingSchema = createInsertSchema(dealerPricing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSuperDealerPricingSchema = createInsertSchema(superDealerPricing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMasterPricingSchema = createInsertSchema(masterPricing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertRoleBasePricesSchema = createInsertSchema(roleBasePrices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertDataBundleSchema = createInsertSchema(dataBundles).omit({
   id: true,
   createdAt: true,
@@ -543,6 +637,18 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;
+
+export type InsertDealerPricing = z.infer<typeof insertDealerPricingSchema>;
+export type DealerPricing = typeof dealerPricing.$inferSelect;
+
+export type InsertSuperDealerPricing = z.infer<typeof insertSuperDealerPricingSchema>;
+export type SuperDealerPricing = typeof superDealerPricing.$inferSelect;
+
+export type InsertMasterPricing = z.infer<typeof insertMasterPricingSchema>;
+export type MasterPricing = typeof masterPricing.$inferSelect;
+
+export type InsertRoleBasePrices = z.infer<typeof insertRoleBasePricesSchema>;
+export type RoleBasePrices = typeof roleBasePrices.$inferSelect;
 
 export type InsertDataBundle = z.infer<typeof insertDataBundleSchema>;
 export type DataBundle = typeof dataBundles.$inferSelect;

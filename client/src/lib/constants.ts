@@ -3,6 +3,32 @@
 export const APP_NAME = "SMART DATA STORE GH";
 export const APP_DESCRIPTION = "Digital Products & Data Bundle Marketplace";
 
+export const ROLE_LABELS = {
+  admin: "Admin",
+  agent: "Agent",
+  dealer: "Dealer",
+  super_dealer: "Super Dealer",
+  master: "Master",
+  user: "User",
+  guest: "Guest",
+} as const;
+
+export const ROLE_ROUTES = {
+  admin: "/admin",
+  agent: "/agent/dashboard",
+  dealer: "/dealer/dashboard",
+  super_dealer: "/super-dealer/dashboard",
+  master: "/master/dashboard",
+  user: "/user/dashboard",
+} as const;
+
+export const STOREFRONT_ROUTES = {
+  agent: "/store/agent",
+  dealer: "/store/dealer",
+  super_dealer: "/store/super-dealer",
+  master: "/store/master",
+} as const;
+
 export const NETWORKS = [
   { id: "mtn", name: "MTN", color: "#FFCC00", textColor: "#000000" },
   { id: "telecel", name: "TELECEL", color: "#E60000", textColor: "#FFFFFF" },

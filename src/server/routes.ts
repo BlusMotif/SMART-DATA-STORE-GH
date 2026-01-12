@@ -12,6 +12,17 @@ import {
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack.js";
 import { fulfillDataBundleTransaction } from "./providers.js";
 
+// Role labels for storefront display
+const ROLE_LABELS = {
+  admin: "Admin",
+  agent: "Agent",
+  dealer: "Dealer",
+  super_dealer: "Super Dealer",
+  master: "Master",
+  user: "User",
+  guest: "Guest",
+} as const;
+
 // Process webhook events asynchronously
 async function processWebhookEvent(event: any) {
   if (event.event === "charge.success") {
@@ -1368,18 +1379,72 @@ export async function registerRoutes(
   // ============================================
   // STOREFRONT
   // ============================================
-  app.get("/api/store/:slug", async (req, res) => {
+  app.get("/api/store/:role/:slug", async (req, res) => {
     try {
-      const agent = await storage.getAgentBySlug(req.params.slug);
-      if (!agent || !agent.isApproved) {
-        return res.status(404).json({ error: "Store not found" });
+      const { role, slug } = req.params;
+      
+      // Validate role
+      const validRoles = ['agent', 'dealer', 'super_dealer', 'master'];
+      if (!validRoles.includes(role)) {
+        return res.status(404).json({ error: "Invalid store type" });
       }
 
-      const user = await storage.getUser(agent.userId);
-      // Load only agent-scoped products: use agent custom pricing entries
-      const customPricing = await storage.getAgentPricing(agent.id);
-      const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.agentPrice]));
+      let storeData: any = null;
+      let pricingFunction: (userId: string) => Promise<Array<{ bundleId: string; [key: string]: string }>> = storage.getAgentPricing;
+      let priceField: string;
 
+      if (role === 'agent') {
+        // Handle agent storefront
+        const agent = await storage.getAgentBySlug(slug);
+        if (!agent || !agent.isApproved) {
+          return res.status(404).json({ error: "Store not found" });
+        }
+
+        const user = await storage.getUser(agent.userId);
+        storeData = {
+          businessName: agent.businessName,
+          businessDescription: agent.businessDescription,
+          slug: agent.storefrontSlug,
+          whatsappSupportLink: agent.whatsappSupportLink,
+          whatsappChannelLink: agent.whatsappChannelLink,
+          role: 'agent'
+        };
+        pricingFunction = storage.getAgentPricing;
+        priceField = 'agentPrice';
+      } else {
+        // Handle dealer/super_dealer/master storefronts
+        const user = await storage.getUserBySlug(slug, role);
+        if (!user) {
+          return res.status(404).json({ error: "Store not found" });
+        }
+
+        storeData = {
+          businessName: `${user.name} (${ROLE_LABELS[role as keyof typeof ROLE_LABELS]})`,
+          businessDescription: `${ROLE_LABELS[role as keyof typeof ROLE_LABELS]} storefront`,
+          slug: slug,
+          role: role
+        };
+
+        if (role === 'dealer') {
+          pricingFunction = storage.getDealerPricing;
+          priceField = 'dealerPrice';
+        } else if (role === 'super_dealer') {
+          pricingFunction = storage.getSuperDealerPricing;
+          priceField = 'superDealerPrice';
+        } else if (role === 'master') {
+          pricingFunction = storage.getMasterPricing;
+          priceField = 'masterPrice';
+        }
+      }
+
+      // Get pricing data
+      const pricing = await pricingFunction(storeData.userId || storeData.id);
+      const pricingMap = new Map(pricing.map(p => [p.bundleId, p[priceField as keyof typeof p]]));
+
+      // Get all active data bundles
+      const allBundles = await storage.getDataBundles({ isActive: true });
+
+      // Get result checkers
       const currentYear = new Date().getFullYear();
       const resultCheckerStock = [];
       for (const year of [currentYear, currentYear - 1]) {
@@ -1387,7 +1452,6 @@ export async function registerRoutes(
           const available = await storage.getResultCheckerStock(type, year);
           if (available > 0) {
             const checker = await storage.getAvailableResultChecker(type, year);
-            // Agent selling price for checkers must be explicit; do NOT apply markup here.
             const basePrice = parseFloat(checker?.basePrice || "0");
             resultCheckerStock.push({
               type,
@@ -1400,20 +1464,27 @@ export async function registerRoutes(
       }
 
       res.json({
-        agent: {
-          businessName: agent.businessName,
-          businessDescription: agent.businessDescription,
-          slug: agent.storefrontSlug,
-          whatsappSupportLink: agent.whatsappSupportLink,
-          whatsappChannelLink: agent.whatsappChannelLink,
-        },
-        // Only expose agent-scoped products. Do NOT include admin prices.
-        dataBundles: await Promise.all(customPricing.map(async (p) => {
-          const b = await storage.getDataBundle(p.bundleId);
-          if (!b || !b.isActive) return null;
-          // price must come from agent-scoped source only: customPrice || agentPrice
-          const price = p.agentPrice ? parseFloat(p.agentPrice) : (b.agentPrice ? parseFloat(b.agentPrice) : null);
-          if (price === null) return null; // do not expose admin/base price here
+        store: storeData,
+        // Only expose role-scoped products
+        dataBundles: await Promise.all(allBundles.map(async (b) => {
+          // First check if role has custom selling price set
+          const customPrice = pricingMap.get(b.id);
+          let finalPrice: number;
+
+          if (customPrice) {
+            // Role has custom selling price set
+            finalPrice = parseFloat(customPrice as string);
+          } else {
+            // Fall back to role's base price
+            const roleBasePrice = await storage.getRoleBasePrice(b.id, role);
+            if (roleBasePrice) {
+              finalPrice = parseFloat(roleBasePrice);
+            } else {
+              // If no role base price, don't show the bundle
+              return null;
+            }
+          }
+
           return {
             id: b.id,
             name: b.name,
@@ -1422,10 +1493,9 @@ export async function registerRoutes(
             validity: b.validity,
             apiCode: b.apiCode,
             isActive: b.isActive,
-            price: price.toFixed(2),
+            price: finalPrice.toFixed(2),
           };
         })).then(arr => arr.filter(Boolean)),
-        resultCheckers: resultCheckerStock,
       });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load store" });
@@ -1924,8 +1994,10 @@ export async function registerRoutes(
           }
 
           amount += itemPrice;
-          const adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
-          computedAgentProfit += (itemPrice - adminPrice);
+          // Calculate profit as selling price - role base price
+          const roleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+          const basePrice = roleBasePrice ? parseFloat(roleBasePrice) : parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+          computedAgentProfit += (itemPrice - basePrice);
         }
 
         // store computed agent profit for later use
@@ -2057,26 +2129,28 @@ export async function registerRoutes(
           // For single orders, check custom pricing or apply markup
           else if (data.productType === ProductType.DATA_BUNDLE && data.productId) {
             const customPrice = await storage.getAgentPriceForBundle(agent.id, data.productId);
-            const adminPrice = parseFloat(product.adminPrice || product.basePrice || '0');
+            const agentBasePrice = await storage.getRoleBasePrice(data.productId, 'agent');
+            const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product.adminPrice || product.basePrice || '0');
             if (customPrice) {
               const agentSellingPrice = parseFloat(customPrice);
-              // Agent commission = selling price - admin price
-              agentProfit = agentSellingPrice - adminPrice;
+              // Agent profit = selling price - agent base price
+              agentProfit = agentSellingPrice - basePrice;
               amount = agentSellingPrice;
-              costPrice = parseFloat(product.basePrice);
+              costPrice = basePrice;
             } else {
-              // Use stored agentPrice if present; otherwise fall back to admin/base price
-              const agentSellingPrice = product.agentPrice ? parseFloat(product.agentPrice) : adminPrice;
-              agentProfit = agentSellingPrice - adminPrice;
+              // Use stored agentPrice if present; otherwise fall back to agent base price
+              const agentSellingPrice = product.agentPrice ? parseFloat(product.agentPrice) : basePrice;
+              agentProfit = agentSellingPrice - basePrice;
               amount = agentSellingPrice;
-              costPrice = parseFloat(product.basePrice);
+              costPrice = basePrice;
             }
           } else {
             // For result checkers, agent selling price equals amount (no extra markup).
-            const adminPrice = parseFloat(product.basePrice || '0');
-            agentProfit = amount - adminPrice;
+            const agentBasePrice = await storage.getRoleBasePrice(data.productId!, 'agent');
+            const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product.basePrice || '0');
+            agentProfit = amount - basePrice;
             // amount remains as provided
-            costPrice = 0;
+            costPrice = basePrice;
           }
         }
       }
@@ -2161,7 +2235,7 @@ export async function registerRoutes(
       // For orderItems format, amount is already the total
       const totalAmount = data.orderItems ? amount : (amount * numberOfRecipients);
       const totalCostPrice = 0;
-      const totalProfit = totalAmount;
+      const totalProfit = agentProfit * numberOfRecipients; // Actual profit = selling_price - base_price
       const totalAgentProfit = agentProfit * numberOfRecipients;
       
       console.log("[Checkout] ========== CALCULATED TOTALS ==========");
@@ -2987,6 +3061,64 @@ export async function registerRoutes(
     }
   }
 
+  // Admin wallet top-up
+  app.post("/api/admin/wallet/topup", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { userId, amount, reason } = req.body;
+
+      if (!userId || !amount) {
+        return res.status(400).json({ error: "User ID and amount are required" });
+      }
+
+      const topupAmount = parseFloat(amount);
+      if (isNaN(topupAmount) || topupAmount <= 0) {
+        return res.status(400).json({ error: "Invalid amount" });
+      }
+
+      // Get the user
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update user wallet balance
+      const updatedUser = await storage.updateUser(userId, {
+        walletBalance: (parseFloat(user.walletBalance || '0') + topupAmount).toFixed(2)
+      });
+
+      if (!updatedUser) {
+        throw new Error("Failed to update user wallet balance");
+      }
+
+      // Create a wallet topup transaction record
+      await storage.createTransaction({
+        reference: `WALLET_TOPUP_${Date.now()}_${userId}`,
+        type: "wallet_topup",
+        productId: null,
+        productName: `Admin Wallet Top-up${reason ? ` - ${reason}` : ''}`,
+        network: null,
+        amount: topupAmount.toFixed(2),
+        profit: "0.00",
+        customerPhone: user.phone || null,
+        customerEmail: user.email,
+        paymentMethod: "admin_manual",
+        status: TransactionStatus.COMPLETED,
+        paymentStatus: "completed",
+        agentId: null,
+        agentProfit: "0.00",
+      });
+
+      res.json({
+        success: true,
+        message: `Successfully topped up ${user.name}'s wallet with GHS ${topupAmount.toFixed(2)}`,
+        newBalance: updatedUser.walletBalance
+      });
+    } catch (error: any) {
+      console.error("Wallet topup error:", error);
+      res.status(500).json({ error: "Failed to top up wallet" });
+    }
+  });
+
   // Paystack Webhook Handler
   app.post("/api/paystack/webhook", async (req, res) => {
     try {
@@ -3453,7 +3585,17 @@ export async function registerRoutes(
       }
 
       const pricing = await storage.getAgentPricing(agent.id);
-      res.json(pricing);
+      
+      // Update adminBasePrice to use role base prices
+      const updatedPricing = await Promise.all(pricing.map(async (p) => {
+        const roleBasePrice = await storage.getRoleBasePrice(p.bundleId, 'agent');
+        return {
+          ...p,
+          adminBasePrice: roleBasePrice || p.adminBasePrice // fallback to stored value if not found
+        };
+      }));
+      
+      res.json(updatedPricing);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load pricing" });
     }
@@ -3481,13 +3623,17 @@ export async function registerRoutes(
       for (const [bundleId, priceData] of Object.entries(prices)) {
         const priceObj = priceData as { agentPrice?: string; adminBasePrice?: string; agentProfit?: string };
         
-        if (!priceObj.agentPrice || !priceObj.adminBasePrice || !priceObj.agentProfit) {
-          // Delete pricing if any field is missing
+        if (!priceObj.agentPrice || !priceObj.agentProfit) {
+          // Delete pricing if required fields are missing
           await storage.deleteAgentPricing(agent.id, bundleId);
         } else {
+          // Get the correct base price from roleBasePrices
+          const roleBasePrice = await storage.getRoleBasePrice(bundleId, 'agent');
+          const adminBasePrice = roleBasePrice || priceObj.adminBasePrice || '0';
+          
           // Validate prices
           const agentPriceNum = parseFloat(priceObj.agentPrice);
-          const adminBasePriceNum = parseFloat(priceObj.adminBasePrice);
+          const adminBasePriceNum = parseFloat(adminBasePrice);
           const agentProfitNum = parseFloat(priceObj.agentProfit);
           
           if (isNaN(agentPriceNum) || isNaN(adminBasePriceNum) || isNaN(agentProfitNum) || 
@@ -3500,7 +3646,7 @@ export async function registerRoutes(
             continue; // Skip if calculation doesn't match
           }
 
-          await storage.setAgentPricing(agent.id, bundleId, priceObj.agentPrice, priceObj.adminBasePrice, priceObj.agentProfit);
+          await storage.setAgentPricing(agent.id, bundleId, priceObj.agentPrice, adminBasePrice, priceObj.agentProfit, dbUser.role);
         }
       }
 
@@ -3580,12 +3726,45 @@ export async function registerRoutes(
     }
   });
 
+  // Export transactions to CSV
   app.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const transactions = await storage.getTransactionsForExport();
-      res.json(transactions);
+      const { paymentStatus = 'all' } = req.query;
+
+      let paymentStatusFilter: string[] | undefined;
+      if (paymentStatus === 'paid') {
+        paymentStatusFilter = ['paid'];
+      } else if (paymentStatus === 'pending') {
+        paymentStatusFilter = ['pending'];
+      } else if (paymentStatus === 'all') {
+        paymentStatusFilter = undefined; // No filter
+      } else {
+        return res.status(400).json({ error: "Invalid payment status filter. Use 'paid', 'pending', or 'all'" });
+      }
+
+      const transactions = await storage.getTransactionsForExport(paymentStatusFilter);
+
+      const csvData = transactions.map(tx => ({
+        reference: tx.reference,
+        productName: tx.productName,
+        network: tx.network,
+        amount: tx.amount,
+        profit: tx.profit,
+        customerPhone: tx.customerPhone,
+        customerEmail: tx.customerEmail,
+        paymentStatus: tx.paymentStatus,
+        deliveryStatus: tx.deliveryStatus || "pending",
+        createdAt: tx.createdAt.toISOString(),
+        completedAt: tx.completedAt?.toISOString() || "",
+        phoneNumbers: (tx.phoneNumbers && Array.isArray(tx.phoneNumbers)) ?
+          tx.phoneNumbers.map((p: any) => p.phone).join("; ") :
+          "",
+        isBulkOrder: tx.isBulkOrder ? "Yes" : "No",
+      }));
+
+      res.json(csvData);
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to export transactions" });
+      res.status(500).json({ error: error.message || "Failed to export transactions" });
     }
   });
 
@@ -4390,34 +4569,7 @@ export async function registerRoutes(
     }
   });
 
-  // Export transactions to CSV
-  app.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const transactions = await storage.getTransactions();
 
-      const csvData = transactions.map(tx => ({
-        reference: tx.reference,
-        productName: tx.productName,
-        network: tx.network,
-        amount: tx.amount,
-        profit: tx.profit,
-        customerPhone: tx.customerPhone,
-        customerEmail: tx.customerEmail,
-        status: tx.status,
-        deliveryStatus: (tx as any).deliveryStatus || "pending",
-        createdAt: tx.createdAt.toISOString(),
-        completedAt: tx.completedAt?.toISOString() || "",
-        phoneNumbers: (tx as any).phoneNumbers ? 
-          (tx as any).phoneNumbers.map((p: any) => p.phone).join("; ") : 
-          "",
-        isBulkOrder: (tx as any).isBulkOrder ? "Yes" : "No",
-      }));
-
-      res.json(csvData);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to export transactions" });
-    }
-  });
 
   // ============================================
   // ADMIN - API CONFIGURATION

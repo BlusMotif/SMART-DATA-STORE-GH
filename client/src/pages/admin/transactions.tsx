@@ -25,6 +25,7 @@ export default function AdminTransactions() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingDeliveryStatus, setEditingDeliveryStatus] = useState<string | null>(null);
   const [deliveryStatusValue, setDeliveryStatusValue] = useState<string>("");
+  const [exportPaymentStatus, setExportPaymentStatus] = useState<string>("all");
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
@@ -51,14 +52,19 @@ export default function AdminTransactions() {
   // Export transactions mutation
   const exportTransactionsMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("GET", "/api/admin/transactions/export");
+      const params = new URLSearchParams();
+      if (exportPaymentStatus !== 'all') {
+        params.append('paymentStatus', exportPaymentStatus);
+      }
+      const response = await apiRequest("GET", `/api/admin/transactions/export?${params.toString()}`);
       return response;
     },
     onSuccess: (data) => {
       // Convert to CSV and download
       if (data && Array.isArray(data)) {
         const csvContent = convertToCSV(data);
-        downloadCSV(csvContent, `transactions-${new Date().toISOString().split('T')[0]}.csv`);
+        const statusLabel = exportPaymentStatus === 'all' ? 'all' : exportPaymentStatus;
+        downloadCSV(csvContent, `transactions-${statusLabel}-${new Date().toISOString().split('T')[0]}.csv`);
         toast({ title: "Transactions exported successfully" });
       }
     },
@@ -228,6 +234,16 @@ export default function AdminTransactions() {
                   </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Select value={exportPaymentStatus} onValueChange={setExportPaymentStatus}>
+                    <SelectTrigger className="w-40" data-testid="export-payment-status">
+                      <SelectValue placeholder="Export Filter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Payments</SelectItem>
+                      <SelectItem value="paid">Paid Only</SelectItem>
+                      <SelectItem value="pending">Pending Only</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     onClick={() => exportTransactionsMutation.mutate()}
                     disabled={exportTransactionsMutation.isPending}

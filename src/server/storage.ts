@@ -3,19 +3,22 @@ import { db } from "./db.js";
 import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, agentPricing, announcements, apiKeys,
+  supportChats, chatMessages, agentPricing, dealerPricing, superDealerPricing, masterPricing, roleBasePrices, announcements, apiKeys,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
   type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
-  type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey
+  type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
+  type DealerPricing, type InsertDealerPricing, type SuperDealerPricing, type InsertSuperDealerPricing,
+  type MasterPricing, type InsertMasterPricing, type RoleBasePrices, type InsertRoleBasePrices
 } from "../shared/schema.js";
 
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserBySlug(slug: string, role: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
@@ -58,7 +61,7 @@ export interface IStorage {
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
   updateTransactionDeliveryStatus(id: string, deliveryStatus: string): Promise<Transaction | undefined>;
-  getTransactionsForExport(): Promise<Pick<Transaction, "id" | "reference" | "productName" | "customerPhone" | "phoneNumbers" | "amount" | "deliveryStatus" | "createdAt">[]>;
+  getTransactionsForExport(paymentStatusFilter?: string[]): Promise<Pick<Transaction, "id" | "reference" | "productName" | "network" | "customerPhone" | "customerEmail" | "phoneNumbers" | "amount" | "profit" | "paymentStatus" | "deliveryStatus" | "createdAt" | "completedAt" | "isBulkOrder">[]>;
   getTransactionStats(agentId?: string): Promise<{ total: number; completed: number; pending: number; revenue: number; profit: number }>;
 
   // Withdrawals
@@ -96,12 +99,39 @@ export interface IStorage {
   getUnreadUserMessagesCount(userId: string): Promise<number>;
   getUnreadAdminMessagesCount(): Promise<number>;
 
+
   // Agent Pricing
   getAgentPricing(agentId: string): Promise<Array<{ bundleId: string; agentPrice: string; adminBasePrice: string; agentProfit: string }>>;
-  setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string): Promise<void>;
+  setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string, userRole: string): Promise<void>;
   deleteAgentPricing(agentId: string, bundleId: string): Promise<void>;
   getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null>;
   getAgentPricingForBundle(agentId: string, bundleId: string): Promise<{ agentPrice: string; adminBasePrice: string; agentProfit: string } | null>;
+
+  // Dealer Pricing
+  getDealerPricing(dealerId: string): Promise<Array<{ bundleId: string; dealerPrice: string; adminBasePrice: string; dealerProfit: string }>>;
+  setDealerPricing(dealerId: string, bundleId: string, dealerPrice: string, adminBasePrice: string, dealerProfit: string, userRole: string): Promise<void>;
+  deleteDealerPricing(dealerId: string, bundleId: string): Promise<void>;
+  getDealerPriceForBundle(dealerId: string, bundleId: string): Promise<string | null>;
+  getDealerPricingForBundle(dealerId: string, bundleId: string): Promise<{ dealerPrice: string; adminBasePrice: string; dealerProfit: string } | null>;
+
+  // Super Dealer Pricing
+  getSuperDealerPricing(superDealerId: string): Promise<Array<{ bundleId: string; superDealerPrice: string; adminBasePrice: string; superDealerProfit: string }>>;
+  setSuperDealerPricing(superDealerId: string, bundleId: string, superDealerPrice: string, adminBasePrice: string, superDealerProfit: string, userRole: string): Promise<void>;
+  deleteSuperDealerPricing(superDealerId: string, bundleId: string): Promise<void>;
+  getSuperDealerPriceForBundle(superDealerId: string, bundleId: string): Promise<string | null>;
+  getSuperDealerPricingForBundle(superDealerId: string, bundleId: string): Promise<{ superDealerPrice: string; adminBasePrice: string; superDealerProfit: string } | null>;
+
+  // Master Pricing
+  getMasterPricing(masterId: string): Promise<Array<{ bundleId: string; masterPrice: string; adminBasePrice: string; masterProfit: string }>>;
+  setMasterPricing(masterId: string, bundleId: string, masterPrice: string, adminBasePrice: string, masterProfit: string, userRole: string): Promise<void>;
+  deleteMasterPricing(masterId: string, bundleId: string): Promise<void>;
+  getMasterPriceForBundle(masterId: string, bundleId: string): Promise<string | null>;
+  getMasterPricingForBundle(masterId: string, bundleId: string): Promise<{ masterPrice: string; adminBasePrice: string; masterProfit: string } | null>;
+
+  // Role Base Prices
+  getRoleBasePrices(): Promise<Array<{ bundleId: string; role: string; basePrice: string }>>;
+  setRoleBasePrice(bundleId: string, role: string, basePrice: string, userRole: string): Promise<void>;
+  getRoleBasePrice(bundleId: string, role: string): Promise<string | null>;
 
   // Rankings
   getTopCustomers(limit?: number): Promise<Array<{
@@ -159,6 +189,21 @@ export class DatabaseStorage implements IStorage {
     }
     const result = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
     return result[0];
+  }
+
+  async getUserBySlug(slug: string, role: string): Promise<User | undefined> {
+    if (role === 'agent') {
+      // For agents, look up via agents table
+      const agent = await this.getAgentBySlug(slug);
+      if (agent) {
+        return this.getUser(agent.userId);
+      }
+      return undefined;
+    } else {
+      // For other roles, assume slug is user ID for now
+      // This will need to be updated when proper slug support is added
+      return this.getUser(slug);
+    }
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
@@ -424,18 +469,42 @@ export class DatabaseStorage implements IStorage {
     return query;
   }
 
-  async getTransactionsForExport(): Promise<Pick<Transaction, "id" | "reference" | "productName" | "customerPhone" | "phoneNumbers" | "amount" | "paymentStatus" | "deliveryStatus" | "createdAt">[]> {
-    return db.select({
-      id: transactions.id,
-      reference: transactions.reference,
-      productName: transactions.productName,
-      customerPhone: transactions.customerPhone,
-      phoneNumbers: transactions.phoneNumbers,
-      amount: transactions.amount,
-      paymentStatus: transactions.paymentStatus,
-      deliveryStatus: transactions.deliveryStatus,
-      createdAt: transactions.createdAt,
-    }).from(transactions).where(eq(transactions.type, "data_bundle")).orderBy(desc(transactions.createdAt));
+  async getTransactionsForExport(paymentStatusFilter?: string[]): Promise<Pick<Transaction, "id" | "reference" | "productName" | "network" | "customerPhone" | "customerEmail" | "phoneNumbers" | "amount" | "profit" | "paymentStatus" | "deliveryStatus" | "createdAt" | "completedAt" | "isBulkOrder">[]> {
+    if (paymentStatusFilter && paymentStatusFilter.length > 0) {
+      return db.select({
+        id: transactions.id,
+        reference: transactions.reference,
+        productName: transactions.productName,
+        network: transactions.network,
+        customerPhone: transactions.customerPhone,
+        customerEmail: transactions.customerEmail,
+        phoneNumbers: transactions.phoneNumbers,
+        amount: transactions.amount,
+        profit: transactions.profit,
+        paymentStatus: transactions.paymentStatus,
+        deliveryStatus: transactions.deliveryStatus,
+        createdAt: transactions.createdAt,
+        completedAt: transactions.completedAt,
+        isBulkOrder: transactions.isBulkOrder,
+      }).from(transactions).where(inArray(transactions.paymentStatus, paymentStatusFilter)).orderBy(desc(transactions.createdAt));
+    } else {
+      return db.select({
+        id: transactions.id,
+        reference: transactions.reference,
+        productName: transactions.productName,
+        network: transactions.network,
+        customerPhone: transactions.customerPhone,
+        customerEmail: transactions.customerEmail,
+        phoneNumbers: transactions.phoneNumbers,
+        amount: transactions.amount,
+        profit: transactions.profit,
+        paymentStatus: transactions.paymentStatus,
+        deliveryStatus: transactions.deliveryStatus,
+        createdAt: transactions.createdAt,
+        completedAt: transactions.completedAt,
+        isBulkOrder: transactions.isBulkOrder,
+      }).from(transactions).orderBy(desc(transactions.createdAt));
+    }
   }
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
@@ -777,7 +846,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string): Promise<void> {
+  async setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string, userRole: string): Promise<void> {
+    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
+    if (userRole !== 'admin' && adminBasePrice !== '') {
+      throw new Error('Only admin can modify admin base price');
+    }
+
     try {
       // Check if pricing exists
       const [existing] = await db.select()
@@ -791,14 +865,18 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (existing) {
-        // Update existing
+        // Update existing - only update fields based on user role
+        const updateData: any = { updatedAt: new Date() };
+        if (userRole === 'admin' || userRole === 'agent') {
+          updateData.agentPrice = agentPrice;
+          updateData.agentProfit = agentProfit;
+        }
+        if (userRole === 'admin') {
+          updateData.adminBasePrice = adminBasePrice;
+        }
+
         await db.update(agentPricing)
-          .set({ 
-            agentPrice, 
-            adminBasePrice,
-            agentProfit,
-            updatedAt: new Date() 
-          })
+          .set(updateData)
           .where(
             and(
               eq(agentPricing.agentId, agentId),
@@ -806,14 +884,20 @@ export class DatabaseStorage implements IStorage {
             )
           );
       } else {
-        // Insert new
-        await db.insert(agentPricing).values({
+        // Insert new - only insert allowed fields based on user role
+        const insertData: any = {
           agentId,
           bundleId,
-          agentPrice,
-          adminBasePrice,
-          agentProfit,
-        });
+        };
+        if (userRole === 'admin' || userRole === 'agent') {
+          insertData.agentPrice = agentPrice;
+          insertData.agentProfit = agentProfit;
+        }
+        if (userRole === 'admin') {
+          insertData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.insert(agentPricing).values(insertData);
       }
     } catch (error) {
       // Table might not exist yet, silently ignore
@@ -876,6 +960,495 @@ export class DatabaseStorage implements IStorage {
       adminBasePrice: result.adminBasePrice,
       agentProfit: result.agentProfit
     } : null;
+  }
+
+  // Dealer Pricing Methods
+  async getDealerPricing(dealerId: string): Promise<Array<{ bundleId: string; dealerPrice: string; adminBasePrice: string; dealerProfit: string }>> {
+    try {
+      const pricing = await db.select({
+        bundleId: dealerPricing.bundleId,
+        dealerPrice: dealerPricing.dealerPrice,
+        adminBasePrice: dealerPricing.adminBasePrice,
+        dealerProfit: dealerPricing.dealerProfit,
+      })
+        .from(dealerPricing)
+        .where(eq(dealerPricing.dealerId, dealerId));
+      
+      return pricing.map(p => ({
+        bundleId: p.bundleId,
+        dealerPrice: p.dealerPrice || "0",
+        adminBasePrice: p.adminBasePrice || "0",
+        dealerProfit: p.dealerProfit || "0",
+      }));
+    } catch (error) {
+      console.warn("Dealer pricing table not available:", error);
+      return [];
+    }
+  }
+
+  async setDealerPricing(dealerId: string, bundleId: string, dealerPrice: string, adminBasePrice: string, dealerProfit: string, userRole: string): Promise<void> {
+    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
+    if (userRole !== 'admin' && adminBasePrice !== '') {
+      throw new Error('Only admin can modify admin base price');
+    }
+
+    try {
+      const [existing] = await db.select()
+        .from(dealerPricing)
+        .where(
+          and(
+            eq(dealerPricing.dealerId, dealerId),
+            eq(dealerPricing.bundleId, bundleId)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        // Update existing - only update fields based on user role
+        const updateData: any = { updatedAt: new Date() };
+        if (userRole === 'admin' || userRole === 'dealer') {
+          updateData.dealerPrice = dealerPrice;
+          updateData.dealerProfit = dealerProfit;
+        }
+        if (userRole === 'admin') {
+          updateData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.update(dealerPricing)
+          .set(updateData)
+          .where(
+            and(
+              eq(dealerPricing.dealerId, dealerId),
+              eq(dealerPricing.bundleId, bundleId)
+            )
+          );
+      } else {
+        // Insert new - only insert allowed fields based on user role
+        const insertData: any = {
+          dealerId,
+          bundleId,
+        };
+        if (userRole === 'admin' || userRole === 'dealer') {
+          insertData.dealerPrice = dealerPrice;
+          insertData.dealerProfit = dealerProfit;
+        }
+        if (userRole === 'admin') {
+          insertData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.insert(dealerPricing).values(insertData);
+      }
+    } catch (error) {
+      console.warn("Dealer pricing table not available for update:", error);
+    }
+  }
+
+  async deleteDealerPricing(dealerId: string, bundleId: string): Promise<void> {
+    try {
+      await db.delete(dealerPricing)
+        .where(
+          and(
+            eq(dealerPricing.dealerId, dealerId),
+            eq(dealerPricing.bundleId, bundleId)
+          )
+        );
+    } catch (error) {
+      console.warn("Dealer pricing table not available for delete:", error);
+    }
+  }
+
+  async getDealerPriceForBundle(dealerId: string, bundleId: string): Promise<string | null> {
+    try {
+      const [result] = await db.select({ dealerPrice: dealerPricing.dealerPrice })
+        .from(dealerPricing)
+        .where(
+          and(
+            eq(dealerPricing.dealerId, dealerId),
+            eq(dealerPricing.bundleId, bundleId)
+          )
+        )
+        .limit(1);
+      
+      return result?.dealerPrice || null;
+    } catch (error) {
+      console.warn("Dealer pricing table not available for price lookup:", error);
+      return null;
+    }
+  }
+
+  async getDealerPricingForBundle(dealerId: string, bundleId: string): Promise<{ dealerPrice: string; adminBasePrice: string; dealerProfit: string } | null> {
+    const [result] = await db.select({
+      dealerPrice: dealerPricing.dealerPrice,
+      adminBasePrice: dealerPricing.adminBasePrice,
+      dealerProfit: dealerPricing.dealerProfit
+    })
+      .from(dealerPricing)
+      .where(
+        and(
+          eq(dealerPricing.dealerId, dealerId),
+          eq(dealerPricing.bundleId, bundleId)
+        )
+      )
+      .limit(1);
+    
+    return result ? {
+      dealerPrice: result.dealerPrice,
+      adminBasePrice: result.adminBasePrice,
+      dealerProfit: result.dealerProfit
+    } : null;
+  }
+
+  // Super Dealer Pricing Methods
+  async getSuperDealerPricing(superDealerId: string): Promise<Array<{ bundleId: string; superDealerPrice: string; adminBasePrice: string; superDealerProfit: string }>> {
+    try {
+      const pricing = await db.select({
+        bundleId: superDealerPricing.bundleId,
+        superDealerPrice: superDealerPricing.superDealerPrice,
+        adminBasePrice: superDealerPricing.adminBasePrice,
+        superDealerProfit: superDealerPricing.superDealerProfit,
+      })
+        .from(superDealerPricing)
+        .where(eq(superDealerPricing.superDealerId, superDealerId));
+      
+      return pricing.map(p => ({
+        bundleId: p.bundleId,
+        superDealerPrice: p.superDealerPrice || "0",
+        adminBasePrice: p.adminBasePrice || "0",
+        superDealerProfit: p.superDealerProfit || "0",
+      }));
+    } catch (error) {
+      console.warn("Super Dealer pricing table not available:", error);
+      return [];
+    }
+  }
+
+  async setSuperDealerPricing(superDealerId: string, bundleId: string, superDealerPrice: string, adminBasePrice: string, superDealerProfit: string, userRole: string): Promise<void> {
+    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
+    if (userRole !== 'admin' && adminBasePrice !== '') {
+      throw new Error('Only admin can modify admin base price');
+    }
+
+    try {
+      const [existing] = await db.select()
+        .from(superDealerPricing)
+        .where(
+          and(
+            eq(superDealerPricing.superDealerId, superDealerId),
+            eq(superDealerPricing.bundleId, bundleId)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        // Update existing - only update fields based on user role
+        const updateData: any = { updatedAt: new Date() };
+        if (userRole === 'admin' || userRole === 'super_dealer') {
+          updateData.superDealerPrice = superDealerPrice;
+          updateData.superDealerProfit = superDealerProfit;
+        }
+        if (userRole === 'admin') {
+          updateData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.update(superDealerPricing)
+          .set(updateData)
+          .where(
+            and(
+              eq(superDealerPricing.superDealerId, superDealerId),
+              eq(superDealerPricing.bundleId, bundleId)
+            )
+          );
+      } else {
+        // Insert new - only insert allowed fields based on user role
+        const insertData: any = {
+          superDealerId,
+          bundleId,
+        };
+        if (userRole === 'admin' || userRole === 'super_dealer') {
+          insertData.superDealerPrice = superDealerPrice;
+          insertData.superDealerProfit = superDealerProfit;
+        }
+        if (userRole === 'admin') {
+          insertData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.insert(superDealerPricing).values(insertData);
+      }
+    } catch (error) {
+      console.warn("SuperDealer pricing table not available for update:", error);
+    }
+  }
+
+  async deleteSuperDealerPricing(superDealerId: string, bundleId: string): Promise<void> {
+    try {
+      await db.delete(superDealerPricing)
+        .where(
+          and(
+            eq(superDealerPricing.superDealerId, superDealerId),
+            eq(superDealerPricing.bundleId, bundleId)
+          )
+        );
+    } catch (error) {
+      console.warn("Super Dealer pricing table not available for delete:", error);
+    }
+  }
+
+  async getSuperDealerPriceForBundle(superDealerId: string, bundleId: string): Promise<string | null> {
+    try {
+      const [result] = await db.select({ superDealerPrice: superDealerPricing.superDealerPrice })
+        .from(superDealerPricing)
+        .where(
+          and(
+            eq(superDealerPricing.superDealerId, superDealerId),
+            eq(superDealerPricing.bundleId, bundleId)
+          )
+        )
+        .limit(1);
+      
+      return result?.superDealerPrice || null;
+    } catch (error) {
+      console.warn("Super Dealer pricing table not available for price lookup:", error);
+      return null;
+    }
+  }
+
+  async getSuperDealerPricingForBundle(superDealerId: string, bundleId: string): Promise<{ superDealerPrice: string; adminBasePrice: string; superDealerProfit: string } | null> {
+    const [result] = await db.select({
+      superDealerPrice: superDealerPricing.superDealerPrice,
+      adminBasePrice: superDealerPricing.adminBasePrice,
+      superDealerProfit: superDealerPricing.superDealerProfit
+    })
+      .from(superDealerPricing)
+      .where(
+        and(
+          eq(superDealerPricing.superDealerId, superDealerId),
+          eq(superDealerPricing.bundleId, bundleId)
+        )
+      )
+      .limit(1);
+    
+    return result ? {
+      superDealerPrice: result.superDealerPrice,
+      adminBasePrice: result.adminBasePrice,
+      superDealerProfit: result.superDealerProfit
+    } : null;
+  }
+
+  // Master Pricing Methods
+  async getMasterPricing(masterId: string): Promise<Array<{ bundleId: string; masterPrice: string; adminBasePrice: string; masterProfit: string }>> {
+    try {
+      const pricing = await db.select({
+        bundleId: masterPricing.bundleId,
+        masterPrice: masterPricing.masterPrice,
+        adminBasePrice: masterPricing.adminBasePrice,
+        masterProfit: masterPricing.masterProfit,
+      })
+        .from(masterPricing)
+        .where(eq(masterPricing.masterId, masterId));
+      
+      return pricing.map(p => ({
+        bundleId: p.bundleId,
+        masterPrice: p.masterPrice || "0",
+        adminBasePrice: p.adminBasePrice || "0",
+        masterProfit: p.masterProfit || "0",
+      }));
+    } catch (error) {
+      console.warn("Master pricing table not available:", error);
+      return [];
+    }
+  }
+
+  async setMasterPricing(masterId: string, bundleId: string, masterPrice: string, adminBasePrice: string, masterProfit: string, userRole: string): Promise<void> {
+    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
+    if (userRole !== 'admin' && adminBasePrice !== '') {
+      throw new Error('Only admin can modify admin base price');
+    }
+
+    try {
+      const [existing] = await db.select()
+        .from(masterPricing)
+        .where(
+          and(
+            eq(masterPricing.masterId, masterId),
+            eq(masterPricing.bundleId, bundleId)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        // Update existing - only update fields based on user role
+        const updateData: any = { updatedAt: new Date() };
+        if (userRole === 'admin' || userRole === 'master') {
+          updateData.masterPrice = masterPrice;
+          updateData.masterProfit = masterProfit;
+        }
+        if (userRole === 'admin') {
+          updateData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.update(masterPricing)
+          .set(updateData)
+          .where(
+            and(
+              eq(masterPricing.masterId, masterId),
+              eq(masterPricing.bundleId, bundleId)
+            )
+          );
+      } else {
+        // Insert new - only insert allowed fields based on user role
+        const insertData: any = {
+          masterId,
+          bundleId,
+        };
+        if (userRole === 'admin' || userRole === 'master') {
+          insertData.masterPrice = masterPrice;
+          insertData.masterProfit = masterProfit;
+        }
+        if (userRole === 'admin') {
+          insertData.adminBasePrice = adminBasePrice;
+        }
+
+        await db.insert(masterPricing).values(insertData);
+      }
+    } catch (error) {
+      console.warn("Master pricing table not available for update:", error);
+    }
+  }
+
+  async deleteMasterPricing(masterId: string, bundleId: string): Promise<void> {
+    try {
+      await db.delete(masterPricing)
+        .where(
+          and(
+            eq(masterPricing.masterId, masterId),
+            eq(masterPricing.bundleId, bundleId)
+          )
+        );
+    } catch (error) {
+      console.warn("Master pricing table not available for delete:", error);
+    }
+  }
+
+  async getMasterPriceForBundle(masterId: string, bundleId: string): Promise<string | null> {
+    try {
+      const [result] = await db.select({ masterPrice: masterPricing.masterPrice })
+        .from(masterPricing)
+        .where(
+          and(
+            eq(masterPricing.masterId, masterId),
+            eq(masterPricing.bundleId, bundleId)
+          )
+        )
+        .limit(1);
+      
+      return result?.masterPrice || null;
+    } catch (error) {
+      console.warn("Master pricing table not available for price lookup:", error);
+      return null;
+    }
+  }
+
+  async getMasterPricingForBundle(masterId: string, bundleId: string): Promise<{ masterPrice: string; adminBasePrice: string; masterProfit: string } | null> {
+    const [result] = await db.select({
+      masterPrice: masterPricing.masterPrice,
+      adminBasePrice: masterPricing.adminBasePrice,
+      masterProfit: masterPricing.masterProfit
+    })
+      .from(masterPricing)
+      .where(
+        and(
+          eq(masterPricing.masterId, masterId),
+          eq(masterPricing.bundleId, bundleId)
+        )
+      )
+      .limit(1);
+    
+    return result ? {
+      masterPrice: result.masterPrice,
+      adminBasePrice: result.adminBasePrice,
+      masterProfit: result.masterProfit
+    } : null;
+  }
+
+  // Role Base Prices Methods
+  async getRoleBasePrices(): Promise<Array<{ bundleId: string; role: string; basePrice: string }>> {
+    try {
+      const prices = await db.select({
+        bundleId: roleBasePrices.bundleId,
+        role: roleBasePrices.role,
+        basePrice: roleBasePrices.basePrice,
+      })
+        .from(roleBasePrices);
+      
+      return prices.map(p => ({
+        bundleId: p.bundleId,
+        role: p.role,
+        basePrice: p.basePrice || "0",
+      }));
+    } catch (error) {
+      console.warn("Role base prices table not available:", error);
+      return [];
+    }
+  }
+
+  async setRoleBasePrice(bundleId: string, role: string, basePrice: string, userRole: string): Promise<void> {
+    // ENFORCEMENT: Only admin can set role base prices
+    if (userRole !== 'admin') {
+      throw new Error('Only admin can set role base prices');
+    }
+
+    try {
+      const [existing] = await db.select()
+        .from(roleBasePrices)
+        .where(
+          and(
+            eq(roleBasePrices.bundleId, bundleId),
+            eq(roleBasePrices.role, role)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        await db.update(roleBasePrices)
+          .set({
+            basePrice,
+            updatedAt: new Date()
+          })
+          .where(
+            and(
+              eq(roleBasePrices.bundleId, bundleId),
+              eq(roleBasePrices.role, role)
+            )
+          );
+      } else {
+        await db.insert(roleBasePrices).values({
+          bundleId,
+          role,
+          basePrice,
+        });
+      }
+    } catch (error) {
+      console.warn("Role base prices table not available for update:", error);
+    }
+  }
+
+  async getRoleBasePrice(bundleId: string, role: string): Promise<string | null> {
+    try {
+      const [result] = await db.select({ basePrice: roleBasePrices.basePrice })
+        .from(roleBasePrices)
+        .where(
+          and(
+            eq(roleBasePrices.bundleId, bundleId),
+            eq(roleBasePrices.role, role)
+          )
+        )
+        .limit(1);
+      
+      return result?.basePrice || null;
+    } catch (error) {
+      console.warn("Role base prices table not available for lookup:", error);
+      return null;
+    }
   }
 
   // Rankings Methods

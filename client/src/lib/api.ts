@@ -53,7 +53,7 @@ export const api = {
     verify: (reference: string) => api.buildUrl(`/api/transactions/verify/${reference}`),
   },
 
-  store: (slug: string) => api.buildUrl(`/api/store/${slug}`),
+  store: (role: string, slug: string) => api.buildUrl(`/api/store/${role}/${slug}`),
 };
 
 // API request utility

@@ -68,7 +68,7 @@ export default function AgentStorefront() {
     refetchOnWindowFocus: true,
   });
 
-  const [customPrices, setCustomPrices] = useState<Record<string, { agentPrice: string; adminBasePrice: string; agentProfit: string }>>({});
+  const [customPrices, setCustomPrices] = useState<Record<string, { agentPrice: string; agentProfit: string }>>({});
 
   const form = useForm<StorefrontFormData>({
     resolver: zodResolver(storefrontSchema),
@@ -89,11 +89,10 @@ export default function AgentStorefront() {
 
   useEffect(() => {
     if (agentPricing && agentPricing.length > 0) {
-      const prices: Record<string, { agentPrice: string; adminBasePrice: string; agentProfit: string }> = {};
+      const prices: Record<string, { agentPrice: string; agentProfit: string }> = {};
       agentPricing.forEach((p) => {
         prices[p.bundleId] = {
           agentPrice: p.agentPrice,
-          adminBasePrice: p.adminBasePrice,
           agentProfit: p.agentProfit,
         };
       });
@@ -114,7 +113,7 @@ export default function AgentStorefront() {
   });
 
   const updatePricingMutation = useMutation({
-    mutationFn: (prices: Record<string, { agentPrice: string; adminBasePrice: string; agentProfit: string }>) =>
+    mutationFn: (prices: Record<string, { agentPrice: string; agentProfit: string }>) =>
       apiRequest("POST", "/api/agent/pricing", { prices }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agent/pricing"] });
@@ -133,7 +132,19 @@ export default function AgentStorefront() {
   };
 
   const handleSavePricing = () => {
-    updatePricingMutation.mutate(customPrices);
+    // Only send agentPrice and agentProfit, adminBasePrice is now read-only
+    const pricesToSend: Record<string, { agentPrice: string; agentProfit: string }> = {};
+    
+    Object.entries(customPrices).forEach(([bundleId, priceData]) => {
+      if (priceData.agentPrice && priceData.agentProfit) {
+        pricesToSend[bundleId] = {
+          agentPrice: priceData.agentPrice,
+          agentProfit: priceData.agentProfit
+        };
+      }
+    });
+    
+    updatePricingMutation.mutate(pricesToSend);
   };
 
   const copyStoreLink = () => {
@@ -151,7 +162,8 @@ export default function AgentStorefront() {
   };
 
   const getAdminBasePrice = (bundleId: string, bundleBasePrice: string) => {
-    if (customPrices[bundleId]) return customPrices[bundleId].adminBasePrice;
+    // For agents, adminBasePrice should be their role base price, not editable
+    // This is now fetched from the API and should be read-only
     const existing = agentPricing?.find((p) => p.bundleId === bundleId);
     return existing?.adminBasePrice || bundleBasePrice;
   };
@@ -356,21 +368,9 @@ export default function AgentStorefront() {
                               <Input
                                 type="number"
                                 step="0.01"
-                                placeholder={bundle.basePrice}
-                                value={customPrices[bundle.id]?.adminBasePrice || ""}
-                                onChange={(e) =>
-                                  setCustomPrices((prev) => ({
-                                    ...prev,
-                                    [bundle.id]: {
-                                      ...prev[bundle.id],
-                                      adminBasePrice: e.target.value,
-                                      agentProfit: prev[bundle.id]?.agentPrice && e.target.value ? 
-                                        (parseFloat(prev[bundle.id].agentPrice) - parseFloat(e.target.value)).toFixed(2) : 
-                                        prev[bundle.id]?.agentProfit || "",
-                                    },
-                                  }))
-                                }
-                                className="w-24 tabular-nums"
+                                value={adminBasePrice}
+                                readOnly
+                                className="w-24 tabular-nums bg-muted"
                                 data-testid={`input-admin-base-price-${bundle.id}`}
                               />
                             </TableCell>
@@ -386,8 +386,8 @@ export default function AgentStorefront() {
                                     [bundle.id]: {
                                       ...prev[bundle.id],
                                       agentPrice: e.target.value,
-                                      agentProfit: e.target.value && prev[bundle.id]?.adminBasePrice ? 
-                                        (parseFloat(e.target.value) - parseFloat(prev[bundle.id].adminBasePrice)).toFixed(2) : 
+                                      agentProfit: e.target.value ? 
+                                        (parseFloat(e.target.value) - parseFloat(adminBasePrice)).toFixed(2) : 
                                         prev[bundle.id]?.agentProfit || "",
                                     },
                                   }))

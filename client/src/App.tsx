@@ -60,6 +60,9 @@ import UserSupportPage from "@/pages/user/support";
 import UserVouchersPage from "@/pages/user/vouchers";
 import UserSettingsPage from "@/pages/user/settings";
 
+// Storefront
+import StorefrontPage from "@/pages/storefront";
+
 // API & Integrations
 import ApiIntegrationsPage from "@/pages/api-integrations";
 
@@ -86,13 +89,13 @@ function StorefrontGuard({ children }: { children: React.ReactNode }) {
     if (agentStore) {
       // If on root, immediately redirect to the agent store (fail-safe)
       if (location === "/") {
-        navigate(`/store/${agentStore}`);
+        navigate(`/store/agent/${agentStore}`);
         return;
       }
 
       // If trying to access non-allowed app routes, redirect back to the agent store
-      if (!isAllowedPath && !location.startsWith(`/store/${agentStore}`)) {
-        navigate(`/store/${agentStore}`);
+      if (!isAllowedPath && !location.startsWith(`/store/agent/${agentStore}`)) {
+        navigate(`/store/agent/${agentStore}`);
       }
     }
   }, [location, navigate]);
@@ -148,8 +151,8 @@ function Router() {
       <ProtectedRoute path="/admin/break-settings" component={AdminBreakSettings} requiredRole="admin" />
       <ProtectedRoute path="/admin/api-configuration" component={AdminApiConfiguration} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
-      <Route path="/store/:slug" component={AgentPublicStorefront} />
-      <Route path="/store/:slug/:network" component={AgentNetworkPurchasePage} />
+      <Route path="/store/:role/:slug" component={StorefrontPage} />
+      <Route path="/store/:role/:slug/:network" component={AgentNetworkPurchasePage} />
       <Route component={NotFound} />
     </Switch>
     </StorefrontGuard>

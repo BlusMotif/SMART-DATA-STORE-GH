@@ -60,7 +60,7 @@ export default defineConfig({
     host: true, // bind to all interfaces
     port: Number(process.env.CLIENT_PORT) || 5173,
     strictPort: true,
-    allowedHosts: ["smartdatastoregh.onrender.com", "localhost"],
+    allowedHosts: ["resellershubprogh.com", "localhost"],
     watch: { usePolling: true },
     fs: { strict: true, deny: ["**/.*"] },
   },

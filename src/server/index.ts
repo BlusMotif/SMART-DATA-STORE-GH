@@ -253,7 +253,7 @@ global.upload = upload;
 // Determine allowed frontend origin using environment variable or sensible defaults
 const FRONTEND_URL = process.env.APP_URL
   || (process.env.NODE_ENV === "production"
-    ? "https://smartdatastoregh.onrender.com"
+    ? "https://resellershubprogh.com"
     : `http://localhost:${process.env.PORT || 10000}`);
 
 app.use(cors({

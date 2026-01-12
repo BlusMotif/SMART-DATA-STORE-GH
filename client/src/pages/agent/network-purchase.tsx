@@ -140,7 +140,8 @@ export default function AgentNetworkPurchasePage() {
     if (!phoneNumbers?.trim() || !sortedBundles || !storeData?.store) return null;
     
     const lines = phoneNumbers.split('\n').filter(line => line.trim());
-    const markup = agent.agent.customPricingMarkup ? parseFloat(agent.agent.customPricingMarkup) : 0;
+    // Pricing is already resolved on the server side, no additional markup needed
+    const markup = 0;
     let total = 0;
     let count = 0;
     
@@ -522,7 +523,7 @@ export default function AgentNetworkPurchasePage() {
     );
   }
 
-  if (!agent) {
+  if (!storeData?.store) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-6 max-w-md">

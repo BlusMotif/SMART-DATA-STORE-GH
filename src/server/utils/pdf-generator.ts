@@ -21,7 +21,7 @@ export function generateResultCheckerPDF(data: ResultCheckerPDFData): Promise<Bu
         margin: 50,
         info: {
           Title: `${data.type.toUpperCase()} Result Checker ${data.year}`,
-          Author: 'Smart Data Store Ghana',
+          Author: 'resellershubprogh.com',
           Subject: 'Result Checker Credentials',
         }
       });
@@ -33,7 +33,7 @@ export function generateResultCheckerPDF(data: ResultCheckerPDFData): Promise<Bu
       doc.on('error', reject);
 
       // Header
-      doc.fontSize(24).font('Helvetica-Bold').text('SMART DATA STORE GHANA', { align: 'center' });
+      doc.fontSize(24).font('Helvetica-Bold').text('RESELLERSHUBPROGH.COM', { align: 'center' });
       doc.moveDown(0.5);
       doc.fontSize(18).font('Helvetica-Bold').text(`${data.type.toUpperCase()} RESULT CHECKER ${data.year}`, { align: 'center' });
       doc.moveDown(1);
@@ -90,7 +90,7 @@ export function generateResultCheckerPDF(data: ResultCheckerPDFData): Promise<Bu
         100, 450
       );
       doc.text(
-        '4. For support, contact Smart Data Store Ghana.',
+        '4. For support, contact resellershubprogh.com.',
         100, 465
       );
 

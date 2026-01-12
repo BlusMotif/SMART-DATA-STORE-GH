@@ -1,6 +1,6 @@
 {
-  "name": "SMART DATA STORE GH - Data & Result Checker",
-  "short_name": "SmartDataStore",
+  "name": "resellershubprogh.com - Data & Result Checker",
+  "short_name": "ResellersHubPro",
   "description": "Buy data bundles and WAEC result checkers instantly. Secure payments via Paystack.",
   "start_url": "/",
   "display": "standalone",

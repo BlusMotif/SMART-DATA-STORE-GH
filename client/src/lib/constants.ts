@@ -1,6 +1,6 @@
-// SMART DATA STORE GH Constants
+// resellershubprogh.com Constants
 
-export const APP_NAME = "SMART DATA STORE GH";
+export const APP_NAME = "resellershubprogh.com";
 export const APP_DESCRIPTION = "Digital Products & Data Bundle Marketplace";
 
 export const ROLE_LABELS = {

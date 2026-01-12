@@ -454,6 +454,23 @@ export const announcements = pgTable("announcements", {
 }));
 
 // ============================================
+// WALLET TOP-UP TRANSACTIONS TABLE
+// ============================================
+export const walletTopupTransactions = pgTable("wallet_topup_transactions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  adminId: varchar("admin_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  reason: text("reason"),
+  transactionId: varchar("transaction_id", { length: 36 }).references(() => transactions.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("wallet_topup_transactions_user_idx").on(table.userId),
+  adminIdx: index("wallet_topup_transactions_admin_idx").on(table.adminId),
+  transactionIdx: index("wallet_topup_transactions_transaction_idx").on(table.transactionId),
+}));
+
+// ============================================
 // SETTINGS TABLE
 // ============================================
 export const settings = pgTable("settings", {
@@ -622,6 +639,11 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
   updatedAt: true,
 });
 
+export const insertWalletTopupTransactionSchema = createInsertSchema(walletTopupTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertSettingsSchema = createInsertSchema(settings).omit({
   updatedAt: true,
 });
@@ -679,6 +701,9 @@ export type Announcement = typeof announcements.$inferSelect;
 
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
+
+export type InsertWalletTopupTransaction = z.infer<typeof insertWalletTopupTransactionSchema>;
+export type WalletTopupTransaction = typeof walletTopupTransactions.$inferSelect;
 
 // ============================================
 // VALIDATION SCHEMAS

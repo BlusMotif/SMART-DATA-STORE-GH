@@ -31,6 +31,21 @@ interface AgentProfileResponse {
   stats: any;
 }
 
+// Function to get ranking badge based on user role
+const getRankingBadge = (role: string) => {
+  const rankings = {
+    admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
+    master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
+    super_dealer: { label: "Super Dealer", variant: "secondary" as const, icon: "⭐" },
+    dealer: { label: "Dealer", variant: "outline" as const, icon: "💎" },
+    agent: { label: "Agent", variant: "outline" as const, icon: "🔹" },
+    user: { label: "User", variant: "outline" as const, icon: "👤" },
+    guest: { label: "Guest", variant: "outline" as const, icon: "👋" },
+  };
+
+  return rankings[role as keyof typeof rankings] || rankings.user;
+};
+
 const sidebarNavItems = [
   { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
   { title: "My Storefront", href: "/agent/storefront", icon: Store },
@@ -40,6 +55,7 @@ const sidebarNavItems = [
   { title: "AT BIG TIME Bundles", href: "/agent/bundles/at_bigtime", icon: Smartphone },
   { title: "TELECEL Bundles", href: "/agent/bundles/telecel", icon: Smartphone },
   { title: "Top Up Wallet", href: "/agent/wallet", icon: CreditCard },
+  { title: "Pricing Management", href: "/agent/pricing", icon: BarChart3 },
   { title: "API & Integrations", href: "/dashboard/api-integrations", icon: Code },
   { title: "Withdrawals", href: "/agent/withdrawals", icon: Wallet },
   { title: "Settings", href: "/agent/settings", icon: Settings },
@@ -131,6 +147,15 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">CT</div>
           <div className="flex flex-col">
             <span className="font-semibold text-sm">{agent?.businessName || APP_NAME}</span>
+            {user?.role && (
+              <Badge 
+                variant={getRankingBadge(user.role).variant} 
+                className="text-xs w-fit mt-1 px-2 py-0.5 h-5"
+              >
+                <span className="mr-1">{getRankingBadge(user.role).icon}</span>
+                {getRankingBadge(user.role).label}
+              </Badge>
+            )}
             <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Reseller Portal' : 'Reseller Portal'}</span>
           </div>
         </div>

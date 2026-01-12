@@ -3,7 +3,7 @@ import { db } from "./db.js";
 import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, agentPricing, dealerPricing, superDealerPricing, masterPricing, roleBasePrices, announcements, apiKeys,
+  supportChats, chatMessages, agentPricing, dealerPricing, superDealerPricing, masterPricing, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -11,7 +11,8 @@ import {
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
   type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
   type DealerPricing, type InsertDealerPricing, type SuperDealerPricing, type InsertSuperDealerPricing,
-  type MasterPricing, type InsertMasterPricing, type RoleBasePrices, type InsertRoleBasePrices
+  type MasterPricing, type InsertMasterPricing, type RoleBasePrices, type InsertRoleBasePrices,
+  type WalletTopupTransaction, type InsertWalletTopupTransaction
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -163,6 +164,10 @@ export interface IStorage {
   createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
   updateApiKey(id: string, data: Partial<ApiKey>): Promise<ApiKey | undefined>;
   deleteApiKey(id: string): Promise<boolean>;
+
+  // Wallet Top-up Transactions
+  createWalletTopupTransaction(topup: InsertWalletTopupTransaction): Promise<WalletTopupTransaction>;
+  getWalletTopupTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletTopupTransaction[]>;
 
   // Settings
   getSetting(key: string): Promise<string | undefined>;
@@ -847,12 +852,29 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string, userRole: string): Promise<void> {
-    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
-    if (userRole !== 'admin' && adminBasePrice !== '') {
-      throw new Error('Only admin can modify admin base price');
+    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
+    // Agents can only set their selling price, profit is calculated as selling_price - role_base_price
+
+    if (userRole !== 'admin' && userRole !== 'agent') {
+      throw new Error('Unauthorized to modify agent pricing');
     }
 
     try {
+      // Get the role base price for agents
+      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'agent');
+      if (!roleBasePrice) {
+        throw new Error('No base price set for agent role. Please contact admin.');
+      }
+
+      const basePriceNum = parseFloat(roleBasePrice);
+      const sellingPriceNum = parseFloat(agentPrice);
+      const calculatedProfit = sellingPriceNum - basePriceNum;
+
+      // Validate that selling price is not below base price
+      if (sellingPriceNum < basePriceNum) {
+        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
+      }
+
       // Check if pricing exists
       const [existing] = await db.select()
         .from(agentPricing)
@@ -865,18 +887,14 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (existing) {
-        // Update existing - only update fields based on user role
-        const updateData: any = { updatedAt: new Date() };
-        if (userRole === 'admin' || userRole === 'agent') {
-          updateData.agentPrice = agentPrice;
-          updateData.agentProfit = agentProfit;
-        }
-        if (userRole === 'admin') {
-          updateData.adminBasePrice = adminBasePrice;
-        }
-
+        // Update existing
         await db.update(agentPricing)
-          .set(updateData)
+          .set({
+            agentPrice: agentPrice,
+            adminBasePrice: roleBasePrice, // Store the role base price for reference
+            agentProfit: calculatedProfit.toFixed(2),
+            updatedAt: new Date()
+          })
           .where(
             and(
               eq(agentPricing.agentId, agentId),
@@ -884,24 +902,18 @@ export class DatabaseStorage implements IStorage {
             )
           );
       } else {
-        // Insert new - only insert allowed fields based on user role
-        const insertData: any = {
+        // Insert new
+        await db.insert(agentPricing).values({
           agentId,
           bundleId,
-        };
-        if (userRole === 'admin' || userRole === 'agent') {
-          insertData.agentPrice = agentPrice;
-          insertData.agentProfit = agentProfit;
-        }
-        if (userRole === 'admin') {
-          insertData.adminBasePrice = adminBasePrice;
-        }
-
-        await db.insert(agentPricing).values(insertData);
+          agentPrice: agentPrice,
+          adminBasePrice: roleBasePrice,
+          agentProfit: calculatedProfit.toFixed(2),
+        });
       }
     } catch (error) {
-      // Table might not exist yet, silently ignore
-      console.warn("Agent pricing table not available for update:", error);
+      console.warn("Agent pricing update error:", error);
+      throw error;
     }
   }
 
@@ -987,12 +999,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setDealerPricing(dealerId: string, bundleId: string, dealerPrice: string, adminBasePrice: string, dealerProfit: string, userRole: string): Promise<void> {
-    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
-    if (userRole !== 'admin' && adminBasePrice !== '') {
-      throw new Error('Only admin can modify admin base price');
+    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
+    // Dealers can only set their selling price, profit is calculated as selling_price - role_base_price
+
+    if (userRole !== 'admin' && userRole !== 'dealer') {
+      throw new Error('Unauthorized to modify dealer pricing');
     }
 
     try {
+      // Get the role base price for dealers
+      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'dealer');
+      if (!roleBasePrice) {
+        throw new Error('No base price set for dealer role. Please contact admin.');
+      }
+
+      const basePriceNum = parseFloat(roleBasePrice);
+      const sellingPriceNum = parseFloat(dealerPrice);
+      const calculatedProfit = sellingPriceNum - basePriceNum;
+
+      // Validate that selling price is not below base price
+      if (sellingPriceNum < basePriceNum) {
+        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
+      }
+
+      // Check if pricing exists
       const [existing] = await db.select()
         .from(dealerPricing)
         .where(
@@ -1004,18 +1034,14 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (existing) {
-        // Update existing - only update fields based on user role
-        const updateData: any = { updatedAt: new Date() };
-        if (userRole === 'admin' || userRole === 'dealer') {
-          updateData.dealerPrice = dealerPrice;
-          updateData.dealerProfit = dealerProfit;
-        }
-        if (userRole === 'admin') {
-          updateData.adminBasePrice = adminBasePrice;
-        }
-
+        // Update existing
         await db.update(dealerPricing)
-          .set(updateData)
+          .set({
+            dealerPrice: dealerPrice,
+            adminBasePrice: roleBasePrice, // Store the role base price for reference
+            dealerProfit: calculatedProfit.toFixed(2),
+            updatedAt: new Date()
+          })
           .where(
             and(
               eq(dealerPricing.dealerId, dealerId),
@@ -1023,23 +1049,18 @@ export class DatabaseStorage implements IStorage {
             )
           );
       } else {
-        // Insert new - only insert allowed fields based on user role
-        const insertData: any = {
+        // Insert new
+        await db.insert(dealerPricing).values({
           dealerId,
           bundleId,
-        };
-        if (userRole === 'admin' || userRole === 'dealer') {
-          insertData.dealerPrice = dealerPrice;
-          insertData.dealerProfit = dealerProfit;
-        }
-        if (userRole === 'admin') {
-          insertData.adminBasePrice = adminBasePrice;
-        }
-
-        await db.insert(dealerPricing).values(insertData);
+          dealerPrice: dealerPrice,
+          adminBasePrice: roleBasePrice,
+          dealerProfit: calculatedProfit.toFixed(2),
+        });
       }
     } catch (error) {
-      console.warn("Dealer pricing table not available for update:", error);
+      console.warn("Dealer pricing update error:", error);
+      throw error;
     }
   }
 
@@ -1123,12 +1144,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setSuperDealerPricing(superDealerId: string, bundleId: string, superDealerPrice: string, adminBasePrice: string, superDealerProfit: string, userRole: string): Promise<void> {
-    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
-    if (userRole !== 'admin' && adminBasePrice !== '') {
-      throw new Error('Only admin can modify admin base price');
+    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
+    // Super Dealers can only set their selling price, profit is calculated as selling_price - role_base_price
+
+    if (userRole !== 'admin' && userRole !== 'super_dealer') {
+      throw new Error('Unauthorized to modify super dealer pricing');
     }
 
     try {
+      // Get the role base price for super dealers
+      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'super_dealer');
+      if (!roleBasePrice) {
+        throw new Error('No base price set for super dealer role. Please contact admin.');
+      }
+
+      const basePriceNum = parseFloat(roleBasePrice);
+      const sellingPriceNum = parseFloat(superDealerPrice);
+      const calculatedProfit = sellingPriceNum - basePriceNum;
+
+      // Validate that selling price is not below base price
+      if (sellingPriceNum < basePriceNum) {
+        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
+      }
+
+      // Check if pricing exists
       const [existing] = await db.select()
         .from(superDealerPricing)
         .where(
@@ -1140,18 +1179,14 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (existing) {
-        // Update existing - only update fields based on user role
-        const updateData: any = { updatedAt: new Date() };
-        if (userRole === 'admin' || userRole === 'super_dealer') {
-          updateData.superDealerPrice = superDealerPrice;
-          updateData.superDealerProfit = superDealerProfit;
-        }
-        if (userRole === 'admin') {
-          updateData.adminBasePrice = adminBasePrice;
-        }
-
+        // Update existing
         await db.update(superDealerPricing)
-          .set(updateData)
+          .set({
+            superDealerPrice: superDealerPrice,
+            adminBasePrice: roleBasePrice, // Store the role base price for reference
+            superDealerProfit: calculatedProfit.toFixed(2),
+            updatedAt: new Date()
+          })
           .where(
             and(
               eq(superDealerPricing.superDealerId, superDealerId),
@@ -1159,23 +1194,18 @@ export class DatabaseStorage implements IStorage {
             )
           );
       } else {
-        // Insert new - only insert allowed fields based on user role
-        const insertData: any = {
+        // Insert new
+        await db.insert(superDealerPricing).values({
           superDealerId,
           bundleId,
-        };
-        if (userRole === 'admin' || userRole === 'super_dealer') {
-          insertData.superDealerPrice = superDealerPrice;
-          insertData.superDealerProfit = superDealerProfit;
-        }
-        if (userRole === 'admin') {
-          insertData.adminBasePrice = adminBasePrice;
-        }
-
-        await db.insert(superDealerPricing).values(insertData);
+          superDealerPrice: superDealerPrice,
+          adminBasePrice: roleBasePrice,
+          superDealerProfit: calculatedProfit.toFixed(2),
+        });
       }
     } catch (error) {
-      console.warn("SuperDealer pricing table not available for update:", error);
+      console.warn("Super Dealer pricing update error:", error);
+      throw error;
     }
   }
 
@@ -1259,12 +1289,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setMasterPricing(masterId: string, bundleId: string, masterPrice: string, adminBasePrice: string, masterProfit: string, userRole: string): Promise<void> {
-    // ENFORCEMENT: Only admin can set adminBasePrice, non-admins can only set their own selling price
-    if (userRole !== 'admin' && adminBasePrice !== '') {
-      throw new Error('Only admin can modify admin base price');
+    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
+    // Masters can only set their selling price, profit is calculated as selling_price - role_base_price
+
+    if (userRole !== 'admin' && userRole !== 'master') {
+      throw new Error('Unauthorized to modify master pricing');
     }
 
     try {
+      // Get the role base price for masters
+      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'master');
+      if (!roleBasePrice) {
+        throw new Error('No base price set for master role. Please contact admin.');
+      }
+
+      const basePriceNum = parseFloat(roleBasePrice);
+      const sellingPriceNum = parseFloat(masterPrice);
+      const calculatedProfit = sellingPriceNum - basePriceNum;
+
+      // Validate that selling price is not below base price
+      if (sellingPriceNum < basePriceNum) {
+        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
+      }
+
+      // Check if pricing exists
       const [existing] = await db.select()
         .from(masterPricing)
         .where(
@@ -1276,18 +1324,14 @@ export class DatabaseStorage implements IStorage {
         .limit(1);
 
       if (existing) {
-        // Update existing - only update fields based on user role
-        const updateData: any = { updatedAt: new Date() };
-        if (userRole === 'admin' || userRole === 'master') {
-          updateData.masterPrice = masterPrice;
-          updateData.masterProfit = masterProfit;
-        }
-        if (userRole === 'admin') {
-          updateData.adminBasePrice = adminBasePrice;
-        }
-
+        // Update existing
         await db.update(masterPricing)
-          .set(updateData)
+          .set({
+            masterPrice: masterPrice,
+            adminBasePrice: roleBasePrice, // Store the role base price for reference
+            masterProfit: calculatedProfit.toFixed(2),
+            updatedAt: new Date()
+          })
           .where(
             and(
               eq(masterPricing.masterId, masterId),
@@ -1295,23 +1339,18 @@ export class DatabaseStorage implements IStorage {
             )
           );
       } else {
-        // Insert new - only insert allowed fields based on user role
-        const insertData: any = {
+        // Insert new
+        await db.insert(masterPricing).values({
           masterId,
           bundleId,
-        };
-        if (userRole === 'admin' || userRole === 'master') {
-          insertData.masterPrice = masterPrice;
-          insertData.masterProfit = masterProfit;
-        }
-        if (userRole === 'admin') {
-          insertData.adminBasePrice = adminBasePrice;
-        }
-
-        await db.insert(masterPricing).values(insertData);
+          masterPrice: masterPrice,
+          adminBasePrice: roleBasePrice,
+          masterProfit: calculatedProfit.toFixed(2),
+        });
       }
     } catch (error) {
-      console.warn("Master pricing table not available for update:", error);
+      console.warn("Master pricing update error:", error);
+      throw error;
     }
   }
 
@@ -1564,6 +1603,26 @@ export class DatabaseStorage implements IStorage {
       value: setting.value,
       description: setting.description || undefined,
     }));
+  }
+
+  // ============================================
+  // WALLET TOP-UP TRANSACTIONS
+  // ============================================
+  async createWalletTopupTransaction(topup: InsertWalletTopupTransaction): Promise<WalletTopupTransaction> {
+    const [created] = await db.insert(walletTopupTransactions).values(topup).returning();
+    return created;
+  }
+
+  async getWalletTopupTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletTopupTransaction[]> {
+    const conditions = [];
+    if (filters?.userId) conditions.push(eq(walletTopupTransactions.userId, filters.userId));
+    if (filters?.adminId) conditions.push(eq(walletTopupTransactions.adminId, filters.adminId));
+
+    let query = db.select().from(walletTopupTransactions);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    return query.orderBy(desc(walletTopupTransactions.createdAt));
   }
 }
 

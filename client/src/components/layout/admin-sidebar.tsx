@@ -27,6 +27,21 @@ import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
 import siteLogo from "@assets/logo_1765774201026.png";
 
+// Function to get ranking badge based on user role
+const getRankingBadge = (role: string) => {
+  const rankings = {
+    admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
+    master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
+    super_dealer: { label: "Super Dealer", variant: "secondary" as const, icon: "⭐" },
+    dealer: { label: "Dealer", variant: "outline" as const, icon: "💎" },
+    agent: { label: "Agent", variant: "outline" as const, icon: "🔹" },
+    user: { label: "User", variant: "outline" as const, icon: "👤" },
+    guest: { label: "Guest", variant: "outline" as const, icon: "👋" },
+  };
+
+  return rankings[role as keyof typeof rankings] || rankings.user;
+};
+
 const sidebarNavItems = [
   {
     title: "Dashboard",
@@ -37,6 +52,11 @@ const sidebarNavItems = [
     title: "Data Bundles",
     href: "/admin/data-bundles",
     icon: Smartphone,
+  },
+  {
+    title: "Role Base Prices",
+    href: "/admin/role-base-prices",
+    icon: Settings,
   },
   {
     title: "Result Checkers",
@@ -136,6 +156,15 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
         />
         <div className="flex flex-col">
           <span className="font-semibold text-sm">{APP_NAME}</span>
+          {user?.role && (
+            <Badge 
+              variant={getRankingBadge(user.role).variant} 
+              className="text-xs w-fit mt-1 px-2 py-0.5 h-5"
+            >
+              <span className="mr-1">{getRankingBadge(user.role).icon}</span>
+              {getRankingBadge(user.role).label}
+            </Badge>
+          )}
           <span className="text-xs text-muted-foreground">Admin Panel</span>
         </div>
       </div>

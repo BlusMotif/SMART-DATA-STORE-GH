@@ -14,12 +14,28 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { APP_NAME } from "@/lib/constants";
 import siteLogo from "@assets/logo_1765774201026.png";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+
+// Function to get ranking badge based on user role
+const getRankingBadge = (role: string) => {
+  const rankings = {
+    admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
+    master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
+    super_dealer: { label: "Super Dealer", variant: "secondary" as const, icon: "⭐" },
+    dealer: { label: "Dealer", variant: "outline" as const, icon: "💎" },
+    agent: { label: "Agent", variant: "outline" as const, icon: "🔹" },
+    user: { label: "User", variant: "outline" as const, icon: "👤" },
+    guest: { label: "Guest", variant: "outline" as const, icon: "👋" },
+  };
+
+  return rankings[role as keyof typeof rankings] || rankings.user;
+};
 
 const sidebarNavItems = [
   {
@@ -109,6 +125,15 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
             <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            {user?.role && (
+              <Badge 
+                variant={getRankingBadge(user.role).variant} 
+                className="text-xs w-fit mt-1 px-2 py-0.5 h-5"
+              >
+                <span className="mr-1">{getRankingBadge(user.role).icon}</span>
+                {getRankingBadge(user.role).label}
+              </Badge>
+            )}
           </div>
         </div>
         {/* Rank Badge */}

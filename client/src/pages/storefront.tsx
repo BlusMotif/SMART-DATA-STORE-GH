@@ -49,8 +49,8 @@ export default function StorefrontPage() {
 
   // Handle product navigation
   const navigateToProduct = (network: string) => {
-    console.log(`Navigating to: /products/${network}?agent=${slug}`);
-    setLocation(`/products/${network}?agent=${slug}`);
+    console.log(`Navigating to: /store/${role}/${slug}/${network}`);
+    setLocation(`/store/${role}/${slug}/${network}`);
   };
 
   const { data, isLoading, error } = useQuery<StorefrontData>({

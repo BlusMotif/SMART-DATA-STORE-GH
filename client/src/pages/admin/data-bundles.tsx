@@ -15,11 +15,13 @@ import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, NETWORKS } from "@/lib/constants";
-import { Plus, Pencil, Trash2, Smartphone, Menu } from "lucide-react";
+import { Plus, Pencil, Trash2, Smartphone, Menu, AlertTriangle } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function AdminDataBundles() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBundle, setEditingBundle] = useState<DataBundle | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -28,6 +30,11 @@ export default function AdminDataBundles() {
     queryKey: ["/api/admin/data-bundles"],
     refetchInterval: 60000, // Refetch every minute for product data
     refetchOnWindowFocus: true,
+  });
+
+  const { data: roleBasePrices } = useQuery<Array<{ bundleId: string; role: string; basePrice: string }>>({
+    queryKey: ["/api/admin/role-base-prices"],
+    enabled: user?.role === 'admin',
   });
 
   const createMutation = useMutation({
@@ -56,17 +63,10 @@ export default function AdminDataBundles() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      apiRequest("DELETE", `/api/admin/data-bundles/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/data-bundles"] });
-      toast({ title: "Data bundle deleted successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to delete bundle", description: error.message, variant: "destructive" });
-    },
-  });
+  const getRoleBasePrice = (bundleId: string, role: string) => {
+    const price = roleBasePrices?.find(p => p.bundleId === bundleId && p.role === role);
+    return price ? formatCurrency(price.basePrice) : '-';
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -142,11 +142,11 @@ export default function AdminDataBundles() {
                         <TableHead>Data</TableHead>
                         <TableHead>Validity</TableHead>
                         <TableHead>Base Price</TableHead>
-                        <TableHead>Agent</TableHead>
-                        <TableHead>Dealer</TableHead>
-                        <TableHead>Super Dealer</TableHead>
-                        <TableHead>Master</TableHead>
-                        <TableHead>Admin</TableHead>
+                        <TableHead>Agent Base</TableHead>
+                        <TableHead>Dealer Base</TableHead>
+                        <TableHead>Super Dealer Base</TableHead>
+                        <TableHead>Master Base</TableHead>
+                        <TableHead>Admin Price</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -173,16 +173,16 @@ export default function AdminDataBundles() {
                               {formatCurrency(bundle.basePrice)}
                             </TableCell>
                             <TableCell className="tabular-nums">
-                              {bundle.agentPrice ? formatCurrency(bundle.agentPrice) : '-'}
+                              {getRoleBasePrice(bundle.id, 'agent')}
                             </TableCell>
                             <TableCell className="tabular-nums">
-                              {bundle.dealerPrice ? formatCurrency(bundle.dealerPrice) : '-'}
+                              {getRoleBasePrice(bundle.id, 'dealer')}
                             </TableCell>
                             <TableCell className="tabular-nums">
-                              {bundle.superDealerPrice ? formatCurrency(bundle.superDealerPrice) : '-'}
+                              {getRoleBasePrice(bundle.id, 'super_dealer')}
                             </TableCell>
                             <TableCell className="tabular-nums">
-                              {bundle.masterPrice ? formatCurrency(bundle.masterPrice) : '-'}
+                              {getRoleBasePrice(bundle.id, 'master')}
                             </TableCell>
                             <TableCell className="tabular-nums">
                               {bundle.adminPrice ? formatCurrency(bundle.adminPrice) : '-'}
@@ -259,16 +259,13 @@ function BundleForm({
   onSubmit: (data: Partial<DataBundle>) => void;
   isLoading: boolean;
 }) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: bundle?.name || "",
     network: bundle?.network || "mtn",
     dataAmount: bundle?.dataAmount || "",
     validity: bundle?.validity || "",
     basePrice: bundle?.basePrice || "",
-    agentPrice: bundle?.agentPrice || "",
-    dealerPrice: bundle?.dealerPrice || "",
-    superDealerPrice: bundle?.superDealerPrice || "",
-    masterPrice: bundle?.masterPrice || "",
     adminPrice: bundle?.adminPrice || "",
     isActive: bundle?.isActive ?? true,
   });
@@ -280,10 +277,6 @@ function BundleForm({
     const processedData = {
       ...formData,
       basePrice: formData.basePrice === "" ? null : formData.basePrice,
-      agentPrice: formData.agentPrice === "" ? null : formData.agentPrice,
-      dealerPrice: formData.dealerPrice === "" ? null : formData.dealerPrice,
-      superDealerPrice: formData.superDealerPrice === "" ? null : formData.superDealerPrice,
-      masterPrice: formData.masterPrice === "" ? null : formData.masterPrice,
       adminPrice: formData.adminPrice === "" ? null : formData.adminPrice,
     };
     
@@ -363,57 +356,6 @@ function BundleForm({
             data-testid="input-bundle-price"
           />
         </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="agentPrice">Agent Price (GHS)</Label>
-          <Input
-            id="agentPrice"
-            type="number"
-            step="0.01"
-            value={formData.agentPrice}
-            onChange={(e) => setFormData({ ...formData, agentPrice: e.target.value })}
-            placeholder="0.00"
-            data-testid="input-bundle-agent-price"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="dealerPrice">Dealer Price (GHS)</Label>
-          <Input
-            id="dealerPrice"
-            type="number"
-            step="0.01"
-            value={formData.dealerPrice}
-            onChange={(e) => setFormData({ ...formData, dealerPrice: e.target.value })}
-            placeholder="0.00"
-            data-testid="input-bundle-dealer-price"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="superDealerPrice">Super Dealer Price (GHS)</Label>
-          <Input
-            id="superDealerPrice"
-            type="number"
-            step="0.01"
-            value={formData.superDealerPrice}
-            onChange={(e) => setFormData({ ...formData, superDealerPrice: e.target.value })}
-            placeholder="0.00"
-            data-testid="input-bundle-super-dealer-price"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="masterPrice">Master Price (GHS)</Label>
-          <Input
-            id="masterPrice"
-            type="number"
-            step="0.01"
-            value={formData.masterPrice}
-            onChange={(e) => setFormData({ ...formData, masterPrice: e.target.value })}
-            placeholder="0.00"
-            data-testid="input-bundle-master-price"
-          />
-        </div>
         <div className="space-y-2">
           <Label htmlFor="adminPrice">Admin Price (GHS)</Label>
           <Input
@@ -427,6 +369,22 @@ function BundleForm({
           />
         </div>
       </div>
+
+      {user?.role === 'admin' && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-blue-900">Role-Based Pricing System</p>
+              <p className="text-blue-700 mt-1">
+                Role-specific base prices are now managed separately. Use the "Role Base Prices" section
+                in the admin panel to set minimum prices for each role (agent, dealer, super_dealer, master).
+                Roles can then set their own profit margins above these base prices.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Per-bundle API selection removed; system-wide API configuration used instead */}
 

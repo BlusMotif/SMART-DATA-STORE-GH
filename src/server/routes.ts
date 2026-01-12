@@ -7,7 +7,8 @@ import * as jwt from "jsonwebtoken";
 import multer from "multer";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
-  UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker
+  UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker,
+  users, walletTopupTransactions, auditLogs
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack.js";
 import { fulfillDataBundleTransaction } from "./providers.js";
@@ -1167,36 +1168,43 @@ export async function registerRoutes(
       let pricedBundles;
 
       if (agentSlug) {
-        // Handle agent storefront pricing
+        // Handle agent storefront pricing - use agent's custom selling prices
         const agent = await storage.getAgentBySlug(agentSlug);
         if (agent && agent.isApproved) {
           const customPricing = await storage.getAgentPricing(agent.id);
-          const pricingMap = new Map(customPricing.map(p => [p.bundleId, p.agentPrice]));
+          const pricingMap = new Map(customPricing.map(p => [p.bundleId, { price: p.agentPrice, profit: p.agentProfit }]));
 
-          // Enforce explicit agent_sell_price for every bundle in this network
-          const missing = bundles.filter(b => !pricingMap.has(b.id));
-          if (missing.length > 0) {
-            return res.status(500).json({ error: `Agent storefront error: missing agent_sell_price for ${missing.length} bundles. Please configure agent prices.` });
-          }
-
+          // For agent storefronts, use their selling prices (which include profit margins)
           pricedBundles = bundles.map(bundle => {
-            const customPrice = pricingMap.get(bundle.id) as string;
-            const sellingPrice = parseFloat(customPrice);
-            return {
-              ...bundle,
-              effective_price: sellingPrice.toFixed(2),
-            };
+            const pricing = pricingMap.get(bundle.id);
+            if (pricing) {
+              return {
+                ...bundle,
+                effective_price: pricing.price,
+                profit_margin: pricing.profit,
+              };
+            } else {
+              // Fallback to admin price if no custom pricing set
+              return {
+                ...bundle,
+                effective_price: parseFloat(bundle.adminPrice || bundle.basePrice || '0').toFixed(2),
+                profit_margin: '0.00',
+              };
+            }
           });
         } else {
           // Invalid agent, use admin price
           pricedBundles = bundles.map(bundle => ({
             ...bundle,
             effective_price: parseFloat(bundle.adminPrice || bundle.basePrice || '0').toFixed(2),
+            profit_margin: '0.00',
           }));
         }
       } else {
         // Check if user is authenticated to apply role-based pricing
         let userRole = 'guest';
+        let userId: string | undefined;
+
         try {
           const authHeader = req.headers.authorization;
           if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -1208,6 +1216,7 @@ export async function registerRoutes(
                 const dbUser = await storage.getUserByEmail(user.email);
                 if (dbUser) {
                   userRole = dbUser.role;
+                  userId = dbUser.id;
                 }
               }
             }
@@ -1217,30 +1226,51 @@ export async function registerRoutes(
           console.log('Auth check failed, treating as guest');
         }
 
-        // Apply role-based pricing
-        pricedBundles = bundles.map(bundle => {
-          let price = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+        // Apply role-based pricing using the new system
+        pricedBundles = await Promise.all(bundles.map(async (bundle) => {
+          let effectivePrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+          let profitMargin = '0.00';
 
-          // Apply role-based pricing
-          if (userRole === 'agent') {
-            price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
-          } else if (userRole === 'dealer' && bundle.dealerPrice) {
-            price = parseFloat(bundle.dealerPrice);
-          } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
-            price = parseFloat(bundle.superDealerPrice);
-          } else if (userRole === 'master' && bundle.masterPrice) {
-            price = parseFloat(bundle.masterPrice);
-          } else if (userRole === 'admin' && bundle.adminPrice) {
-            price = parseFloat(bundle.adminPrice);
+          if (userRole === 'agent' && userId) {
+            // Get agent's custom selling price
+            const agentPricing = await storage.getAgentPricingForBundle(userId, bundle.id);
+            if (agentPricing) {
+              effectivePrice = parseFloat(agentPricing.agentPrice);
+              profitMargin = agentPricing.agentProfit;
+            }
+          } else if (userRole === 'dealer' && userId) {
+            // Get dealer's custom selling price
+            const dealerPricing = await storage.getDealerPricingForBundle(userId, bundle.id);
+            if (dealerPricing) {
+              effectivePrice = parseFloat(dealerPricing.dealerPrice);
+              profitMargin = dealerPricing.dealerProfit;
+            }
+          } else if (userRole === 'super_dealer' && userId) {
+            // Get super dealer's custom selling price
+            const superDealerPricing = await storage.getSuperDealerPricingForBundle(userId, bundle.id);
+            if (superDealerPricing) {
+              effectivePrice = parseFloat(superDealerPricing.superDealerPrice);
+              profitMargin = superDealerPricing.superDealerProfit;
+            }
+          } else if (userRole === 'master' && userId) {
+            // Get master's custom selling price
+            const masterPricing = await storage.getMasterPricingForBundle(userId, bundle.id);
+            if (masterPricing) {
+              effectivePrice = parseFloat(masterPricing.masterPrice);
+              profitMargin = masterPricing.masterProfit;
+            }
+          } else if (userRole === 'admin') {
+            // Admin sees admin price (no profit margin for admin)
+            effectivePrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
+            profitMargin = '0.00';
           }
-
-          if (isNaN(price)) price = 0;
 
           return {
             ...bundle,
-            effective_price: price.toFixed(2),
+            effective_price: effectivePrice.toFixed(2),
+            profit_margin: profitMargin,
           };
-        });
+        }));
       }
 
       res.json(pricedBundles);
@@ -3071,8 +3101,8 @@ export async function registerRoutes(
       }
 
       const topupAmount = parseFloat(amount);
-      if (isNaN(topupAmount) || topupAmount <= 0) {
-        return res.status(400).json({ error: "Invalid amount" });
+      if (isNaN(topupAmount) || topupAmount <= 0 || topupAmount > 10000) {
+        return res.status(400).json({ error: "Invalid amount (must be between 0.01 and 10,000)" });
       }
 
       // Get the user
@@ -3081,41 +3111,55 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Update user wallet balance
-      const updatedUser = await storage.updateUser(userId, {
-        walletBalance: (parseFloat(user.walletBalance || '0') + topupAmount).toFixed(2)
-      });
-
-      if (!updatedUser) {
-        throw new Error("Failed to update user wallet balance");
+      // Validate admin role
+      if (req.user!.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
       }
 
-      // Create a wallet topup transaction record
-      await storage.createTransaction({
-        reference: `WALLET_TOPUP_${Date.now()}_${userId}`,
-        type: "wallet_topup",
-        productId: null,
-        productName: `Admin Wallet Top-up${reason ? ` - ${reason}` : ''}`,
-        network: null,
+      const adminId = req.user!.id;
+
+      // Update user wallet balance
+      const newBalance = (parseFloat(user.walletBalance || '0') + topupAmount).toFixed(2);
+      await storage.updateUser(userId, { walletBalance: newBalance });
+
+      // Create wallet topup transaction record
+      await storage.createWalletTopupTransaction({
+        userId,
+        adminId,
         amount: topupAmount.toFixed(2),
-        profit: "0.00",
-        customerPhone: user.phone || null,
-        customerEmail: user.email,
-        paymentMethod: "admin_manual",
-        status: TransactionStatus.COMPLETED,
-        paymentStatus: "completed",
-        agentId: null,
-        agentProfit: "0.00",
+        reason: reason || null,
+      });
+
+      // Create audit log
+      await storage.createAuditLog({
+        userId: adminId,
+        action: 'wallet_topup',
+        entityType: 'user',
+        entityId: userId,
+        oldValue: { walletBalance: user.walletBalance },
+        newValue: { walletBalance: newBalance, amount: topupAmount, reason },
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
       });
 
       res.json({
         success: true,
         message: `Successfully topped up ${user.name}'s wallet with GHS ${topupAmount.toFixed(2)}`,
-        newBalance: updatedUser.walletBalance
+        newBalance: (parseFloat(user.walletBalance || '0') + topupAmount).toFixed(2)
       });
     } catch (error: any) {
       console.error("Wallet topup error:", error);
       res.status(500).json({ error: "Failed to top up wallet" });
+    }
+  });
+
+  // Get wallet topup transactions
+  app.get("/api/admin/wallet/topup-transactions", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const transactions = await storage.getWalletTopupTransactions();
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load wallet topup transactions" });
     }
   });
 
@@ -3654,6 +3698,209 @@ export async function registerRoutes(
       res.json(updatedPricing);
     } catch (error: any) {
       console.error("Error updating pricing:", error);
+      res.status(500).json({ error: "Failed to update pricing" });
+    }
+  });
+
+  // Dealer Pricing Endpoints
+  app.get("/api/dealer/pricing", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== 'dealer') {
+        return res.status(403).json({ error: "Dealer access required" });
+      }
+
+      const pricing = await storage.getDealerPricing(req.user!.id);
+      
+      // Update adminBasePrice to use role base prices
+      const updatedPricing = await Promise.all(pricing.map(async (p) => {
+        const roleBasePrice = await storage.getRoleBasePrice(p.bundleId, 'dealer');
+        return {
+          ...p,
+          adminBasePrice: roleBasePrice || p.adminBasePrice
+        };
+      }));
+      
+      res.json(updatedPricing);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  app.post("/api/dealer/pricing", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== 'dealer') {
+        return res.status(403).json({ error: "Dealer access required" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      // Update or delete pricing for each bundle
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { dealerPrice?: string; adminBasePrice?: string; dealerProfit?: string };
+        
+        if (!priceObj.dealerPrice || !priceObj.dealerProfit) {
+          await storage.deleteDealerPricing(req.user!.id, bundleId);
+        } else {
+          const roleBasePrice = await storage.getRoleBasePrice(bundleId, 'dealer');
+          const adminBasePrice = roleBasePrice || priceObj.adminBasePrice || '0';
+          
+          const dealerPriceNum = parseFloat(priceObj.dealerPrice);
+          const adminBasePriceNum = parseFloat(adminBasePrice);
+          const dealerProfitNum = parseFloat(priceObj.dealerProfit);
+          
+          if (isNaN(dealerPriceNum) || isNaN(adminBasePriceNum) || isNaN(dealerProfitNum) || 
+              dealerPriceNum < 0 || adminBasePriceNum < 0 || dealerProfitNum < 0) {
+            continue;
+          }
+
+          if (Math.abs(dealerPriceNum - (adminBasePriceNum + dealerProfitNum)) > 0.01) {
+            continue;
+          }
+
+          await storage.setDealerPricing(req.user!.id, bundleId, priceObj.dealerPrice, adminBasePrice, priceObj.dealerProfit, req.user!.role!);
+        }
+      }
+
+      const updatedPricing = await storage.getDealerPricing(req.user!.id);
+      res.json(updatedPricing);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update pricing" });
+    }
+  });
+
+  // Super Dealer Pricing Endpoints
+  app.get("/api/super-dealer/pricing", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== 'super_dealer') {
+        return res.status(403).json({ error: "Super Dealer access required" });
+      }
+
+      const pricing = await storage.getSuperDealerPricing(req.user!.id);
+      
+      const updatedPricing = await Promise.all(pricing.map(async (p) => {
+        const roleBasePrice = await storage.getRoleBasePrice(p.bundleId, 'super_dealer');
+        return {
+          ...p,
+          adminBasePrice: roleBasePrice || p.adminBasePrice
+        };
+      }));
+      
+      res.json(updatedPricing);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  app.post("/api/super-dealer/pricing", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== 'super_dealer') {
+        return res.status(403).json({ error: "Super Dealer access required" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { superDealerPrice?: string; adminBasePrice?: string; superDealerProfit?: string };
+        
+        if (!priceObj.superDealerPrice || !priceObj.superDealerProfit) {
+          await storage.deleteSuperDealerPricing(req.user!.id, bundleId);
+        } else {
+          const roleBasePrice = await storage.getRoleBasePrice(bundleId, 'super_dealer');
+          const adminBasePrice = roleBasePrice || priceObj.adminBasePrice || '0';
+          
+          const superDealerPriceNum = parseFloat(priceObj.superDealerPrice);
+          const adminBasePriceNum = parseFloat(adminBasePrice);
+          const superDealerProfitNum = parseFloat(priceObj.superDealerProfit);
+          
+          if (isNaN(superDealerPriceNum) || isNaN(adminBasePriceNum) || isNaN(superDealerProfitNum) || 
+              superDealerPriceNum < 0 || adminBasePriceNum < 0 || superDealerProfitNum < 0) {
+            continue;
+          }
+
+          if (Math.abs(superDealerPriceNum - (adminBasePriceNum + superDealerProfitNum)) > 0.01) {
+            continue;
+          }
+
+          await storage.setSuperDealerPricing(req.user!.id, bundleId, priceObj.superDealerPrice, adminBasePrice, priceObj.superDealerProfit, req.user!.role!);
+        }
+      }
+
+      const updatedPricing = await storage.getSuperDealerPricing(req.user!.id);
+      res.json(updatedPricing);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to update pricing" });
+    }
+  });
+
+  // Master Pricing Endpoints
+  app.get("/api/master/pricing", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== 'master') {
+        return res.status(403).json({ error: "Master access required" });
+      }
+
+      const pricing = await storage.getMasterPricing(req.user!.id);
+      
+      const updatedPricing = await Promise.all(pricing.map(async (p) => {
+        const roleBasePrice = await storage.getRoleBasePrice(p.bundleId, 'master');
+        return {
+          ...p,
+          adminBasePrice: roleBasePrice || p.adminBasePrice
+        };
+      }));
+      
+      res.json(updatedPricing);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  app.post("/api/master/pricing", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== 'master') {
+        return res.status(403).json({ error: "Master access required" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { masterPrice?: string; adminBasePrice?: string; masterProfit?: string };
+        
+        if (!priceObj.masterPrice || !priceObj.masterProfit) {
+          await storage.deleteMasterPricing(req.user!.id, bundleId);
+        } else {
+          const roleBasePrice = await storage.getRoleBasePrice(bundleId, 'master');
+          const adminBasePrice = roleBasePrice || priceObj.adminBasePrice || '0';
+          
+          const masterPriceNum = parseFloat(priceObj.masterPrice);
+          const adminBasePriceNum = parseFloat(adminBasePrice);
+          const masterProfitNum = parseFloat(priceObj.masterProfit);
+          
+          if (isNaN(masterPriceNum) || isNaN(adminBasePriceNum) || isNaN(masterProfitNum) || 
+              masterPriceNum < 0 || adminBasePriceNum < 0 || masterProfitNum < 0) {
+            continue;
+          }
+
+          if (Math.abs(masterPriceNum - (adminBasePriceNum + masterProfitNum)) > 0.01) {
+            continue;
+          }
+
+          await storage.setMasterPricing(req.user!.id, bundleId, priceObj.masterPrice, adminBasePrice, priceObj.masterProfit, req.user!.role!);
+        }
+      }
+
+      const updatedPricing = await storage.getMasterPricing(req.user!.id);
+      res.json(updatedPricing);
+    } catch (error: any) {
       res.status(500).json({ error: "Failed to update pricing" });
     }
   });
@@ -4267,6 +4514,54 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to delete data bundle" });
+    }
+  });
+
+  // Admin - Role Base Prices Management
+  app.get("/api/admin/role-base-prices", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const roleBasePrices = await storage.getRoleBasePrices();
+      res.json(roleBasePrices);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load role base prices" });
+    }
+  });
+
+  app.post("/api/admin/role-base-prices", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { bundleId, role, basePrice } = req.body;
+
+      if (!bundleId || !role || !basePrice) {
+        return res.status(400).json({ error: "Bundle ID, role, and base price are required" });
+      }
+
+      const price = parseFloat(basePrice);
+      if (isNaN(price) || price < 0) {
+        return res.status(400).json({ error: "Invalid base price" });
+      }
+
+      // Validate role
+      const validRoles = ['agent', 'dealer', 'super_dealer', 'master'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
+      await storage.setRoleBasePrice(bundleId, role, price.toFixed(2), req.user!.role!);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to set role base price" });
+    }
+  });
+
+  app.delete("/api/admin/role-base-prices/:bundleId/:role", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { bundleId, role } = req.params;
+
+      // Remove the role base price by setting it to null/empty
+      await storage.setRoleBasePrice(bundleId, role, "0.00", req.user!.role!);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to delete role base price" });
     }
   });
 

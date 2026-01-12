@@ -81,7 +81,7 @@ interface ValidationResult {
 }
 
 export default function AgentNetworkPurchasePage() {
-  const { slug, network } = useParams<{ slug: string; network: string }>();
+  const { role, slug, network } = useParams<{ role: string; slug: string; network: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
@@ -101,8 +101,8 @@ export default function AgentNetworkPurchasePage() {
 
   // Fetch agent data
   const { data: agent, isLoading: agentLoading } = useQuery<{ agent: Agent & { user: { name: string } } }>({
-    queryKey: [`/api/store/${slug}`],
-    enabled: !!slug,
+    queryKey: [`/api/store/${role}/${slug}`],
+    enabled: !!role && !!slug,
   });
   // Agent-scoped products are provided via `/api/store/:slug` as `dataBundles` with `price`.
   const dataBundles = agent?.dataBundles || [];

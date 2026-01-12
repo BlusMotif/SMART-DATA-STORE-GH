@@ -3,7 +3,7 @@ import { db } from "./db.js";
 import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
+  supportChats, chatMessages, customPricing, adminBasePrices, announcements, apiKeys, walletTopupTransactions,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -11,7 +11,6 @@ import {
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
   type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
   type CustomPricing, type InsertCustomPricing, type AdminBasePrices, type InsertAdminBasePrices,
-  type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction
 } from "../shared/schema.js";
 
@@ -987,20 +986,54 @@ export class DatabaseStorage implements IStorage {
   }
   async getRoleBasePrices(): Promise<Array<{ bundleId: string; role: string; basePrice: string }>> {
     try {
-      const prices = await db.select({
-        bundleId: roleBasePrices.bundleId,
-        role: roleBasePrices.role,
-        basePrice: roleBasePrices.basePrice,
+      // Get all active data bundles with their pricing
+      const bundles = await db.select({
+        id: dataBundles.id,
+        basePrice: dataBundles.basePrice,
+        agentPrice: dataBundles.agentPrice,
+        dealerPrice: dataBundles.dealerPrice,
+        superDealerPrice: dataBundles.superDealerPrice,
+        masterPrice: dataBundles.masterPrice,
+        adminPrice: dataBundles.adminPrice,
       })
-        .from(roleBasePrices);
-      
-      return prices.map(p => ({
-        bundleId: p.bundleId,
-        role: p.role,
-        basePrice: p.basePrice || "0",
-      }));
+        .from(dataBundles)
+        .where(eq(dataBundles.isActive, true));
+
+      // Transform the data to match the expected format
+      const prices: Array<{ bundleId: string; role: string; basePrice: string }> = [];
+
+      bundles.forEach(bundle => {
+        // Add pricing for each role
+        prices.push({
+          bundleId: bundle.id,
+          role: 'admin',
+          basePrice: bundle.adminPrice || bundle.basePrice || "0",
+        });
+        prices.push({
+          bundleId: bundle.id,
+          role: 'agent',
+          basePrice: bundle.agentPrice || bundle.basePrice || "0",
+        });
+        prices.push({
+          bundleId: bundle.id,
+          role: 'dealer',
+          basePrice: bundle.dealerPrice || bundle.basePrice || "0",
+        });
+        prices.push({
+          bundleId: bundle.id,
+          role: 'super_dealer',
+          basePrice: bundle.superDealerPrice || bundle.basePrice || "0",
+        });
+        prices.push({
+          bundleId: bundle.id,
+          role: 'master',
+          basePrice: bundle.masterPrice || bundle.basePrice || "0",
+        });
+      });
+
+      return prices;
     } catch (error) {
-      console.warn("Role base prices table not available:", error);
+      console.warn("Error fetching role base prices from data bundles:", error);
       return [];
     }
   }
@@ -1012,55 +1045,84 @@ export class DatabaseStorage implements IStorage {
     }
 
     try {
-      const [existing] = await db.select()
-        .from(roleBasePrices)
-        .where(
-          and(
-            eq(roleBasePrices.bundleId, bundleId),
-            eq(roleBasePrices.role, role)
-          )
-        )
-        .limit(1);
-
-      if (existing) {
-        await db.update(roleBasePrices)
-          .set({
-            basePrice,
-            updatedAt: new Date()
-          })
-          .where(
-            and(
-              eq(roleBasePrices.bundleId, bundleId),
-              eq(roleBasePrices.role, role)
-            )
-          );
-      } else {
-        await db.insert(roleBasePrices).values({
-          bundleId,
-          role,
-          basePrice,
-        });
+      // Update the appropriate pricing column in the data bundles table based on role
+      switch (role) {
+        case 'admin':
+          await db.update(dataBundles)
+            .set({ adminPrice: basePrice })
+            .where(eq(dataBundles.id, bundleId));
+          break;
+        case 'agent':
+          await db.update(dataBundles)
+            .set({ agentPrice: basePrice })
+            .where(eq(dataBundles.id, bundleId));
+          break;
+        case 'dealer':
+          await db.update(dataBundles)
+            .set({ dealerPrice: basePrice })
+            .where(eq(dataBundles.id, bundleId));
+          break;
+        case 'super_dealer':
+          await db.update(dataBundles)
+            .set({ superDealerPrice: basePrice })
+            .where(eq(dataBundles.id, bundleId));
+          break;
+        case 'master':
+          await db.update(dataBundles)
+            .set({ masterPrice: basePrice })
+            .where(eq(dataBundles.id, bundleId));
+          break;
+        default:
+          throw new Error(`Invalid role: ${role}`);
       }
     } catch (error) {
-      console.warn("Role base prices table not available for update:", error);
+      console.warn("Error updating role base price in data bundles:", error);
+      throw error;
     }
   }
 
   async getRoleBasePrice(bundleId: string, role: string): Promise<string | null> {
     try {
-      const [result] = await db.select({ basePrice: roleBasePrices.basePrice })
-        .from(roleBasePrices)
-        .where(
-          and(
-            eq(roleBasePrices.bundleId, bundleId),
-            eq(roleBasePrices.role, role)
-          )
-        )
-        .limit(1);
-      
-      return result?.basePrice || null;
+      // Select the appropriate pricing column from the data bundles table based on role
+      let result;
+      switch (role) {
+        case 'admin':
+          [result] = await db.select({ price: dataBundles.adminPrice })
+            .from(dataBundles)
+            .where(eq(dataBundles.id, bundleId))
+            .limit(1);
+          break;
+        case 'agent':
+          [result] = await db.select({ price: dataBundles.agentPrice })
+            .from(dataBundles)
+            .where(eq(dataBundles.id, bundleId))
+            .limit(1);
+          break;
+        case 'dealer':
+          [result] = await db.select({ price: dataBundles.dealerPrice })
+            .from(dataBundles)
+            .where(eq(dataBundles.id, bundleId))
+            .limit(1);
+          break;
+        case 'super_dealer':
+          [result] = await db.select({ price: dataBundles.superDealerPrice })
+            .from(dataBundles)
+            .where(eq(dataBundles.id, bundleId))
+            .limit(1);
+          break;
+        case 'master':
+          [result] = await db.select({ price: dataBundles.masterPrice })
+            .from(dataBundles)
+            .where(eq(dataBundles.id, bundleId))
+            .limit(1);
+          break;
+        default:
+          return null;
+      }
+
+      return result?.price || null;
     } catch (error) {
-      console.warn("Role base prices table not available for lookup:", error);
+      console.warn("Error fetching role base price from data bundles:", error);
       return null;
     }
   }

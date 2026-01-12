@@ -14,6 +14,7 @@ import {
   CreditCard,
   Code,
   Trophy,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -49,20 +50,28 @@ const getRankingBadge = (role: string) => {
   return rankings[role as keyof typeof rankings] || rankings.user;
 };
 
-const sidebarNavItems = [
-  { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
-  { title: "My Storefront", href: "/agent/storefront", icon: Store },
-  { title: "Transactions", href: "/agent/transactions", icon: BarChart3 },
-  { title: "MTN Bundles", href: "/agent/bundles/mtn", icon: Smartphone },
-  { title: "AT iShare Bundles", href: "/agent/bundles/at_ishare", icon: Smartphone },
-  { title: "AT BIG TIME Bundles", href: "/agent/bundles/at_bigtime", icon: Smartphone },
-  { title: "TELECEL Bundles", href: "/agent/bundles/telecel", icon: Smartphone },
-  { title: "Top Up Wallet", href: "/agent/wallet", icon: CreditCard },
-  { title: "API & Integrations", href: "/dashboard/api-integrations", icon: Code },
-  { title: "Withdrawals", href: "/agent/withdrawals", icon: Wallet },
-  { title: "Settings", href: "/agent/settings", icon: Settings },
-  { title: "Support Chat", href: "/agent/support", icon: MessageCircle },
-];
+const getSidebarNavItems = (userRole: string) => {
+  const baseItems = [
+    { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
+    { title: "My Storefront", href: "/agent/storefront", icon: Store },
+    { title: "Transactions", href: "/agent/transactions", icon: BarChart3 },
+    { title: "MTN Bundles", href: "/agent/bundles/mtn", icon: Smartphone },
+    { title: "AT iShare Bundles", href: "/agent/bundles/at_ishare", icon: Smartphone },
+    { title: "AT BIG TIME Bundles", href: "/agent/bundles/at_bigtime", icon: Smartphone },
+    { title: "TELECEL Bundles", href: "/agent/bundles/telecel", icon: Smartphone },
+    { title: "Top Up Wallet", href: "/agent/wallet", icon: CreditCard },
+    { title: "API & Integrations", href: "/dashboard/api-integrations", icon: Code },
+    { title: "Withdrawals", href: "/agent/withdrawals", icon: Wallet },
+    { title: "Settings", href: "/agent/settings", icon: Settings },
+    { title: "Support Chat", href: "/agent/support", icon: MessageCircle },
+  ];
+
+  // Add pricing link based on role
+  const pricingItem = { title: "Pricing", href: `/${userRole}/pricing`, icon: TrendingUp };
+  baseItems.splice(9, 0, pricingItem); // Insert before API & Integrations
+
+  return baseItems;
+};
 
 export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
@@ -110,7 +119,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
         <ScrollArea className="flex-1 px-3 py-4">
           <nav className="flex flex-col gap-1">
-            {sidebarNavItems.map((item) => {
+            {getSidebarNavItems(user?.role || 'agent').map((item) => {
               const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
               const isSupport = item.href === "/agent/support";
               const isApiIntegration = item.href === "/dashboard/api-integrations";
@@ -209,7 +218,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="flex flex-col gap-1">
-          {sidebarNavItems.map((item) => {
+          {getSidebarNavItems(user?.role || 'agent').map((item) => {
             const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
             const isSupport = item.href === "/agent/support";
             return (

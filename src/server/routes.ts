@@ -531,6 +531,69 @@ const requireApiKey = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
+const requireDealer = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // requireAuth should have already run and set req.user with role
+    if (!req.user || !req.user.email) {
+      return res.status(403).json({ error: "Dealer access required" });
+    }
+
+    // Check if user has dealer-level access or higher (dealer, super_dealer, master, admin)
+    const dealerRoles = [UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
+    if (!req.user.role || !dealerRoles.includes(req.user.role as typeof UserRole.DEALER)) {
+      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+      return res.status(403).json({ error: "Dealer access required" });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Dealer auth error:', error);
+    res.status(403).json({ error: "Dealer access required" });
+  }
+};
+
+const requireSuperDealer = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // requireAuth should have already run and set req.user with role
+    if (!req.user || !req.user.email) {
+      return res.status(403).json({ error: "Super Dealer access required" });
+    }
+
+    // Check if user has super-dealer-level access or higher (super_dealer, master, admin)
+    const superDealerRoles = [UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
+    if (!req.user.role || !superDealerRoles.includes(req.user.role as typeof UserRole.SUPER_DEALER)) {
+      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+      return res.status(403).json({ error: "Super Dealer access required" });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Super Dealer auth error:', error);
+    res.status(403).json({ error: "Super Dealer access required" });
+  }
+};
+
+const requireMaster = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // requireAuth should have already run and set req.user with role
+    if (!req.user || !req.user.email) {
+      return res.status(403).json({ error: "Master access required" });
+    }
+
+    // Check if user has master-level access or higher (master, admin)
+    const masterRoles = [UserRole.MASTER, UserRole.ADMIN];
+    if (!req.user.role || !masterRoles.includes(req.user.role as typeof UserRole.MASTER)) {
+      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+      return res.status(403).json({ error: "Master access required" });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Master auth error:', error);
+    res.status(403).json({ error: "Master access required" });
+  }
+};
+
 // Generate unique transaction reference
 function generateReference(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -3700,6 +3763,252 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Error loading agent wallet stats:", error);
       res.status(500).json({ error: "Failed to load wallet stats" });
+    }
+  });
+
+  // ============================================
+  // DEALER PRICING ROUTES
+  // ============================================
+
+  // Get dealer custom pricing
+  app.get("/api/dealer/pricing", requireAuth, requireDealer, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const pricing = await storage.getCustomPricing(dbUser.id, 'dealer');
+
+      // Get admin base prices for display
+      const bundles = await storage.getDataBundles({ isActive: true });
+      const result = await Promise.all(bundles.map(async (bundle) => {
+        const customPrice = pricing.find(p => p.productId === bundle.id);
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+
+        return {
+          bundleId: bundle.id,
+          dealerPrice: customPrice?.sellingPrice || "",
+          adminBasePrice: adminBasePrice || bundle.basePrice,
+          dealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+        };
+      }));
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  // Update dealer custom pricing
+  app.post("/api/dealer/pricing", requireAuth, requireDealer, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      // Update or delete pricing for each bundle
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { dealerPrice?: string };
+
+        if (!priceObj.dealerPrice || priceObj.dealerPrice.trim() === "") {
+          // Delete pricing if price is empty
+          await storage.deleteCustomPricing(bundleId, dbUser.id, 'dealer');
+        } else {
+          // Set custom selling price
+          await storage.setCustomPricing(bundleId, dbUser.id, 'dealer', priceObj.dealerPrice);
+        }
+      }
+
+      // Return updated pricing
+      const updatedPricing = await storage.getCustomPricing(dbUser.id, 'dealer');
+      const bundles = await storage.getDataBundles({ isActive: true });
+      const result = await Promise.all(bundles.map(async (bundle) => {
+        const customPrice = updatedPricing.find(p => p.productId === bundle.id);
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+
+        return {
+          bundleId: bundle.id,
+          dealerPrice: customPrice?.sellingPrice || "",
+          adminBasePrice: adminBasePrice || bundle.basePrice,
+          dealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+        };
+      }));
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error updating pricing:", error);
+      res.status(500).json({ error: "Failed to update pricing" });
+    }
+  });
+
+  // ============================================
+  // SUPER-DEALER PRICING ROUTES
+  // ============================================
+
+  // Get super-dealer custom pricing
+  app.get("/api/super-dealer/pricing", requireAuth, requireSuperDealer, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const pricing = await storage.getCustomPricing(dbUser.id, 'super_dealer');
+
+      // Get admin base prices for display
+      const bundles = await storage.getDataBundles({ isActive: true });
+      const result = await Promise.all(bundles.map(async (bundle) => {
+        const customPrice = pricing.find(p => p.productId === bundle.id);
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+
+        return {
+          bundleId: bundle.id,
+          superDealerPrice: customPrice?.sellingPrice || "",
+          adminBasePrice: adminBasePrice || bundle.basePrice,
+          superDealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+        };
+      }));
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  // Update super-dealer custom pricing
+  app.post("/api/super-dealer/pricing", requireAuth, requireSuperDealer, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      // Update or delete pricing for each bundle
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { superDealerPrice?: string };
+
+        if (!priceObj.superDealerPrice || priceObj.superDealerPrice.trim() === "") {
+          // Delete pricing if price is empty
+          await storage.deleteCustomPricing(bundleId, dbUser.id, 'super_dealer');
+        } else {
+          // Set custom selling price
+          await storage.setCustomPricing(bundleId, dbUser.id, 'super_dealer', priceObj.superDealerPrice);
+        }
+      }
+
+      // Return updated pricing
+      const updatedPricing = await storage.getCustomPricing(dbUser.id, 'super_dealer');
+      const bundles = await storage.getDataBundles({ isActive: true });
+      const result = await Promise.all(bundles.map(async (bundle) => {
+        const customPrice = updatedPricing.find(p => p.productId === bundle.id);
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+
+        return {
+          bundleId: bundle.id,
+          superDealerPrice: customPrice?.sellingPrice || "",
+          adminBasePrice: adminBasePrice || bundle.basePrice,
+          superDealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+        };
+      }));
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error updating pricing:", error);
+      res.status(500).json({ error: "Failed to update pricing" });
+    }
+  });
+
+  // ============================================
+  // MASTER PRICING ROUTES
+  // ============================================
+
+  // Get master custom pricing
+  app.get("/api/master/pricing", requireAuth, requireMaster, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const pricing = await storage.getCustomPricing(dbUser.id, 'master');
+
+      // Get admin base prices for display
+      const bundles = await storage.getDataBundles({ isActive: true });
+      const result = await Promise.all(bundles.map(async (bundle) => {
+        const customPrice = pricing.find(p => p.productId === bundle.id);
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+
+        return {
+          bundleId: bundle.id,
+          masterPrice: customPrice?.sellingPrice || "",
+          adminBasePrice: adminBasePrice || bundle.basePrice,
+          masterProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+        };
+      }));
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to load pricing" });
+    }
+  });
+
+  // Update master custom pricing
+  app.post("/api/master/pricing", requireAuth, requireMaster, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const { prices } = req.body;
+      if (!prices || typeof prices !== 'object') {
+        return res.status(400).json({ error: "Invalid pricing data" });
+      }
+
+      // Update or delete pricing for each bundle
+      for (const [bundleId, priceData] of Object.entries(prices)) {
+        const priceObj = priceData as { masterPrice?: string };
+
+        if (!priceObj.masterPrice || priceObj.masterPrice.trim() === "") {
+          // Delete pricing if price is empty
+          await storage.deleteCustomPricing(bundleId, dbUser.id, 'master');
+        } else {
+          // Set custom selling price
+          await storage.setCustomPricing(bundleId, dbUser.id, 'master', priceObj.masterPrice);
+        }
+      }
+
+      // Return updated pricing
+      const updatedPricing = await storage.getCustomPricing(dbUser.id, 'master');
+      const bundles = await storage.getDataBundles({ isActive: true });
+      const result = await Promise.all(bundles.map(async (bundle) => {
+        const customPrice = updatedPricing.find(p => p.productId === bundle.id);
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+
+        return {
+          bundleId: bundle.id,
+          masterPrice: customPrice?.sellingPrice || "",
+          adminBasePrice: adminBasePrice || bundle.basePrice,
+          masterProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+        };
+      }));
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error updating pricing:", error);
+      res.status(500).json({ error: "Failed to update pricing" });
     }
   });
 

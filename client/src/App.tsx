@@ -33,6 +33,10 @@ import AgentSettings from "@/pages/agent/settings";
 import AgentSupportPage from "@/pages/agent/support";
 import AgentBundlesPage from "@/pages/agent/bundles";
 import AgentWalletPage from "@/pages/agent/wallet";
+import AgentPricingPage from "@/pages/agent/pricing";
+import DealerPricingPage from "@/pages/dealer/pricing";
+import SuperDealerPricingPage from "@/pages/super-dealer/pricing";
+import MasterPricingPage from "@/pages/master/pricing";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDataBundles from "@/pages/admin/data-bundles";
 import AdminRoleBasePrices from "@/pages/admin/role-base-prices";
@@ -135,6 +139,10 @@ function Router() {
       <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/pricing" component={AgentPricingPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/dealer/pricing" component={DealerPricingPage} requiredRole="dealer" />
+      <ProtectedRoute path="/super-dealer/pricing" component={SuperDealerPricingPage} requiredRole="super_dealer" />
+      <ProtectedRoute path="/master/pricing" component={MasterPricingPage} requiredRole="master" />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />

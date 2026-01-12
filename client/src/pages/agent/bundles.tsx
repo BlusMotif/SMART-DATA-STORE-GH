@@ -103,7 +103,7 @@ export default function AgentBundlesPage() {
     },
   });
 
-  const walletBalance = walletData?.balance || 0;
+  const walletBalance = walletData?.balance ? parseFloat(walletData.balance) : 0;
 
   // Calculate agent price for selected bundle
   const agentPrice = useMemo(() => {

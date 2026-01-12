@@ -3702,6 +3702,63 @@ export async function registerRoutes(
     }
   });
 
+  // Agent wallet stats
+  app.get("/api/agent/wallet", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      // Get agent transactions for wallet topups and spending
+      const transactions = await storage.getTransactions({
+        agentId: agent.id,
+      });
+
+      // Filter wallet topups (when agents top up their user wallet)
+      const walletTopups = transactions.filter(t => t.type === 'wallet_topup' && t.status === 'completed');
+      const totalTopups = walletTopups.length;
+      const totalTopupAmount = walletTopups.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+      // Filter wallet payments (when agents spend from their user wallet)
+      const walletPayments = transactions.filter(t => t.paymentMethod === 'wallet');
+      const totalSpent = walletPayments.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+
+      // Get last topup
+      const lastTopup = walletTopups.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )[0];
+
+      // For agents, the "balance" refers to their profit balance (withdrawable profit)
+      // Compute withdrawals sum (exclude rejected withdrawals)
+      const withdrawals = await storage.getWithdrawals({ agentId: agent.id });
+      const withdrawnTotal = withdrawals
+        .filter(w => w.status !== 'rejected')
+        .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
+
+      // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
+      const totalProfit = parseFloat(agent.totalProfit || '0');
+      const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
+
+      res.json({
+        balance: profitBalance.toFixed(2), // Agent's withdrawable profit balance
+        totalTopups,
+        totalTopupAmount: totalTopupAmount.toFixed(2),
+        totalSpent: totalSpent.toFixed(2),
+        lastTopupDate: lastTopup?.createdAt || null,
+        lastTopupAmount: lastTopup?.amount || null,
+      });
+    } catch (error: any) {
+      console.error("Error loading agent wallet stats:", error);
+      res.status(500).json({ error: "Failed to load wallet stats" });
+    }
+  });
+
   // Dealer Pricing Endpoints
   app.get("/api/dealer/pricing", requireAuth, async (req, res) => {
     try {

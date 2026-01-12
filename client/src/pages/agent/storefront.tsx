@@ -130,6 +130,45 @@ export default function AgentStorefront() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          {/* Hero Section */}
+          <div className="max-w-4xl mx-auto mb-8">
+            <div className="relative bg-gradient-to-r from-primary/10 via-primary/5 to-secondary/10 rounded-lg p-8 border">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <Store className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-foreground">
+                    {agent?.businessName || "Your Storefront"}
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Manage and customize your online store
+                  </p>
+                </div>
+              </div>
+              
+              {agent?.businessDescription && (
+                <div className="bg-background/50 rounded-md p-4 border">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {agent.businessDescription}
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-4 mt-6">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Smartphone className="h-4 w-4" />
+                  <span>Active Storefront</span>
+                </div>
+                {agent?.storefrontSlug && (
+                  <Badge variant="secondary" className="text-xs">
+                    /{agent.storefrontSlug}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="max-w-4xl mx-auto space-y-6">
             <Card>
               <CardHeader>

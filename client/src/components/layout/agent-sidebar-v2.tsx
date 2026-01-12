@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Store,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -56,7 +58,6 @@ const sidebarNavItems = [
   { title: "AT BIG TIME Bundles", href: "/agent/bundles/at_bigtime", icon: Smartphone },
   { title: "TELECEL Bundles", href: "/agent/bundles/telecel", icon: Smartphone },
   { title: "Top Up Wallet", href: "/agent/wallet", icon: CreditCard },
-  { title: "Pricing Management", href: "/agent/pricing", icon: BarChart3 },
   { title: "API & Integrations", href: "/dashboard/api-integrations", icon: Code },
   { title: "Withdrawals", href: "/agent/withdrawals", icon: Wallet },
   { title: "Settings", href: "/agent/settings", icon: Settings },
@@ -66,6 +67,7 @@ const sidebarNavItems = [
 export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user } = useAuth();
+  const [showApiModal, setShowApiModal] = useState(false);
 
   // Get user rank
   const { data: rankData } = useQuery({
@@ -111,6 +113,28 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
             {sidebarNavItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
               const isSupport = item.href === "/agent/support";
+              const isApiIntegration = item.href === "/dashboard/api-integrations";
+
+              if (isApiIntegration) {
+                return (
+                  <Button
+                    key={item.href}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start gap-3 font-normal relative",
+                      isActive && "bg-primary/10 text-primary font-medium"
+                    )}
+                    onClick={() => {
+                      setShowApiModal(true);
+                      onClose && onClose();
+                    }}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span className="flex-1 text-left">{item.title}</span>
+                  </Button>
+                );
+              }
+
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
@@ -231,6 +255,8 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
       </div>
+
+      <ApiIntegrationsModal open={showApiModal} onOpenChange={setShowApiModal} />
     </div>
   );
 }

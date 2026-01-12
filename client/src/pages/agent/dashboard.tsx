@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { DollarSign, ShoppingCart, TrendingUp, Wallet, ExternalLink, ArrowRight, Menu, Package, Code } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
+import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 
 interface AgentStats {
   balance: number;
@@ -37,6 +38,7 @@ interface AgentProfileResponse {
 
 export default function AgentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showApiModal, setShowApiModal] = useState(false);
   const [, setLocation] = useLocation();
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
@@ -214,12 +216,14 @@ export default function AgentDashboard() {
                       <span className="text-xs">Top Up Wallet</span>
                     </Button>
                   </Link>
-                  <Link href="/dashboard/api-integrations">
-                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
-                      <Code className="h-5 w-5" />
-                      <span className="text-xs">API & Integrations</span>
-                    </Button>
-                  </Link>
+                  <Button
+                    variant="outline"
+                    className="w-full h-auto py-4 flex-col gap-2"
+                    onClick={() => setShowApiModal(true)}
+                  >
+                    <Code className="h-5 w-5" />
+                    <span className="text-xs">API & Integrations</span>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -375,6 +379,7 @@ export default function AgentDashboard() {
           </Card>
         </main>
       </div>
+      <ApiIntegrationsModal open={showApiModal} onOpenChange={setShowApiModal} />
     </div>
   );
 }

@@ -14,11 +14,13 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 // Using plain inputs for the small upgrade dialog (avoid react-hook-form Controller requirements)
 import { OrderTracker } from "@/components/order-tracker";
+import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 
 export default function UserDashboard() {
   const { user, agent } = useAuth();
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showApiModal, setShowApiModal] = useState(false);
 
   // (upgrade UI removed)
 
@@ -188,12 +190,14 @@ export default function UserDashboard() {
                       <span className="text-xs">Vouchers</span>
                     </Button>
                   </Link>
-                  <Link href="/dashboard/api-integrations">
-                    <Button variant="outline" className="w-full h-auto py-4 flex-col gap-2">
-                      <Code className="h-5 w-5" />
-                      <span className="text-xs">API & Integrations</span>
-                    </Button>
-                  </Link>
+                  <Button
+                    variant="outline"
+                    className="w-full h-auto py-4 flex-col gap-2"
+                    onClick={() => setShowApiModal(true)}
+                  >
+                    <Code className="h-5 w-5" />
+                    <span className="text-xs">API & Integrations</span>
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -264,6 +268,7 @@ export default function UserDashboard() {
           </div>
         </main>
       </div>
+      <ApiIntegrationsModal open={showApiModal} onOpenChange={setShowApiModal} />
     </div>
   );
 }

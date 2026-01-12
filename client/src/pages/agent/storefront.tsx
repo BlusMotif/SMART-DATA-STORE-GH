@@ -26,13 +26,6 @@ const storefrontSchema = z.object({
 
 type StorefrontFormData = z.infer<typeof storefrontSchema>;
 
-interface AgentPricing {
-  bundleId: string;
-  agentPrice: string;
-  adminBasePrice: string;
-  agentProfit: string;
-}
-
 interface AgentProfileResponse {
   agent: Agent & {
     user: {
@@ -62,14 +55,6 @@ export default function AgentStorefront() {
     refetchOnWindowFocus: true,
   });
 
-  const { data: agentPricing } = useQuery<AgentPricing[]>({
-    queryKey: ["/api/agent/pricing"],
-    refetchInterval: 15000, // Refresh every 15 seconds for pricing updates
-    refetchOnWindowFocus: true,
-  });
-
-  const [customPrices, setCustomPrices] = useState<Record<string, { agentPrice: string; agentProfit: string }>>({});
-
   const form = useForm<StorefrontFormData>({
     resolver: zodResolver(storefrontSchema),
     defaultValues: {
@@ -87,19 +72,6 @@ export default function AgentStorefront() {
     }
   }, [agent, form]);
 
-  useEffect(() => {
-    if (agentPricing && agentPricing.length > 0) {
-      const prices: Record<string, { agentPrice: string; agentProfit: string }> = {};
-      agentPricing.forEach((p) => {
-        prices[p.bundleId] = {
-          agentPrice: p.agentPrice,
-          agentProfit: p.agentProfit,
-        };
-      });
-      setCustomPrices(prices);
-    }
-  }, [agentPricing]);
-
   const updateStoreMutation = useMutation({
     mutationFn: (data: StorefrontFormData) =>
       apiRequest("PATCH", "/api/agent/storefront", data),
@@ -112,39 +84,8 @@ export default function AgentStorefront() {
     },
   });
 
-  const updatePricingMutation = useMutation({
-    mutationFn: (prices: Record<string, { agentPrice: string; agentProfit: string }>) =>
-      apiRequest("POST", "/api/agent/pricing", { prices }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/pricing"] });
-      queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === '/api/products/data-bundles'
-      });
-      toast({ title: "Pricing updated successfully" });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Failed to update pricing", description: error.message, variant: "destructive" });
-    },
-  });
-
   const onSubmit = (data: StorefrontFormData) => {
     updateStoreMutation.mutate(data);
-  };
-
-  const handleSavePricing = () => {
-    // Only send agentPrice and agentProfit, adminBasePrice is now read-only
-    const pricesToSend: Record<string, { agentPrice: string; agentProfit: string }> = {};
-    
-    Object.entries(customPrices).forEach(([bundleId, priceData]) => {
-      if (priceData.agentPrice && priceData.agentProfit) {
-        pricesToSend[bundleId] = {
-          agentPrice: priceData.agentPrice,
-          agentProfit: priceData.agentProfit
-        };
-      }
-    });
-    
-    updatePricingMutation.mutate(pricesToSend);
   };
 
   const copyStoreLink = () => {
@@ -153,25 +94,6 @@ export default function AgentStorefront() {
       navigator.clipboard.writeText(url);
       toast({ title: "Store link copied to clipboard!" });
     }
-  };
-
-  const getCustomPrice = (bundleId: string) => {
-    if (customPrices[bundleId]) return customPrices[bundleId].agentPrice;
-    const existing = agentPricing?.find((p) => p.bundleId === bundleId);
-    return existing?.agentPrice || "";
-  };
-
-  const getAdminBasePrice = (bundleId: string, bundleBasePrice: string) => {
-    // For agents, adminBasePrice should be their role base price, not editable
-    // This is now fetched from the API and should be read-only
-    const existing = agentPricing?.find((p) => p.bundleId === bundleId);
-    return existing?.adminBasePrice || bundleBasePrice;
-  };
-
-  const getAgentProfit = (bundleId: string) => {
-    if (customPrices[bundleId]) return customPrices[bundleId].agentProfit;
-    const existing = agentPricing?.find((p) => p.bundleId === bundleId);
-    return existing?.agentProfit || "0";
   };
 
   return (
@@ -302,113 +224,6 @@ export default function AgentStorefront() {
                     </Button>
                   </form>
                 </Form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Smartphone className="h-5 w-5" />
-                    Custom Pricing
-                  </CardTitle>
-                  <CardDescription>
-                    Set your own prices for data bundles. Leave blank to use default prices.
-                  </CardDescription>
-                </div>
-                <Button
-                  onClick={handleSavePricing}
-                  disabled={updatePricingMutation.isPending || Object.keys(customPrices).length === 0}
-                  data-testid="button-save-pricing"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {updatePricingMutation.isPending ? "Saving..." : "Save Pricing"}
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {bundles && bundles.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Network</TableHead>
-                        <TableHead>Bundle</TableHead>
-                        <TableHead>Admin Base Price</TableHead>
-                        <TableHead>Your Price</TableHead>
-                        <TableHead>Your Profit</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {bundles.map((bundle) => {
-                        const network = NETWORKS.find((n) => n.id === bundle.network);
-                        const adminBasePrice = getAdminBasePrice(bundle.id, bundle.basePrice);
-                        const agentPrice = getCustomPrice(bundle.id);
-                        const agentProfit = getAgentProfit(bundle.id);
-                        const calculatedProfit = agentPrice && adminBasePrice ? 
-                          (parseFloat(agentPrice) - parseFloat(adminBasePrice)).toFixed(2) : "0";
-                        
-                        return (
-                          <TableRow key={bundle.id} data-testid={`row-bundle-${bundle.id}`}>
-                            <TableCell>
-                              <Badge
-                                style={{
-                                  backgroundColor: network?.color,
-                                  color: network?.textColor,
-                                }}
-                              >
-                                {network?.name || bundle.network}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">{bundle.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {bundle.dataAmount} - {bundle.validity}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={adminBasePrice}
-                                readOnly
-                                className="w-24 tabular-nums bg-muted"
-                                data-testid={`input-admin-base-price-${bundle.id}`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder={bundle.agentPrice || bundle.basePrice}
-                                value={customPrices[bundle.id]?.agentPrice || ""}
-                                onChange={(e) =>
-                                  setCustomPrices((prev) => ({
-                                    ...prev,
-                                    [bundle.id]: {
-                                      ...prev[bundle.id],
-                                      agentPrice: e.target.value,
-                                      agentProfit: e.target.value ? 
-                                        (parseFloat(e.target.value) - parseFloat(adminBasePrice)).toFixed(2) : 
-                                        prev[bundle.id]?.agentProfit || "",
-                                    },
-                                  }))
-                                }
-                                className="w-24 tabular-nums"
-                                data-testid={`input-agent-price-${bundle.id}`}
-                              />
-                            </TableCell>
-                            <TableCell className={`tabular-nums font-medium ${parseFloat(agentProfit) > 0 ? "text-green-600" : "text-red-600"}`}>
-                              {formatCurrency(agentProfit)}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    No data bundles available to customize.
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>

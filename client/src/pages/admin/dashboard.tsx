@@ -13,6 +13,7 @@ import { formatCurrency, formatDate } from "@/lib/constants";
 import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Trophy, Award, Medal, Code } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderTracker } from "@/components/order-tracker";
+import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -35,6 +36,7 @@ interface TopCustomer {
 
 export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showApiModal, setShowApiModal] = useState(false);
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -299,8 +301,8 @@ export default function AdminDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild>
-                <Link href="/dashboard/api-integrations">Manage API Keys</Link>
+              <Button onClick={() => setShowApiModal(true)}>
+                Manage API Keys
               </Button>
             </CardContent>
           </Card>
@@ -317,6 +319,7 @@ export default function AdminDashboard() {
           </Card>
         </main>
       </div>
+      <ApiIntegrationsModal open={showApiModal} onOpenChange={setShowApiModal} />
     </div>
   );
 }

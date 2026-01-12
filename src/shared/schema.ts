@@ -297,75 +297,35 @@ export const auditLogs = pgTable("audit_logs", {
 }));
 
 // ============================================
-// AGENT PRICING TABLE
+// CUSTOM PRICING TABLE (Unified for all roles)
 // ============================================
-export const agentPricing = pgTable("agent_pricing", {
+export const customPricing = pgTable("custom_pricing", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id, { onDelete: "cascade" }),
-  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
-  agentPrice: decimal("agent_price", { precision: 10, scale: 2 }).notNull(),
-  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
-  agentProfit: decimal("agent_profit", { precision: 10, scale: 2 }).notNull(),
+  productId: varchar("product_id", { length: 36 }).notNull(), // Can reference dataBundles or resultCheckers
+  roleOwnerId: varchar("role_owner_id", { length: 36 }).notNull(), // Agent ID, Dealer User ID, etc.
+  role: text("role").notNull(), // agent, dealer, super_dealer, master
+  sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).notNull(), // Final selling price
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
-  agentIdx: index("agent_pricing_agent_idx").on(table.agentId),
-  bundleIdx: index("agent_pricing_bundle_idx").on(table.bundleId),
-  uniqueAgentBundle: index("agent_pricing_unique").on(table.agentId, table.bundleId),
+  productIdx: index("custom_pricing_product_idx").on(table.productId),
+  roleOwnerIdx: index("custom_pricing_role_owner_idx").on(table.roleOwnerId),
+  roleIdx: index("custom_pricing_role_idx").on(table.role),
+  uniqueProductRoleOwner: index("custom_pricing_unique").on(table.productId, table.roleOwnerId, table.role),
 }));
 
 // ============================================
-// DEALER PRICING TABLE
+// ADMIN BASE PRICES TABLE
 // ============================================
-export const dealerPricing = pgTable("dealer_pricing", {
+export const adminBasePrices = pgTable("admin_base_prices", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  dealerId: varchar("dealer_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
-  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
-  dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }).notNull(),
-  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
-  dealerProfit: decimal("dealer_profit", { precision: 10, scale: 2 }).notNull(),
+  productId: varchar("product_id", { length: 36 }).notNull(), // Can reference dataBundles or resultCheckers
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(), // Admin-set base price
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
-  dealerIdx: index("dealer_pricing_dealer_idx").on(table.dealerId),
-  bundleIdx: index("dealer_pricing_bundle_idx").on(table.bundleId),
-  uniqueDealerBundle: index("dealer_pricing_unique").on(table.dealerId, table.bundleId),
-}));
-
-// ============================================
-// SUPER DEALER PRICING TABLE
-// ============================================
-export const superDealerPricing = pgTable("super_dealer_pricing", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  superDealerId: varchar("super_dealer_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
-  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
-  superDealerPrice: decimal("super_dealer_price", { precision: 10, scale: 2 }).notNull(),
-  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
-  superDealerProfit: decimal("super_dealer_profit", { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  superDealerIdx: index("super_dealer_pricing_super_dealer_idx").on(table.superDealerId),
-  bundleIdx: index("super_dealer_pricing_bundle_idx").on(table.bundleId),
-  uniqueSuperDealerBundle: index("super_dealer_pricing_unique").on(table.superDealerId, table.bundleId),
-}));
-
-// ============================================
-// MASTER PRICING TABLE
-// ============================================
-export const masterPricing = pgTable("master_pricing", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  masterId: varchar("master_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
-  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
-  masterPrice: decimal("master_price", { precision: 10, scale: 2 }).notNull(),
-  adminBasePrice: decimal("admin_base_price", { precision: 10, scale: 2 }).notNull(),
-  masterProfit: decimal("master_profit", { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => ({
-  masterIdx: index("master_pricing_master_idx").on(table.masterId),
-  bundleIdx: index("master_pricing_bundle_idx").on(table.bundleId),
-  uniqueMasterBundle: index("master_pricing_unique").on(table.masterId, table.bundleId),
+  productIdx: index("admin_base_prices_product_idx").on(table.productId),
+  uniqueProduct: index("admin_base_prices_unique").on(table.productId),
 }));
 
 // ============================================
@@ -560,19 +520,13 @@ export const insertAgentSchema = createInsertSchema(agents).omit({
   totalProfit: true,
 });
 
-export const insertDealerPricingSchema = createInsertSchema(dealerPricing).omit({
+export const insertCustomPricingSchema = createInsertSchema(customPricing).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const insertSuperDealerPricingSchema = createInsertSchema(superDealerPricing).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const insertMasterPricingSchema = createInsertSchema(masterPricing).omit({
+export const insertAdminBasePricesSchema = createInsertSchema(adminBasePrices).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -660,14 +614,11 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Agent = typeof agents.$inferSelect;
 
-export type InsertDealerPricing = z.infer<typeof insertDealerPricingSchema>;
-export type DealerPricing = typeof dealerPricing.$inferSelect;
+export type InsertCustomPricing = z.infer<typeof insertCustomPricingSchema>;
+export type CustomPricing = typeof customPricing.$inferSelect;
 
-export type InsertSuperDealerPricing = z.infer<typeof insertSuperDealerPricingSchema>;
-export type SuperDealerPricing = typeof superDealerPricing.$inferSelect;
-
-export type InsertMasterPricing = z.infer<typeof insertMasterPricingSchema>;
-export type MasterPricing = typeof masterPricing.$inferSelect;
+export type InsertAdminBasePrices = z.infer<typeof insertAdminBasePricesSchema>;
+export type AdminBasePrices = typeof adminBasePrices.$inferSelect;
 
 export type InsertRoleBasePrices = z.infer<typeof insertRoleBasePricesSchema>;
 export type RoleBasePrices = typeof roleBasePrices.$inferSelect;

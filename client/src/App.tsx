@@ -33,10 +33,6 @@ import AgentSettings from "@/pages/agent/settings";
 import AgentSupportPage from "@/pages/agent/support";
 import AgentBundlesPage from "@/pages/agent/bundles";
 import AgentWalletPage from "@/pages/agent/wallet";
-import AgentPricingPage from "@/pages/agent/pricing";
-import DealerPricingPage from "@/pages/dealer/pricing";
-import SuperDealerPricingPage from "@/pages/super-dealer/pricing";
-import MasterPricingPage from "@/pages/master/pricing";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminDataBundles from "@/pages/admin/data-bundles";
 import AdminRoleBasePrices from "@/pages/admin/role-base-prices";
@@ -67,9 +63,6 @@ import UserSettingsPage from "@/pages/user/settings";
 
 // Storefront
 import StorefrontPage from "@/pages/storefront";
-
-// API & Integrations
-import ApiIntegrationsPage from "@/pages/api-integrations";
 
 // Component to restrict agent store users to storefront only
 function StorefrontGuard({ children }: { children: React.ReactNode }) {
@@ -131,13 +124,9 @@ function Router() {
       <ProtectedRoute path="/user/vouchers" component={UserVouchersPage} />
       <ProtectedRoute path="/user/history" component={UserHistoryPage} />
       <ProtectedRoute path="/user/support" component={UserSupportPage} />
-      <ProtectedRoute path="/dashboard/api-integrations" component={ApiIntegrationsPage} />
       <ProtectedRoute path="/dealer/dashboard" component={DealerDashboard} requiredRole="dealer" />
-      <ProtectedRoute path="/dealer/pricing" component={DealerPricingPage} requiredRole="dealer" />
       <ProtectedRoute path="/super-dealer/dashboard" component={SuperDealerDashboard} requiredRole="super_dealer" />
-      <ProtectedRoute path="/super-dealer/pricing" component={SuperDealerPricingPage} requiredRole="super_dealer" />
       <ProtectedRoute path="/master/dashboard" component={MasterDashboard} requiredRole="master" />
-      <ProtectedRoute path="/master/pricing" component={MasterPricingPage} requiredRole="master" />
       <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
@@ -146,7 +135,6 @@ function Router() {
       <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
-      <ProtectedRoute path="/agent/pricing" component={AgentPricingPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/admin" component={AdminDashboard} requiredRole="admin" />
       <ProtectedRoute path="/admin/rankings" component={AdminRankings} requiredRole="admin" />
       <ProtectedRoute path="/admin/data-bundles" component={AdminDataBundles} requiredRole="admin" />

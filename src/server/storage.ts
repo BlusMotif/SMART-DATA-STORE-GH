@@ -3,15 +3,15 @@ import { db } from "./db.js";
 import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, agentPricing, dealerPricing, superDealerPricing, masterPricing, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
+  supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
   type SmsLog, type InsertSmsLog, type AuditLog, type InsertAuditLog,
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
   type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
-  type DealerPricing, type InsertDealerPricing, type SuperDealerPricing, type InsertSuperDealerPricing,
-  type MasterPricing, type InsertMasterPricing, type RoleBasePrices, type InsertRoleBasePrices,
+  type CustomPricing, type InsertCustomPricing, type AdminBasePrices, type InsertAdminBasePrices,
+  type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction
 } from "../shared/schema.js";
 
@@ -101,35 +101,20 @@ export interface IStorage {
   getUnreadAdminMessagesCount(): Promise<number>;
 
 
-  // Agent Pricing
-  getAgentPricing(agentId: string): Promise<Array<{ bundleId: string; agentPrice: string; adminBasePrice: string; agentProfit: string }>>;
-  setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string, userRole: string): Promise<void>;
-  deleteAgentPricing(agentId: string, bundleId: string): Promise<void>;
-  getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null>;
-  getAgentPricingForBundle(agentId: string, bundleId: string): Promise<{ agentPrice: string; adminBasePrice: string; agentProfit: string } | null>;
+  // Custom Pricing (Unified for all roles)
+  getCustomPricing(roleOwnerId: string, role: string): Promise<Array<{ productId: string; sellingPrice: string }>>;
+  setCustomPricing(productId: string, roleOwnerId: string, role: string, sellingPrice: string): Promise<void>;
+  deleteCustomPricing(productId: string, roleOwnerId: string, role: string): Promise<void>;
+  getCustomPrice(productId: string, roleOwnerId: string, role: string): Promise<string | null>;
 
-  // Dealer Pricing
-  getDealerPricing(dealerId: string): Promise<Array<{ bundleId: string; dealerPrice: string; adminBasePrice: string; dealerProfit: string }>>;
-  setDealerPricing(dealerId: string, bundleId: string, dealerPrice: string, adminBasePrice: string, dealerProfit: string, userRole: string): Promise<void>;
-  deleteDealerPricing(dealerId: string, bundleId: string): Promise<void>;
-  getDealerPriceForBundle(dealerId: string, bundleId: string): Promise<string | null>;
-  getDealerPricingForBundle(dealerId: string, bundleId: string): Promise<{ dealerPrice: string; adminBasePrice: string; dealerProfit: string } | null>;
+  // Admin Base Prices
+  getAdminBasePrice(productId: string): Promise<string | null>;
+  setAdminBasePrice(productId: string, basePrice: string): Promise<void>;
 
-  // Super Dealer Pricing
-  getSuperDealerPricing(superDealerId: string): Promise<Array<{ bundleId: string; superDealerPrice: string; adminBasePrice: string; superDealerProfit: string }>>;
-  setSuperDealerPricing(superDealerId: string, bundleId: string, superDealerPrice: string, adminBasePrice: string, superDealerProfit: string, userRole: string): Promise<void>;
-  deleteSuperDealerPricing(superDealerId: string, bundleId: string): Promise<void>;
-  getSuperDealerPriceForBundle(superDealerId: string, bundleId: string): Promise<string | null>;
-  getSuperDealerPricingForBundle(superDealerId: string, bundleId: string): Promise<{ superDealerPrice: string; adminBasePrice: string; superDealerProfit: string } | null>;
+  // Price Resolution (combines custom + admin base price)
+  getResolvedPrice(productId: string, roleOwnerId: string, role: string): Promise<string | null>;
 
-  // Master Pricing
-  getMasterPricing(masterId: string): Promise<Array<{ bundleId: string; masterPrice: string; adminBasePrice: string; masterProfit: string }>>;
-  setMasterPricing(masterId: string, bundleId: string, masterPrice: string, adminBasePrice: string, masterProfit: string, userRole: string): Promise<void>;
-  deleteMasterPricing(masterId: string, bundleId: string): Promise<void>;
-  getMasterPriceForBundle(masterId: string, bundleId: string): Promise<string | null>;
-  getMasterPricingForBundle(masterId: string, bundleId: string): Promise<{ masterPrice: string; adminBasePrice: string; masterProfit: string } | null>;
-
-  // Role Base Prices
+  // Role Base Prices (legacy - may be removed later)
   getRoleBasePrices(): Promise<Array<{ bundleId: string; role: string; basePrice: string }>>;
   setRoleBasePrice(bundleId: string, role: string, basePrice: string, userRole: string): Promise<void>;
   getRoleBasePrice(bundleId: string, role: string): Promise<string | null>;
@@ -827,589 +812,179 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Agent Pricing Methods
-  async getAgentPricing(agentId: string): Promise<Array<{ bundleId: string; agentPrice: string; adminBasePrice: string; agentProfit: string }>> {
+  // Custom Pricing (Unified for all roles)
+  async getCustomPricing(roleOwnerId: string, role: string): Promise<Array<{ productId: string; sellingPrice: string }>> {
     try {
       const pricing = await db.select({
-        bundleId: agentPricing.bundleId,
-        agentPrice: agentPricing.agentPrice,
-        adminBasePrice: agentPricing.adminBasePrice,
-        agentProfit: agentPricing.agentProfit,
+        productId: customPricing.productId,
+        sellingPrice: customPricing.sellingPrice,
       })
-        .from(agentPricing)
-        .where(eq(agentPricing.agentId, agentId));
-      
+        .from(customPricing)
+        .where(
+          and(
+            eq(customPricing.roleOwnerId, roleOwnerId),
+            eq(customPricing.role, role)
+          )
+        );
+
       return pricing.map(p => ({
-        bundleId: p.bundleId,
-        agentPrice: p.agentPrice || "0",
-        adminBasePrice: p.adminBasePrice || "0",
-        agentProfit: p.agentProfit || "0",
+        productId: p.productId,
+        sellingPrice: p.sellingPrice || "0",
       }));
     } catch (error) {
-      // Table might not exist yet, return empty array
-      console.warn("Agent pricing table not available:", error);
+      console.warn("Custom pricing table not available:", error);
       return [];
     }
   }
 
-  async setAgentPricing(agentId: string, bundleId: string, agentPrice: string, adminBasePrice: string, agentProfit: string, userRole: string): Promise<void> {
-    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
-    // Agents can only set their selling price, profit is calculated as selling_price - role_base_price
-
-    if (userRole !== 'admin' && userRole !== 'agent') {
-      throw new Error('Unauthorized to modify agent pricing');
+  async setCustomPricing(productId: string, roleOwnerId: string, role: string, sellingPrice: string): Promise<void> {
+    const priceNum = parseFloat(sellingPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      throw new Error('Invalid selling price');
     }
 
     try {
-      // Get the role base price for agents
-      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'agent');
-      if (!roleBasePrice) {
-        throw new Error('No base price set for agent role. Please contact admin.');
-      }
-
-      const basePriceNum = parseFloat(roleBasePrice);
-      const sellingPriceNum = parseFloat(agentPrice);
-      const calculatedProfit = sellingPriceNum - basePriceNum;
-
-      // Validate that selling price is not below base price
-      if (sellingPriceNum < basePriceNum) {
-        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
-      }
-
       // Check if pricing exists
       const [existing] = await db.select()
-        .from(agentPricing)
+        .from(customPricing)
         .where(
           and(
-            eq(agentPricing.agentId, agentId),
-            eq(agentPricing.bundleId, bundleId)
+            eq(customPricing.productId, productId),
+            eq(customPricing.roleOwnerId, roleOwnerId),
+            eq(customPricing.role, role)
           )
         )
         .limit(1);
 
       if (existing) {
         // Update existing
-        await db.update(agentPricing)
+        await db.update(customPricing)
           .set({
-            agentPrice: agentPrice,
-            adminBasePrice: roleBasePrice, // Store the role base price for reference
-            agentProfit: calculatedProfit.toFixed(2),
+            sellingPrice: sellingPrice,
             updatedAt: new Date()
           })
           .where(
             and(
-              eq(agentPricing.agentId, agentId),
-              eq(agentPricing.bundleId, bundleId)
+              eq(customPricing.productId, productId),
+              eq(customPricing.roleOwnerId, roleOwnerId),
+              eq(customPricing.role, role)
             )
           );
       } else {
         // Insert new
-        await db.insert(agentPricing).values({
-          agentId,
-          bundleId,
-          agentPrice: agentPrice,
-          adminBasePrice: roleBasePrice,
-          agentProfit: calculatedProfit.toFixed(2),
+        await db.insert(customPricing).values({
+          productId,
+          roleOwnerId,
+          role,
+          sellingPrice: sellingPrice,
         });
       }
     } catch (error) {
-      console.warn("Agent pricing update error:", error);
-      throw error;
+      console.error("Custom pricing update error:", error);
+      throw new Error("Failed to update custom pricing");
     }
   }
 
-  async deleteAgentPricing(agentId: string, bundleId: string): Promise<void> {
+  async deleteCustomPricing(productId: string, roleOwnerId: string, role: string): Promise<void> {
     try {
-      await db.delete(agentPricing)
+      await db.delete(customPricing)
         .where(
           and(
-            eq(agentPricing.agentId, agentId),
-            eq(agentPricing.bundleId, bundleId)
+            eq(customPricing.productId, productId),
+            eq(customPricing.roleOwnerId, roleOwnerId),
+            eq(customPricing.role, role)
           )
         );
     } catch (error) {
-      // Table might not exist yet, silently ignore
-      console.warn("Agent pricing table not available for delete:", error);
+      console.error("Custom pricing delete error:", error);
+      throw new Error("Failed to delete custom pricing");
     }
   }
 
-  async getAgentPriceForBundle(agentId: string, bundleId: string): Promise<string | null> {
+  async getCustomPrice(productId: string, roleOwnerId: string, role: string): Promise<string | null> {
     try {
-      const [result] = await db.select({ agentPrice: agentPricing.agentPrice })
-        .from(agentPricing)
+      const [result] = await db.select({
+        sellingPrice: customPricing.sellingPrice,
+      })
+        .from(customPricing)
         .where(
           and(
-            eq(agentPricing.agentId, agentId),
-            eq(agentPricing.bundleId, bundleId)
+            eq(customPricing.productId, productId),
+            eq(customPricing.roleOwnerId, roleOwnerId),
+            eq(customPricing.role, role)
           )
         )
         .limit(1);
-      
-      return result?.agentPrice || null;
+
+      return result?.sellingPrice || null;
     } catch (error) {
-      // Table might not exist yet, return null
-      console.warn("Agent pricing table not available for price lookup:", error);
+      console.warn("Custom pricing lookup error:", error);
       return null;
     }
   }
 
-  async getAgentPricingForBundle(agentId: string, bundleId: string): Promise<{ agentPrice: string; adminBasePrice: string; agentProfit: string } | null> {
-    const [result] = await db.select({
-      agentPrice: agentPricing.agentPrice,
-      adminBasePrice: agentPricing.adminBasePrice,
-      agentProfit: agentPricing.agentProfit
-    })
-      .from(agentPricing)
-      .where(
-        and(
-          eq(agentPricing.agentId, agentId),
-          eq(agentPricing.bundleId, bundleId)
-        )
-      )
-      .limit(1);
-    
-    return result ? {
-      agentPrice: result.agentPrice,
-      adminBasePrice: result.adminBasePrice,
-      agentProfit: result.agentProfit
-    } : null;
-  }
-
-  // Dealer Pricing Methods
-  async getDealerPricing(dealerId: string): Promise<Array<{ bundleId: string; dealerPrice: string; adminBasePrice: string; dealerProfit: string }>> {
+  // Admin Base Prices
+  async getAdminBasePrice(productId: string): Promise<string | null> {
     try {
-      const pricing = await db.select({
-        bundleId: dealerPricing.bundleId,
-        dealerPrice: dealerPricing.dealerPrice,
-        adminBasePrice: dealerPricing.adminBasePrice,
-        dealerProfit: dealerPricing.dealerProfit,
+      const [result] = await db.select({
+        basePrice: adminBasePrices.basePrice,
       })
-        .from(dealerPricing)
-        .where(eq(dealerPricing.dealerId, dealerId));
-      
-      return pricing.map(p => ({
-        bundleId: p.bundleId,
-        dealerPrice: p.dealerPrice || "0",
-        adminBasePrice: p.adminBasePrice || "0",
-        dealerProfit: p.dealerProfit || "0",
-      }));
+        .from(adminBasePrices)
+        .where(eq(adminBasePrices.productId, productId))
+        .limit(1);
+
+      return result?.basePrice || null;
     } catch (error) {
-      console.warn("Dealer pricing table not available:", error);
-      return [];
+      console.warn("Admin base price lookup error:", error);
+      return null;
     }
   }
 
-  async setDealerPricing(dealerId: string, bundleId: string, dealerPrice: string, adminBasePrice: string, dealerProfit: string, userRole: string): Promise<void> {
-    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
-    // Dealers can only set their selling price, profit is calculated as selling_price - role_base_price
-
-    if (userRole !== 'admin' && userRole !== 'dealer') {
-      throw new Error('Unauthorized to modify dealer pricing');
+  async setAdminBasePrice(productId: string, basePrice: string): Promise<void> {
+    const priceNum = parseFloat(basePrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      throw new Error('Invalid base price');
     }
 
     try {
-      // Get the role base price for dealers
-      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'dealer');
-      if (!roleBasePrice) {
-        throw new Error('No base price set for dealer role. Please contact admin.');
-      }
-
-      const basePriceNum = parseFloat(roleBasePrice);
-      const sellingPriceNum = parseFloat(dealerPrice);
-      const calculatedProfit = sellingPriceNum - basePriceNum;
-
-      // Validate that selling price is not below base price
-      if (sellingPriceNum < basePriceNum) {
-        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
-      }
-
-      // Check if pricing exists
+      // Check if base price exists
       const [existing] = await db.select()
-        .from(dealerPricing)
-        .where(
-          and(
-            eq(dealerPricing.dealerId, dealerId),
-            eq(dealerPricing.bundleId, bundleId)
-          )
-        )
+        .from(adminBasePrices)
+        .where(eq(adminBasePrices.productId, productId))
         .limit(1);
 
       if (existing) {
         // Update existing
-        await db.update(dealerPricing)
+        await db.update(adminBasePrices)
           .set({
-            dealerPrice: dealerPrice,
-            adminBasePrice: roleBasePrice, // Store the role base price for reference
-            dealerProfit: calculatedProfit.toFixed(2),
+            basePrice: basePrice,
             updatedAt: new Date()
           })
-          .where(
-            and(
-              eq(dealerPricing.dealerId, dealerId),
-              eq(dealerPricing.bundleId, bundleId)
-            )
-          );
+          .where(eq(adminBasePrices.productId, productId));
       } else {
         // Insert new
-        await db.insert(dealerPricing).values({
-          dealerId,
-          bundleId,
-          dealerPrice: dealerPrice,
-          adminBasePrice: roleBasePrice,
-          dealerProfit: calculatedProfit.toFixed(2),
+        await db.insert(adminBasePrices).values({
+          productId,
+          basePrice: basePrice,
         });
       }
     } catch (error) {
-      console.warn("Dealer pricing update error:", error);
-      throw error;
+      console.error("Admin base price update error:", error);
+      throw new Error("Failed to update admin base price");
     }
   }
 
-  async deleteDealerPricing(dealerId: string, bundleId: string): Promise<void> {
-    try {
-      await db.delete(dealerPricing)
-        .where(
-          and(
-            eq(dealerPricing.dealerId, dealerId),
-            eq(dealerPricing.bundleId, bundleId)
-          )
-        );
-    } catch (error) {
-      console.warn("Dealer pricing table not available for delete:", error);
-    }
-  }
-
-  async getDealerPriceForBundle(dealerId: string, bundleId: string): Promise<string | null> {
-    try {
-      const [result] = await db.select({ dealerPrice: dealerPricing.dealerPrice })
-        .from(dealerPricing)
-        .where(
-          and(
-            eq(dealerPricing.dealerId, dealerId),
-            eq(dealerPricing.bundleId, bundleId)
-          )
-        )
-        .limit(1);
-      
-      return result?.dealerPrice || null;
-    } catch (error) {
-      console.warn("Dealer pricing table not available for price lookup:", error);
-      return null;
-    }
-  }
-
-  async getDealerPricingForBundle(dealerId: string, bundleId: string): Promise<{ dealerPrice: string; adminBasePrice: string; dealerProfit: string } | null> {
-    const [result] = await db.select({
-      dealerPrice: dealerPricing.dealerPrice,
-      adminBasePrice: dealerPricing.adminBasePrice,
-      dealerProfit: dealerPricing.dealerProfit
-    })
-      .from(dealerPricing)
-      .where(
-        and(
-          eq(dealerPricing.dealerId, dealerId),
-          eq(dealerPricing.bundleId, bundleId)
-        )
-      )
-      .limit(1);
-    
-    return result ? {
-      dealerPrice: result.dealerPrice,
-      adminBasePrice: result.adminBasePrice,
-      dealerProfit: result.dealerProfit
-    } : null;
-  }
-
-  // Super Dealer Pricing Methods
-  async getSuperDealerPricing(superDealerId: string): Promise<Array<{ bundleId: string; superDealerPrice: string; adminBasePrice: string; superDealerProfit: string }>> {
-    try {
-      const pricing = await db.select({
-        bundleId: superDealerPricing.bundleId,
-        superDealerPrice: superDealerPricing.superDealerPrice,
-        adminBasePrice: superDealerPricing.adminBasePrice,
-        superDealerProfit: superDealerPricing.superDealerProfit,
-      })
-        .from(superDealerPricing)
-        .where(eq(superDealerPricing.superDealerId, superDealerId));
-      
-      return pricing.map(p => ({
-        bundleId: p.bundleId,
-        superDealerPrice: p.superDealerPrice || "0",
-        adminBasePrice: p.adminBasePrice || "0",
-        superDealerProfit: p.superDealerProfit || "0",
-      }));
-    } catch (error) {
-      console.warn("Super Dealer pricing table not available:", error);
-      return [];
-    }
-  }
-
-  async setSuperDealerPricing(superDealerId: string, bundleId: string, superDealerPrice: string, adminBasePrice: string, superDealerProfit: string, userRole: string): Promise<void> {
-    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
-    // Super Dealers can only set their selling price, profit is calculated as selling_price - role_base_price
-
-    if (userRole !== 'admin' && userRole !== 'super_dealer') {
-      throw new Error('Unauthorized to modify super dealer pricing');
+  // Price Resolution (combines custom + admin base price)
+  async getResolvedPrice(productId: string, roleOwnerId: string, role: string): Promise<string | null> {
+    // First check for custom selling price
+    const customPrice = await this.getCustomPrice(productId, roleOwnerId, role);
+    if (customPrice) {
+      return customPrice;
     }
 
-    try {
-      // Get the role base price for super dealers
-      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'super_dealer');
-      if (!roleBasePrice) {
-        throw new Error('No base price set for super dealer role. Please contact admin.');
-      }
-
-      const basePriceNum = parseFloat(roleBasePrice);
-      const sellingPriceNum = parseFloat(superDealerPrice);
-      const calculatedProfit = sellingPriceNum - basePriceNum;
-
-      // Validate that selling price is not below base price
-      if (sellingPriceNum < basePriceNum) {
-        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
-      }
-
-      // Check if pricing exists
-      const [existing] = await db.select()
-        .from(superDealerPricing)
-        .where(
-          and(
-            eq(superDealerPricing.superDealerId, superDealerId),
-            eq(superDealerPricing.bundleId, bundleId)
-          )
-        )
-        .limit(1);
-
-      if (existing) {
-        // Update existing
-        await db.update(superDealerPricing)
-          .set({
-            superDealerPrice: superDealerPrice,
-            adminBasePrice: roleBasePrice, // Store the role base price for reference
-            superDealerProfit: calculatedProfit.toFixed(2),
-            updatedAt: new Date()
-          })
-          .where(
-            and(
-              eq(superDealerPricing.superDealerId, superDealerId),
-              eq(superDealerPricing.bundleId, bundleId)
-            )
-          );
-      } else {
-        // Insert new
-        await db.insert(superDealerPricing).values({
-          superDealerId,
-          bundleId,
-          superDealerPrice: superDealerPrice,
-          adminBasePrice: roleBasePrice,
-          superDealerProfit: calculatedProfit.toFixed(2),
-        });
-      }
-    } catch (error) {
-      console.warn("Super Dealer pricing update error:", error);
-      throw error;
-    }
+    // Fall back to admin base price
+    return await this.getAdminBasePrice(productId);
   }
-
-  async deleteSuperDealerPricing(superDealerId: string, bundleId: string): Promise<void> {
-    try {
-      await db.delete(superDealerPricing)
-        .where(
-          and(
-            eq(superDealerPricing.superDealerId, superDealerId),
-            eq(superDealerPricing.bundleId, bundleId)
-          )
-        );
-    } catch (error) {
-      console.warn("Super Dealer pricing table not available for delete:", error);
-    }
-  }
-
-  async getSuperDealerPriceForBundle(superDealerId: string, bundleId: string): Promise<string | null> {
-    try {
-      const [result] = await db.select({ superDealerPrice: superDealerPricing.superDealerPrice })
-        .from(superDealerPricing)
-        .where(
-          and(
-            eq(superDealerPricing.superDealerId, superDealerId),
-            eq(superDealerPricing.bundleId, bundleId)
-          )
-        )
-        .limit(1);
-      
-      return result?.superDealerPrice || null;
-    } catch (error) {
-      console.warn("Super Dealer pricing table not available for price lookup:", error);
-      return null;
-    }
-  }
-
-  async getSuperDealerPricingForBundle(superDealerId: string, bundleId: string): Promise<{ superDealerPrice: string; adminBasePrice: string; superDealerProfit: string } | null> {
-    const [result] = await db.select({
-      superDealerPrice: superDealerPricing.superDealerPrice,
-      adminBasePrice: superDealerPricing.adminBasePrice,
-      superDealerProfit: superDealerPricing.superDealerProfit
-    })
-      .from(superDealerPricing)
-      .where(
-        and(
-          eq(superDealerPricing.superDealerId, superDealerId),
-          eq(superDealerPricing.bundleId, bundleId)
-        )
-      )
-      .limit(1);
-    
-    return result ? {
-      superDealerPrice: result.superDealerPrice,
-      adminBasePrice: result.adminBasePrice,
-      superDealerProfit: result.superDealerProfit
-    } : null;
-  }
-
-  // Master Pricing Methods
-  async getMasterPricing(masterId: string): Promise<Array<{ bundleId: string; masterPrice: string; adminBasePrice: string; masterProfit: string }>> {
-    try {
-      const pricing = await db.select({
-        bundleId: masterPricing.bundleId,
-        masterPrice: masterPricing.masterPrice,
-        adminBasePrice: masterPricing.adminBasePrice,
-        masterProfit: masterPricing.masterProfit,
-      })
-        .from(masterPricing)
-        .where(eq(masterPricing.masterId, masterId));
-      
-      return pricing.map(p => ({
-        bundleId: p.bundleId,
-        masterPrice: p.masterPrice || "0",
-        adminBasePrice: p.adminBasePrice || "0",
-        masterProfit: p.masterProfit || "0",
-      }));
-    } catch (error) {
-      console.warn("Master pricing table not available:", error);
-      return [];
-    }
-  }
-
-  async setMasterPricing(masterId: string, bundleId: string, masterPrice: string, adminBasePrice: string, masterProfit: string, userRole: string): Promise<void> {
-    // NEW LOGIC: Role-based base prices are stored in roleBasePrices table (admin-controlled)
-    // Masters can only set their selling price, profit is calculated as selling_price - role_base_price
-
-    if (userRole !== 'admin' && userRole !== 'master') {
-      throw new Error('Unauthorized to modify master pricing');
-    }
-
-    try {
-      // Get the role base price for masters
-      const roleBasePrice = await this.getRoleBasePrice(bundleId, 'master');
-      if (!roleBasePrice) {
-        throw new Error('No base price set for master role. Please contact admin.');
-      }
-
-      const basePriceNum = parseFloat(roleBasePrice);
-      const sellingPriceNum = parseFloat(masterPrice);
-      const calculatedProfit = sellingPriceNum - basePriceNum;
-
-      // Validate that selling price is not below base price
-      if (sellingPriceNum < basePriceNum) {
-        throw new Error(`Selling price cannot be below base price of GHS ${basePriceNum.toFixed(2)}`);
-      }
-
-      // Check if pricing exists
-      const [existing] = await db.select()
-        .from(masterPricing)
-        .where(
-          and(
-            eq(masterPricing.masterId, masterId),
-            eq(masterPricing.bundleId, bundleId)
-          )
-        )
-        .limit(1);
-
-      if (existing) {
-        // Update existing
-        await db.update(masterPricing)
-          .set({
-            masterPrice: masterPrice,
-            adminBasePrice: roleBasePrice, // Store the role base price for reference
-            masterProfit: calculatedProfit.toFixed(2),
-            updatedAt: new Date()
-          })
-          .where(
-            and(
-              eq(masterPricing.masterId, masterId),
-              eq(masterPricing.bundleId, bundleId)
-            )
-          );
-      } else {
-        // Insert new
-        await db.insert(masterPricing).values({
-          masterId,
-          bundleId,
-          masterPrice: masterPrice,
-          adminBasePrice: roleBasePrice,
-          masterProfit: calculatedProfit.toFixed(2),
-        });
-      }
-    } catch (error) {
-      console.warn("Master pricing update error:", error);
-      throw error;
-    }
-  }
-
-  async deleteMasterPricing(masterId: string, bundleId: string): Promise<void> {
-    try {
-      await db.delete(masterPricing)
-        .where(
-          and(
-            eq(masterPricing.masterId, masterId),
-            eq(masterPricing.bundleId, bundleId)
-          )
-        );
-    } catch (error) {
-      console.warn("Master pricing table not available for delete:", error);
-    }
-  }
-
-  async getMasterPriceForBundle(masterId: string, bundleId: string): Promise<string | null> {
-    try {
-      const [result] = await db.select({ masterPrice: masterPricing.masterPrice })
-        .from(masterPricing)
-        .where(
-          and(
-            eq(masterPricing.masterId, masterId),
-            eq(masterPricing.bundleId, bundleId)
-          )
-        )
-        .limit(1);
-      
-      return result?.masterPrice || null;
-    } catch (error) {
-      console.warn("Master pricing table not available for price lookup:", error);
-      return null;
-    }
-  }
-
-  async getMasterPricingForBundle(masterId: string, bundleId: string): Promise<{ masterPrice: string; adminBasePrice: string; masterProfit: string } | null> {
-    const [result] = await db.select({
-      masterPrice: masterPricing.masterPrice,
-      adminBasePrice: masterPricing.adminBasePrice,
-      masterProfit: masterPricing.masterProfit
-    })
-      .from(masterPricing)
-      .where(
-        and(
-          eq(masterPricing.masterId, masterId),
-          eq(masterPricing.bundleId, bundleId)
-        )
-      )
-      .limit(1);
-    
-    return result ? {
-      masterPrice: result.masterPrice,
-      adminBasePrice: result.adminBasePrice,
-      masterProfit: result.masterProfit
-    } : null;
-  }
-
-  // Role Base Prices Methods
   async getRoleBasePrices(): Promise<Array<{ bundleId: string; role: string; basePrice: string }>> {
     try {
       const prices = await db.select({

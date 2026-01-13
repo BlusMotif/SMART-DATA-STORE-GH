@@ -58,12 +58,19 @@ export default function AgentDashboard() {
   const [showApiModal, setShowApiModal] = useState(false);
   const [location, setLocation] = useLocation();
 
-  const { data: agent, isLoading: agentLoading } = useQuery<AgentProfileResponse["agent"]>({
+  const { data: agent, isLoading: agentLoading, error: agentError } = useQuery<AgentProfileResponse["agent"]>({
     queryKey: ["/api/agent/profile"],
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0,
+    retry: (failureCount, error) => {
+      // Don't retry on 404 errors (agent not found)
+      if (error?.message?.includes('Agent profile not found') || error?.message?.includes('404')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
@@ -81,6 +88,35 @@ export default function AgentDashboard() {
     refetchOnReconnect: true,
     staleTime: 0,
   });
+
+  // Handle case where agent profile is not found
+  if (!agentLoading && agentError && agentError.message?.includes('Agent profile not found')) {
+    return (
+      <div className="flex h-screen bg-gradient-to-br from-background to-muted/20">
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="max-w-md mx-4">
+            <CardContent className="pt-6 text-center">
+              <div className="mb-4">
+                <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="h-8 w-8 text-orange-600" />
+                </div>
+                <h2 className="text-xl font-semibold mb-2">Agent Profile Setup</h2>
+                <p className="text-muted-foreground mb-4">
+                  Your agent profile is being set up. This usually takes a few minutes.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  If this persists, please contact support.
+                </p>
+              </div>
+              <Button onClick={() => window.location.reload()} variant="outline">
+                Refresh Page
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-background to-muted/20">

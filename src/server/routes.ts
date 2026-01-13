@@ -2909,28 +2909,38 @@ export async function registerRoutes(
   // ============================================
   app.get("/api/agent/profile", requireAuth, requireAgent, async (req, res) => {
     try {
+      console.log("Agent profile request for user:", req.user!.email);
       // Get user from database using email from JWT
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
+        console.log("User not found in database:", req.user!.email);
         return res.status(404).json({ error: "User not found" });
       }
+      console.log("Found user in database:", dbUser.id);
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
+        console.log("Agent profile not found for user:", dbUser.id);
         return res.status(404).json({ error: "Agent profile not found" });
       }
+      console.log("Found agent profile:", agent.id);
       console.log("Agent balance from DB:", agent.balance);
       console.log("User wallet balance:", dbUser.walletBalance);
       console.log("Agent total profit:", agent.totalProfit);
       const user = await storage.getUser(dbUser.id);
+      console.log("User details:", user?.name, user?.email);
       const stats = await storage.getTransactionStats(agent.id);
+      console.log("Transaction stats:", stats);
       // Compute withdrawals sum (only include approved and paid withdrawals)
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
+      console.log("Withdrawals count:", withdrawals.length);
       const withdrawnTotal = withdrawals
         .filter(w => w.status === 'approved' || w.status === 'paid')
         .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
+      console.log("Total withdrawn:", withdrawnTotal);
       // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
       const totalProfit = parseFloat(agent.totalProfit || '0');
       const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
+      console.log("Calculated profit balance:", profitBalance);
       res.json({
         agent: {
           ...agent,
@@ -2942,6 +2952,8 @@ export async function registerRoutes(
         stats,
       });
     } catch (error: any) {
+      console.error("Agent profile error:", error);
+      console.error("Error stack:", error.stack);
       res.status(500).json({ error: "Failed to load profile" });
     }
   });

@@ -23,7 +23,7 @@ export default function CheckoutSuccessPage() {
   // Function to get the return URL
   const getReturnUrl = () => {
     const agentStore = localStorage.getItem("agentStore");
-    return agentStore ? `/store/${agentStore}` : "/";
+    return agentStore ? `/store/agent/${agentStore}` : "/";
   };
 
   const [verificationComplete, setVerificationComplete] = useState(false);
@@ -68,7 +68,7 @@ export default function CheckoutSuccessPage() {
               <p className="text-muted-foreground mb-4">No transaction reference provided.</p>
               <Button onClick={() => {
                 const agentStore = localStorage.getItem("agentStore");
-                setLocation(agentStore ? `/store/${agentStore}` : "/");
+                setLocation(agentStore ? `/store/agent/${agentStore}` : "/");
               }} data-testid="button-go-home">
                 {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
               </Button>
@@ -98,7 +98,7 @@ export default function CheckoutSuccessPage() {
               <div className="flex flex-col gap-2">
                 <Button onClick={() => {
                   const agentStore = localStorage.getItem("agentStore");
-                  setLocation(agentStore ? `/store/${agentStore}` : "/");
+                  setLocation(agentStore ? `/store/agent/${agentStore}` : "/");
                 }}>
                   {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
                 </Button>
@@ -132,7 +132,7 @@ export default function CheckoutSuccessPage() {
               <div className="flex flex-col gap-2">
                 <Button onClick={() => {
                   const agentStore = localStorage.getItem("agentStore");
-                  setLocation(agentStore ? `/store/${agentStore}` : "/");
+                  setLocation(agentStore ? `/store/agent/${agentStore}` : "/");
                 }}>
                   {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
                 </Button>

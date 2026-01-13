@@ -143,7 +143,7 @@ export default function WalletTopupSuccessPage() {
                 <Button variant="outline" onClick={() => {
                   const agentStore = localStorage.getItem("agentStore");
                   if (agentStore) {
-                    setLocation(`/store/${agentStore}`);
+                    setLocation(`/store/agent/${agentStore}`);
                   } else if (agent) {
                     setLocation("/agent/dashboard");
                   } else {
@@ -206,7 +206,7 @@ export default function WalletTopupSuccessPage() {
               <Button variant="outline" onClick={() => {
                 const agentStore = localStorage.getItem("agentStore");
                 if (agentStore) {
-                  setLocation(`/store/${agentStore}`);
+                  setLocation(`/store/agent/${agentStore}`);
                 } else if (agent) {
                   setLocation("/agent/dashboard");
                 } else {

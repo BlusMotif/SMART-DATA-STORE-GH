@@ -754,6 +754,7 @@ export const agentRegisterSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters"),
   storefrontSlug: z.string().min(3, "Storefront URL must be at least 3 characters")
     .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed"),
+  businessDescription: z.string().optional(),
 });
 
 export const purchaseSchema = z.object({

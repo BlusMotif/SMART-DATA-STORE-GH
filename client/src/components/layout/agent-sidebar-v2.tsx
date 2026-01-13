@@ -103,11 +103,9 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   if (error) {
     return (
       <div className="flex h-full w-64 flex-col border-r bg-background relative">
-        <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-4' : ''}`}>
-          <img src={siteLogo} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
-          <div className="flex flex-col">
-            <span className="font-semibold text-sm">{APP_NAME}</span>
-            <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Super Dealer Portal' : 'Reseller Portal'}</span>
+        <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
+            {user?.name?.charAt(0).toUpperCase() || 'A'}
           </div>
         </div>
 
@@ -177,25 +175,9 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-background relative">
-      <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-4' : ''}`}>
-        <div className="flex-1 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
-            {user?.name?.charAt(0).toUpperCase() || 'A'}
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold text-sm">{user?.name || 'Agent'}</span>
-            {rankData && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
-                  <Trophy className="h-3 w-3" />
-                  <span>
-                    {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
-                  </span>
-                </div>
-              </div>
-            )}
-            <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Reseller Portal' : 'Reseller Portal'}</span>
-          </div>
+      <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
+          {user?.name?.charAt(0).toUpperCase() || 'A'}
         </div>
       </div>
 

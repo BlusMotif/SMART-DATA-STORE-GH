@@ -1007,6 +1007,7 @@ export async function registerRoutes(
               phone: data.phone,
               storefrontSlug: data.storefrontSlug,
               businessName: data.businessName,
+              businessDescription: data.businessDescription,
             },
           },
         }),
@@ -3053,6 +3054,7 @@ export async function registerRoutes(
               userId: userId,
               storefrontSlug: regData.storefrontSlug,
               businessName: regData.businessName,
+              businessDescription: regData.businessDescription,
               isApproved: true,
               paymentPending: false,
             });

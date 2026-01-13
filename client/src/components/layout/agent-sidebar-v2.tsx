@@ -236,7 +236,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
           })}
 
           {agent && (
-            <a href={`/store/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="mt-2">
+            <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="mt-2">
               <Button variant="outline" className="w-full justify-start gap-3" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
                 <ExternalLink className="h-4 w-4" />
                 View Public Store

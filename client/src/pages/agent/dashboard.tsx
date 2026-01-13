@@ -104,7 +104,7 @@ export default function AgentDashboard() {
           </div>
           <div className="flex items-center gap-2">
             {agent && (
-              <a href={`/store/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer">
+              <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm" className="gap-2 hidden sm:flex" data-testid="button-view-store">
                   <ExternalLink className="h-4 w-4" />
                   View Store
@@ -351,12 +351,12 @@ export default function AgentDashboard() {
                         Share this link with your customers:
                       </p>
                       <code className="text-sm bg-background px-2 py-1 rounded mt-2 inline-block">
-                        {window.location.origin}/store/{agent.storefrontSlug}
+                        {window.location.origin}/store/agent/{agent.storefrontSlug}
                       </code>
                     </div>
                     <Button
                       variant="outline"
-                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/store/${agent.storefrontSlug}`)}
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/store/agent/${agent.storefrontSlug}`)}
                       data-testid="button-copy-link"
                     >
                       Copy Link

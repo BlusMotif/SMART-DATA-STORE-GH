@@ -303,7 +303,7 @@ export default function AgentRegisterPage() {
                     <FormDescription>
                       {storefrontSlug && (
                         <span className="text-xs">
-                          Your store: {window.location.origin}/store/<strong>{storefrontSlug}</strong>
+                          Your store: {window.location.origin}/store/agent/<strong>{storefrontSlug}</strong>
                         </span>
                       )}
                     </FormDescription>

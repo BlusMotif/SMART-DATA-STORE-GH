@@ -229,12 +229,12 @@ export default function AdminAgents() {
                           </TableCell>
                           <TableCell>
                             <a
-                              href={`/store/${agent.storefrontSlug}`}
+                              href={`/store/agent/${agent.storefrontSlug}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-primary hover:underline font-mono text-sm"
                             >
-                              /store/{agent.storefrontSlug}
+                              /store/agent/{agent.storefrontSlug}
                             </a>
                           </TableCell>
                           <TableCell className="font-medium tabular-nums">

@@ -209,7 +209,7 @@ export default function StorefrontPage() {
           <div className="container mx-auto max-w-4xl">
             <h2 className="text-2xl font-bold text-center mb-8">Browse Our Products</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {/* MTN Logo */}
               <Card 
                 className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
@@ -218,11 +218,12 @@ export default function StorefrontPage() {
                 <img
                   src={mtnLogo}
                   alt="MTN Data Bundles"
-                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                  className="w-16 h-16 md:w-20 md:h-20 object-contain rounded-lg"
                 />
-                <p className="text-sm font-medium text-center text-muted-foreground">
-                  MTN Data Bundles
-                </p>
+                <div className="text-center">
+                  <p className="text-sm font-semibold">MTN Data Bundles</p>
+                  <p className="text-xs text-muted-foreground">Buy MTN data bundles.</p>
+                </div>
               </Card>
 
               {/* Telecel Logo */}
@@ -233,26 +234,44 @@ export default function StorefrontPage() {
                 <img
                   src={telecelLogo}
                   alt="Telecel Data Bundles"
-                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                  className="w-16 h-16 md:w-20 md:h-20 object-contain rounded-lg"
                 />
-                <p className="text-sm font-medium text-center text-muted-foreground">
-                  Telecel Data Bundles
-                </p>
+                <div className="text-center">
+                  <p className="text-sm font-semibold">Telecel Data Bundles</p>
+                  <p className="text-xs text-muted-foreground">Buy Telecel data bundles.</p>
+                </div>
               </Card>
 
-              {/* AirtelTigo Logo */}
+              {/* AT BIG TIME Logo */}
               <Card 
                 className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
-                onClick={() => navigateToProduct('airteltigo')}
+                onClick={() => navigateToProduct('at_bigtime')}
               >
                 <img
                   src={airteltigoLogo}
-                  alt="AirtelTigo Data Bundles"
-                  className="w-20 h-20 md:w-24 md:h-24 object-contain rounded-lg"
+                  alt="AT BIG TIME Bundles"
+                  className="w-16 h-16 md:w-20 md:h-20 object-contain rounded-lg"
                 />
-                <p className="text-sm font-medium text-center text-muted-foreground">
-                  AirtelTigo Data Bundles
-                </p>
+                <div className="text-center">
+                  <p className="text-sm font-semibold">AT BIG TIME Bundles</p>
+                  <p className="text-xs text-muted-foreground">Buy AT BIG TIME data bundles.</p>
+                </div>
+              </Card>
+
+              {/* AT iShare Logo */}
+              <Card 
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                onClick={() => navigateToProduct('at_ishare')}
+              >
+                <img
+                  src={airteltigoLogo}
+                  alt="AT iShare Bundles"
+                  className="w-16 h-16 md:w-20 md:h-20 object-contain rounded-lg"
+                />
+                <div className="text-center">
+                  <p className="text-sm font-semibold">AT iShare Bundles</p>
+                  <p className="text-xs text-muted-foreground">Buy AT iShare data bundles.</p>
+                </div>
               </Card>
             </div>
           </div>

@@ -79,7 +79,8 @@ export default function NetworkProductsPage() {
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Data Delivery Time</h3>
                   <p className="text-muted-foreground">
-                    Delivery time is between 20min to 4hrs
+                    All data orders are delivered within 5–45 minutes.
+                    Please note that delivery times may vary during network downtime
                   </p>
                 </div>
               </div>

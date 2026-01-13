@@ -12,7 +12,6 @@ import {
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
 import { fulfillDataBundleTransaction } from "./providers.js";
-
 // Role labels for storefront display
 const ROLE_LABELS = {
   admin: "Admin",
@@ -23,28 +22,23 @@ const ROLE_LABELS = {
   user: "User",
   guest: "Guest",
 } as const;
-
 // Process webhook events asynchronously
 async function processWebhookEvent(event: any) {
   if (event.event === "charge.success") {
     const data = event.data;
     const reference = data.reference;
     const metadata = data.metadata;
-
     // Check if this is an agent activation payment
     if (metadata && metadata.purpose === "agent_activation") {
       // Handle new flow - pending registration (account not created yet)
       if (metadata.pending_registration && metadata.registration_data) {
         console.log("Processing pending agent registration via webhook:", reference);
-        
         const supabaseServer = getSupabase();
         if (!supabaseServer) {
           console.error("Supabase not initialized for webhook");
           return;
         }
-        
         const regData = metadata.registration_data;
-        
         try {
           // Check if agent already exists
           const existingAgent = await storage.getAgentBySlug(regData.storefrontSlug);
@@ -52,7 +46,6 @@ async function processWebhookEvent(event: any) {
             console.log("Agent already exists for slug:", regData.storefrontSlug);
             return;
           }
-
           // Create user in Supabase Auth
           const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
             email: regData.email,
@@ -64,15 +57,12 @@ async function processWebhookEvent(event: any) {
             },
             email_confirm: true
           });
-
           if (authError) {
             console.error("Failed to create auth user in webhook:", authError);
             return;
           }
-
           const userId = authData.user.id;
           console.log("User created via webhook:", userId);
-
           // Check if user already exists in local database
           const existingUser = await storage.getUser(userId);
           if (!existingUser) {
@@ -86,7 +76,6 @@ async function processWebhookEvent(event: any) {
               role: UserRole.AGENT,
             });
           }
-
           // Create agent record (approved since payment is complete)
           const agent = await storage.createAgent({
             userId: userId,
@@ -96,7 +85,6 @@ async function processWebhookEvent(event: any) {
             paymentPending: false,
           });
           console.log("Agent created via webhook:", agent.id);
-
           // Check if transaction already exists
           const existingTransaction = await storage.getTransactionByReference(reference);
           if (!existingTransaction) {
@@ -119,19 +107,15 @@ async function processWebhookEvent(event: any) {
               agentProfit: "0.00",
             });
           }
-          
           console.log("Agent registration completed via webhook");
         } catch (createError: any) {
           console.error("Error creating account in webhook:", createError);
         }
-        
         return;
       }
-      
       // Handle old flow - agent already exists
       if (metadata.agent_id) {
         console.log("Processing agent activation payment (old flow):", reference);
-        
         try {
           // Update transaction status
           if (metadata.transaction_id) {
@@ -142,16 +126,13 @@ async function processWebhookEvent(event: any) {
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
           }
-          
           // Auto-approve the agent and mark payment as received
-          const agent = await storage.updateAgent(metadata.agent_id, { 
+          const agent = await storage.updateAgent(metadata.agent_id, {
             isApproved: true,
             paymentPending: false,
           });
-
           if (agent) {
             console.log("Agent auto-approved after payment:", agent.id);
-            
             // Update user role to agent
             const updatedUser = await storage.updateUser(agent.userId, { role: UserRole.AGENT });
             if (updatedUser) {
@@ -163,11 +144,9 @@ async function processWebhookEvent(event: any) {
         } catch (oldFlowError: any) {
           console.error("Error processing old flow webhook:", oldFlowError);
         }
-        
         return;
       }
     }
-
     // Handle regular transaction payments
     try {
       const transaction = await storage.getTransactionByReference(reference);
@@ -175,19 +154,15 @@ async function processWebhookEvent(event: any) {
         console.error("Transaction not found for webhook:", reference);
         return; // Return early, don't throw
       }
-
       if (transaction.status === TransactionStatus.COMPLETED) {
         return; // Already processed
       }
-
       // Fulfill the order
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
-
       if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
         const [type, yearStr] = transaction.productId.split("-");
         const year = parseInt(yearStr);
-        
         // Try to get an available pre-generated checker first
         let checker = await storage.getResultChecker(transaction.productId);
         if (checker && !checker.isSold) {
@@ -198,7 +173,6 @@ async function processWebhookEvent(event: any) {
           // Auto-generate PIN and serial if no available checker exists
           deliveredPin = Math.random().toString(36).substring(2, 10).toUpperCase();
           deliveredSerial = Math.random().toString(36).substring(2, 12).toUpperCase();
-
           // Create a new result checker record
           const newChecker = await storage.createResultChecker({
             type,
@@ -207,15 +181,12 @@ async function processWebhookEvent(event: any) {
             pin: deliveredPin,
             basePrice: transaction.amount,
           });
-
           console.log("Auto-generated result checker via Paystack:", newChecker.id);
         }
       }
-
       // If this is a data bundle transaction, try to fulfill using provider settings
       if (transaction.type === ProductType.DATA_BUNDLE) {
         const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
-        
         if (autoProcessingEnabled) {
           try {
             const fulfillResult = await fulfillDataBundleTransaction(transaction);
@@ -276,35 +247,29 @@ async function processWebhookEvent(event: any) {
           paymentReference: data.reference,
         });
       }
-
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
       }
-
       console.log("Payment processed via webhook:", reference);
     } catch (transactionError: any) {
       console.error("Error processing transaction webhook:", transactionError);
     }
   }
-
   // Handle other Paystack webhooks if needed
   console.log(`Unhandled webhook event: ${event.event}`);
 }
-}
 import { getSupabaseServer } from "./index.js";
-import { 
-  validatePhoneNetwork, 
-  getNetworkMismatchError, 
+import {
+  validatePhoneNetwork,
+  getNetworkMismatchError,
   normalizePhoneNumber,
   isValidPhoneLength,
   detectNetwork,
   validatePhoneNumberDetailed
 } from "./utils/network-validator.js";
-
 // Get Supabase instance
 const getSupabase = () => getSupabaseServer();
-
 // Password strength validation
 function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
   if (password.length < 8) {
@@ -318,18 +283,15 @@ function validatePasswordStrength(password: string): { valid: boolean; message?:
   }
   return { valid: true };
 }
-
 // Email validation
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
-
 // Phone validation - updated to use network validator
 function isValidPhone(phone: string): boolean {
   return isValidPhoneLength(phone);
 }
-
 // Supabase JWT auth middleware
 declare global {
   namespace Express {
@@ -356,7 +318,6 @@ declare global {
     }
   }
 }
-
 // Auth middleware using Supabase JWT
 const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -364,24 +325,18 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-
     const supabaseServer = getSupabase();
     if (!supabaseServer) {
       return res.status(500).json({ error: "Supabase not configured" });
     }
-
     const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-
     if (error || !user || !user.email) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-
     // Get user role - first from metadata, then try database
-    let role = user.email === 'eleblununana@gmail.com' ? 'admin' : 
+    let role = user.email === 'eleblununana@gmail.com' ? 'admin' :
                (user.user_metadata?.role || user.app_metadata?.role || 'user');
-    
     try {
       const dbUser = await storage.getUserByEmail(user.email);
       if (dbUser) {
@@ -411,7 +366,6 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
       // Continue with role from metadata instead of failing
       console.log("Using role from Supabase metadata due to DB error:", role);
     }
-
     req.user = {
       id: user.id,
       email: user.email,
@@ -424,85 +378,71 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
     res.status(401).json({ error: "Unauthorized" });
   }
 };
-
 const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Admin access required" });
     }
-
     // Check role from req.user (already set by requireAuth middleware)
     if (req.user.role !== UserRole.ADMIN) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Admin access required" });
     }
-
     next();
   } catch (error) {
     console.error('Admin auth error:', error);
     res.status(403).json({ error: "Admin access required" });
   }
 };
-
 const requireAgent = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Agent access required" });
     }
-
     // Check if user has agent-level access or higher (agent, dealer, super_dealer, master, admin)
     const agentRoles = [UserRole.AGENT, UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !agentRoles.includes(req.user.role as typeof UserRole.AGENT)) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Agent access required" });
     }
-
     next();
   } catch (error) {
     console.error('Agent auth error:', error);
     res.status(403).json({ error: "Agent access required" });
   }
 };
-
 const requireSupport = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Support access required" });
     }
-
     // Check role from req.user (already set by requireAuth middleware)
     if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.AGENT) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Support access required" });
     }
-
     next();
   } catch (error) {
     console.error('Support auth error:', error);
     res.status(403).json({ error: "Support access required" });
   }
 };
-
 const requireApiKey = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: "API key required" });
     }
-
     const key = authHeader.substring(7); // Remove 'Bearer ' prefix
-
     const apiKey = await storage.getApiKeyByKey(key);
     if (!apiKey || !apiKey.isActive) {
       return res.status(401).json({ error: "Invalid API key" });
     }
-
     // Update last used timestamp
     await storage.updateApiKey(apiKey.id, { lastUsed: new Date() });
-
     req.apiKey = apiKey;
     next();
   } catch (error) {
@@ -510,82 +450,70 @@ const requireApiKey = async (req: Request, res: Response, next: NextFunction) =>
     res.status(401).json({ error: "Invalid API key" });
   }
 };
-
 const requireDealer = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Dealer access required" });
     }
-
     // Check if user has dealer-level access or higher (dealer, super_dealer, master, admin)
     const dealerRoles = [UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !dealerRoles.includes(req.user.role as typeof UserRole.DEALER)) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Dealer access required" });
     }
-
     next();
   } catch (error) {
     console.error('Dealer auth error:', error);
     res.status(403).json({ error: "Dealer access required" });
   }
 };
-
 const requireSuperDealer = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Super Dealer access required" });
     }
-
     // Check if user has super-dealer-level access or higher (super_dealer, master, admin)
     const superDealerRoles = [UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !superDealerRoles.includes(req.user.role as typeof UserRole.SUPER_DEALER)) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Super Dealer access required" });
     }
-
     next();
   } catch (error) {
     console.error('Super Dealer auth error:', error);
     res.status(403).json({ error: "Super Dealer access required" });
   }
 };
-
 const requireMaster = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // requireAuth should have already run and set req.user with role
     if (!req.user || !req.user.email) {
       return res.status(403).json({ error: "Master access required" });
     }
-
     // Check if user has master-level access or higher (master, admin)
     const masterRoles = [UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !masterRoles.includes(req.user.role as typeof UserRole.MASTER)) {
       console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Master access required" });
     }
-
     next();
   } catch (error) {
     console.error('Master auth error:', error);
     res.status(403).json({ error: "Master access required" });
   }
 };
-
 // Generate unique transaction reference
 function generateReference(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = randomUUID().split("-")[0].toUpperCase();
   return `CLEC-${timestamp}-${random}`;
 }
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<void> {
-
   // ============================================
   // AUTH ROUTES
   // ============================================
@@ -595,25 +523,20 @@ export async function registerRoutes(
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-      
       const data = registerSchema.parse(req.body);
-      
       // Validate password strength
       const passwordValidation = validatePasswordStrength(data.password);
       if (!passwordValidation.valid) {
         return res.status(400).json({ error: passwordValidation.message });
       }
-      
       // Validate email format
       if (!isValidEmail(data.email)) {
         return res.status(400).json({ error: "Invalid email format" });
       }
-
       const supabaseServer = getSupabase();
       if (!supabaseServer) {
         return res.status(500).json({ error: "Supabase not configured" });
       }
-
       // Check if user already exists in database
       try {
         const existing = await storage.getUserByEmail(data.email);
@@ -624,7 +547,6 @@ export async function registerRoutes(
         console.error("Database error checking existing user:", dbError);
         return res.status(500).json({ error: "Database connection failed" });
       }
-
       // Sign up with Supabase
       const { data: supabaseData, error } = await supabaseServer.auth.signUp({
         email: data.email,
@@ -637,11 +559,9 @@ export async function registerRoutes(
           }
         }
       });
-
       if (error || !supabaseData.user) {
         return res.status(400).json({ error: error?.message || "Registration failed" });
       }
-
       // Create user in local database with Supabase user ID
       try {
         const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -653,7 +573,6 @@ export async function registerRoutes(
           phone: data.phone,
           role: UserRole.GUEST,
         });
-
         res.status(201).json({
           user: { id: user.id, email: user.email, name: user.name, role: user.role },
           access_token: supabaseData.session?.access_token,
@@ -674,40 +593,32 @@ export async function registerRoutes(
       res.status(500).json({ error: "Registration failed" });
     }
   });
-
   app.post("/api/auth/login", async (req, res) => {
     try {
       // Validate input
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-      
       const { email, password } = req.body;
-
       if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
         return res.status(400).json({ error: "Email and password are required" });
       }
-      
       // Validate email format
       if (!isValidEmail(email)) {
         return res.status(400).json({ error: "Invalid email format" });
       }
-
       const supabaseServer = getSupabase();
       if (!supabaseServer) {
         return res.status(500).json({ error: "Supabase not configured" });
       }
-
       // Sign in with Supabase
       const { data, error } = await supabaseServer.auth.signInWithPassword({
         email,
         password,
       });
-
       if (error || !data.user) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
-
       // TEMPORARY: Set admin role for specific email in Supabase metadata
       if (email === 'eleblununana@gmail.com') {
         try {
@@ -720,11 +631,9 @@ export async function registerRoutes(
           console.error('Failed to set admin role:', updateError);
         }
       }
-
       // Get user role from database (required for proper role management)
       let role = email === 'eleblununana@gmail.com' ? 'admin' : 'user'; // Default role
       let agent = null;
-
       // Always try to get user from database for role and additional data
       try {
         const dbUser = await storage.getUserByEmail(email);
@@ -744,7 +653,6 @@ export async function registerRoutes(
         // If database is down, we can't determine role safely
         return res.status(500).json({ error: "Database connection failed" });
       }
-
       res.json({
         user: {
           id: data.user.id,
@@ -768,44 +676,36 @@ export async function registerRoutes(
       res.status(500).json({ error: "Login failed" });
     }
   });
-
   app.post("/api/auth/logout", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         const supabaseServer = getSupabase();
-
         if (supabaseServer) {
           // Sign out from Supabase
           await supabaseServer.auth.admin.signOut(token);
         }
       }
-
       res.json({ success: true });
     } catch (error: any) {
       console.error("Logout error:", error);
       res.status(500).json({ error: "Logout failed" });
     }
   });
-
   app.get("/api/auth/me", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.json({ user: null });
       }
-
       const token = authHeader.substring(7);
       const supabaseServer = getSupabase();
-
       if (!supabaseServer) {
         console.error("Supabase not configured");
         return res.status(500).json({ error: "Supabase not configured" });
       }
-
       const { data: userData, error } = await supabaseServer.auth.getUser(token);
-
       if (error || !userData?.user || !userData.user.email) {
         console.log("Standard auth failed, trying admin API fallback...");
         // Try to decode JWT to get user ID for admin API fallback
@@ -828,14 +728,11 @@ export async function registerRoutes(
       } else {
         var user = userData.user;
       }
-
       console.log("Final user object:", { id: user.id, email: user.email });
-
       // TEMPORARY: Override role for specific admin email
-      let role = user.email === 'eleblununana@gmail.com' ? 'admin' : 
+      let role = user.email === 'eleblununana@gmail.com' ? 'admin' :
                  (user.user_metadata?.role || user.app_metadata?.role || 'user');
       let agent = null;
-
       // Try to get additional data from database if connection is available
       try {
         const dbUser = await storage.getUserByEmail(user.email!);
@@ -869,7 +766,6 @@ export async function registerRoutes(
         // If database is down, use role from Supabase metadata
         console.log("Using role from Supabase metadata due to DB error:", role);
       }
-
       console.log("Final user data:", { id: user.id, email: user.email, role, hasAgent: !!agent });
       res.json({
         user: {
@@ -894,7 +790,6 @@ export async function registerRoutes(
       res.json({ user: null });
     }
   });
-
   // ============================================
   // AGENT REGISTRATION
   // ============================================
@@ -905,41 +800,33 @@ export async function registerRoutes(
         console.error('Supabase server client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
         return res.status(500).json({ error: "Server configuration error" });
       }
-      
       // Validate input
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-
       const data = agentRegisterSchema.parse(req.body);
-      
       // Validate password strength
       const passwordValidation = validatePasswordStrength(data.password);
       if (!passwordValidation.valid) {
         return res.status(400).json({ error: passwordValidation.message });
       }
-      
       // Validate email and phone
       if (!isValidEmail(data.email)) {
         return res.status(400).json({ error: "Invalid email format" });
       }
-      
       if (!isValidPhone(data.phone)) {
         return res.status(400).json({ error: "Invalid phone number format" });
       }
       console.log("Agent registration data:", data);
-
       // Check if storefront slug is taken
       const existingSlug = await storage.getAgentBySlug(data.storefrontSlug);
       if (existingSlug) {
         return res.status(400).json({ error: "Storefront URL already taken" });
       }
-
       // Check if user already exists with this email
       console.log("Checking if user exists");
       const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
       const existingAuthUser = existingUsers?.users.find(u => u.email === data.email);
-      
       if (existingAuthUser) {
         // Check if they already have an agent account
         const existingAgent = await storage.getAgentByUserId(existingAuthUser.id);
@@ -951,18 +838,13 @@ export async function registerRoutes(
           }
         }
       }
-
       // DO NOT CREATE ACCOUNT YET - Only initialize payment
       // Account will be created after successful payment verification
-      
       // Create a temporary reference for payment tracking
       const activationFee = 60.00; // GHC 60.00
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      
       console.log("Initializing payment without creating account");
-
       const baseUrl = `${req.protocol}://${req.get("host")}`;
-
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
@@ -992,16 +874,12 @@ export async function registerRoutes(
           },
         }),
       });
-
       const paystackData = await paystackResponse.json() as any;
-
       if (!paystackData.status) {
         console.error("Paystack initialization failed:", paystackData);
         return res.status(500).json({ error: "Payment initialization failed" });
       }
-
       console.log("Payment initialized. Account will be created after successful payment:", paystackData.data.reference);
-
       res.json({
         message: "Please complete payment to activate your agent account",
         paymentUrl: paystackData.data.authorization_url,
@@ -1012,27 +890,23 @@ export async function registerRoutes(
       console.error("Error during agent registration:", error.message);
       console.error("Full error:", error);
       console.error("Error stack:", error.stack);
-      
       // Handle specific database errors
       if (error.code === '23505') {
         return res.status(400).json({ error: "This email or phone number is already registered" });
       }
-      
       // Handle Zod validation errors
       if (error.name === 'ZodError') {
-        return res.status(400).json({ 
-          error: "Invalid registration data", 
-          details: error.errors 
+        return res.status(400).json({
+          error: "Invalid registration data",
+          details: error.errors
         });
       }
-      
-      res.status(500).json({ 
+      res.status(500).json({
         error: error.message || "Registration failed",
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
   });
-
     // ============================================
     // UPGRADE EXISTING USER TO AGENT (same account)
     // ============================================
@@ -1043,11 +917,9 @@ export async function registerRoutes(
           console.error('Supabase server client not initialized.');
           return res.status(500).json({ error: "Server configuration error" });
         }
-
         const user = (req as any).user;
         if (!user || !user.id) return res.status(401).json({ error: "Unauthorized" });
         console.log("Upgrade request for user:", user.id, "email:", user.email);
-
         // Ensure user exists in database
         let dbUser = await storage.getUserByEmail(user.email);
         if (!dbUser) {
@@ -1063,24 +935,20 @@ export async function registerRoutes(
           });
           console.log("User created in db:", dbUser.id);
         }
-
         const { businessName, storefrontSlug } = req.body || {};
         if (!businessName || !storefrontSlug) {
           return res.status(400).json({ error: "Business name and storefront slug are required" });
         }
-
         // Check if user already has an agent
         const existingAgent = await storage.getAgentByUserId(user.id);
         if (existingAgent) {
           return res.status(400).json({ error: "Your account is already an agent" });
         }
-
         // Check slug availability
         const slugTaken = await storage.getAgentBySlug(storefrontSlug);
         if (slugTaken) {
           return res.status(400).json({ error: "Storefront URL already taken" });
         }
-
         console.log("Creating agent for user:", dbUser.id);
         // Create agent record (pending approval/payment)
         const agent = await storage.createAgent({
@@ -1091,11 +959,9 @@ export async function registerRoutes(
           paymentPending: true,
         } as any);
         console.log("Agent created:", agent.id);
-
         // Create pending transaction record
         const activationFee = 60.0;
         const tempReference = `agent_pending_${Date.now()}_${user.id}`;
-
         const transaction = await storage.createTransaction({
           reference: tempReference,
           type: ProductType.AGENT_ACTIVATION,
@@ -1113,13 +979,10 @@ export async function registerRoutes(
           agentProfit: "0.00",
         } as any);
         console.log("Transaction created:", transaction.id);
-
         console.log("Initializing Paystack payment...");
         // Initialize Paystack payment
         console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
-
         const baseUrl = `${req.protocol}://${req.get("host")}`;
-
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",
           headers: {
@@ -1139,7 +1002,6 @@ export async function registerRoutes(
             },
           }),
         });
-
         const paystackData = await paystackResponse.json() as any;
         console.log("Paystack response status:", paystackData.status, "data:", paystackData);
         console.log("Paystack response full:", JSON.stringify(paystackData, null, 2));
@@ -1149,7 +1011,6 @@ export async function registerRoutes(
           try { await storage.updateTransaction(transaction.id, { status: TransactionStatus.FAILED }); } catch (_) {}
           return res.status(500).json({ error: "Payment initialization failed" });
         }
-
         res.json({ paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
         console.log("Returning payment URL:", paystackData.data.authorization_url);
         console.log("Full response being sent:", { paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
@@ -1159,7 +1020,6 @@ export async function registerRoutes(
         res.status(500).json({ error: error.message || "Upgrade failed" });
       }
     });
-
   // Helper function to get default bundles for a network
   function getDefaultBundlesForNetwork(network: string) {
     const bundleConfigs: Record<string, any[]> = {
@@ -1184,10 +1044,8 @@ export async function registerRoutes(
         { name: 'Telecel 2GB', network: 'telecel', dataAmount: '2GB', validity: '3 Days', basePrice: '6.00', agentPrice: '5.40', dealerPrice: '5.10', superDealerPrice: '4.80', masterPrice: '4.50', adminPrice: '4.20', isActive: true }
       ]
     };
-
     return bundleConfigs[network] || [];
   }
-
   // ============================================
   // PRODUCTS - DATA BUNDLES
   // ============================================
@@ -1196,7 +1054,6 @@ export async function registerRoutes(
     const agentSlug = req.query.agent as string | undefined;
     try {
       let bundles = await storage.getDataBundles({ network, isActive: true });
-
       // If no bundles exist for the requested network, create default ones
       if (network && bundles.length === 0) {
         console.log(`No bundles found for network: ${network}, creating default bundles...`);
@@ -1212,9 +1069,7 @@ export async function registerRoutes(
         // Re-fetch bundles after creation
         bundles = await storage.getDataBundles({ network, isActive: true });
       }
-
       let pricedBundles;
-
       if (agentSlug) {
         // Handle agent storefront pricing - use resolved prices
         const agent = await storage.getAgentBySlug(agentSlug);
@@ -1226,7 +1081,6 @@ export async function registerRoutes(
             const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
             const sellingPrice = resolvedPrice ? parseFloat(resolvedPrice) : basePrice;
             const profit = Math.max(0, sellingPrice - basePrice);
-
             return {
               ...bundle,
               effective_price: sellingPrice.toFixed(2),
@@ -1245,7 +1099,6 @@ export async function registerRoutes(
         // Check if user is authenticated to apply role-based pricing
         let userRole = 'guest';
         let userId: string | undefined;
-
         try {
           const authHeader = req.headers.authorization;
           if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -1266,18 +1119,15 @@ export async function registerRoutes(
           // Ignore auth errors, treat as guest
           console.log('Auth check failed, treating as guest');
         }
-
         // Apply role-based pricing using the new resolved price system
         pricedBundles = await Promise.all(bundles.map(async (bundle) => {
           let effectivePrice = parseFloat(bundle.basePrice || '0');
           let profitMargin = '0.00';
-
           if (userRole !== 'guest' && userId) {
             // Get resolved price (custom selling price or admin base price fallback)
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, userId, userRole);
             if (resolvedPrice) {
               effectivePrice = parseFloat(resolvedPrice);
-
               // Calculate profit margin (selling price - admin base price)
               const adminBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
               if (adminBasePrice) {
@@ -1292,7 +1142,6 @@ export async function registerRoutes(
               effectivePrice = parseFloat(adminBasePrice);
             }
           }
-
           return {
             ...bundle,
             effective_price: effectivePrice.toFixed(2),
@@ -1300,21 +1149,18 @@ export async function registerRoutes(
           };
         }));
       }
-
       res.json(pricedBundles);
     } catch (error: any) {
       console.error("Database error:", error);
       res.status(500).json({ error: "Failed to fetch data bundles" });
     }
   });
-
   // Check storefront slug availability
   app.get("/api/agent/check-slug", async (req, res) => {
     try {
       const slug = (req.query.slug || "").toString().toLowerCase();
       if (!slug) return res.status(400).json({ error: "slug is required" });
       if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: "invalid slug format" });
-
       const existing = await storage.getAgentBySlug(slug);
       res.json({ available: !existing });
     } catch (err: any) {
@@ -1322,14 +1168,12 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to check slug" });
     }
   });
-
   app.get("/api/products/data-bundles/:id", async (req, res) => {
     try {
       const bundle = await storage.getDataBundle(req.params.id);
       if (!bundle || !bundle.isActive) {
         return res.status(404).json({ error: "Data bundle not found" });
       }
-
       // Apply role-based pricing
       let userRole = 'guest';
       try {
@@ -1351,9 +1195,7 @@ export async function registerRoutes(
         // Ignore auth errors, treat as guest
         console.log('Auth check failed, treating as guest');
       }
-
       let price = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
-
       // Apply role-based pricing
       if (userRole === 'agent') {
         price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
@@ -1366,9 +1208,7 @@ export async function registerRoutes(
       } else if (userRole === 'admin' && bundle.adminPrice) {
         price = parseFloat(bundle.adminPrice);
       }
-
       if (isNaN(price)) price = 0;
-
       res.json({
         ...bundle,
         effective_price: price.toFixed(2),
@@ -1378,7 +1218,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to fetch data bundle" });
     }
   });
-
   // ============================================
   // PRODUCTS - RESULT CHECKERS (Stock info)
   // ============================================
@@ -1386,9 +1225,7 @@ export async function registerRoutes(
     try {
       const currentYear = new Date().getFullYear();
       const years = [currentYear, currentYear - 1, currentYear - 2];
-      
       const stock: { type: string; year: number; available: number; stock: number; price: number }[] = [];
-      
       for (const year of years) {
         for (const type of ["bece", "wassce"]) {
           const available = await storage.getResultCheckerStock(type, year);
@@ -1404,24 +1241,20 @@ export async function registerRoutes(
           }
         }
       }
-      
       res.json(stock);
     } catch (error: any) {
       console.error("Database error:", error);
       res.status(500).json({ error: "Failed to fetch result checker stock" });
     }
   });
-
   app.get("/api/products/result-checkers/info/:type/:year", async (req, res) => {
     try {
       const type = req.params.type;
       const year = parseInt(req.params.year);
-      
       const available = await storage.getResultCheckerStock(type, year);
       if (available === 0) {
         return res.status(404).json({ error: "No stock available" });
       }
-      
       const checker = await storage.getAvailableResultChecker(type, year);
       res.json({
         type,
@@ -1433,30 +1266,25 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to fetch result checker info" });
     }
   });
-
   // ============================================
   // STOREFRONT
   // ============================================
   app.get("/api/store/:role/:slug", async (req, res) => {
     try {
       const { role, slug } = req.params;
-      
       // Validate role
       const validRoles = ['agent', 'dealer', 'super_dealer', 'master'];
       if (!validRoles.includes(role)) {
         return res.status(404).json({ error: "Invalid store type" });
       }
-
       let storeData: any = null;
       let roleOwnerId: string;
-
       if (role === 'agent') {
         // Handle agent storefront
         const agent = await storage.getAgentBySlug(slug);
         if (!agent || !agent.isApproved) {
           return res.status(404).json({ error: "Store not found" });
         }
-
         const user = await storage.getUser(agent.userId);
         storeData = {
           businessName: agent.businessName,
@@ -1473,7 +1301,6 @@ export async function registerRoutes(
         if (!user) {
           return res.status(404).json({ error: "Store not found" });
         }
-
         storeData = {
           businessName: `${user.name} (${ROLE_LABELS[role as keyof typeof ROLE_LABELS]})`,
           businessDescription: `${ROLE_LABELS[role as keyof typeof ROLE_LABELS]} storefront`,
@@ -1482,10 +1309,8 @@ export async function registerRoutes(
         };
         roleOwnerId = user.id;
       }
-
       // Get all active data bundles
       const allBundles = await storage.getDataBundles({ isActive: true });
-
       // Get result checkers
       const currentYear = new Date().getFullYear();
       const resultCheckerStock = [];
@@ -1504,7 +1329,6 @@ export async function registerRoutes(
           }
         }
       }
-
       res.json({
         store: storeData,
         // Only expose role-scoped products with resolved pricing
@@ -1515,7 +1339,6 @@ export async function registerRoutes(
             // If no price available, don't show the bundle
             return null;
           }
-
           return {
             id: b.id,
             name: b.name,
@@ -1532,40 +1355,32 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load store" });
     }
   });
-
   // Store-specific user registration
   app.post("/api/store/:slug/register", async (req, res) => {
     try {
       const { slug } = req.params;
       const agent = await storage.getAgentBySlug(slug);
-      
       if (!agent || !agent.isApproved) {
         return res.status(404).json({ error: "Store not found" });
       }
-
       // Validate input
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-      
       const data = registerSchema.parse(req.body);
-      
       // Validate password strength
       const passwordValidation = validatePasswordStrength(data.password);
       if (!passwordValidation.valid) {
         return res.status(400).json({ error: passwordValidation.message });
       }
-      
       // Validate email format
       if (!isValidEmail(data.email)) {
         return res.status(400).json({ error: "Invalid email format" });
       }
-
       const supabaseServer = getSupabase();
       if (!supabaseServer) {
         return res.status(500).json({ error: "Supabase not configured" });
       }
-
       // Check if user already exists in database
       try {
         const existing = await storage.getUserByEmail(data.email);
@@ -1576,7 +1391,6 @@ export async function registerRoutes(
         console.error("Database error checking existing user:", dbError);
         return res.status(500).json({ error: "Database connection failed" });
       }
-
       // Sign up with Supabase
       const { data: supabaseData, error } = await supabaseServer.auth.signUp({
         email: data.email,
@@ -1590,11 +1404,9 @@ export async function registerRoutes(
           }
         }
       });
-
       if (error || !supabaseData.user) {
         return res.status(400).json({ error: error?.message || "Registration failed" });
       }
-
       // Create user in local database with Supabase user ID
       try {
         const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -1606,7 +1418,6 @@ export async function registerRoutes(
           phone: data.phone,
           role: UserRole.GUEST, // Store users start as GUEST
         });
-
         res.status(201).json({
           user: { id: user.id, email: user.email, name: user.name, role: user.role },
           access_token: supabaseData.session?.access_token,
@@ -1627,7 +1438,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Registration failed" });
     }
   });
-
   // ============================================
   // PAYSTACK CONFIG
   // ============================================
@@ -1642,128 +1452,115 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load paystack config" });
     }
   });
-
   // ============================================
   // CHECKOUT / TRANSACTIONS
   // ============================================
-
   // Excel bulk upload for registered users
   app.post("/api/checkout/bulk-upload", requireAuth, multer({ storage: multer.memoryStorage() }).single('excelFile'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "Excel file is required" });
       }
-
       // Import xlsx dynamically to avoid issues
       const XLSX = await import('xlsx');
-
       // Parse Excel file
       const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
       if (!jsonData || jsonData.length === 0) {
         return res.status(400).json({ error: "Excel file is empty or invalid" });
       }
-
       // Validate Excel structure - expect columns: phone, bundleName, bundleId
       const requiredColumns = ['phone', 'bundleName', 'bundleId'];
       const firstRow = jsonData[0] as any;
       const missingColumns = requiredColumns.filter(col => !(col in firstRow));
-
       if (missingColumns.length > 0) {
-        return res.status(400).json({ 
-          error: `Missing required columns: ${missingColumns.join(', ')}. Expected: phone, bundleName, bundleId` 
+        return res.status(400).json({
+          error: `Missing required columns: ${missingColumns.join(', ')}. Expected: phone, bundleName, bundleId`
         });
       }
-
       // Process and validate each row
       const orderItems: any[] = [];
       const errors: string[] = [];
-
       for (let i = 0; i < jsonData.length; i++) {
         const row = jsonData[i] as any;
         const rowNum = i + 2; // +2 because Excel is 1-indexed and we skip header
-
         try {
           const phone = row.phone?.toString().trim();
           const bundleName = row.bundleName?.toString().trim();
           const bundleId = row.bundleId?.toString().trim();
-
           if (!phone || !bundleName || !bundleId) {
             errors.push(`Row ${rowNum}: Missing phone, bundleName, or bundleId`);
             continue;
           }
-
           // Validate phone number
           const normalizedPhone = normalizePhoneNumber(phone);
           if (!isValidPhoneLength(normalizedPhone)) {
             errors.push(`Row ${rowNum}: Invalid phone number format: ${phone}`);
             continue;
           }
-
           // Validate bundle exists
           const bundle = await storage.getDataBundle(bundleId);
           if (!bundle || !bundle.isActive) {
             errors.push(`Row ${rowNum}: Bundle not found or inactive: ${bundleId}`);
             continue;
           }
-
           // Validate network matches phone
           const networkFromPhone = detectNetwork(normalizedPhone);
           if (networkFromPhone !== bundle.network) {
             errors.push(`Row ${rowNum}: Phone network (${networkFromPhone}) doesn't match bundle network (${bundle.network})`);
             continue;
           }
-
           orderItems.push({
             phone: normalizedPhone,
             bundleName: bundleName,
             bundleId: bundleId,
             dataAmount: bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
           });
-
         } catch (error: any) {
           errors.push(`Row ${rowNum}: ${error.message}`);
         }
       }
-
       if (orderItems.length === 0) {
         return res.status(400).json({ error: "No valid order items found in Excel file" });
       }
-
+      // Check for duplicate phone numbers in bulk upload
+      const phoneNumbers = orderItems.map(item => item.phone);
+      const duplicatePhones = phoneNumbers.filter((phone, index) => phoneNumbers.indexOf(phone) !== index);
+      const uniqueDuplicates = [...new Set(duplicatePhones)];
+      if (uniqueDuplicates.length > 0) {
+        console.error(`[BulkUpload] Duplicate phone numbers found: ${uniqueDuplicates.join(', ')}`);
+        return res.status(400).json({
+          error: `Duplicate phone numbers detected in bulk upload: ${uniqueDuplicates.join(', ')}. Each phone number can only appear once per bulk purchase.`,
+          duplicatePhones: uniqueDuplicates
+        });
+      }
       // Get authenticated user
       const user = (req as any).user;
       if (!user) {
         return res.status(401).json({ error: "Authentication required" });
       }
-
       // Check if any bundle is for AT iShare network (bulk purchases not allowed)
       const hasAtIshareBundle = orderItems.some(item => {
         // We already validated bundles exist, so we can safely get them
         // But to avoid extra DB calls, we'll check during price calculation
         return false; // Will check during the loop below
       });
-
       // Calculate total amount and prepare order items with prices
       let totalAmount = 0;
       const processedOrderItems: any[] = [];
       let computedAgentProfit = 0;
-
       for (const item of orderItems) {
         const bundle = await storage.getDataBundle(item.bundleId);
         if (!bundle) continue;
-
         // Check for AT iShare bundles
         if (bundle.network === "at_ishare") {
           return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
         }
-
         // Determine final selling price. For agents, REQUIRE an explicit agent_sell_price (custom price).
         let itemPrice = parseFloat(bundle.basePrice);
         let adminPrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
-        
         if (user.role === 'agent') {
           const resolvedPrice = await storage.getResolvedPrice(bundle.id, user.id, 'agent');
           if (!resolvedPrice) {
@@ -1782,37 +1579,31 @@ export async function registerRoutes(
           const resolvedPrice = await storage.getResolvedPrice(bundle.id, user.id, 'master');
           itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || '0');
         }
-
         // Compute agent commission per item (selling price - admin base price)
         if (user.role === 'agent') {
           computedAgentProfit += Math.max(0, itemPrice - adminPrice);
         }
-
         processedOrderItems.push({
           ...item,
           price: itemPrice,
         });
         totalAmount += itemPrice;
       }
-
       // Check wallet balance for registered users
       if (user.role !== 'guest') {
         const userData = await storage.getUser(user.id);
         if (!userData) {
           return res.status(404).json({ error: "User not found" });
         }
-
         // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
         const walletBalanceCents = Math.round(parseFloat(userData.walletBalance) * 100);
         const totalAmountCents = Math.round(totalAmount * 100);
-
         if (walletBalanceCents < totalAmountCents) {
           return res.status(400).json({
             error: `Insufficient wallet balance. Required: GHS ${(totalAmountCents / 100).toFixed(2)}, Available: GHS ${(walletBalanceCents / 100).toFixed(2)}`
           });
         }
       }
-
       // Create transaction
       const reference = generateReference();
       const transaction = await storage.createTransaction({
@@ -1831,7 +1622,6 @@ export async function registerRoutes(
         agentId: user.role === 'agent' ? user.id : undefined,
         agentProfit: user.role === 'agent' ? computedAgentProfit.toFixed(2) : "0.00",
       });
-
       // Deduct from wallet if registered user
       if (user.role !== 'guest') {
         const userData = await storage.getUser(user.id);
@@ -1843,28 +1633,23 @@ export async function registerRoutes(
           await storage.updateUser(user.id, { walletBalance: newBalance.toFixed(2) });
         }
       }
-
       // Mark transaction as completed immediately for wallet payments
       await storage.updateTransaction(transaction.id, {
         status: "completed",
         completedAt: new Date(),
         paymentReference: "wallet",
       });
-
       // Financial integrity: credit agent only their profit, and record admin revenue separately
       if (user.role === 'agent' && parseFloat(transaction.agentProfit || "0") > 0) {
         const agentProfitValue = parseFloat(transaction.agentProfit || "0");
         const adminRevenue = parseFloat((parseFloat(transaction.amount) - agentProfitValue).toFixed(2));
-
         // Safety check
         if (Math.abs(agentProfitValue + adminRevenue - parseFloat(transaction.amount)) > 0.01) {
           console.error("AGENT_PROFIT_MISMATCH detected for transaction", transaction.id);
           throw new Error("AGENT_PROFIT_MISMATCH");
         }
-
         // Credit agent balance with PROFIT only
         await storage.updateAgentBalance(user.id, agentProfitValue, true);
-
         // Record admin revenue as its own transaction for accounting
         const adminRef = `ADMINREV-${transaction.reference}`;
         await storage.createTransaction({
@@ -1882,7 +1667,6 @@ export async function registerRoutes(
           paymentStatus: "paid",
         });
       }
-
       // Process delivery for bulk orders
       const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
       if (autoProcessingEnabled) {
@@ -1900,7 +1684,6 @@ export async function registerRoutes(
         // Manual processing - keep as pending
         await storage.updateTransactionDeliveryStatus(transaction.id, "pending");
       }
-
       res.json({
         success: true,
         transaction: {
@@ -1916,47 +1699,39 @@ export async function registerRoutes(
         errors: errors,
         message: `Bulk purchase completed successfully. ${orderItems.length} items processed${errors.length > 0 ? `. ${errors.length} validation errors found.` : ''}`
       });
-
     } catch (error: any) {
       console.error('Excel bulk purchase error:', error);
       res.status(500).json({ error: "Failed to process Excel file" });
     }
   });
-
   app.post("/api/checkout/initialize", async (req, res) => {
     try {
       // Validate input
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-      
       console.log("[Checkout] ========== REQUEST PARSING ==========");
       console.log("[Checkout] Raw request body:", JSON.stringify(req.body, null, 2));
       console.log("[Checkout] req.body.phoneNumbers type:", typeof req.body.phoneNumbers);
       console.log("[Checkout] req.body.phoneNumbers is array:", Array.isArray(req.body.phoneNumbers));
       console.log("[Checkout] req.body.phoneNumbers value:", req.body.phoneNumbers);
-      
       const data = purchaseSchema.parse(req.body);
-      
       console.log("[Checkout] Parsed data:", JSON.stringify(data, null, 2));
       console.log("[Checkout] data.phoneNumbers type:", typeof data.phoneNumbers);
       console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(data.phoneNumbers));
       console.log("[Checkout] data.phoneNumbers:", data.phoneNumbers);
       console.log("[Checkout] data.isBulkOrder:", data.isBulkOrder);
       console.log("[Checkout] ================================================");
-      
       // Normalize and validate phone number format (only if provided)
       let normalizedPhone: string | undefined;
       if (data.customerPhone) {
         normalizedPhone = normalizePhoneNumber(data.customerPhone);
-        
         if (!isValidPhoneLength(normalizedPhone)) {
-          return res.status(400).json({ 
-            error: "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)" 
+          return res.status(400).json({
+            error: "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)"
           });
         }
       }
-      
       // Validate email format if provided
       if (data.customerEmail) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1964,30 +1739,25 @@ export async function registerRoutes(
           return res.status(400).json({ error: "Invalid email format" });
         }
       }
-      
       let product: any;
       let productName: string;
       let amount: number;
       let costPrice: number;
       let agentProfit: number = 0;
       let network: string | null = null;
-
       // Handle new bulk format with orderItems
       if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
         console.log("[Checkout] ========== NEW BULK FORMAT DETECTED ==========");
         console.log("[Checkout] orderItems:", data.orderItems);
         console.log("[Checkout] ================================================");
-        
         // Use the first item for initial product info
         const firstItem = data.orderItems[0];
         product = await storage.getDataBundle(firstItem.bundleId);
         if (!product || !product.isActive) {
           return res.status(404).json({ error: "Bundle not found" });
         }
-        
         // Get network from data or product
         network = data.network || product.network;
-        
         // Validate all phone numbers match the network
         for (const item of data.orderItems) {
           const normalizedItemPhone = normalizePhoneNumber(item.phone);
@@ -2001,12 +1771,21 @@ export async function registerRoutes(
             return res.status(400).json({ error: errorMsg });
           }
         }
-        
+        // Check for duplicate phone numbers in bulk order
+        const phoneNumbers = data.orderItems.map(item => normalizePhoneNumber(item.phone));
+        const duplicatePhones = phoneNumbers.filter((phone, index) => phoneNumbers.indexOf(phone) !== index);
+        const uniqueDuplicates = [...new Set(duplicatePhones)];
+        if (uniqueDuplicates.length > 0) {
+          console.error(`[BulkOrder] Duplicate phone numbers found: ${uniqueDuplicates.join(', ')}`);
+          return res.status(400).json({
+            error: `Duplicate phone numbers detected in bulk order: ${uniqueDuplicates.join(', ')}. Each phone number can only appear once per bulk purchase.`,
+            duplicatePhones: uniqueDuplicates
+          });
+        }
         // Calculate total amount from orderItems. For agent storefronts, REQUIRE agent_sell_price per item.
         costPrice = 0;
         amount = 0;
         let computedAgentProfit = 0;
-
         // If this request targets an agent storefront, resolve the agent and enforce explicit agent prices
         let storefrontAgent: any = null;
         if (data.agentSlug) {
@@ -2015,14 +1794,12 @@ export async function registerRoutes(
             return res.status(400).json({ error: "Invalid agent storefront" });
           }
         }
-
         for (const item of data.orderItems) {
           const bundle = await storage.getDataBundle(item.bundleId);
           if (!bundle) {
             console.error(`[BulkOrder] Bundle not found for bundleId: ${item.bundleId}`);
             return res.status(400).json({ error: `Bundle not found for bundleId: ${item.bundleId}` });
           }
-
           // For agent storefront, use resolved price (custom or admin base)
           let itemPrice: number;
           if (storefrontAgent) {
@@ -2036,55 +1813,45 @@ export async function registerRoutes(
             const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
             itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
           }
-
           amount += itemPrice;
-          
           // Calculate profit as selling price - agent base price for agents, or admin base price for others
-          const basePriceValue = storefrontAgent 
+          const basePriceValue = storefrontAgent
             ? await storage.getRoleBasePrice(bundle.id, 'agent')
             : await storage.getAdminBasePrice(bundle.id);
           const basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || '0');
           const profit = itemPrice - basePrice;
           computedAgentProfit += Math.max(0, profit); // Profit is 0 if using admin price
         }
-
         // store computed agent profit for later use
         agentProfit = computedAgentProfit;
-        
         console.log("[Checkout] Bulk order total amount (from orderItems):", amount);
         console.log("[Checkout] Bulk order total cost price:", costPrice);
-        
         productName = `Bulk Order - ${data.orderItems.length} items`;
       } else if (data.productId && data.productType === ProductType.DATA_BUNDLE) {
         product = await storage.getDataBundle(data.productId);
         if (!product || !product.isActive) {
           return res.status(404).json({ error: "Product not found" });
         }
-        
         // Validate that phone number matches the selected network (only if phone provided)
         if (normalizedPhone && !validatePhoneNetwork(normalizedPhone, product.network)) {
           const errorMsg = getNetworkMismatchError(normalizedPhone, product.network);
           return res.status(400).json({ error: errorMsg });
         }
-        
         // Apply role-based pricing for single purchases
         let userRole = 'guest';
         let agentId: string | undefined;
-        
         // Check for agent storefront
         if (data.agentSlug) {
           const agent = await storage.getAgentBySlug(data.agentSlug);
           if (agent && agent.isApproved) {
             userRole = 'agent';
             agentId = agent.id;
-            
             // Use resolved price for agent storefront
             const resolvedPrice = await storage.getResolvedPrice(data.productId, agent.id, 'agent');
             if (!resolvedPrice) {
               return res.status(400).json({ error: "No pricing available for this product" });
             }
             amount = parseFloat(resolvedPrice);
-            
             // Calculate profit as selling price - agent base price
             const agentBasePrice = await storage.getRoleBasePrice(data.productId, 'agent');
             const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product.basePrice || '0');
@@ -2113,7 +1880,6 @@ export async function registerRoutes(
           } catch (authError) {
             // Ignore auth errors, treat as guest
           }
-          
           // Apply role-based pricing for direct purchases
           if (userRole !== 'guest' && dbUser) {
             const resolvedPrice = await storage.getResolvedPrice(data.productId, dbUser.id, userRole);
@@ -2126,11 +1892,9 @@ export async function registerRoutes(
             amount = parseFloat(product.adminPrice || product.basePrice || '0');
           }
         }
-        
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
         costPrice = 0; // Cost price removed from schema
         network = product.network;
-        
         // Validate amount from frontend
         const expectedAmount = amount;
         if (data.amount) {
@@ -2142,7 +1906,6 @@ export async function registerRoutes(
           }
           amount = frontendAmount; // Use frontend amount if validation passes
         }
-        
         console.log("[Checkout] Single purchase pricing:");
         console.log("[Checkout] admin_price:", product.adminPrice);
         console.log("[Checkout] agent_price:", product.agentPrice);
@@ -2161,14 +1924,11 @@ export async function registerRoutes(
       } else {
         return res.status(400).json({ error: "Product ID or order items required" });
       }
-
       let agentId: string | undefined;
-
       if (data.agentSlug) {
         const agent = await storage.getAgentBySlug(data.agentSlug);
         if (agent && agent.isApproved) {
           agentId = agent.id;
-          
           // For bulk orders with orderItems, profit is already calculated
           if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
             // For bulk orders using orderItems, `agentProfit` was already computed above
@@ -2184,11 +1944,9 @@ export async function registerRoutes(
           }
         }
       }
-
       const reference = generateReference();
-      
       // Handle bulk orders - store full order items with GB info
-      const phoneNumbersData = data.orderItems 
+      const phoneNumbersData = data.orderItems
         ? data.orderItems.map((item: any) => ({
             phone: item.phone,
             bundleName: item.bundleName,
@@ -2196,12 +1954,10 @@ export async function registerRoutes(
           }))
         : data.phoneNumbers;
       const isBulkOrder = !!(data.isBulkOrder || (data.orderItems && data.orderItems.length > 0));
-      
       // Validate that bulk orders are not allowed for AT iShare network
       if (isBulkOrder && network === "at_ishare") {
         return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
       }
-      
       console.log("[Checkout] ========== RAW DATA EXTRACTION ==========");
       console.log("[Checkout] data object keys:", Object.keys(data));
       console.log("[Checkout] data.phoneNumbers value:", data.phoneNumbers);
@@ -2211,15 +1967,13 @@ export async function registerRoutes(
       console.log("[Checkout] phoneNumbersData is array:", Array.isArray(phoneNumbersData));
       console.log("[Checkout] data.isBulkOrder value:", isBulkOrder);
       console.log("[Checkout] ================================================");
-      
       // Calculate number of recipients with multiple checks
       let numberOfRecipients = 1;
-      
       // Primary check: phoneNumbersData is a valid array with items
       if (Array.isArray(phoneNumbersData) && phoneNumbersData.length > 0) {
         numberOfRecipients = phoneNumbersData.length;
         console.log("[Checkout] ✓ Using phoneNumbersData array length:", numberOfRecipients);
-      } 
+      }
       // Secondary check: orderItems array
       else if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
         numberOfRecipients = data.orderItems.length;
@@ -2251,7 +2005,6 @@ export async function registerRoutes(
         console.log("[Checkout] ⚠ phoneNumbersData:", phoneNumbersData);
         console.log("[Checkout] ⚠ Defaulting to 1 recipient - THIS MAY BE A BUG!");
       }
-      
       console.log("[Checkout] ========== BULK ORDER CALCULATION ==========");
       console.log("[Checkout] phoneNumbersData is array:", Array.isArray(phoneNumbersData));
       console.log("[Checkout] phoneNumbersData length:", (phoneNumbersData as any)?.length);
@@ -2260,21 +2013,18 @@ export async function registerRoutes(
       console.log("[Checkout] Unit price (amount):", amount);
       console.log("[Checkout] Unit cost price:", costPrice);
       console.log("[Checkout] ================================================");
-      
       // Calculate total amount for bulk orders
       // For orderItems format, amount is already the total
       const totalAmount = data.orderItems ? amount : (amount * numberOfRecipients);
       const totalCostPrice = 0;
       const totalProfit = agentProfit * numberOfRecipients; // Actual profit = selling_price - base_price
       const totalAgentProfit = agentProfit * numberOfRecipients;
-      
       console.log("[Checkout] ========== CALCULATED TOTALS ==========");
       console.log("[Checkout] Total amount (", amount, " * ", numberOfRecipients, "):", totalAmount);
       console.log("[Checkout] Total cost price:", totalCostPrice);
       console.log("[Checkout] Total profit:", totalProfit);
       console.log("[Checkout] Total agent profit:", totalAgentProfit);
       console.log("[Checkout] ================================================");
-
       const transaction = await storage.createTransaction({
         reference,
         type: data.productType,
@@ -2292,11 +2042,9 @@ export async function registerRoutes(
         agentId,
         agentProfit: totalAgentProfit.toFixed(2),
       });
-
       // Handle wallet payments immediately
       if (data.paymentMethod === 'wallet') {
         console.log("[Checkout] Processing wallet payment for reference:", reference);
-        
         // Get authenticated user
         let dbUser: any = null;
         try {
@@ -2315,15 +2063,12 @@ export async function registerRoutes(
           console.error("[Checkout] Auth error for wallet payment:", authError);
           return res.status(401).json({ error: "Authentication required for wallet payments" });
         }
-
         if (!dbUser) {
           return res.status(401).json({ error: "User not found" });
         }
-
         // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
         const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);
         const totalAmountCents = Math.round(totalAmount * 100);
-
         if (walletBalanceCents < totalAmountCents) {
           return res.status(400).json({
             error: "Insufficient wallet balance",
@@ -2331,23 +2076,19 @@ export async function registerRoutes(
             required: (totalAmountCents / 100).toFixed(2),
           });
         }
-
         // Update transaction for wallet payment
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.CONFIRMED,
           paymentStatus: "paid",
           paymentMethod: "wallet",
         });
-
         // Deduct from wallet (use same precision handling as balance check)
         const newBalanceCents = walletBalanceCents - totalAmountCents;
         const newBalance = newBalanceCents / 100;
         await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
-
         // Process the order immediately
         let deliveredPin: string | undefined;
         let deliveredSerial: string | undefined;
-
         if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
           const checker = await storage.getResultChecker(transaction.productId);
           if (checker && !checker.isSold) {
@@ -2358,9 +2099,7 @@ export async function registerRoutes(
         } else if (transaction.type === ProductType.DATA_BUNDLE) {
           // Process data bundle through API
           console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
-          
           const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
-          
           if (!fulfillmentResult.success) {
             console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
             // Still mark as completed but log the error
@@ -2369,7 +2108,6 @@ export async function registerRoutes(
             });
           }
         }
-
         // Mark transaction as completed
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
@@ -2377,13 +2115,11 @@ export async function registerRoutes(
           deliveredPin,
           deliveredSerial,
         });
-
         // Credit agent if applicable
         if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
           const agentProfitValue = parseFloat(transaction.agentProfit || "0");
           await storage.updateAgentBalance(transaction.agentId, agentProfitValue, true);
         }
-
         return res.json({
           success: true,
           transaction: {
@@ -2398,17 +2134,14 @@ export async function registerRoutes(
           newBalance: newBalance.toFixed(2),
         });
       }
-
       // Initialize Paystack payment
       const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
       const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success?reference=${reference}`;
-
-      console.log("[Checkout] Paystack initialization:", { 
-        totalAmount, 
+      console.log("[Checkout] Paystack initialization:", {
+        totalAmount,
         amountInPesewas: Math.round(totalAmount * 100),
-        reference 
+        reference
       });
-
       try {
         const paystackResponse = await initializePayment({
           email: customerEmail,
@@ -2423,12 +2156,10 @@ export async function registerRoutes(
             numberOfRecipients: numberOfRecipients,
           },
         });
-
-        console.log("[Checkout] Paystack response received:", { 
+        console.log("[Checkout] Paystack response received:", {
           authorization_url: paystackResponse.data.authorization_url,
-          access_code: paystackResponse.data.access_code 
+          access_code: paystackResponse.data.access_code
         });
-
         res.json({
           transaction: {
             id: transaction.id,
@@ -2455,13 +2186,11 @@ export async function registerRoutes(
           numberOfRecipients: numberOfRecipients,
           totalAmount: totalAmount
         });
-        
         // If Paystack fails, clean up the transaction
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.FAILED,
         });
-        
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: paystackError.message || "Payment initialization failed",
           debug: {
             phoneNumbers: phoneNumbersData,
@@ -2472,7 +2201,7 @@ export async function registerRoutes(
       }
     } catch (error: any) {
       console.error("[Checkout] General error:", error);
-      res.status(400).json({ 
+      res.status(400).json({
         error: error.message || "Checkout failed",
         debug: {
           error: error.toString()
@@ -2480,7 +2209,6 @@ export async function registerRoutes(
       });
     }
   });
-
   app.get("/api/transactions/verify/:reference", async (req, res) => {
     try {
       console.log("[Verify] Starting verification for reference:", req.params.reference);
@@ -2489,7 +2217,6 @@ export async function registerRoutes(
         console.log("[Verify] Transaction not found:", req.params.reference);
         return res.status(404).json({ error: "Transaction not found" });
       }
-
       console.log("[Verify] Transaction status:", transaction.status);
       if (transaction.status === TransactionStatus.COMPLETED) {
         console.log("[Verify] Transaction already completed");
@@ -2505,32 +2232,26 @@ export async function registerRoutes(
           },
         });
       }
-
       // Verify payment with Paystack API with retry logic
       console.log("[Verify] Calling Paystack API for verification");
       let paystackVerification;
       let retryCount = 0;
       const maxRetries = 2;
-      
       while (retryCount < maxRetries) {
         try {
           paystackVerification = await verifyPayment(req.params.reference);
           console.log(`[Verify] Paystack response (attempt ${retryCount + 1}):`, paystackVerification.data.status);
-          
           if (paystackVerification.data.status === "success") {
             break; // Payment successful, exit retry loop
           }
-          
           // If not successful and not last retry, wait before trying again
           if (retryCount < maxRetries - 1) {
             console.log(`[Verify] Payment status is ${paystackVerification.data.status}, waiting 1s before retry...`);
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
-          
           retryCount++;
         } catch (error: any) {
           console.error(`[Verify] Paystack API error (attempt ${retryCount + 1}):`, error.message);
-          
           if (retryCount < maxRetries - 1) {
             console.log("[Verify] Retrying after error...");
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -2540,17 +2261,14 @@ export async function registerRoutes(
           }
         }
       }
-      
       if (!paystackVerification || paystackVerification.data.status !== "success") {
         // Payment not successful after retries - update payment status to failed
         const status = paystackVerification?.data.status || "unknown";
         console.log("[Verify] Payment not successful after retries, final status:", status);
-        
         // Update transaction payment status to failed
         await storage.updateTransaction(transaction.id, {
           paymentStatus: status === "abandoned" ? "cancelled" : "failed"
         });
-        
         return res.json({
           success: false,
           status: status,
@@ -2561,12 +2279,10 @@ export async function registerRoutes(
           }
         });
       }
-
       // Payment successful - fulfill the order
       console.log("[Verify] Payment successful, fulfilling order");
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
-
       if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
         const checker = await storage.getResultChecker(transaction.productId);
         if (checker && !checker.isSold) {
@@ -2576,7 +2292,6 @@ export async function registerRoutes(
           console.log("[Verify] Result checker delivered");
         }
       }
-
       // Update transaction as completed
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
@@ -2587,22 +2302,18 @@ export async function registerRoutes(
         paymentReference: paystackVerification.data.reference,
       });
       console.log("[Verify] Transaction updated to completed");
-
       // Credit agent if applicable and record admin revenue
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         const agentProfitValue = parseFloat(transaction.agentProfit || "0");
         const totalPaid = parseFloat(transaction.amount || "0");
         const adminRevenue = parseFloat((totalPaid - agentProfitValue).toFixed(2));
-
         // Safety check
         if (Math.abs(agentProfitValue + adminRevenue - totalPaid) > 0.01) {
           console.error("INVALID_BULK_PAYOUT detected for webhook transaction", transaction.reference);
           throw new Error("INVALID_BULK_PAYOUT");
         }
-
         await storage.updateAgentBalance(transaction.agentId, agentProfitValue, true);
         console.log("[Verify] Agent credited");
-
         // Record admin revenue transaction
         const adminRef = `ADMINREV-${transaction.reference}`;
         await storage.createTransaction({
@@ -2620,13 +2331,10 @@ export async function registerRoutes(
           paymentStatus: "paid",
         });
       }
-
       // Process data bundle transactions through API
       if (transaction.type === ProductType.DATA_BUNDLE) {
         console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
-        
         const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
-        
         if (fulfillmentResult.success) {
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
         } else {
@@ -2637,7 +2345,6 @@ export async function registerRoutes(
           });
         }
       }
-
       console.log("[Verify] Verification complete, sending success response");
       res.json({
         success: true,
@@ -2655,61 +2362,48 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Verification failed" });
     }
   });
-
   // Paystack Payment Verification (for frontend callback)
   app.get("/api/paystack/verify", async (req, res) => {
     try {
       const reference = req.query.reference as string;
-      
       if (!reference) {
         return res.status(400).json({ error: "Payment reference is required" });
       }
-
       console.log("Verifying payment reference:", reference);
-      
       try {
         // Verify payment with Paystack
         const verificationResult = await verifyPayment(reference);
-        
         if (!verificationResult.status) {
           console.log("Payment verification failed for reference:", reference);
           return res.json({ status: "failed", message: "Payment verification failed" });
         }
-
         const paymentData = verificationResult.data;
         console.log("Payment data received:", { status: paymentData.status, reference: paymentData.reference });
-        
         // Handle cancelled or abandoned payments
         if (paymentData.status === "abandoned") {
           console.log("Payment was cancelled or abandoned:", reference);
-          return res.json({ 
-            status: "cancelled", 
+          return res.json({
+            status: "cancelled",
             message: "Payment was cancelled. Please try again if you wish to complete your registration."
           });
         }
-        
         if (paymentData.status === "success") {
         const metadata = paymentData.metadata as any;
-        
         // Check if this is a pending agent registration (new flow - account not created yet)
         if (metadata && metadata.pending_registration && metadata.registration_data) {
           console.log("Processing pending agent registration after payment success");
           console.log("Registration data:", metadata.registration_data);
-          
           const supabaseServer = getSupabase();
           if (!supabaseServer) {
             console.error("Supabase not configured");
             return res.json({ status: "failed", message: "Server configuration error" });
           }
-          
           const regData = metadata.registration_data;
-          
           // Check if user already exists (idempotency check for duplicate verification calls)
           const existingUser = await storage.getUserByEmail(regData.email);
           if (existingUser && existingUser.role === 'agent') {
             console.log("User already exists as agent, returning existing account details");
             const existingAgent = await storage.getAgentByUserId(existingUser.id);
-            
             if (existingAgent) {
               // Ensure the agent is approved after successful payment
               if (!existingAgent.isApproved) {
@@ -2750,7 +2444,6 @@ export async function registerRoutes(
               paymentPending: false,
             });
             console.log("Agent created for existing user:", agent.id);
-            
             // Create transaction record
             const activationFee = 60.00;
             const transaction = await storage.createTransaction({
@@ -2770,7 +2463,6 @@ export async function registerRoutes(
               agentId: null,
               agentProfit: "0.00",
             });
-            
             return res.json({
               status: "success",
               message: "Payment verified and agent account upgraded successfully. Please login with your credentials.",
@@ -2792,7 +2484,6 @@ export async function registerRoutes(
               }
             });
           }
-          
           // Now create the account after successful payment
           try {
             console.log("Step 1: Creating user in Supabase Auth:", regData.email);
@@ -2806,19 +2497,16 @@ export async function registerRoutes(
               },
               email_confirm: true
             });
-
             if (authError) {
               console.error("Step 1 FAILED: Auth user creation error:", authError);
-              return res.json({ 
-                status: "failed", 
+              return res.json({
+                status: "failed",
                 message: "Payment successful but account creation failed. Please contact support.",
                 error: authError.message
               });
             }
-
             const userId = authData.user.id;
             console.log("Step 1 SUCCESS: Supabase user created:", userId);
-
             // Create user in local database
             console.log("Step 2: Creating user in local database");
             const localUser = await storage.createUser({
@@ -2830,7 +2518,6 @@ export async function registerRoutes(
               role: UserRole.AGENT,
             });
             console.log("Step 2 SUCCESS: User created in local database:", localUser.id);
-
             // Create agent record (already approved since payment is complete)
             console.log("Step 3: Creating agent record");
             const agent = await storage.createAgent({
@@ -2841,7 +2528,6 @@ export async function registerRoutes(
               paymentPending: false,
             });
             console.log("Step 3 SUCCESS: Agent created and approved:", agent.id);
-
             // Create transaction record for the activation payment
             console.log("Step 4: Recording activation transaction");
             const activationFee = 60.00;
@@ -2863,11 +2549,10 @@ export async function registerRoutes(
               agentProfit: "0.00",
             });
             console.log("Step 4 SUCCESS: Activation transaction recorded:", transaction.id);
-
             // Generate success response
             console.log("Step 5: Preparing success response");
-            const response = { 
-              status: "success", 
+            const response = {
+              status: "success",
               message: "Payment verified and agent account created successfully. Please login with your credentials.",
               data: {
                 reference: paymentData.reference,
@@ -2891,18 +2576,16 @@ export async function registerRoutes(
           } catch (createError: any) {
             console.error("ERROR in account creation process:", createError);
             console.error("Error stack:", createError.stack);
-            return res.json({ 
-              status: "failed", 
+            return res.json({
+              status: "failed",
               message: "Payment successful but account creation failed. Please contact support.",
               error: createError.message
             });
           }
         }
-        
         // Check if this is an agent activation payment (old flow - account already exists)
         if (metadata && metadata.purpose === "agent_activation" && metadata.agent_id) {
           console.log("Agent activation payment verified (old flow):", metadata.agent_id);
-          
           // Update transaction status
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
@@ -2912,16 +2595,13 @@ export async function registerRoutes(
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
           }
-          
           // Auto-approve the agent and mark payment as received
-          const agent = await storage.updateAgent(metadata.agent_id, { 
+          const agent = await storage.updateAgent(metadata.agent_id, {
             isApproved: true,
             paymentPending: false,
           });
-
           if (agent) {
             console.log("Agent auto-approved after payment verification:", agent.id);
-            
             // Update user role to agent
             const updatedUser = await storage.updateUser(agent.userId, { role: UserRole.AGENT });
             if (updatedUser) {
@@ -2931,9 +2611,8 @@ export async function registerRoutes(
             }
           }
         }
-
-        return res.json({ 
-          status: "success", 
+        return res.json({
+          status: "success",
           message: "Payment verified successfully",
           data: {
             reference: paymentData.reference,
@@ -2942,16 +2621,16 @@ export async function registerRoutes(
           }
         });
       } else {
-        return res.json({ 
-          status: "failed", 
-          message: `Payment status: ${paymentData.status}` 
+        return res.json({
+          status: "failed",
+          message: `Payment status: ${paymentData.status}`
         });
       }
       } catch (verifyError: any) {
         console.error("Error in payment verification process:", verifyError);
         console.error("Error stack:", verifyError.stack);
-        return res.json({ 
-          status: "failed", 
+        return res.json({
+          status: "failed",
           message: "Payment verification failed. Please try again.",
           error: verifyError.message
         });
@@ -2959,34 +2638,29 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Payment verification error (outer catch):", error);
       console.error("Error stack:", error.stack);
-      return res.json({ 
-        status: "failed", 
-        message: error.message || "Verification failed" 
+      return res.json({
+        status: "failed",
+        message: error.message || "Verification failed"
       });
     }
   });
-
   // Process webhook events asynchronously
   async function processWebhookEvent(event: any) {
     if (event.event === "charge.success") {
       const data = event.data;
       const reference = data.reference;
       const metadata = data.metadata;
-
       // Check if this is an agent activation payment
       if (metadata && metadata.purpose === "agent_activation") {
         // Handle new flow - pending registration (account not created yet)
         if (metadata.pending_registration && metadata.registration_data) {
           console.log("Processing pending agent registration via webhook:", reference);
-          
           const supabaseServer = getSupabase();
           if (!supabaseServer) {
             console.error("Supabase not initialized for webhook");
             return;
           }
-          
           const regData = metadata.registration_data;
-          
           try {
             // Check if agent already exists
             const existingAgent = await storage.getAgentBySlug(regData.storefrontSlug);
@@ -2994,7 +2668,6 @@ export async function registerRoutes(
               console.log("Agent already exists for slug:", regData.storefrontSlug);
               return;
             }
-
             // Create user in Supabase Auth
             const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
               email: regData.email,
@@ -3006,15 +2679,12 @@ export async function registerRoutes(
               },
               email_confirm: true
             });
-
             if (authError) {
               console.error("Failed to create auth user in webhook:", authError);
               return;
             }
-
             const userId = authData.user.id;
             console.log("User created via webhook:", userId);
-
             // Check if user already exists in local database
             const existingUser = await storage.getUser(userId);
             if (!existingUser) {
@@ -3028,7 +2698,6 @@ export async function registerRoutes(
                 role: UserRole.AGENT,
               });
             }
-
             // Create agent record (approved since payment is complete)
             const agent = await storage.createAgent({
               userId: userId,
@@ -3039,7 +2708,6 @@ export async function registerRoutes(
               paymentPending: false,
             });
             console.log("Agent created via webhook:", agent.id);
-
             // Check if transaction already exists
             const existingTransaction = await storage.getTransactionByReference(reference);
             if (!existingTransaction) {
@@ -3062,19 +2730,15 @@ export async function registerRoutes(
                 agentProfit: "0.00",
               });
             }
-            
             console.log("Agent registration completed via webhook");
           } catch (createError: any) {
             console.error("Error creating account in webhook:", createError);
           }
-          
           return;
         }
-        
         // Handle old flow - agent already exists
         if (metadata.agent_id) {
           console.log("Processing agent activation payment (old flow):", reference);
-          
           // Update transaction status
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
@@ -3084,16 +2748,13 @@ export async function registerRoutes(
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
           }
-          
           // Auto-approve the agent and mark payment as received
-          const agent = await storage.updateAgent(metadata.agent_id, { 
+          const agent = await storage.updateAgent(metadata.agent_id, {
             isApproved: true,
             paymentPending: false,
           });
-
           if (agent) {
             console.log("Agent auto-approved after payment:", agent.id);
-            
             // Update user role to agent
             const updatedUser = await storage.updateUser(agent.userId, { role: UserRole.AGENT });
             if (updatedUser) {
@@ -3102,33 +2763,26 @@ export async function registerRoutes(
               console.error("Failed to update user role to agent for user:", agent.userId);
             }
           }
-          
           return;
         }
       }
-
       // Handle regular transaction payments
       const transaction = await storage.getTransactionByReference(reference);
       if (!transaction) {
         console.error("Transaction not found for webhook:", reference);
         return;
       }
-
       if (transaction.status === TransactionStatus.COMPLETED) {
         return; // Already processed
       }
-
       // Fulfill the order
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
-
       if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
         const [type, yearStr] = transaction.productId.split("-");
         const year = parseInt(yearStr);
-        
         // Try to get an available pre-generated checker first
         let checker = await storage.getAvailableResultChecker(type, year);
-        
         if (checker) {
           // Use pre-generated checker
           await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
@@ -3138,7 +2792,6 @@ export async function registerRoutes(
           // Generate PIN and serial automatically
           deliveredSerial = `RC${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
           deliveredPin = Math.random().toString(36).substring(2, 10).toUpperCase();
-          
           // Create a new result checker record
           const newChecker = await storage.createResultChecker({
             type,
@@ -3147,11 +2800,9 @@ export async function registerRoutes(
             pin: deliveredPin,
             basePrice: transaction.amount,
           });
-          
           console.log("Auto-generated result checker via Paystack:", newChecker.id);
         }
       }
-
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
         completedAt: new Date(),
@@ -3159,47 +2810,37 @@ export async function registerRoutes(
         deliveredSerial,
         paymentReference: data.reference,
       });
-
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
       }
-
       console.log("Payment processed via webhook:", reference);
     }
   }
-
   // Admin wallet top-up
   app.post("/api/admin/wallet/topup", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { userId, amount, reason } = req.body;
-
       if (!userId || !amount) {
         return res.status(400).json({ error: "User ID and amount are required" });
       }
-
       const topupAmount = parseFloat(amount);
       if (isNaN(topupAmount) || topupAmount <= 0 || topupAmount > 10000) {
         return res.status(400).json({ error: "Invalid amount (must be between 0.01 and 10,000)" });
       }
-
       // Get the user
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Validate admin role
       if (req.user!.role !== 'admin') {
         return res.status(403).json({ error: "Admin access required" });
       }
-
       const adminId = req.user!.id;
-
       // Update user wallet balance
       const newBalance = (parseFloat(user.walletBalance || '0') + topupAmount).toFixed(2);
       await storage.updateUser(userId, { walletBalance: newBalance });
-
       // Create wallet topup transaction record
       await storage.createWalletTopupTransaction({
         userId,
@@ -3207,7 +2848,6 @@ export async function registerRoutes(
         amount: topupAmount.toFixed(2),
         reason: reason || null,
       });
-
       // Create audit log
       await storage.createAuditLog({
         userId: adminId,
@@ -3219,7 +2859,6 @@ export async function registerRoutes(
         ipAddress: req.ip || req.connection.remoteAddress,
         userAgent: req.get('User-Agent'),
       });
-
       res.json({
         success: true,
         message: `Successfully topped up ${user.name}'s wallet with GHS ${topupAmount.toFixed(2)}`,
@@ -3230,7 +2869,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to top up wallet" });
     }
   });
-
   // Get wallet topup transactions
   app.get("/api/admin/wallet/topup-transactions", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -3240,21 +2878,17 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load wallet topup transactions" });
     }
   });
-
   // Paystack Webhook Handler
   app.post("/api/paystack/webhook", async (req, res) => {
     try {
       const signature = req.headers["x-paystack-signature"] as string;
       const rawBody = req.rawBody as Buffer;
-
       // Validate webhook signature using raw body
       if (!rawBody || !(await validateWebhookSignature(rawBody, signature))) {
         console.error("Invalid Paystack webhook signature");
         return res.status(400).json({ error: "Invalid signature" });
       }
-
       const event = req.body;
-
       // Process webhook asynchronously to prevent blocking
       setImmediate(async () => {
         try {
@@ -3263,7 +2897,6 @@ export async function registerRoutes(
           console.error("Webhook processing error:", webhookError);
         }
       });
-
       // Always respond immediately to prevent Paystack retries
       res.sendStatus(200);
     } catch (error: any) {
@@ -3271,7 +2904,6 @@ export async function registerRoutes(
       res.sendStatus(200); // Always return 200 to prevent Paystack retries
     }
   });
-
   // ============================================
   // AGENT ROUTES
   // ============================================
@@ -3282,29 +2914,23 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent profile not found" });
       }
-
       console.log("Agent balance from DB:", agent.balance);
       console.log("User wallet balance:", dbUser.walletBalance);
       console.log("Agent total profit:", agent.totalProfit);
-
       const user = await storage.getUser(dbUser.id);
       const stats = await storage.getTransactionStats(agent.id);
-
       // Compute withdrawals sum (only include approved and paid withdrawals)
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       const withdrawnTotal = withdrawals
         .filter(w => w.status === 'approved' || w.status === 'paid')
         .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
-
       // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
       const totalProfit = parseFloat(agent.totalProfit || '0');
       const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
-
       res.json({
         agent: {
           ...agent,
@@ -3319,21 +2945,17 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load profile" });
     }
   });
-
   app.patch("/api/agent/profile", requireAuth, requireAgent, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent profile not found" });
       }
-
       const { name, email, phone, whatsappSupportLink, whatsappChannelLink } = req.body;
-
       // Update user info
       if (name !== undefined || email !== undefined || phone !== undefined) {
         await storage.updateUser(dbUser.id, {
@@ -3342,7 +2964,6 @@ export async function registerRoutes(
           ...(phone !== undefined && { phone }),
         });
       }
-
       // Update agent WhatsApp links
       if (whatsappSupportLink !== undefined || whatsappChannelLink !== undefined) {
         await storage.updateAgent(agent.id, {
@@ -3350,13 +2971,11 @@ export async function registerRoutes(
           ...(whatsappChannelLink !== undefined && { whatsappChannelLink }),
         });
       }
-
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update profile" });
     }
   });
-
   app.get("/api/agent/transactions", requireAuth, requireAgent, async (req, res) => {
     try {
       // Get user from database using email from JWT
@@ -3364,42 +2983,34 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const transactions = await storage.getTransactions({
         agentId: agent.id,
         limit: 100,
       });
-
       res.json(transactions);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load transactions" });
     }
   });
-
   app.get("/api/agent/stats", requireAuth, requireAgent, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const transactions = await storage.getTransactions({ agentId: agent.id });
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
       const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
       const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
-
       const stats = {
         balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
         totalProfit: Number(agent.totalProfit) || 0,
@@ -3408,17 +3019,14 @@ export async function registerRoutes(
         todayProfit: Number(todayProfit.toFixed(2)),
         todayTransactions: todayTransactions.length,
       };
-
       console.log("Agent stats:", JSON.stringify(stats, null, 2));
       console.log("Total transactions with agentId:", transactions.length);
-
       res.json(stats);
     } catch (error: any) {
       console.error("Error loading agent stats:", error);
       res.status(500).json({ error: "Failed to load agent stats" });
     }
   });
-
   // Get agent transaction stats
   app.get("/api/agent/transactions/stats", requireAuth, requireAgent, async (req, res) => {
     try {
@@ -3426,57 +3034,47 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const transactions = await storage.getTransactions({ agentId: agent.id });
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-
       const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
       const totalRevenue = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
       const totalProfit = transactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
-
       const stats = {
         totalTransactions: transactions.length,
         totalRevenue: Number(totalRevenue.toFixed(2)),
         totalProfit: Number(totalProfit.toFixed(2)),
         todayTransactions: todayTransactions.length,
       };
-
       res.json(stats);
     } catch (error: any) {
       console.error("Error loading agent transaction stats:", error);
       res.status(500).json({ error: "Failed to load transaction stats" });
     }
   });
-
   app.get("/api/agent/transactions/recent", requireAuth, requireAgent, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const transactions = await storage.getTransactions({
         agentId: agent.id,
         limit: 10,
       });
-
       res.json(transactions);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load recent transactions" });
     }
   });
-
   app.get("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
       // Get user from database using email from JWT
@@ -3484,68 +3082,56 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       res.json(withdrawals);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load withdrawals" });
     }
   });
-
   app.post("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
       // Validate input
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-      
       const data = withdrawalRequestSchema.parse(req.body);
-      
       // Validate minimum withdrawal amount of GHC 10
       if (data.amount < 10) {
         return res.status(400).json({ error: "Minimum withdrawal amount is GH₵10" });
       }
-
       // Additional validation for maximum withdrawal amount
       if (data.amount > 100000) {
         return res.status(400).json({ error: "Maximum withdrawal amount is GH₵100,000" });
       }
-
       // Get user from database using email from JWT
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       if (!agent.isApproved) {
         return res.status(403).json({ error: "Agent not approved" });
       }
-
       // Validate user has sufficient profit wallet balance
       const profitWallet = await storage.getProfitWallet(dbUser.id);
       if (!profitWallet) {
         return res.status(400).json({ error: "Profit wallet not found" });
       }
-
       const availableBalance = parseFloat(profitWallet.availableBalance);
       if (availableBalance < data.amount) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "Insufficient profit wallet balance",
           balance: availableBalance.toFixed(2),
           requested: data.amount.toFixed(2)
         });
       }
-
       // Create withdrawal request with pending status - admin approval required
       // Note: Balance is NOT deducted here - only when admin approves
       const withdrawal = await storage.createWithdrawal({
@@ -3558,7 +3144,6 @@ export async function registerRoutes(
         accountNumber: data.accountNumber,
         accountName: data.accountName,
       });
-
       res.json({
         ...withdrawal,
         message: "Withdrawal request submitted successfully. It will be processed after admin approval."
@@ -3568,7 +3153,6 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Withdrawal failed" });
     }
   });
-
   // Agent storefront management
   app.patch("/api/agent/storefront", requireAuth, requireAgent, async (req, res) => {
     try {
@@ -3576,24 +3160,20 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const { businessName, businessDescription } = req.body;
       const updatedAgent = await storage.updateAgent(agent.id, {
         businessName,
         businessDescription,
       });
-
       res.json(updatedAgent);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update storefront" });
     }
   });
-
   // Get agent custom pricing
   app.get("/api/agent/pricing", requireAuth, requireAgent, async (req, res) => {
     try {
@@ -3601,20 +3181,16 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const pricing = await storage.getCustomPricing(agent.id, 'agent');
-
       // Get admin base prices for display
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
-
         return {
           bundleId: bundle.id,
           agentPrice: customPrice?.sellingPrice || "",
@@ -3622,13 +3198,11 @@ export async function registerRoutes(
           agentProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load pricing" });
     }
   });
-
   // Update agent custom pricing
   app.post("/api/agent/pricing", requireAuth, requireAgent, async (req, res) => {
     try {
@@ -3636,21 +3210,17 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       const { prices } = req.body;
       if (!prices || typeof prices !== 'object') {
         return res.status(400).json({ error: "Invalid pricing data" });
       }
-
       // Update or delete pricing for each bundle
       for (const [bundleId, priceData] of Object.entries(prices)) {
         const priceObj = priceData as { agentPrice?: string };
-
         if (!priceObj.agentPrice || priceObj.agentPrice.trim() === "") {
           // Delete pricing if price is empty
           await storage.deleteCustomPricing(bundleId, agent.id, 'agent');
@@ -3659,14 +3229,12 @@ export async function registerRoutes(
           await storage.setCustomPricing(bundleId, agent.id, 'agent', priceObj.agentPrice);
         }
       }
-
       // Return updated pricing
       const updatedPricing = await storage.getCustomPricing(agent.id, 'agent');
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = updatedPricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-
         return {
           bundleId: bundle.id,
           agentPrice: customPrice?.sellingPrice || "",
@@ -3674,14 +3242,12 @@ export async function registerRoutes(
           agentProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       console.error("Error updating pricing:", error);
       res.status(500).json({ error: "Failed to update pricing" });
     }
   });
-
   // Agent wallet stats
   app.get("/api/agent/wallet", requireAuth, requireAgent, async (req, res) => {
     try {
@@ -3689,42 +3255,34 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       // Get agent transactions for wallet topups and spending
       const transactions = await storage.getTransactions({
         agentId: agent.id,
       });
-
       // Filter wallet topups (when agents top up their user wallet)
       const walletTopups = transactions.filter(t => t.type === 'wallet_topup' && t.status === 'completed');
       const totalTopups = walletTopups.length;
       const totalTopupAmount = walletTopups.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-
       // Filter wallet payments (when agents spend from their user wallet)
       const walletPayments = transactions.filter(t => t.paymentMethod === 'wallet');
       const totalSpent = walletPayments.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-
       // Get last topup
-      const lastTopup = walletTopups.sort((a, b) => 
+      const lastTopup = walletTopups.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
-
       // For agents, the "balance" refers to their profit balance (withdrawable profit)
       // Compute withdrawals sum (only include approved and paid withdrawals)
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       const withdrawnTotal = withdrawals
         .filter(w => w.status === 'approved' || w.status === 'paid')
         .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
-
       // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
       const totalProfit = parseFloat(agent.totalProfit || '0');
       const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
-
       res.json({
         balance: profitBalance.toFixed(2), // Agent's withdrawable profit balance
         totalTopups,
@@ -3738,11 +3296,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load wallet stats" });
     }
   });
-
   // ============================================
   // DEALER PRICING ROUTES
   // ============================================
-
   // Get dealer custom pricing
   app.get("/api/dealer/pricing", requireAuth, requireDealer, async (req, res) => {
     try {
@@ -3750,15 +3306,12 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const pricing = await storage.getCustomPricing(dbUser.id, 'dealer');
-
       // Get admin base prices for display
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'dealer');
-
         return {
           bundleId: bundle.id,
           dealerPrice: customPrice?.sellingPrice || "",
@@ -3766,13 +3319,11 @@ export async function registerRoutes(
           dealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load pricing" });
     }
   });
-
   // Update dealer custom pricing
   app.post("/api/dealer/pricing", requireAuth, requireDealer, async (req, res) => {
     try {
@@ -3780,16 +3331,13 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { prices } = req.body;
       if (!prices || typeof prices !== 'object') {
         return res.status(400).json({ error: "Invalid pricing data" });
       }
-
       // Update or delete pricing for each bundle
       for (const [bundleId, priceData] of Object.entries(prices)) {
         const priceObj = priceData as { dealerPrice?: string };
-
         if (!priceObj.dealerPrice || priceObj.dealerPrice.trim() === "") {
           // Delete pricing if price is empty
           await storage.deleteCustomPricing(bundleId, dbUser.id, 'dealer');
@@ -3798,14 +3346,12 @@ export async function registerRoutes(
           await storage.setCustomPricing(bundleId, dbUser.id, 'dealer', priceObj.dealerPrice);
         }
       }
-
       // Return updated pricing
       const updatedPricing = await storage.getCustomPricing(dbUser.id, 'dealer');
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = updatedPricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-
         return {
           bundleId: bundle.id,
           dealerPrice: customPrice?.sellingPrice || "",
@@ -3813,18 +3359,15 @@ export async function registerRoutes(
           dealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       console.error("Error updating pricing:", error);
       res.status(500).json({ error: "Failed to update pricing" });
     }
   });
-
   // ============================================
   // SUPER-DEALER PRICING ROUTES
   // ============================================
-
   // Get super-dealer custom pricing
   app.get("/api/super-dealer/pricing", requireAuth, requireSuperDealer, async (req, res) => {
     try {
@@ -3832,15 +3375,12 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const pricing = await storage.getCustomPricing(dbUser.id, 'super_dealer');
-
       // Get admin base prices for display
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'super_dealer');
-
         return {
           bundleId: bundle.id,
           superDealerPrice: customPrice?.sellingPrice || "",
@@ -3848,13 +3388,11 @@ export async function registerRoutes(
           superDealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load pricing" });
     }
   });
-
   // Update super-dealer custom pricing
   app.post("/api/super-dealer/pricing", requireAuth, requireSuperDealer, async (req, res) => {
     try {
@@ -3862,16 +3400,13 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { prices } = req.body;
       if (!prices || typeof prices !== 'object') {
         return res.status(400).json({ error: "Invalid pricing data" });
       }
-
       // Update or delete pricing for each bundle
       for (const [bundleId, priceData] of Object.entries(prices)) {
         const priceObj = priceData as { superDealerPrice?: string };
-
         if (!priceObj.superDealerPrice || priceObj.superDealerPrice.trim() === "") {
           // Delete pricing if price is empty
           await storage.deleteCustomPricing(bundleId, dbUser.id, 'super_dealer');
@@ -3880,14 +3415,12 @@ export async function registerRoutes(
           await storage.setCustomPricing(bundleId, dbUser.id, 'super_dealer', priceObj.superDealerPrice);
         }
       }
-
       // Return updated pricing
       const updatedPricing = await storage.getCustomPricing(dbUser.id, 'super_dealer');
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = updatedPricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-
         return {
           bundleId: bundle.id,
           superDealerPrice: customPrice?.sellingPrice || "",
@@ -3895,18 +3428,15 @@ export async function registerRoutes(
           superDealerProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       console.error("Error updating pricing:", error);
       res.status(500).json({ error: "Failed to update pricing" });
     }
   });
-
   // ============================================
   // MASTER PRICING ROUTES
   // ============================================
-
   // Get master custom pricing
   app.get("/api/master/pricing", requireAuth, requireMaster, async (req, res) => {
     try {
@@ -3914,15 +3444,12 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const pricing = await storage.getCustomPricing(dbUser.id, 'master');
-
       // Get admin base prices for display
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'master');
-
         return {
           bundleId: bundle.id,
           masterPrice: customPrice?.sellingPrice || "",
@@ -3930,13 +3457,11 @@ export async function registerRoutes(
           masterProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load pricing" });
     }
   });
-
   // Update master custom pricing
   app.post("/api/master/pricing", requireAuth, requireMaster, async (req, res) => {
     try {
@@ -3944,16 +3469,13 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { prices } = req.body;
       if (!prices || typeof prices !== 'object') {
         return res.status(400).json({ error: "Invalid pricing data" });
       }
-
       // Update or delete pricing for each bundle
       for (const [bundleId, priceData] of Object.entries(prices)) {
         const priceObj = priceData as { masterPrice?: string };
-
         if (!priceObj.masterPrice || priceObj.masterPrice.trim() === "") {
           // Delete pricing if price is empty
           await storage.deleteCustomPricing(bundleId, dbUser.id, 'master');
@@ -3962,14 +3484,12 @@ export async function registerRoutes(
           await storage.setCustomPricing(bundleId, dbUser.id, 'master', priceObj.masterPrice);
         }
       }
-
       // Return updated pricing
       const updatedPricing = await storage.getCustomPricing(dbUser.id, 'master');
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = updatedPricing.find(p => p.productId === bundle.id);
         const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-
         return {
           bundleId: bundle.id,
           masterPrice: customPrice?.sellingPrice || "",
@@ -3977,14 +3497,12 @@ export async function registerRoutes(
           masterProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
         };
       }));
-
       res.json(result);
     } catch (error: any) {
       console.error("Error updating pricing:", error);
       res.status(500).json({ error: "Failed to update pricing" });
     }
   });
-
   // ============================================
   // ADMIN ROUTES
   // ============================================
@@ -3996,7 +3514,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load stats" });
     }
   });
-
   app.get("/api/admin/rankings/customers", requireAuth, requireAdmin, async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
@@ -4007,7 +3524,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load rankings" });
     }
   });
-
   // Public endpoint for rankings (visible to all users)
   app.get("/api/rankings/customers", async (req, res) => {
     try {
@@ -4034,7 +3550,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load rankings" });
     }
   });
-
   app.get("/api/admin/transactions", requireAuth, requireAdmin, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
@@ -4044,7 +3559,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load transactions" });
     }
   });
-
   app.patch("/api/admin/transactions/:id/delivery-status", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { deliveryStatus } = req.body;
@@ -4060,12 +3574,10 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update delivery status" });
     }
   });
-
   // Export transactions to CSV
   app.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { paymentStatus = 'all' } = req.query;
-
       let paymentStatusFilter: string[] | undefined;
       if (paymentStatus === 'paid') {
         paymentStatusFilter = ['paid'];
@@ -4076,9 +3588,7 @@ export async function registerRoutes(
       } else {
         return res.status(400).json({ error: "Invalid payment status filter. Use 'paid', 'pending', or 'all'" });
       }
-
       const transactions = await storage.getTransactionsForExport(paymentStatusFilter);
-
       const csvData = transactions.map(tx => ({
         reference: tx.reference,
         productName: tx.productName,
@@ -4096,17 +3606,14 @@ export async function registerRoutes(
           "",
         isBulkOrder: tx.isBulkOrder ? "Yes" : "No",
       }));
-
       res.json(csvData);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to export transactions" });
     }
   });
-
   app.get("/api/admin/agents", requireAuth, requireAdmin, async (req, res) => {
     try {
       const agents = await storage.getAgents();
-      
       const agentsWithUsers = await Promise.all(agents.map(async (agent) => {
         const user = await storage.getUser(agent.userId);
         return {
@@ -4114,13 +3621,11 @@ export async function registerRoutes(
           user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
         };
       }));
-
       res.json(agentsWithUsers);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load agents" });
     }
   });
-
   app.patch("/api/admin/agents/:id/approve", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { isApproved } = req.body;
@@ -4133,7 +3638,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update agent" });
     }
   });
-
   app.patch("/api/admin/agents/:id/whatsapp", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { whatsappSupportLink, whatsappChannelLink } = req.body;
@@ -4149,7 +3653,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update WhatsApp links" });
     }
   });
-
   // Delete agent
   app.delete("/api/admin/agents/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4157,84 +3660,70 @@ export async function registerRoutes(
       if (!supabaseServer) {
         return res.status(500).json({ error: "Server configuration error" });
       }
-
       const agent = await storage.getAgent(req.params.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-
       // Get the user associated with this agent
       const user = await storage.getUser(agent.userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const userId = agent.userId;
       console.log(`Starting permanent deletion of agent ${req.params.id} and user ${userId}`);
-
       // Step 1: Delete from database first (will cascade to related records)
       console.log("Deleting agent from database...");
       await storage.deleteAgent(req.params.id);
       console.log("Agent deleted from database");
-      
       console.log("Deleting user from database...");
       await storage.deleteUser(userId);
       console.log("User deleted from database");
-
       // Step 2: Delete from Supabase Auth (permanent deletion)
       console.log("Deleting user from Supabase Auth...");
       const { error: authError } = await supabaseServer.auth.admin.deleteUser(userId);
       if (authError) {
         console.error("Failed to delete user from Supabase Auth:", authError);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "User deleted from database but failed to delete from authentication. Please try again.",
-          details: authError.message 
+          details: authError.message
         });
       }
-      
       console.log(`User ${userId} permanently deleted from Supabase Auth`);
-      
-      res.json({ 
+      res.json({
         message: "Agent and user permanently deleted from database and authentication",
         deletedAgentId: req.params.id,
         deletedUserId: userId
       });
     } catch (error: any) {
       console.error("Error deleting agent:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to delete agent",
-        details: error.message 
+        details: error.message
       });
     }
   });
-
   // Get all users with last purchase data
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
     try {
       const allUsers = await storage.getUsers();
-      
       const usersWithPurchaseData = await Promise.all(allUsers.map(async (user) => {
         // Get user's completed transactions by email
         const transactions = await storage.getTransactions({
           customerEmail: user.email,
           status: TransactionStatus.COMPLETED,
         });
-
         // Sort by date descending to get latest first
-        const sortedTransactions = transactions.sort((a, b) => 
+        const sortedTransactions = transactions.sort((a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
-
         const lastPurchase = sortedTransactions.length > 0 ? {
           date: sortedTransactions[0].createdAt.toISOString(),
           amount: parseFloat(sortedTransactions[0].amount),
           productType: sortedTransactions[0].type,
         } : null;
-
-        const totalSpent = sortedTransactions.reduce((sum, t) => 
+        const totalSpent = sortedTransactions.reduce((sum, t) =>
           sum + parseFloat(t.amount), 0
         );
-
         return {
           id: user.id,
           name: user.name,
@@ -4247,13 +3736,11 @@ export async function registerRoutes(
           totalSpent,
         };
       }));
-
       res.json(usersWithPurchaseData);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load users" });
     }
   });
-
   // Delete user
   app.delete("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4261,20 +3748,16 @@ export async function registerRoutes(
       if (!supabaseServer) {
         return res.status(500).json({ error: "Server configuration error" });
       }
-
       const user = await storage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Prevent deleting admin users
       if (user.role === UserRole.ADMIN) {
         return res.status(403).json({ error: "Cannot delete admin users" });
       }
-
       const userId = req.params.id;
       console.log(`Starting permanent deletion of user ${userId}`);
-
       // Step 1: If user is an agent, delete the agent record first
       if (user.role === UserRole.AGENT) {
         const agent = await storage.getAgentByUserId(userId);
@@ -4284,64 +3767,54 @@ export async function registerRoutes(
           console.log("Agent record deleted:", agent.id);
         }
       }
-
       // Step 2: Delete user from database
       console.log("Deleting user from database...");
       await storage.deleteUser(userId);
       console.log("User deleted from database");
-
       // Step 3: Delete from Supabase Auth (permanent deletion)
       console.log("Deleting user from Supabase Auth...");
       const { error: authError } = await supabaseServer.auth.admin.deleteUser(userId);
       if (authError) {
         console.error("Failed to delete user from Supabase Auth:", authError);
-        return res.status(500).json({ 
+        return res.status(500).json({
           error: "User deleted from database but failed to delete from authentication. Please try again.",
-          details: authError.message 
+          details: authError.message
         });
       }
-      
       console.log(`User ${userId} permanently deleted from Supabase Auth`);
-      
-      res.json({ 
+      res.json({
         message: "User permanently deleted from database and authentication",
         deletedUserId: userId
       });
     } catch (error: any) {
       console.error("Error deleting user:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to delete user",
-        details: error.message 
+        details: error.message
       });
     }
   });
-
   // Update user role
   app.patch("/api/admin/users/:id/role", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { role } = req.body;
       const userId = req.params.id;
-
       // Validate role
       const validRoles = ["admin", "agent", "dealer", "super_dealer", "master", "user", "guest"];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
-
       // Get current user
       const currentUser = await storage.getUser(userId);
       if (!currentUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const oldRole = currentUser.role;
-
       // Update user role
       const user = await storage.updateUser(userId, { role });
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Handle role change implications
       if (oldRole === 'agent' && role !== 'agent') {
         // User was an agent, now is not - deactivate agent record
@@ -4369,13 +3842,11 @@ export async function registerRoutes(
           console.log(`Reactivated agent record for user ${userId}`);
         }
       }
-
       res.json(user);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update user role" });
     }
   });
-
   // Delete inactive users by last purchase date
   app.delete("/api/admin/users/delete-inactive", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4383,31 +3854,25 @@ export async function registerRoutes(
       if (!days || days <= 0) {
         return res.status(400).json({ error: "Invalid days parameter. Must be a positive integer." });
       }
-
       const thresholdDate = new Date();
       thresholdDate.setDate(thresholdDate.getDate() - days);
-
       const allUsers = await storage.getUsers();
       const supabaseServer = getSupabase();
       if (!supabaseServer) {
         return res.status(500).json({ error: "Server configuration error" });
       }
-
       const inactiveUsers = [];
-
       for (const user of allUsers) {
         if (user.role === UserRole.ADMIN) continue; // Don't delete admins
-
         const transactions = await storage.getTransactions({
           customerEmail: user.email,
           status: TransactionStatus.COMPLETED,
         });
-
         if (transactions.length === 0) {
           // No purchases ever
           inactiveUsers.push(user);
         } else {
-          const lastTransaction = transactions.sort((a, b) => 
+          const lastTransaction = transactions.sort((a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           )[0];
           if (new Date(lastTransaction.createdAt) < thresholdDate) {
@@ -4415,14 +3880,11 @@ export async function registerRoutes(
           }
         }
       }
-
       let deletedCount = 0;
       const errors = [];
-
       for (const user of inactiveUsers) {
         try {
           console.log(`Deleting inactive user ${user.id}`);
-
           // Delete agent record if exists
           if (user.role === UserRole.AGENT) {
             const agent = await storage.getAgentByUserId(user.id);
@@ -4430,10 +3892,8 @@ export async function registerRoutes(
               await storage.deleteAgent(agent.id);
             }
           }
-
           // Delete from database
           await storage.deleteUser(user.id);
-
           // Delete from Supabase Auth
           const { error: authError } = await supabaseServer.auth.admin.deleteUser(user.id);
           if (authError) {
@@ -4447,25 +3907,22 @@ export async function registerRoutes(
           errors.push(`Failed to delete ${user.email}: ${error.message}`);
         }
       }
-
-      res.json({ 
+      res.json({
         message: `Deleted ${deletedCount} inactive users`,
         deletedCount,
         errors: errors.length > 0 ? errors : undefined
       });
     } catch (error: any) {
       console.error("Error deleting inactive users:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to delete inactive users",
-        details: error.message 
+        details: error.message
       });
     }
   });
-
   // ============================================
   // ANNOUNCEMENTS ROUTES
   // ============================================
-
   // Get all announcements
   app.get("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4475,7 +3932,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load announcements" });
     }
   });
-
   // Create announcement
   app.post("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4483,25 +3939,21 @@ export async function registerRoutes(
       if (!title || !message) {
         return res.status(400).json({ error: "Title and message are required" });
       }
-
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
         message: message.trim(),
         isActive: true,
         createdBy: dbUser.name || dbUser.email,
       });
-
       res.json(announcement);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to create announcement" });
     }
   });
-
   // Update announcement
   app.patch("/api/admin/announcements/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4515,7 +3967,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update announcement" });
     }
   });
-
   // Delete announcement
   app.delete("/api/admin/announcements/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4528,7 +3979,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete announcement" });
     }
   });
-
   // Get active announcements for users
   app.get("/api/announcements/active", requireAuth, async (req, res) => {
     try {
@@ -4536,19 +3986,16 @@ export async function registerRoutes(
       if (req.user?.role === 'guest') {
         return res.json([]); // Don't show announcements to guests
       }
-
       const announcements = await storage.getActiveAnnouncements();
       res.json(announcements);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load announcements" });
     }
   });
-
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const withdrawals = await storage.getWithdrawals({ status });
-      
       const withdrawalsWithAgents = await Promise.all(withdrawals.map(async (w) => {
         const user = await storage.getUser(w.userId);
         const agent = user ? await storage.getAgentByUserId(w.userId) : null;
@@ -4558,13 +4005,11 @@ export async function registerRoutes(
           user: user ? { name: user.name } : null,
         };
       }));
-
       res.json(withdrawalsWithAgents);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load withdrawals" });
     }
   });
-
   // Admin - Data Bundles CRUD
   app.get("/api/admin/data-bundles", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4574,7 +4019,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load data bundles" });
     }
   });
-
   app.post("/api/admin/data-bundles", requireAuth, requireAdmin, async (req, res) => {
     try {
       const bundle = await storage.createDataBundle(req.body);
@@ -4583,7 +4027,6 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Failed to create data bundle" });
     }
   });
-
   app.patch("/api/admin/data-bundles/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
       const bundle = await storage.updateDataBundle(req.params.id, req.body);
@@ -4595,7 +4038,6 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Failed to update data bundle" });
     }
   });
-
   app.delete("/api/admin/data-bundles/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
       await storage.deleteDataBundle(req.params.id);
@@ -4604,7 +4046,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete data bundle" });
     }
   });
-
   // Admin - Role Base Prices Management
   app.get("/api/admin/role-base-prices", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4614,37 +4055,30 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load role base prices" });
     }
   });
-
   app.post("/api/admin/role-base-prices", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { bundleId, role, basePrice } = req.body;
-
       if (!bundleId || !role || !basePrice) {
         return res.status(400).json({ error: "Bundle ID, role, and base price are required" });
       }
-
       const price = parseFloat(basePrice);
       if (isNaN(price) || price < 0) {
         return res.status(400).json({ error: "Invalid base price" });
       }
-
       // Validate role
       const validRoles = ['agent', 'dealer', 'super_dealer', 'master'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ error: "Invalid role" });
       }
-
       await storage.setRoleBasePrice(bundleId, role, price.toFixed(2), req.user!.role!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Failed to set role base price" });
     }
   });
-
   app.delete("/api/admin/role-base-prices/:bundleId/:role", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { bundleId, role } = req.params;
-
       // Remove the role base price by setting it to null/empty
       await storage.setRoleBasePrice(bundleId, role, "0.00", req.user!.role!);
       res.json({ success: true });
@@ -4652,56 +4086,45 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete role base price" });
     }
   });
-
   // Admin - Result Checkers
   app.get("/api/admin/result-checkers", requireAuth, requireAdmin, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const year = req.query.year ? parseInt(req.query.year as string) : undefined;
       const isSold = req.query.isSold === "true" ? true : req.query.isSold === "false" ? false : undefined;
-      
       const checkers = await storage.getResultCheckers({ type, year, isSold });
       res.json(checkers);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load result checkers" });
     }
   });
-
   app.post("/api/admin/result-checkers/bulk", requireAuth, requireAdmin, async (req, res) => {
     try {
       // Validate input
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
-      
       const { type, year, basePrice, costPrice, checkers: checkersStr } = req.body;
-      
       if (!type || !year || !basePrice || !costPrice || !checkersStr) {
         return res.status(400).json({ error: "Missing required fields" });
       }
-      
       // Validate types
       if (typeof type !== 'string' || typeof checkersStr !== 'string') {
         return res.status(400).json({ error: "Invalid field types" });
       }
-      
       // Validate numeric fields
       const yearNum = parseInt(year);
       const basePriceNum = parseFloat(basePrice);
       const costPriceNum = parseFloat(costPrice);
-      
       if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
         return res.status(400).json({ error: "Invalid year" });
       }
-      
       if (isNaN(basePriceNum) || basePriceNum <= 0 || basePriceNum > 10000) {
         return res.status(400).json({ error: "Invalid base price" });
       }
-      
       if (isNaN(costPriceNum) || costPriceNum <= 0 || costPriceNum > basePriceNum) {
         return res.status(400).json({ error: "Invalid cost price" });
       }
-
       const lines = checkersStr.split("\n").filter((line: string) => line.trim());
       const checkersData = lines.map((line: string) => {
         const [serialNumber, pin] = line.split(",").map((s: string) => s.trim());
@@ -4714,18 +4137,15 @@ export async function registerRoutes(
           costPrice,
         };
       }).filter((c: any) => c.serialNumber && c.pin);
-
       if (checkersData.length === 0) {
         return res.status(400).json({ error: "No valid checkers provided" });
       }
-
       const created = await storage.createResultCheckersBulk(checkersData);
       res.json({ added: created.length });
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Failed to create result checkers" });
     }
   });
-
   app.get("/api/admin/result-checkers/summary", requireAuth, requireAdmin, async (req, res) => {
     try {
       const summary = await storage.getResultCheckerSummary();
@@ -4734,30 +4154,25 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load summary" });
     }
   });
-
   app.put("/api/admin/result-checkers/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { type, year, serialNumber, pin, basePrice } = req.body;
-
       const updateData: Partial<InsertResultChecker> = {};
       if (type !== undefined) updateData.type = type;
       if (year !== undefined) updateData.year = year;
       if (serialNumber !== undefined) updateData.serialNumber = serialNumber;
       if (pin !== undefined) updateData.pin = pin;
       if (basePrice !== undefined) updateData.basePrice = basePrice;
-
       const checker = await storage.updateResultChecker(id, updateData);
       if (!checker) {
         return res.status(404).json({ error: "Result checker not found" });
       }
-
       res.json(checker);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update result checker" });
     }
   });
-
   app.delete("/api/admin/result-checkers/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
@@ -4765,13 +4180,11 @@ export async function registerRoutes(
       if (!deleted) {
         return res.status(404).json({ error: "Result checker not found" });
       }
-
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to delete result checker" });
     }
   });
-
   app.get("/api/admin/transactions/recent", requireAuth, requireAdmin, async (req, res) => {
     try {
       const transactions = await storage.getTransactions({ limit: 10 });
@@ -4780,7 +4193,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load recent transactions" });
     }
   });
-
   // ============================================
   // SEED PRODUCTS (for initial setup - admin only)
   // ============================================
@@ -4790,7 +4202,6 @@ export async function registerRoutes(
       if (existingBundles.length > 0) {
         return res.json({ message: "Products already exist", count: existingBundles.length });
       }
-
       const sampleBundles = [
         { name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
         { name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
@@ -4811,17 +4222,14 @@ export async function registerRoutes(
         { name: "Weekly iShare", network: "at_ishare", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
         { name: "Monthly iShare", network: "at_ishare", dataAmount: "8GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
       ];
-
       for (const bundle of sampleBundles) {
         await storage.createDataBundle(bundle);
       }
-
       res.json({ message: "Products seeded successfully", count: sampleBundles.length });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to seed products" });
     }
   });
-
   // ============================================
   // FILE UPLOAD ROUTES
   // ============================================
@@ -4830,40 +4238,34 @@ export async function registerRoutes(
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-
       const fileUrl = `/assets/${req.file.filename}`;
       res.json({ url: fileUrl, filename: req.file.filename });
     } catch (error: any) {
       res.status(500).json({ error: "Upload failed" });
     }
   });
-
   app.post("/api/admin/upload/banner", requireAuth, requireAdmin, global.upload.single("banner"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-
       const fileUrl = `/assets/${req.file.filename}`;
       res.json({ url: fileUrl, filename: req.file.filename });
     } catch (error: any) {
       res.status(500).json({ error: "Upload failed" });
     }
   });
-
   app.post("/api/admin/upload/network-logo", requireAuth, requireAdmin, global.upload.single("networkLogo"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
-
       const fileUrl = `/assets/${req.file.filename}`;
       res.json({ url: fileUrl, filename: req.file.filename });
     } catch (error: any) {
       res.status(500).json({ error: "Upload failed" });
     }
   });
-
   // ============================================
   // BREAK SETTINGS ROUTES
   // ============================================
@@ -4875,48 +4277,39 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load break settings" });
     }
   });
-
   app.post("/api/admin/break-settings", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { isEnabled, enabled, message } = req.body;
       const finalIsEnabled = isEnabled !== undefined ? isEnabled : enabled;
-
       if (typeof finalIsEnabled !== 'boolean') {
         return res.status(400).json({ error: "isEnabled or enabled must be a boolean" });
       }
-
       if (finalIsEnabled && (!message || typeof message !== 'string' || message.trim().length === 0)) {
         return res.status(400).json({ error: "Message is required when break mode is enabled" });
       }
-
       const settings = await storage.updateBreakSettings({
         isEnabled: finalIsEnabled,
         message: message?.trim() || "",
       });
-
       res.json(settings);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to update break settings" });
     }
   });
-
   // ============================================
   // ADMIN - TRANSACTIONS MANAGEMENT
   // ============================================
-
   // Get all transactions (admin view)
   app.get("/api/admin/transactions", requireAuth, requireAdmin, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       const type = req.query.type as string | undefined;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-
       const transactions = await storage.getTransactions({
         status: status as any,
         type: type as any,
         limit,
       });
-
       // Add delivery status and phone numbers for admin view
       const transactionsWithDetails = transactions.map(tx => ({
         ...tx,
@@ -4924,36 +4317,28 @@ export async function registerRoutes(
         phoneNumbers: (tx as any).phoneNumbers,
         isBulkOrder: (tx as any).isBulkOrder,
       }));
-
       res.json(transactionsWithDetails);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load transactions" });
     }
   });
-
   // Update delivery status for a transaction
   app.patch("/api/admin/transactions/:transactionId/delivery-status", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { transactionId } = req.params;
       const { deliveryStatus } = req.body;
-
       if (!deliveryStatus || !["pending", "processing", "delivered", "failed"].includes(deliveryStatus)) {
         return res.status(400).json({ error: "Invalid delivery status" });
       }
-
       const transaction = await storage.updateTransaction(transactionId, { deliveryStatus });
       if (!transaction) {
         return res.status(404).json({ error: "Transaction not found" });
       }
-
       res.json(transaction);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to update delivery status" });
     }
   });
-
-
-
   // ============================================
   // ADMIN - API CONFIGURATION
   // ============================================
@@ -4968,19 +4353,16 @@ export async function registerRoutes(
         "paystack.secret_key",
         "paystack.public_key",
       ];
-
       const result: Record<string, string> = {};
       for (const k of keys) {
         const v = await storage.getSetting(k);
         if (v !== undefined) result[k] = v;
       }
-
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load API configuration" });
     }
   });
-
   app.post("/api/admin/api-config", requireAuth, requireAdmin, async (req, res) => {
     try {
       const body = req.body || {};
@@ -4994,7 +4376,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to save API configuration" });
     }
   });
-
   // Public endpoint for break settings (no auth required)
   app.get("/api/break-settings", async (req, res) => {
     try {
@@ -5004,7 +4385,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load break settings" });
     }
   });
-
   // ============================================
   // USER ROUTES
   // ============================================
@@ -5015,18 +4395,15 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const transactions = await storage.getTransactions({
         customerEmail: req.user!.email,
         limit: 50,
       });
-
       res.json(transactions);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load transactions" });
     }
   });
-
   app.get("/api/user/stats", requireAuth, async (req, res) => {
     try {
       // Get user from database using email from JWT
@@ -5034,14 +4411,11 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const transactions = await storage.getTransactions({
         customerEmail: req.user!.email,
       });
-
       const totalOrders = transactions.length;
       const totalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-
       res.json({
         totalOrders,
         totalSpent: totalSpent.toFixed(2),
@@ -5051,11 +4425,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load user stats" });
     }
   });
-
   // ============================================
   // PROFIT WALLET & WITHDRAWAL ROUTES
   // ============================================
-
   // Get profit wallet balance
   app.get("/api/user/profit-wallet", requireAuth, async (req, res) => {
     try {
@@ -5063,7 +4435,6 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       let wallet = await storage.getProfitWallet(dbUser.id);
       if (!wallet) {
         // Create wallet if it doesn't exist
@@ -5074,7 +4445,6 @@ export async function registerRoutes(
           totalEarned: "0.00",
         });
       }
-
       res.json({
         wallet,
         user: { name: dbUser.name, email: dbUser.email },
@@ -5083,7 +4453,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load profit wallet" });
     }
   });
-
   // Get profit transactions
   app.get("/api/user/profit-transactions", requireAuth, async (req, res) => {
     try {
@@ -5091,31 +4460,25 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { status, limit } = req.query;
       const transactions = await storage.getProfitTransactions(dbUser.id, {
         status: status as string,
         limit: limit ? parseInt(limit as string) : undefined,
       });
-
       res.json({ transactions });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load profit transactions" });
     }
   });
-
   // Verify bank account
   app.post("/api/user/verify-bank-account", requireAuth, async (req, res) => {
     try {
       const { accountNumber, bankCode } = req.body;
-
       if (!accountNumber || !bankCode) {
         return res.status(400).json({ error: "Account number and bank code are required" });
       }
-
       const { resolveBankAccount } = await import("./paystack.js");
       const result = await resolveBankAccount(accountNumber, bankCode);
-
       res.json({
         accountName: result.data.account_name,
         accountNumber: result.data.account_number,
@@ -5125,7 +4488,6 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Failed to verify bank account" });
     }
   });
-
   // Request withdrawal
   app.post("/api/user/withdrawals", requireAuth, async (req, res) => {
     try {
@@ -5133,21 +4495,17 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { amount, accountNumber, accountName, bankCode, bankName } = req.body;
-
       // Validate amount
       const withdrawalAmount = parseFloat(amount);
       if (isNaN(withdrawalAmount) || withdrawalAmount < 10) {
         return res.status(400).json({ error: "Minimum withdrawal amount is GHS 10" });
       }
-
       // Get profit wallet
       const wallet = await storage.getProfitWallet(dbUser.id);
       if (!wallet) {
         return res.status(400).json({ error: "Profit wallet not found" });
       }
-
       // Check available balance (but don't deduct yet)
       const availableBalance = parseFloat(wallet.availableBalance);
       if (availableBalance < withdrawalAmount) {
@@ -5157,7 +4515,6 @@ export async function registerRoutes(
           requested: withdrawalAmount.toFixed(2),
         });
       }
-
       // Create withdrawal request (funds are NOT deducted here)
       const withdrawal = await storage.createWithdrawal({
         userId: dbUser.id,
@@ -5169,7 +4526,6 @@ export async function registerRoutes(
         accountNumber,
         accountName,
       });
-
       res.json({
         withdrawal,
         message: "Withdrawal request submitted successfully. It will be processed after admin approval.",
@@ -5178,7 +4534,6 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to create withdrawal request" });
     }
   });
-
   // Get user withdrawals
   app.get("/api/user/withdrawals", requireAuth, async (req, res) => {
     try {
@@ -5186,14 +4541,12 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       res.json({ withdrawals });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load withdrawals" });
     }
   });
-
   // Admin routes for withdrawal management
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -5201,7 +4554,6 @@ export async function registerRoutes(
       const withdrawals = await storage.getWithdrawals({
         status: status as string,
       });
-
       // Get user details for each withdrawal
       const withdrawalsWithUsers = await Promise.all(
         withdrawals.map(async (withdrawal) => {
@@ -5212,49 +4564,39 @@ export async function registerRoutes(
           };
         })
       );
-
       res.json({ withdrawals: withdrawalsWithUsers });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load withdrawals" });
     }
   });
-
   // Admin approve/reject withdrawal
   app.patch("/api/admin/withdrawals/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { action, adminNote } = req.body; // action: "approve" | "reject"
-
       const withdrawal = await storage.getWithdrawal(id);
       if (!withdrawal) {
         return res.status(404).json({ error: "Withdrawal not found" });
       }
-
       if (action === "approve") {
         // Check if withdrawal is pending
         if (withdrawal.status !== "pending") {
           return res.status(400).json({ error: "Withdrawal is not in pending status" });
         }
-
         // Deduct amount from profit wallet
         const wallet = await storage.getProfitWallet(withdrawal.userId);
         if (!wallet) {
           return res.status(400).json({ error: "Profit wallet not found" });
         }
-
         const withdrawalAmount = parseFloat(withdrawal.amount);
         const currentBalance = parseFloat(wallet.availableBalance);
-
         if (currentBalance < withdrawalAmount) {
           return res.status(400).json({ error: "Insufficient balance in profit wallet" });
         }
-
         const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
-
         await storage.updateProfitWallet(withdrawal.userId, {
           availableBalance: newBalance,
         });
-
         // Update withdrawal status to approved
         await storage.updateWithdrawal(id, {
           status: WithdrawalStatus.APPROVED,
@@ -5262,7 +4604,6 @@ export async function registerRoutes(
           approvedAt: new Date(),
           adminNote,
         });
-
         res.json({
           message: "Withdrawal approved. Admin will manually send the money.",
           withdrawal: await storage.getWithdrawal(id),
@@ -5272,13 +4613,11 @@ export async function registerRoutes(
         if (withdrawal.status !== "pending") {
           return res.status(400).json({ error: "Withdrawal is not in pending status" });
         }
-
         // Update withdrawal status to rejected
         await storage.updateWithdrawal(id, {
           status: WithdrawalStatus.REJECTED,
           rejectionReason: adminNote,
         });
-
         res.json({
           message: "Withdrawal rejected",
           withdrawal: await storage.getWithdrawal(id),
@@ -5290,41 +4629,32 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to process withdrawal" });
     }
   });
-
   // Admin approve withdrawal
   app.post("/api/admin/withdrawals/:id/approve", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { adminNote } = req.body;
-
       const withdrawal = await storage.getWithdrawal(id);
       if (!withdrawal) {
         return res.status(404).json({ error: "Withdrawal not found" });
       }
-
       if (withdrawal.status !== "pending") {
         return res.status(400).json({ error: "Withdrawal is not in pending status" });
       }
-
       // Deduct amount from profit wallet
       const wallet = await storage.getProfitWallet(withdrawal.userId);
       if (!wallet) {
         return res.status(400).json({ error: "Profit wallet not found" });
       }
-
       const withdrawalAmount = parseFloat(withdrawal.amount);
       const currentBalance = parseFloat(wallet.availableBalance);
-
       if (currentBalance < withdrawalAmount) {
         return res.status(400).json({ error: "Insufficient balance in profit wallet" });
       }
-
       const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
-
       await storage.updateProfitWallet(withdrawal.userId, {
         availableBalance: newBalance,
       });
-
       // Update withdrawal status to approved
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.APPROVED,
@@ -5332,7 +4662,6 @@ export async function registerRoutes(
         approvedAt: new Date(),
         adminNote,
       });
-
       res.json({
         message: "Withdrawal approved. Admin will manually send the money.",
         withdrawal: await storage.getWithdrawal(id),
@@ -5341,28 +4670,23 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to approve withdrawal" });
     }
   });
-
   // Admin reject withdrawal
   app.post("/api/admin/withdrawals/:id/reject", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
       const { adminNote } = req.body;
-
       const withdrawal = await storage.getWithdrawal(id);
       if (!withdrawal) {
         return res.status(404).json({ error: "Withdrawal not found" });
       }
-
       if (withdrawal.status !== "pending") {
         return res.status(400).json({ error: "Withdrawal is not in pending status" });
       }
-
       // Update withdrawal status to rejected
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.REJECTED,
         rejectionReason: adminNote,
       });
-
       res.json({
         message: "Withdrawal rejected",
         withdrawal: await storage.getWithdrawal(id),
@@ -5371,27 +4695,22 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to reject withdrawal" });
     }
   });
-
   // Admin mark withdrawal as paid
   app.post("/api/admin/withdrawals/:id/mark_paid", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-
       const withdrawal = await storage.getWithdrawal(id);
       if (!withdrawal) {
         return res.status(404).json({ error: "Withdrawal not found" });
       }
-
       if (withdrawal.status !== "approved") {
         return res.status(400).json({ error: "Withdrawal is not in approved status" });
       }
-
       // Update withdrawal status to paid
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.PAID,
         paidAt: new Date(),
       });
-
       res.json({
         message: "Withdrawal marked as paid",
         withdrawal: await storage.getWithdrawal(id),
@@ -5400,94 +4719,44 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to mark withdrawal as paid" });
     }
   });
-
   // Paystack webhook for transfer status updates
   app.post("/api/webhooks/paystack", async (req, res) => {
     try {
       const { validateWebhookSignature } = await import("./paystack.js");
-
       // Verify webhook signature
       const isValid = validateWebhookSignature(
         JSON.stringify(req.body),
         req.headers["x-paystack-signature"] as string
       );
-
       if (!isValid) {
         return res.status(400).json({ error: "Invalid webhook signature" });
       }
-
       const event = req.body;
-
-      if (event.event === "transfer.success") {
-        const transfer = event.data;
-
-        // Find withdrawal by transfer reference
-        const withdrawal = await storage.getWithdrawalByTransferReference(transfer.reference);
-        if (withdrawal && withdrawal.status === "processing") {
-          // Update withdrawal status to completed
-          await storage.updateWithdrawal(withdrawal.id, {
-            status: "completed",
-            completedAt: new Date(),
-          });
-
-          // Remove from pending balance (funds are now transferred)
-          const wallet = await storage.getProfitWallet(withdrawal.userId);
-          if (wallet) {
-            const transferAmount = parseFloat(withdrawal.amount);
-            const newPendingBalance = (parseFloat(wallet.pendingBalance) - transferAmount).toFixed(2);
-
-            await storage.updateProfitWallet(withdrawal.userId, {
-              pendingBalance: newPendingBalance,
-            });
-          }
-        }
-      } else if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
-        const transfer = event.data;
-
-        // Find withdrawal by transfer reference
-        const withdrawal = await storage.getWithdrawalByTransferReference(transfer.reference);
-        if (withdrawal && withdrawal.status === "processing") {
-          // Update withdrawal status to failed
-          await storage.updateWithdrawal(withdrawal.id, {
-            status: "failed",
-            completedAt: new Date(),
-            adminNote: `Transfer failed: ${transfer.reason || "Unknown reason"}`,
-          });
-
-          // Return funds to available balance
-          const wallet = await storage.getProfitWallet(withdrawal.userId);
-          if (wallet) {
-            const returnAmount = parseFloat(withdrawal.amount);
-            const newAvailableBalance = (parseFloat(wallet.availableBalance) + returnAmount).toFixed(2);
-            const newPendingBalance = (parseFloat(wallet.pendingBalance) - returnAmount).toFixed(2);
-
-            await storage.updateProfitWallet(withdrawal.userId, {
-              availableBalance: newAvailableBalance,
-              pendingBalance: newPendingBalance,
-            });
-          }
-        }
+      
+      // Automated transfers are deprecated in favor of manual admin approval
+      // Just log the event for now
+      if (event.event === "transfer.success" || event.event === "transfer.failed" || event.event === "transfer.reversed") {
+        console.log(`Received transfer webhook event: ${event.event}`, event.data);
       }
-
+      
       res.json({ status: "ok" });
     } catch (error: any) {
       console.error("Webhook processing error:", error);
       res.status(500).json({ error: "Webhook processing failed" });
     }
+  });
   app.get("/api/user/rank", requireAuth, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Calculate user's total spent from completed transactions only
       const transactions = await storage.getTransactions({
         customerEmail: req.user!.email,
         status: "completed",
       });
       const userTotalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-
       // Get all users' total spent from completed transactions
       const allUsers = await storage.getUsers();
       const userRanks = await Promise.all(allUsers.map(async (u) => {
@@ -5498,13 +4767,10 @@ export async function registerRoutes(
         const total = txns.reduce((sum, t) => sum + parseFloat(t.amount), 0);
         return { email: u.email, totalSpent: total };
       }));
-
       // Sort by totalSpent descending
       userRanks.sort((a, b) => b.totalSpent - a.totalSpent);
-
       // Find user's rank (1-based)
       const userRank = userRanks.findIndex(u => u.email === req.user!.email) + 1;
-
       res.json({
         rank: userRank,
         totalUsers: userRanks.length,
@@ -5514,35 +4780,28 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to get rank" });
     }
   });
-
   app.put("/api/user/profile", requireAuth, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { name, phone } = req.body;
-
       // Validate input
       if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2)) {
         return res.status(400).json({ error: "Name must be at least 2 characters" });
       }
-
       if (phone !== undefined && (typeof phone !== 'string' || phone.trim().length < 10)) {
         return res.status(400).json({ error: "Phone number must be at least 10 digits" });
       }
-
       // Update user profile
       const updateData: any = {};
       if (name !== undefined) updateData.name = name.trim();
       if (phone !== undefined) updateData.phone = phone.trim();
-
       const updatedUser = await storage.updateUser(dbUser.id, updateData);
       if (!updatedUser) {
         return res.status(500).json({ error: "Failed to update profile" });
       }
-
       res.json({
         user: {
           id: updatedUser.id,
@@ -5556,61 +4815,48 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update profile" });
     }
   });
-
   app.put("/api/user/profile", requireAuth, async (req, res) => {
     try {
       const { name, email } = req.body;
-
       if (!name || typeof name !== 'string' || name.trim().length < 2) {
         return res.status(400).json({ error: "Name must be at least 2 characters" });
       }
-
       if (!email || typeof email !== 'string' || !email.includes('@')) {
         return res.status(400).json({ error: "Valid email is required" });
       }
-
       // Get current user
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Update user profile
       await storage.updateUser(dbUser.id, {
         name: name.trim(),
         email: email.trim().toLowerCase(),
       });
-
       res.json({ message: "Profile updated successfully" });
     } catch (error: any) {
       console.error('Profile update error:', error);
       res.status(500).json({ error: "Failed to update profile" });
     }
   });
-
   // Order tracking - search by beneficiary number or transaction ID
   app.get("/api/track-order", async (req, res) => {
     try {
       const { q } = req.query;
-
       if (!q || typeof q !== 'string') {
         return res.status(400).json({ error: "Search query is required" });
       }
-
       const trimmedQuery = q.trim();
-
       // Search by transaction ID/reference first
       let transaction = await storage.getTransactionByReference(trimmedQuery);
-
       // If not found, search by beneficiary phone number
       if (!transaction) {
         transaction = await storage.getTransactionByBeneficiaryPhone(trimmedQuery);
       }
-
       if (!transaction) {
         return res.status(404).json({ error: "Order not found. Please check your transaction ID or beneficiary phone number." });
       }
-
       // Return limited transaction info for tracking
       res.json({
         id: transaction.id,
@@ -5625,13 +4871,11 @@ export async function registerRoutes(
         phoneNumbers: transaction.phoneNumbers, // For bulk orders
         isBulkOrder: transaction.isBulkOrder,
       });
-
     } catch (error: any) {
       console.error('Order tracking error:', error);
       res.status(500).json({ error: "Failed to track order" });
     }
   });
-
   // Bulk upload data bundles
   app.post("/api/user/bulk-upload", requireAuth, async (req, res) => {
     try {
@@ -5639,10 +4883,8 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       let network: string;
       let data: string;
-
       // Handle file upload
       if (req.is('multipart/form-data')) {
         network = req.body.network;
@@ -5654,56 +4896,45 @@ export async function registerRoutes(
         network = req.body.network;
         data = req.body.data;
       }
-
       if (!network || !data) {
         return res.status(400).json({ error: "Network and data are required" });
       }
-
       // Disable bulk uploads for AT iShare network
       if (network === "at_ishare") {
         return res.status(400).json({ error: "Bulk uploads are not available for AT iShare network" });
       }
-
       // Parse the data format: phone_number GB_amount (one per line)
       const lines = data.split('\n').map(line => line.trim()).filter(line => line);
       const orderItems: any[] = [];
-
       for (const line of lines) {
         const parts = line.split(/\s+/);
         if (parts.length !== 2) {
           return res.status(400).json({ error: `Invalid format: ${line}. Expected: phone_number GB_amount` });
         }
-
         const phone = parts[0].trim();
         const gbAmount = parseInt(parts[1].trim());
-
         if (isNaN(gbAmount) || gbAmount < 1 || gbAmount > 100) {
           return res.status(400).json({ error: `Invalid GB amount: ${parts[1]}. Must be 1-100` });
         }
-
         // Validate phone number
         const normalizedPhone = normalizePhoneNumber(phone);
         if (!normalizedPhone || !isValidPhoneLength(normalizedPhone)) {
           return res.status(400).json({ error: `Invalid phone number: ${phone}` });
         }
-
         // Validate network match
         if (!validatePhoneNetwork(normalizedPhone, network)) {
           const errorMsg = getNetworkMismatchError(normalizedPhone, network);
           return res.status(400).json({ error: errorMsg });
         }
-
         // Find bundle by data amount and network
         const bundles = await storage.getDataBundles({ network, isActive: true });
         const bundle = bundles.find(b => {
           const bundleGB = parseInt(b.dataAmount.replace('GB', ''));
           return bundleGB === gbAmount;
         });
-
         if (!bundle) {
           return res.status(404).json({ error: `Bundle not found for ${gbAmount}GB on ${network} network` });
         }
-
         // Calculate price based on user role
         let price = parseFloat(bundle.basePrice);
         if (dbUser.role === 'agent') {
@@ -5713,21 +4944,17 @@ export async function registerRoutes(
         } else if (dbUser.role === 'super_dealer') {
           price = parseFloat(bundle.superDealerPrice || bundle.basePrice);
         }
-
         orderItems.push({
           bundleId: bundle.id,
           phone: normalizedPhone,
           price: price,
         });
       }
-
       if (orderItems.length === 0) {
         return res.status(400).json({ error: "No valid items found" });
       }
-
       // Calculate total amount
       const totalAmount = orderItems.reduce((sum, item) => sum + item.price, 0);
-
       // Check wallet balance if payment method is wallet
       const paymentMethod = req.body.paymentMethod || 'wallet';
       if (paymentMethod === 'wallet') {
@@ -5736,7 +4963,6 @@ export async function registerRoutes(
           return res.status(400).json({ error: `Insufficient wallet balance. Required: GH₵${totalAmount.toFixed(2)}, Available: GH₵${walletBalance.toFixed(2)}` });
         }
       }
-
       // Process the bulk order using the checkout logic
       const checkoutData = {
         orderItems,
@@ -5746,7 +4972,6 @@ export async function registerRoutes(
         paymentMethod,
         isBulkOrder: true,
       };
-
       // Call the checkout initialization
       const checkoutResponse = await fetch(`${req.protocol}://${req.get('host')}/api/checkout/initialize`, {
         method: 'POST',
@@ -5756,30 +4981,24 @@ export async function registerRoutes(
         },
         body: JSON.stringify(checkoutData),
       });
-
       if (!checkoutResponse.ok) {
         const errorData = await checkoutResponse.json().catch(() => ({ error: 'Checkout failed' }));
         return res.status(checkoutResponse.status).json(errorData);
       }
-
       const checkoutResult = await checkoutResponse.json();
-
       res.json({
         processed: orderItems.length,
         totalAmount: totalAmount.toFixed(2),
         checkout: checkoutResult,
       });
-
     } catch (error: any) {
       console.error("Bulk upload error:", error);
       res.status(500).json({ error: "Failed to process bulk upload", details: error.message });
     }
   });
-
   // ============================================
   // WALLET ROUTES
   // ============================================
-  
   // Get wallet statistics
   app.get("/api/wallet/stats", requireAuth, async (req, res) => {
     try {
@@ -5787,25 +5006,20 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const transactions = await storage.getTransactions({
         customerEmail: req.user!.email,
       });
-
       // Filter wallet topups
       const walletTopups = transactions.filter(t => t.type === 'wallet_topup' && t.status === 'completed');
       const totalTopups = walletTopups.length;
       const totalTopupAmount = walletTopups.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-
       // Filter wallet payments
       const walletPayments = transactions.filter(t => t.paymentMethod === 'wallet');
       const totalSpent = walletPayments.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-
       // Get last topup
-      const lastTopup = walletTopups.sort((a, b) => 
+      const lastTopup = walletTopups.sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
-
       res.json({
         walletBalance: dbUser.walletBalance || "0.00",
         totalTopups,
@@ -5818,24 +5032,19 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load wallet stats" });
     }
   });
-  
   // Initialize wallet topup
   app.post("/api/wallet/topup/initialize", requireAuth, async (req, res) => {
     try {
       const { amount } = req.body;
-
       if (!amount || parseFloat(amount) < 1) {
         return res.status(400).json({ error: "Invalid amount. Minimum topup is GHS 1" });
       }
-
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Create topup transaction
       const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-      
       const transaction = await storage.createTransaction({
         reference,
         type: "wallet_topup",
@@ -5847,10 +5056,8 @@ export async function registerRoutes(
         paymentMethod: "paystack",
         status: TransactionStatus.PENDING,
       });
-
       // Initialize Paystack payment
       const callbackUrl = `${req.protocol}://${req.get("host")}/wallet/topup/success`;
-      
       const paystackResponse = await initializePayment({
         email: dbUser.email,
         amount: Math.round(parseFloat(amount) * 100),
@@ -5862,7 +5069,6 @@ export async function registerRoutes(
           customerName: dbUser.name,
         },
       });
-
       if (paystackResponse.status && paystackResponse.data) {
         res.json({
           authorizationUrl: paystackResponse.data.authorization_url,
@@ -5877,7 +5083,6 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Wallet topup failed" });
     }
   });
-
   // Verify wallet topup
   app.get("/api/wallet/topup/verify/:reference", requireAuth, async (req, res) => {
     try {
@@ -5885,11 +5090,9 @@ export async function registerRoutes(
       if (!transaction) {
         return res.status(404).json({ error: "Transaction not found" });
       }
-
       if (transaction.type !== "wallet_topup") {
         return res.status(400).json({ error: "Invalid transaction type" });
       }
-
       if (transaction.status === TransactionStatus.COMPLETED) {
         return res.json({
           success: true,
@@ -5897,10 +5100,8 @@ export async function registerRoutes(
           status: transaction.status,
         });
       }
-
       // Verify payment with Paystack
       const paystackVerification = await verifyPayment(req.params.reference);
-      
       if (paystackVerification.data.status !== "success") {
         return res.json({
           success: false,
@@ -5908,21 +5109,18 @@ export async function registerRoutes(
           message: paystackVerification.data.gateway_response,
         });
       }
-
       // Credit wallet
       const dbUser = await storage.getUserByEmail(transaction.customerEmail!);
       if (dbUser) {
         const newBalance = parseFloat(dbUser.walletBalance || "0") + parseFloat(transaction.amount);
         await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
       }
-
       // Update transaction
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
         completedAt: new Date(),
         paymentReference: paystackVerification.data.reference,
       });
-
       res.json({
         success: true,
         amount: transaction.amount,
@@ -5932,12 +5130,10 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Verification failed" });
     }
   });
-
   // Pay with wallet
   app.post("/api/wallet/pay", requireAuth, async (req, res) => {
     try {
       console.log("Wallet pay request body:", req.body);
-      
       const {
         productType,
         productId,
@@ -5950,25 +5146,20 @@ export async function registerRoutes(
         agentSlug,
         orderItems,
       } = req.body;
-
       // For new bulk format, productName might be generated
       const effectiveProductName = productName || (orderItems ? `Bulk Order - ${orderItems.length} items` : null);
-
       if (!productType || !effectiveProductName || !amount || !customerPhone) {
         console.error("Missing required fields:", { productType, productName: effectiveProductName, amount, customerPhone });
         return res.status(400).json({ error: "Missing required fields" });
       }
-
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
       const purchaseAmount = parseFloat(amount);
       const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);
       const purchaseAmountCents = Math.round(purchaseAmount * 100);
-
       if (walletBalanceCents < purchaseAmountCents) {
         return res.status(400).json({
           error: "Insufficient wallet balance",
@@ -5976,16 +5167,13 @@ export async function registerRoutes(
           required: (purchaseAmountCents / 100).toFixed(2),
         });
       }
-
       // Get product pricing
       let product: any;
       let costPrice = 0;
       let basePrice = parseFloat(amount);
-
       // Handle new bulk format with orderItems
       if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
         console.log("[Wallet] Processing orderItems:", orderItems);
-        
         // Calculate total cost price from all items
         costPrice = 0;
         for (const item of orderItems) {
@@ -5994,7 +5182,6 @@ export async function registerRoutes(
             costPrice += 0; // Cost price removed from schema
           }
         }
-        
         // Use the first item's bundle for validation
         product = await storage.getDataBundle(orderItems[0].bundleId);
       } else if (productType === ProductType.DATA_BUNDLE && productId) {
@@ -6010,46 +5197,38 @@ export async function registerRoutes(
           basePrice = parseFloat(product.basePrice);
         }
       }
-
       // Handle agent commission for storefront purchases
       let agentId: string | undefined;
       let agentProfit = 0;
-
       if (agentSlug) {
         const agent = await storage.getAgentBySlug(agentSlug);
         if (agent && agent.isApproved) {
           agentId = agent.id;
-          
           // For agent storefront purchases, calculate profit as selling price - agent base price
           const agentBasePrice = await storage.getRoleBasePrice(productId || orderItems[0].bundleId, 'agent');
           const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product?.basePrice || '0');
           agentProfit = Math.max(0, purchaseAmount - basePrice); // Profit is 0 if using admin price
         }
       }
-
       // Calculate total profit (selling price - admin base price, or 0 if using admin price)
       const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
       const profitBasePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
       const profit = Math.max(0, purchaseAmount - profitBasePrice);
-
       // Create transaction
       const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-      
       // Store full order items with GB info for bulk orders, or just phone numbers for simple orders
-      const phoneNumbersData = orderItems 
+      const phoneNumbersData = orderItems
         ? orderItems.map((item: any) => ({
             phone: item.phone,
             bundleName: item.bundleName,
             dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
           }))
         : (phoneNumbers ? phoneNumbers.map((phone: string) => ({ phone })) : undefined);
-      
       console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
       console.log("[Wallet] orderItems:", orderItems);
       console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
       console.log("[Wallet] phoneNumbersData:", phoneNumbersData);
       console.log("[Wallet] ===================================================");
-      
       const transaction = await storage.createTransaction({
         reference,
         type: productType,
@@ -6068,23 +5247,18 @@ export async function registerRoutes(
         agentId,
         agentProfit: agentProfit > 0 ? agentProfit.toFixed(2) : undefined,
       });
-
       // Deduct from wallet (use same precision handling as balance check)
       const newBalanceCents = walletBalanceCents - purchaseAmountCents;
       const newBalance = newBalanceCents / 100;
       await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
-
       // Process the order
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
-
       if (productType === ProductType.RESULT_CHECKER && productId) {
         const [type, yearStr] = productId.split("-");
         const year = parseInt(yearStr);
-        
         // Try to get an available pre-generated checker first
         let checker = await storage.getAvailableResultChecker(type, year);
-        
         if (checker) {
           // Use pre-generated checker
           await storage.markResultCheckerSold(checker.id, transaction.id, customerPhone);
@@ -6094,7 +5268,6 @@ export async function registerRoutes(
           // Generate PIN and serial automatically
           deliveredSerial = `RC${Date.now()}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
           deliveredPin = Math.random().toString(36).substring(2, 10).toUpperCase();
-          
           // Create a new result checker record
           const newChecker = await storage.createResultChecker({
             type,
@@ -6103,10 +5276,8 @@ export async function registerRoutes(
             pin: deliveredPin,
             basePrice: purchaseAmount.toString(),
           });
-          
           console.log("Auto-generated result checker:", newChecker.id);
         }
-        
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
           completedAt: new Date(),
@@ -6116,9 +5287,7 @@ export async function registerRoutes(
       } else {
         // For data bundles, process through API first
         console.log("[Wallet] Processing data bundle transaction via API:", transaction.reference);
-        
         const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
-        
         if (fulfillmentResult.success) {
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
           await storage.updateTransaction(transaction.id, {
@@ -6135,22 +5304,18 @@ export async function registerRoutes(
           });
         }
       }
-
       // Credit agent (wallet payments): only credit PROFIT and record admin revenue
       if (agentId && agentProfit > 0) {
         const totalPaid = parseFloat(purchaseAmount.toFixed(2));
         const agentProfitValue = parseFloat(agentProfit.toFixed(2));
         const adminRevenue = parseFloat((totalPaid - agentProfitValue).toFixed(2));
-
         // Safety check
         if (Math.abs(agentProfitValue + adminRevenue - totalPaid) > 0.01) {
           console.error("INVALID_BULK_PAYOUT detected for wallet transaction", transaction.reference);
           throw new Error("INVALID_BULK_PAYOUT");
         }
-
         // Credit agent with profit only
         await storage.updateAgentBalance(agentId, agentProfitValue, true);
-
         // Record admin revenue as a separate transaction for accounting
         const adminRef = `ADMINREV-${transaction.reference}`;
         await storage.createTransaction({
@@ -6168,7 +5333,6 @@ export async function registerRoutes(
           paymentStatus: "paid",
         });
       }
-
       res.json({
         success: true,
         reference: transaction.reference,
@@ -6180,22 +5344,18 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Payment failed" });
     }
   });
-
   // ===== CHAT SUPPORT API ROUTES =====
-
   // Create new chat session
   app.post("/api/support/chat/create", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const userName = user.user_metadata?.name || user.email.split('@')[0];
-
       const chatId = await storage.createSupportChat(user.id, user.email, userName);
       res.json({ success: true, chatId });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to create chat" });
     }
   });
-
   // Get user's chat sessions
   app.get("/api/support/chats", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -6206,53 +5366,43 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get chats" });
     }
   });
-
   // Get chat details with messages
   app.get("/api/support/chat/:chatId", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const { chatId } = req.params;
-      
       const chat = await storage.getSupportChatById(chatId);
       if (!chat) {
         return res.status(404).json({ error: "Chat not found" });
       }
-
       // Verify user owns chat or is admin
       if (chat.userId !== user.id && user.role !== UserRole.ADMIN) {
         return res.status(403).json({ error: "Access denied" });
       }
-
       const messages = await storage.getChatMessages(chatId);
       res.json({ chat, messages });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to get chat" });
     }
   });
-
   // Send message in chat
   app.post("/api/support/chat/:chatId/message", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const { chatId } = req.params;
       const { message } = req.body;
-
       if (!message || message.trim().length === 0) {
         return res.status(400).json({ error: "Message cannot be empty" });
       }
-
       const chat = await storage.getSupportChatById(chatId);
       if (!chat) {
         return res.status(404).json({ error: "Chat not found" });
       }
-
       // Verify user owns chat or is admin
       if (chat.userId !== user.id && user.role !== UserRole.ADMIN) {
         return res.status(403).json({ error: "Access denied" });
       }
-
       const senderType = user.role === UserRole.ADMIN ? 'admin' : 'user';
-      
       // Check if this is user's first message BEFORE creating it
       let isFirstUserMessage = false;
       if (senderType === 'user') {
@@ -6260,22 +5410,18 @@ export async function registerRoutes(
         const existingUserMessages = existingMessages.filter(msg => msg.senderType === 'user');
         isFirstUserMessage = existingUserMessages.length === 0;
       }
-      
       const messageId = await storage.createChatMessage(chatId, user.id, senderType, message.trim());
-
       // Send automated welcome message if this was the user's first message
       if (isFirstUserMessage) {
         const autoReplyMessage = "Thank you for contacting us! 🙏\n\nPlease leave your concerns, questions, or reports below and our support team will respond as soon as they're available. We typically respond within a few hours during business hours.\n\nFeel free to provide as much detail as possible about your issue, and we'll get back to you with a solution.\n\nFor urgent matters, you can also reach us via WhatsApp.";
         // Use a system user ID for automated messages
         await storage.createChatMessage(chatId, user.id, 'admin', autoReplyMessage);
       }
-
       res.json({ success: true, messageId });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to send message" });
     }
   });
-
   // Mark messages as read
   app.put("/api/support/message/:messageId/read", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -6285,30 +5431,25 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to mark message as read" });
     }
   });
-
   // Close chat
   app.put("/api/support/chat/:chatId/close", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
       const { chatId } = req.params;
-
       const chat = await storage.getSupportChatById(chatId);
       if (!chat) {
         return res.status(404).json({ error: "Chat not found" });
       }
-
       // Only chat owner or admin can close
       if (chat.userId !== user.id && user.role !== UserRole.ADMIN) {
         return res.status(403).json({ error: "Access denied" });
       }
-
       await storage.closeSupportChat(chatId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to close chat" });
     }
   });
-
   // Get unread message count for user
   app.get("/api/support/unread-count", requireAuth, async (req: Request, res: Response) => {
     try {
@@ -6319,7 +5460,6 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get unread count" });
     }
   });
-
   // Get unread message count for admin/agent support
   app.get("/api/support/admin/unread-count", requireAuth, requireSupport, async (req: Request, res: Response) => {
     try {
@@ -6329,7 +5469,6 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get unread count" });
     }
   });
-
   // Admin: Get all support chats
   app.get("/api/admin/support/chats", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
@@ -6340,24 +5479,20 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get chats" });
     }
   });
-
   // Admin: Assign chat to admin
   app.put("/api/admin/support/chat/:chatId/assign", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const { chatId } = req.params;
       const adminId = req.user!.id;
-
       await storage.assignChatToAdmin(chatId, adminId);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to assign chat" });
     }
   });
-
   // ============================================
   // SETTINGS ROUTES
   // ============================================
-
   // Get all settings
   app.get("/api/admin/settings", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
@@ -6367,24 +5502,20 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to load settings" });
     }
   });
-
   // Update setting
   app.put("/api/admin/settings/:key", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const { key } = req.params;
       const { value, description } = req.body;
-
       if (!value) {
         return res.status(400).json({ error: "Value is required" });
       }
-
       await storage.setSetting(key, value, description);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to update setting" });
     }
   });
-
   // Get specific setting
   app.get("/api/admin/settings/:key", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
@@ -6395,11 +5526,9 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get setting" });
     }
   });
-
   // ============================================
   // ADMIN CREDENTIAL MANAGEMENT
   // ============================================
-
   // Get all users (for admin to manage credentials)
   app.get("/api/admin/users", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
@@ -6420,26 +5549,21 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to load users" });
     }
   });
-
   // Update user credentials
   app.put("/api/admin/users/:userId/credentials", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const { userId } = req.params;
       const { email, password, name, phone } = req.body;
-
       if (!email && !password && !name && phone === undefined) {
         return res.status(400).json({ error: "At least one field must be provided" });
       }
-
       // Get current user data
       const currentUser = await storage.getUser(userId);
       if (!currentUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const updateData: any = {};
       const supabaseUpdates: any = {};
-
       if (email && email !== currentUser.email) {
         updateData.email = email;
         supabaseUpdates.email = email;
@@ -6457,11 +5581,9 @@ export async function registerRoutes(
         updateData.phone = phone;
         supabaseUpdates.phone = phone;
       }
-
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ error: "No changes detected" });
       }
-
       // Update Supabase Auth if email or password changed
       if (supabaseUpdates.email || supabaseUpdates.password || supabaseUpdates.phone) {
         const supabaseServer = getSupabase();
@@ -6478,12 +5600,10 @@ export async function registerRoutes(
           }
         }
       }
-
       const updatedUser = await storage.updateUser(userId, updateData);
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       res.json({
         id: updatedUser.id,
         email: updatedUser.email,
@@ -6496,43 +5616,35 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to update user credentials" });
     }
   });
-
   // Generate and download result checker PDF
   app.get("/api/result-checker/:transactionId/pdf", requireAuth, async (req, res) => {
     try {
       const { transactionId } = req.params;
-
       // Get user from database
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-
       // Get transaction
       const transaction = await storage.getTransaction(transactionId);
       if (!transaction) {
         return res.status(404).json({ error: "Transaction not found" });
       }
-
       // Verify user owns this transaction
       if (transaction.customerEmail !== dbUser.email) {
         return res.status(403).json({ error: "Access denied" });
       }
-
       // Verify it's a result checker transaction
       if (transaction.type !== ProductType.RESULT_CHECKER) {
         return res.status(400).json({ error: "Invalid transaction type" });
       }
-
       // Verify transaction is completed and has credentials
       if (transaction.status !== TransactionStatus.COMPLETED || !transaction.deliveredPin || !transaction.deliveredSerial) {
         return res.status(400).json({ error: "Transaction not completed or credentials not available" });
       }
-
       // Parse productId to get type and year
       const [type, yearStr] = transaction.productId!.split("-");
       const year = parseInt(yearStr);
-
       // Generate PDF
       const { generateResultCheckerPDF } = await import('./utils/pdf-generator.js');
       const pdfBuffer = await generateResultCheckerPDF({
@@ -6545,12 +5657,10 @@ export async function registerRoutes(
         purchaseDate: transaction.completedAt || transaction.createdAt,
         transactionReference: transaction.reference,
       });
-
       // Set headers for PDF download
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${type.toUpperCase()}-Result-Checker-${year}-${transaction.reference}.pdf"`);
       res.setHeader('Content-Length', pdfBuffer.length);
-
       // Send PDF buffer
       res.send(pdfBuffer);
     } catch (error: any) {
@@ -6558,11 +5668,9 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to generate PDF" });
     }
   });
-
   // ============================================
   // API KEYS
   // ============================================
-
   // Get user's API keys
   app.get("/api/user/api-keys", requireAuth, async (req, res) => {
     try {
@@ -6572,7 +5680,6 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to fetch API keys" });
     }
   });
-
   // Create new API key
   app.post("/api/user/api-keys", requireAuth, async (req, res) => {
     try {
@@ -6580,10 +5687,8 @@ export async function registerRoutes(
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
         return res.status(400).json({ error: "API key name is required" });
       }
-
       // Generate a secure API key
       const key = `sk_${randomBytes(32).toString('hex')}`;
-
       // Resolve the database user id to use for the foreign key.
       // Some installations have pre-existing users with a different local id
       // (created before Supabase IDs were adopted). Prefer the DB user id
@@ -6615,7 +5720,6 @@ export async function registerRoutes(
       } catch (err) {
         console.error('Error resolving DB user id for API key creation:', err);
       }
-
       const apiKey = await storage.createApiKey({
         userId: resolvedUserId,
         name: name.trim(),
@@ -6623,7 +5727,6 @@ export async function registerRoutes(
         permissions: {},
         isActive: true,
       });
-
       // Return the key (this is the only time it will be shown)
       res.json({
         ...apiKey,
@@ -6633,31 +5736,25 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to create API key" });
     }
   });
-
   // Revoke API key
   app.delete("/api/user/api-keys/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      
       // Find API key by ID
       const apiKeys = await storage.getApiKeys(req.user!.id);
       const apiKey = apiKeys.find(k => k.id === id);
-      
       if (!apiKey) {
         return res.status(404).json({ error: "API key not found" });
       }
-
       await storage.deleteApiKey(apiKey.id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to revoke API key" });
     }
   });
-
   // ============================================
   // API ENDPOINTS (API KEY AUTHENTICATED)
   // ============================================
-
   // Get user balance
   app.get("/api/v1/user/balance", requireApiKey, async (req, res) => {
     try {
@@ -6665,7 +5762,6 @@ export async function registerRoutes(
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-
       res.json({
         balance: user.walletBalance,
         currency: "GHS"
@@ -6674,7 +5770,6 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get balance" });
     }
   });
-
   // Get user transactions
   app.get("/api/v1/user/transactions", requireApiKey, async (req, res) => {
     try {
@@ -6682,14 +5777,12 @@ export async function registerRoutes(
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-
       const { limit = 10, offset = 0 } = req.query;
       const transactions = await storage.getTransactions({
         customerEmail: user.email,
         limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       });
-
       res.json({
         transactions: transactions.map(t => ({
           id: t.id,

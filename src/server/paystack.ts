@@ -152,6 +152,45 @@ export async function isPaystackConfigured(): Promise<boolean> {
   return !!key;
 }
 
+// Bank account verification interface
+interface PaystackBankResolveResponse {
+  status: boolean;
+  message: string;
+  data: {
+    account_number: string;
+    account_name: string;
+    bank_id: number;
+  };
+}
+
+export async function resolveBankAccount(accountNumber: string, bankCode: string): Promise<PaystackBankResolveResponse> {
+  const PAYSTACK_SECRET_KEY = await getPaystackKey();
+  if (!PAYSTACK_SECRET_KEY) {
+    throw new Error("Paystack secret key not configured");
+  }
+
+  // Validate inputs
+  if (!accountNumber || !bankCode) {
+    throw new Error("Account number and bank code are required");
+  }
+
+  const response = await fetch(`${PAYSTACK_BASE_URL}/bank/resolve?account_number=${accountNumber}&bank_code=${bankCode}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const data = await response.json() as any;
+
+  if (!response.ok || !data.status) {
+    throw new Error(data.message || "Failed to resolve bank account");
+  }
+
+  return data as PaystackBankResolveResponse;
+}
+
 // Transfer API interfaces
 interface PaystackTransferRecipientResponse {
   status: boolean;

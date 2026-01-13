@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
+  profitWallets, profitTransactions,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -12,7 +13,8 @@ import {
   type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
   type CustomPricing, type InsertCustomPricing, type AdminBasePrices, type InsertAdminBasePrices,
   type RoleBasePrices, type InsertRoleBasePrices,
-  type WalletTopupTransaction, type InsertWalletTopupTransaction
+  type WalletTopupTransaction, type InsertWalletTopupTransaction,
+  type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -67,9 +69,20 @@ export interface IStorage {
 
   // Withdrawals
   getWithdrawal(id: string): Promise<Withdrawal | undefined>;
-  getWithdrawals(filters?: { agentId?: string; status?: string }): Promise<Withdrawal[]>;
+  getWithdrawals(filters?: { userId?: string; status?: string }): Promise<Withdrawal[]>;
   createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal>;
   updateWithdrawal(id: string, data: Partial<Withdrawal>): Promise<Withdrawal | undefined>;
+
+  // Profit Wallets
+  getProfitWallet(userId: string): Promise<ProfitWallet | undefined>;
+  createProfitWallet(wallet: InsertProfitWallet): Promise<ProfitWallet>;
+  updateProfitWallet(userId: string, data: Partial<ProfitWallet>): Promise<ProfitWallet | undefined>;
+  addProfit(userId: string, amount: number, orderId?: string, productId?: string, sellingPrice?: number, basePrice?: number): Promise<void>;
+
+  // Profit Transactions
+  getProfitTransactions(userId: string, filters?: { status?: string; limit?: number }): Promise<ProfitTransaction[]>;
+  createProfitTransaction(transaction: InsertProfitTransaction): Promise<ProfitTransaction>;
+  updateProfitTransactionStatus(id: string, status: string): Promise<ProfitTransaction | undefined>;
 
   // SMS Logs
   createSmsLog(log: InsertSmsLog): Promise<SmsLog>;
@@ -546,9 +559,9 @@ export class DatabaseStorage implements IStorage {
     return withdrawal;
   }
 
-  async getWithdrawals(filters?: { agentId?: string; status?: string }): Promise<Withdrawal[]> {
+  async getWithdrawals(filters?: { userId?: string; status?: string }): Promise<Withdrawal[]> {
     const conditions = [];
-    if (filters?.agentId) conditions.push(eq(withdrawals.agentId, filters.agentId));
+    if (filters?.userId) conditions.push(eq(withdrawals.userId, filters.userId));
     if (filters?.status) conditions.push(eq(withdrawals.status, filters.status));
 
     let query = db.select().from(withdrawals);
@@ -566,6 +579,92 @@ export class DatabaseStorage implements IStorage {
   async updateWithdrawal(id: string, data: Partial<Withdrawal>): Promise<Withdrawal | undefined> {
     const [withdrawal] = await db.update(withdrawals).set(data).where(eq(withdrawals.id, id)).returning();
     return withdrawal;
+  }
+
+  async getWithdrawalByTransferReference(transferReference: string): Promise<Withdrawal | undefined> {
+    const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.transferReference, transferReference)).limit(1);
+    return withdrawal;
+  }
+
+  // ============================================
+  // PROFIT WALLETS
+  // ============================================
+  async getProfitWallet(userId: string): Promise<ProfitWallet | undefined> {
+    const [wallet] = await db.select().from(profitWallets).where(eq(profitWallets.userId, userId)).limit(1);
+    return wallet;
+  }
+
+  async createProfitWallet(wallet: InsertProfitWallet): Promise<ProfitWallet> {
+    const [created] = await db.insert(profitWallets).values(wallet).returning();
+    return created;
+  }
+
+  async updateProfitWallet(userId: string, data: Partial<ProfitWallet>): Promise<ProfitWallet | undefined> {
+    const [wallet] = await db.update(profitWallets).set({ ...data, updatedAt: new Date() }).where(eq(profitWallets.userId, userId)).returning();
+    return wallet;
+  }
+
+  async addProfit(userId: string, amount: number, orderId?: string, productId?: string, sellingPrice?: number, basePrice?: number): Promise<void> {
+    // Start transaction for atomicity
+    await db.transaction(async (tx) => {
+      // Get or create profit wallet
+      let wallet = await tx.select().from(profitWallets).where(eq(profitWallets.userId, userId)).limit(1).then(rows => rows[0]);
+      if (!wallet) {
+        [wallet] = await tx.insert(profitWallets).values({
+          userId,
+          availableBalance: "0.00",
+          pendingBalance: "0.00",
+          totalEarned: "0.00",
+        }).returning();
+      }
+
+      // Create profit transaction record
+      if (orderId && productId && sellingPrice && basePrice) {
+        await tx.insert(profitTransactions).values({
+          userId,
+          orderId,
+          productId,
+          sellingPrice: sellingPrice.toFixed(2),
+          basePrice: basePrice.toFixed(2),
+          profit: amount.toFixed(2),
+          status: "available", // Profits are immediately available after payment verification
+        });
+      }
+
+      // Update wallet balances
+      const newTotalEarned = (parseFloat(wallet.totalEarned) + amount).toFixed(2);
+      const newAvailableBalance = (parseFloat(wallet.availableBalance) + amount).toFixed(2);
+
+      await tx.update(profitWallets).set({
+        totalEarned: newTotalEarned,
+        availableBalance: newAvailableBalance,
+        updatedAt: new Date(),
+      }).where(eq(profitWallets.userId, userId));
+    });
+  }
+
+  // ============================================
+  // PROFIT TRANSACTIONS
+  // ============================================
+  async getProfitTransactions(userId: string, filters?: { status?: string; limit?: number }): Promise<ProfitTransaction[]> {
+    const conditions = [eq(profitTransactions.userId, userId)];
+    if (filters?.status) conditions.push(eq(profitTransactions.status, filters.status));
+
+    let query = db.select().from(profitTransactions).where(and(...conditions));
+    if (filters?.limit) {
+      query = query.limit(filters.limit) as any;
+    }
+    return query.orderBy(desc(profitTransactions.createdAt));
+  }
+
+  async createProfitTransaction(transaction: InsertProfitTransaction): Promise<ProfitTransaction> {
+    const [created] = await db.insert(profitTransactions).values(transaction).returning();
+    return created;
+  }
+
+  async updateProfitTransactionStatus(id: string, status: string): Promise<ProfitTransaction | undefined> {
+    const [transaction] = await db.update(profitTransactions).set({ status }).where(eq(profitTransactions.id, id)).returning();
+    return transaction;
   }
 
   // ============================================

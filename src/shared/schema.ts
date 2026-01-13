@@ -230,13 +230,13 @@ export const transactions = pgTable("transactions", {
 }));
 
 // ============================================
-// WITHDRAWALS TABLE
+// WITHDRAWALS TABLE (UPDATED FOR ALL ROLES)
 // ============================================
 export const withdrawals = pgTable("withdrawals", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id", { length: 36 }).notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  status: text("status").notNull().default("pending"),
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "processing" | "completed" | "failed" | "rejected"
   paymentMethod: text("payment_method").notNull().default("bank"),
   bankName: text("bank_name"),
   bankCode: text("bank_code"),
@@ -248,9 +248,10 @@ export const withdrawals = pgTable("withdrawals", {
   adminNote: text("admin_note"),
   processedBy: varchar("processed_by", { length: 36 }),
   processedAt: timestamp("processed_at"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
-  agentIdx: index("withdrawals_agent_idx").on(table.agentId),
+  userIdx: index("withdrawals_user_idx").on(table.userId),
   statusIdx: index("withdrawals_status_idx").on(table.status),
 }));
 
@@ -441,6 +442,39 @@ export const settings = pgTable("settings", {
 });
 
 // ============================================
+// PROFIT WALLETS TABLE
+// ============================================
+export const profitWallets = pgTable("profit_wallets", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  availableBalance: decimal("available_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  pendingBalance: decimal("pending_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  totalEarned: decimal("total_earned", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("profit_wallets_user_idx").on(table.userId),
+}));
+
+// ============================================
+// PROFIT TRANSACTIONS TABLE (LEDGER)
+// ============================================
+export const profitTransactions = pgTable("profit_transactions", {
+  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  orderId: varchar("order_id", { length: 36 }).references(() => transactions.id, { onDelete: 'set null' }),
+  productId: varchar("product_id", { length: 36 }),
+  sellingPrice: decimal("selling_price", { precision: 12, scale: 2 }).notNull(),
+  basePrice: decimal("base_price", { precision: 12, scale: 2 }).notNull(),
+  profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"), // "pending" | "available"
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("profit_transactions_user_idx").on(table.userId),
+  orderIdx: index("profit_transactions_order_idx").on(table.orderId),
+  statusIdx: index("profit_transactions_status_idx").on(table.status),
+}));
+
+// ============================================
 // RELATIONS
 // ============================================
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -449,6 +483,12 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [agents.userId],
   }),
   apiKeys: many(apiKeys),
+  profitWallet: one(profitWallets, {
+    fields: [users.id],
+    references: [profitWallets.userId],
+  }),
+  profitTransactions: many(profitTransactions),
+  withdrawals: many(withdrawals),
 }));
 
 export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
@@ -475,9 +515,27 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
 }));
 
 export const withdrawalsRelations = relations(withdrawals, ({ one }) => ({
-  agent: one(agents, {
-    fields: [withdrawals.agentId],
-    references: [agents.id],
+  user: one(users, {
+    fields: [withdrawals.userId],
+    references: [users.id],
+  }),
+}));
+
+export const profitWalletsRelations = relations(profitWallets, ({ one }) => ({
+  user: one(users, {
+    fields: [profitWallets.userId],
+    references: [users.id],
+  }),
+}));
+
+export const profitTransactionsRelations = relations(profitTransactions, ({ one }) => ({
+  user: one(users, {
+    fields: [profitTransactions.userId],
+    references: [users.id],
+  }),
+  order: one(transactions, {
+    fields: [profitTransactions.orderId],
+    references: [transactions.id],
   }),
 }));
 
@@ -564,6 +622,17 @@ export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
   processedAt: true,
   processedBy: true,
   adminNote: true,
+  completedAt: true,
+});
+
+export const insertProfitWalletSchema = createInsertSchema(profitWallets).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertProfitTransactionSchema = createInsertSchema(profitTransactions).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertSmsLogSchema = createInsertSchema(smsLogs).omit({
@@ -634,6 +703,12 @@ export type Transaction = typeof transactions.$inferSelect;
 
 export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type Withdrawal = typeof withdrawals.$inferSelect;
+
+export type InsertProfitWallet = z.infer<typeof insertProfitWalletSchema>;
+export type ProfitWallet = typeof profitWallets.$inferSelect;
+
+export type InsertProfitTransaction = z.infer<typeof insertProfitTransactionSchema>;
+export type ProfitTransaction = typeof profitTransactions.$inferSelect;
 
 export type InsertSmsLog = z.infer<typeof insertSmsLogSchema>;
 export type SmsLog = typeof smsLogs.$inferSelect;

@@ -3,7 +3,7 @@ import { db } from "./db.js";
 import { randomBytes } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, customPricing, adminBasePrices, announcements, apiKeys, walletTopupTransactions,
+  supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -11,6 +11,7 @@ import {
   type SupportChat, type InsertSupportChat, type ChatMessage, type InsertChatMessage,
   type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
   type CustomPricing, type InsertCustomPricing, type AdminBasePrices, type InsertAdminBasePrices,
+  type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction
 } from "../shared/schema.js";
 
@@ -1083,7 +1084,22 @@ export class DatabaseStorage implements IStorage {
 
   async getRoleBasePrice(bundleId: string, role: string): Promise<string | null> {
     try {
-      // Select the appropriate pricing column from the data bundles table based on role
+      // First check if admin has set a role-specific base price
+      const [rolePrice] = await db.select({
+        basePrice: roleBasePrices.basePrice,
+      })
+        .from(roleBasePrices)
+        .where(and(
+          eq(roleBasePrices.bundleId, bundleId),
+          eq(roleBasePrices.role, role)
+        ))
+        .limit(1);
+
+      if (rolePrice?.basePrice) {
+        return rolePrice.basePrice;
+      }
+
+      // Fallback to the pricing column from the data bundles table based on role
       let result;
       switch (role) {
         case 'admin':
@@ -1122,7 +1138,7 @@ export class DatabaseStorage implements IStorage {
 
       return result?.price || null;
     } catch (error) {
-      console.warn("Error fetching role base price from data bundles:", error);
+      console.warn("Error fetching role base price:", error);
       return null;
     }
   }

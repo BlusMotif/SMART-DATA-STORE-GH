@@ -1241,7 +1241,7 @@ export async function registerRoutes(
           // For agent storefronts, use resolved prices (custom or admin base)
           pricedBundles = await Promise.all(bundles.map(async (bundle) => {
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, agent.id, 'agent');
-            const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+            const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
             const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
             const sellingPrice = resolvedPrice ? parseFloat(resolvedPrice) : basePrice;
             const profit = Math.max(0, sellingPrice - basePrice);
@@ -1298,7 +1298,7 @@ export async function registerRoutes(
               effectivePrice = parseFloat(resolvedPrice);
 
               // Calculate profit margin (selling price - admin base price)
-              const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+              const adminBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
               if (adminBasePrice) {
                 const basePriceNum = parseFloat(adminBasePrice);
                 profitMargin = (effectivePrice - basePriceNum).toFixed(2);
@@ -1789,7 +1789,7 @@ export async function registerRoutes(
             return res.status(400).json({ error: `No pricing available for bundle ${bundle.name} (${bundle.id}).` });
           }
           itemPrice = parseFloat(resolvedPrice);
-          const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+          const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
           adminPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
         } else if (user.role === 'dealer') {
           const resolvedPrice = await storage.getResolvedPrice(bundle.id, user.id, 'dealer');
@@ -1821,9 +1821,13 @@ export async function registerRoutes(
           return res.status(404).json({ error: "User not found" });
         }
 
-        if (parseFloat(userData.walletBalance) < totalAmount) {
-          return res.status(400).json({ 
-            error: `Insufficient wallet balance. Required: GHS ${totalAmount.toFixed(2)}, Available: GHS ${userData.walletBalance}` 
+        // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
+        const walletBalanceCents = Math.round(parseFloat(userData.walletBalance) * 100);
+        const totalAmountCents = Math.round(totalAmount * 100);
+
+        if (walletBalanceCents < totalAmountCents) {
+          return res.status(400).json({
+            error: `Insufficient wallet balance. Required: GHS ${(totalAmountCents / 100).toFixed(2)}, Available: GHS ${(walletBalanceCents / 100).toFixed(2)}`
           });
         }
       }
@@ -1851,7 +1855,10 @@ export async function registerRoutes(
       if (user.role !== 'guest') {
         const userData = await storage.getUser(user.id);
         if (userData) {
-          const newBalance = parseFloat(userData.walletBalance) - totalAmount;
+          const currentBalanceCents = Math.round(parseFloat(userData.walletBalance) * 100);
+          const totalAmountCents = Math.round(totalAmount * 100);
+          const newBalanceCents = currentBalanceCents - totalAmountCents;
+          const newBalance = newBalanceCents / 100;
           await storage.updateUser(user.id, { walletBalance: newBalance.toFixed(2) });
         }
       }
@@ -2051,9 +2058,11 @@ export async function registerRoutes(
 
           amount += itemPrice;
           
-          // Calculate profit as selling price - admin base price (or 0 if using admin price)
-          const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-          const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
+          // Calculate profit as selling price - agent base price for agents, or admin base price for others
+          const basePriceValue = storefrontAgent 
+            ? await storage.getRoleBasePrice(bundle.id, 'agent')
+            : await storage.getAdminBasePrice(bundle.id);
+          const basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || '0');
           const profit = itemPrice - basePrice;
           computedAgentProfit += Math.max(0, profit); // Profit is 0 if using admin price
         }
@@ -2095,9 +2104,9 @@ export async function registerRoutes(
             }
             amount = parseFloat(resolvedPrice);
             
-            // Calculate profit as selling price - admin base price
-            const adminBasePrice = await storage.getAdminBasePrice(data.productId);
-            const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
+            // Calculate profit as selling price - agent base price
+            const agentBasePrice = await storage.getRoleBasePrice(data.productId, 'agent');
+            const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product.basePrice || '0');
             agentProfit = Math.max(0, amount - basePrice); // Profit is 0 if using admin price
           } else {
             amount = parseFloat(product.adminPrice || product.basePrice || '0');
@@ -2330,13 +2339,15 @@ export async function registerRoutes(
           return res.status(401).json({ error: "User not found" });
         }
 
-        // Check wallet balance
-        const walletBalance = parseFloat(dbUser.walletBalance || "0");
-        if (walletBalance < totalAmount) {
-          return res.status(400).json({ 
+        // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
+        const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);
+        const totalAmountCents = Math.round(totalAmount * 100);
+
+        if (walletBalanceCents < totalAmountCents) {
+          return res.status(400).json({
             error: "Insufficient wallet balance",
-            balance: walletBalance.toFixed(2),
-            required: totalAmount.toFixed(2),
+            balance: (walletBalanceCents / 100).toFixed(2),
+            required: (totalAmountCents / 100).toFixed(2),
           });
         }
 
@@ -2347,8 +2358,9 @@ export async function registerRoutes(
           paymentMethod: "wallet",
         });
 
-        // Deduct from wallet
-        const newBalance = walletBalance - totalAmount;
+        // Deduct from wallet (use same precision handling as balance check)
+        const newBalanceCents = walletBalanceCents - totalAmountCents;
+        const newBalance = newBalanceCents / 100;
         await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
 
         // Process the order immediately
@@ -3764,7 +3776,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
 
         return {
           bundleId: bundle.id,
@@ -3908,7 +3920,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'dealer');
 
         return {
           bundleId: bundle.id,
@@ -3990,7 +4002,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'super_dealer');
 
         return {
           bundleId: bundle.id,
@@ -4072,7 +4084,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'master');
 
         return {
           bundleId: bundle.id,
@@ -5685,15 +5697,16 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Check wallet balance
-      const walletBalance = parseFloat(dbUser.walletBalance || "0");
+      // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
       const purchaseAmount = parseFloat(amount);
+      const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);
+      const purchaseAmountCents = Math.round(purchaseAmount * 100);
 
-      if (walletBalance < purchaseAmount) {
-        return res.status(400).json({ 
+      if (walletBalanceCents < purchaseAmountCents) {
+        return res.status(400).json({
           error: "Insufficient wallet balance",
-          balance: walletBalance.toFixed(2),
-          required: purchaseAmount.toFixed(2),
+          balance: (walletBalanceCents / 100).toFixed(2),
+          required: (purchaseAmountCents / 100).toFixed(2),
         });
       }
 
@@ -5740,9 +5753,9 @@ export async function registerRoutes(
         if (agent && agent.isApproved) {
           agentId = agent.id;
           
-          // For agent storefront purchases, calculate profit as selling price - admin base price
-          const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
-          const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
+          // For agent storefront purchases, calculate profit as selling price - agent base price
+          const agentBasePrice = await storage.getRoleBasePrice(productId || orderItems[0].bundleId, 'agent');
+          const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product?.basePrice || '0');
           agentProfit = Math.max(0, purchaseAmount - basePrice); // Profit is 0 if using admin price
         }
       }
@@ -5789,8 +5802,9 @@ export async function registerRoutes(
         agentProfit: agentProfit > 0 ? agentProfit.toFixed(2) : undefined,
       });
 
-      // Deduct from wallet
-      const newBalance = walletBalance - purchaseAmount;
+      // Deduct from wallet (use same precision handling as balance check)
+      const newBalanceCents = walletBalanceCents - purchaseAmountCents;
+      const newBalance = newBalanceCents / 100;
       await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
 
       // Process the order

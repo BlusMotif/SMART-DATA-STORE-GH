@@ -95,7 +95,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
         return 0;
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000, // Refresh every 30 seconds instead of 5
   });
 
   const agent = profileData?.agent;

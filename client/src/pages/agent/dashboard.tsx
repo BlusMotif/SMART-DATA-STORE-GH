@@ -42,23 +42,24 @@ export default function AgentDashboard() {
   const [, setLocation] = useLocation();
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds instead of 5
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
   
   const agent = profileData?.agent;
+  const [location] = useLocation();
 
-  // Redirect to activation if agent is not approved
+  // Redirect to activation if agent is not approved (only if not already on activation page)
   useEffect(() => {
-    if (agent && !agent.isApproved) {
+    if (agent && !agent.isApproved && location !== "/agent/activation-complete") {
       setLocation("/agent/activation-complete");
     }
-  }, [agent, setLocation]);
+  }, [agent?.isApproved, location, setLocation]);
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time data
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time data
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0, // Always consider data stale for real-time updates
@@ -66,7 +67,7 @@ export default function AgentDashboard() {
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions/recent"],
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time data
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time data
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0, // Always consider data stale for real-time updates

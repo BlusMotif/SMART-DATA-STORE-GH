@@ -43,7 +43,7 @@ export default function AgentStorefront() {
 
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/agent/profile"],
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds
     refetchOnWindowFocus: true,
   });
   

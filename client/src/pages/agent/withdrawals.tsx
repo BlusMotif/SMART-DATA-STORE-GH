@@ -53,7 +53,7 @@ export default function AgentWithdrawals() {
 
   const { data: profileData } = useQuery<{ agent: Agent }>({
     queryKey: ["/api/agent/profile"],
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time balance updates
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time balance updates
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0, // Always fetch fresh data
@@ -63,7 +63,7 @@ export default function AgentWithdrawals() {
 
   const { data: withdrawals, isLoading } = useQuery<Withdrawal[]>({
     queryKey: ["/api/agent/withdrawals"],
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time withdrawal status updates
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time withdrawal status updates
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0, // Always fetch fresh data

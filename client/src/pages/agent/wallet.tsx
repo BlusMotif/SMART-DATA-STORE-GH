@@ -90,14 +90,14 @@ export default function AgentWalletPage() {
   const { data: stats, isLoading: statsLoading } = useQuery<WalletStats>({
     queryKey: ["/api/agent/wallet"],
     queryFn: () => apiRequest("/api/agent/wallet"),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
   });
 
   // Fetch recent transactions (last 10)
   const { data: transactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions"],
     queryFn: () => apiRequest("/api/agent/transactions"),
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     select: (data) => data.slice(0, 10), // Only show 10 most recent
   });
 

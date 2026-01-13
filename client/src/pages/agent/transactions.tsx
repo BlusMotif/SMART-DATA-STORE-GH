@@ -62,13 +62,13 @@ export default function AgentTransactions() {
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions"],
-    refetchInterval: 15000, // Refresh every 15 seconds for real-time updates
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
     refetchOnWindowFocus: true,
   });
 
   const { data: stats } = useQuery<AgentTransactionStats>({
     queryKey: ["/api/agent/transactions/stats"],
-    refetchInterval: 15000, // Refresh every 15 seconds for real-time stats
+    refetchInterval: 30000, // Refresh every 30 seconds for real-time stats
     refetchOnWindowFocus: true,
   });
 

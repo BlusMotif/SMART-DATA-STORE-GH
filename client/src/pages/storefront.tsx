@@ -123,13 +123,7 @@ export default function StorefrontPage() {
       <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground text-lg font-bold">
-              {store.businessName.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h1 className="font-semibold text-lg">{store.businessName}</h1>
-              <p className="text-xs text-muted-foreground">{ROLE_LABELS[store.role as keyof typeof ROLE_LABELS] || 'Store'}</p>
-            </div>
+            <h1 className="font-semibold text-lg">Digital Store</h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -156,14 +150,8 @@ export default function StorefrontPage() {
             
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="container mx-auto max-w-6xl text-center px-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-primary-foreground text-3xl font-bold mx-auto mb-6 shadow-lg">
-                  {store.businessName.charAt(0).toUpperCase()}
-                </div>
-                <h1 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight text-white" data-testid="text-store-name">
-                  {store.businessName}
-                </h1>
                 <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
-                  {store.businessDescription || `Welcome to ${store.businessName}. Browse our selection of data bundles and result checkers.`}
+                  {store.businessDescription || `Welcome to our store. Browse our selection of data bundles and result checkers.`}
                 </p>
                 <div className="flex items-center justify-center gap-2 mt-6 text-sm">
                   <Shield className="h-5 w-5 text-green-400" />

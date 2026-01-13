@@ -59,7 +59,7 @@ export default function AgentDashboard() {
   const [, setLocation] = useLocation();
 
   const { data: profileData } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

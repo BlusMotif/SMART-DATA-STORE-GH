@@ -80,7 +80,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   });
 
   const { data: profileData, error } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
   });
 
   const { data: unreadCount = 0 } = useQuery<number>({

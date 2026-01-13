@@ -37,7 +37,7 @@ export const api = {
 
   agent: {
     register: () => api.buildUrl('/api/agent/register'),
-    profile: () => api.buildUrl('/api/agent/profile'),
+    profile: () => api.buildUrl('/api/profile'),
     transactions: () => api.buildUrl('/api/agent/transactions'),
     transactionsStats: () => api.buildUrl('/api/agent/transactions/stats'),
     withdrawals: () => api.buildUrl('/api/agent/withdrawals'),

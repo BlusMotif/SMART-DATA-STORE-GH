@@ -52,7 +52,7 @@ export default function AgentWithdrawals() {
   const [isRequestOpen, setIsRequestOpen] = useState(false);
 
   const { data: profileData } = useQuery<{ agent: Agent }>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
     refetchInterval: 30000, // Refresh every 30 seconds for real-time balance updates
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

@@ -31,7 +31,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
   const { logout, isLoggingOut, user } = useAuth();
 
   const { data: profileData, error } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
   });
 
   const { data: unreadCount = 0 } = useQuery<number>({
@@ -270,7 +270,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
   const { logout, isLoggingOut, user } = useAuth();
 
   const { data: profileData, error } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
   });
 
   // Get unread message count for admin (agent acts as support)

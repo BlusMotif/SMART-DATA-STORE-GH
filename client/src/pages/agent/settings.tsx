@@ -48,7 +48,7 @@ export default function AgentSettings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: profileData } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
   });
   
   const profile = profileData?.agent;

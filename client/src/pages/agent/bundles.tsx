@@ -87,9 +87,9 @@ export default function AgentBundlesPage() {
 
   // Fetch agent data for pricing
   const { data: agentData } = useQuery({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/agent/profile");
+      const response = await apiRequest("GET", "/api/profile");
       return response.json();
     },
   });

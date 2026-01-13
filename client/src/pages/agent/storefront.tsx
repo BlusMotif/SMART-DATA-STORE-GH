@@ -42,7 +42,7 @@ export default function AgentStorefront() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: profileData } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
     refetchInterval: 30000, // Refresh every 30 seconds
     refetchOnWindowFocus: true,
   });

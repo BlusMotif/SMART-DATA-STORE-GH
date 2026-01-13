@@ -41,7 +41,7 @@ export default function AgentDashboard() {
   const [showApiModal, setShowApiModal] = useState(false);
   const [, setLocation] = useLocation();
   const { data: profileData } = useQuery<AgentProfileResponse>({
-    queryKey: ["/api/agent/profile"],
+    queryKey: ["/api/profile"],
     refetchInterval: 30000, // Refresh every 30 seconds instead of 5
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

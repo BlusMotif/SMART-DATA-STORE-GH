@@ -7,10 +7,8 @@ interface StatCardProps {
   value: string | number;
   description?: string;
   icon?: LucideIcon;
-  trend?: {
-    value: number;
-    isPositive: boolean;
-  };
+  trend?: string;
+  trendLabel?: string;
   className?: string;
 }
 
@@ -20,6 +18,7 @@ export function StatCard({
   description,
   icon: Icon,
   trend,
+  trendLabel,
   className,
 }: StatCardProps) {
   return (
@@ -39,16 +38,16 @@ export function StatCard({
         {(description || trend) && (
           <div className="flex items-center gap-2 mt-1">
             {trend && (
-              <span
-                className={cn(
-                  "text-xs font-medium",
-                  trend.isPositive ? "text-green-600" : "text-red-600"
-                )}
-              >
-                {trend.isPositive ? "+" : "-"}{Math.abs(trend.value)}%
+              <span className="text-xs font-medium text-green-600">
+                {trend}
               </span>
             )}
-            {description && (
+            {trendLabel && (
+              <span className="text-xs text-muted-foreground">
+                {trendLabel}
+              </span>
+            )}
+            {description && !trend && !trendLabel && (
               <p className="text-xs text-muted-foreground">{description}</p>
             )}
           </div>

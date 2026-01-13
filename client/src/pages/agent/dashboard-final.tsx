@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
-import { Agent, Transaction } from "../../../shared/schema.js";
+import { Agent, Transaction } from "../../../shared/schema";
 
 interface AgentStats {
   balance: number;
@@ -56,24 +56,15 @@ interface AgentProfileResponse {
 export default function AgentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showApiModal, setShowApiModal] = useState(false);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
 
-  const { data: profileData } = useQuery<AgentProfileResponse>({
+  const { data: agent, isLoading: agentLoading } = useQuery<AgentProfileResponse["agent"]>({
     queryKey: ["/api/agent/profile"],
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    staleTime: 0,
   });
-
-  const agent = profileData?.agent;
-  const [location] = useLocation();
-
-  // Redirect to activation if agent is not approved
-  useEffect(() => {
-    if (agent && !agent.isApproved && location !== "/agent/activation-complete") {
-      setLocation("/agent/activation-complete");
-    }
-  }, [agent?.isApproved, location, setLocation]);
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],

@@ -1,4 +1,4 @@
-import { storage } from './server/storage.js';
+import { storage } from './dist/server/storage.js';
 
 async function checkBundles() {
   try {

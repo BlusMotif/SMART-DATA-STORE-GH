@@ -44,6 +44,11 @@ const sidebarNavItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Users Ranking",
+    href: "/admin/rankings",
+    icon: Trophy,
+  },
+  {
     title: "MTN Bundles",
     href: "/user/bundles/mtn",
     icon: Smartphone,
@@ -167,16 +172,16 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
 
       <div className="border-t p-4">
         {!agent && (
-          <Button
-            variant="default"
-            className="w-full justify-start gap-3 mb-3 bg-primary text-primary-foreground"
-            onClick={() => {
-              window.location.href = '/user/dashboard?upgrade=true';
-            }}
-          >
-            <Smartphone className="h-4 w-4" />
-            Become an agent
-          </Button>
+          <Link href="/agent/register">
+            <Button
+              variant="default"
+              className="w-full justify-start gap-3 mb-3 bg-primary text-primary-foreground"
+              onClick={onClose}
+            >
+              <Smartphone className="h-4 w-4" />
+              Become an agent
+            </Button>
+          </Link>
         )}
         <Button
           variant="outline"

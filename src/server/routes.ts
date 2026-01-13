@@ -2907,68 +2907,119 @@ export async function registerRoutes(
   // ============================================
   // AGENT ROUTES
   // ============================================
-  app.get("/api/agent/profile", requireAuth, requireAgent, async (req, res) => {
+  app.get("/api/profile", requireAuth, async (req, res) => {
     try {
-      console.log("Agent profile request for user:", req.user!.email);
+      console.log("Profile request for user:", req.user!.email, "role:", req.user!.role);
       // Get user from database using email from JWT
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         console.log("User not found in database:", req.user!.email);
         return res.status(404).json({ error: "User not found" });
       }
-      console.log("Found user in database:", dbUser.id);
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        console.log("Agent profile not found for user:", dbUser.id);
-        return res.status(404).json({ error: "Agent profile not found" });
-      }
-      console.log("Found agent profile:", agent.id);
-      console.log("Agent balance from DB:", agent.balance);
-      console.log("User wallet balance:", dbUser.walletBalance);
-      console.log("Agent total profit:", agent.totalProfit);
+      console.log("Found user in database:", dbUser.id, "role:", dbUser.role);
+
       const user = await storage.getUser(dbUser.id);
       console.log("User details:", user?.name, user?.email);
-      const stats = await storage.getTransactionStats(agent.id);
-      console.log("Transaction stats:", stats);
-      // Compute withdrawals sum (only include approved and paid withdrawals)
-      const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-      console.log("Withdrawals count:", withdrawals.length);
-      const withdrawnTotal = withdrawals
-        .filter(w => w.status === 'approved' || w.status === 'paid')
-        .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
-      console.log("Total withdrawn:", withdrawnTotal);
-      // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
-      const totalProfit = parseFloat(agent.totalProfit || '0');
-      const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
-      console.log("Calculated profit balance:", profitBalance);
-      res.json({
-        agent: {
-          ...agent,
-          profitBalance: profitBalance, // Computed withdrawable profit
-          walletBalance: parseFloat(dbUser.walletBalance || '0'), // User's wallet balance for top-ups
-          user: { name: user?.name, email: user?.email, phone: user?.phone },
-          totalWithdrawals: withdrawnTotal,
-        },
-        stats,
-      });
+
+      // Handle different roles
+      const role = dbUser.role;
+      console.log("Processing profile for role:", role);
+
+      if (role === UserRole.AGENT || role === UserRole.DEALER || role === UserRole.SUPER_DEALER || role === UserRole.MASTER) {
+        // Try to get agent profile (agents table might be used for all these roles)
+        const agent = await storage.getAgentByUserId(dbUser.id);
+
+        if (agent) {
+          console.log("Found agent profile:", agent.id);
+          console.log("Agent balance from DB:", agent.balance);
+          console.log("User wallet balance:", dbUser.walletBalance);
+          console.log("Agent total profit:", agent.totalProfit);
+
+          const stats = await storage.getTransactionStats(agent.id);
+          console.log("Transaction stats:", stats);
+
+          // Compute withdrawals sum (only include approved and paid withdrawals)
+          const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
+          console.log("Withdrawals count:", withdrawals.length);
+          const withdrawnTotal = withdrawals
+            .filter(w => w.status === 'approved' || w.status === 'paid')
+            .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
+          console.log("Total withdrawn:", withdrawnTotal);
+
+          // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
+          const totalProfit = parseFloat(agent.totalProfit || '0');
+          const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
+          console.log("Calculated profit balance:", profitBalance);
+
+          res.json({
+            profile: {
+              ...agent,
+              profitBalance: profitBalance, // Computed withdrawable profit
+              walletBalance: parseFloat(dbUser.walletBalance || '0'), // User's wallet balance for top-ups
+              user: { name: user?.name, email: user?.email, phone: user?.phone },
+              totalWithdrawals: withdrawnTotal,
+              role: role, // Include the actual role
+            },
+            stats,
+          });
+        } else {
+          // No agent record found - return basic user profile
+          console.log("No agent profile found for user:", dbUser.id, "returning basic profile");
+          const stats = { total: 0, completed: 0, pending: 0, revenue: 0, profit: 0 };
+
+          res.json({
+            profile: {
+              id: dbUser.id,
+              userId: dbUser.id,
+              walletBalance: parseFloat(dbUser.walletBalance || '0'),
+              profitBalance: 0,
+              totalProfit: '0',
+              totalSales: '0',
+              balance: '0',
+              user: { name: user?.name, email: user?.email, phone: user?.phone },
+              totalWithdrawals: 0,
+              role: role,
+              // Add default values for agent-specific fields
+              storefrontSlug: null,
+              businessName: null,
+              businessDescription: null,
+              isApproved: false,
+              paymentPending: false,
+            },
+            stats,
+          });
+        }
+      } else {
+        // For admin or other roles, return basic user info
+        console.log("Role not supported for detailed profile:", role);
+        res.json({
+          profile: {
+            id: dbUser.id,
+            userId: dbUser.id,
+            walletBalance: parseFloat(dbUser.walletBalance || '0'),
+            profitBalance: 0,
+            user: { name: user?.name, email: user?.email, phone: user?.phone },
+            role: role,
+          },
+          stats: { total: 0, completed: 0, pending: 0, revenue: 0, profit: 0 },
+        });
+      }
     } catch (error: any) {
-      console.error("Agent profile error:", error);
+      console.error("Profile error:", error);
       console.error("Error stack:", error.stack);
       res.status(500).json({ error: "Failed to load profile" });
     }
   });
-  app.patch("/api/agent/profile", requireAuth, requireAgent, async (req, res) => {
+  app.patch("/api/profile", requireAuth, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        return res.status(404).json({ error: "Agent profile not found" });
-      }
+
       const { name, email, phone, whatsappSupportLink, whatsappChannelLink } = req.body;
-      // Update user info
+
+      // Update user info (works for all roles)
       if (name !== undefined || email !== undefined || phone !== undefined) {
         await storage.updateUser(dbUser.id, {
           ...(name !== undefined && { name }),
@@ -2976,15 +3027,22 @@ export async function registerRoutes(
           ...(phone !== undefined && { phone }),
         });
       }
-      // Update agent WhatsApp links
-      if (whatsappSupportLink !== undefined || whatsappChannelLink !== undefined) {
-        await storage.updateAgent(agent.id, {
-          ...(whatsappSupportLink !== undefined && { whatsappSupportLink }),
-          ...(whatsappChannelLink !== undefined && { whatsappChannelLink }),
-        });
+
+      // Update agent-specific info only if user has agent record
+      const role = dbUser.role;
+      if ((role === UserRole.AGENT || role === UserRole.DEALER || role === UserRole.SUPER_DEALER || role === UserRole.MASTER)) {
+        const agent = await storage.getAgentByUserId(dbUser.id);
+        if (agent && (whatsappSupportLink !== undefined || whatsappChannelLink !== undefined)) {
+          await storage.updateAgent(agent.id, {
+            ...(whatsappSupportLink !== undefined && { whatsappSupportLink }),
+            ...(whatsappChannelLink !== undefined && { whatsappChannelLink }),
+          });
+        }
       }
+
       res.json({ success: true });
     } catch (error: any) {
+      console.error("Profile update error:", error);
       res.status(500).json({ error: "Failed to update profile" });
     }
   });
@@ -3014,29 +3072,55 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        return res.status(404).json({ error: "Agent not found" });
+
+      const role = dbUser.role;
+      let stats;
+
+      if (role === UserRole.AGENT || role === UserRole.DEALER || role === UserRole.SUPER_DEALER || role === UserRole.MASTER) {
+        const agent = await storage.getAgentByUserId(dbUser.id);
+        if (agent) {
+          // Full agent stats
+          const transactions = await storage.getTransactions({ agentId: agent.id });
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
+          const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+          stats = {
+            balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
+            totalProfit: Number(agent.totalProfit) || 0,
+            totalSales: Number(agent.totalSales) || 0,
+            totalTransactions: transactions.length,
+            todayProfit: Number(todayProfit.toFixed(2)),
+            todayTransactions: todayTransactions.length,
+          };
+        } else {
+          // Basic stats for users without agent records
+          stats = {
+            balance: Number(dbUser.walletBalance) || 0,
+            totalProfit: 0,
+            totalSales: 0,
+            totalTransactions: 0,
+            todayProfit: 0,
+            todayTransactions: 0,
+          };
+        }
+      } else {
+        // Basic stats for other roles
+        stats = {
+          balance: Number(dbUser.walletBalance) || 0,
+          totalProfit: 0,
+          totalSales: 0,
+          totalTransactions: 0,
+          todayProfit: 0,
+          todayTransactions: 0,
+        };
       }
-      const transactions = await storage.getTransactions({ agentId: agent.id });
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
-      const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
-      const stats = {
-        balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
-        totalProfit: Number(agent.totalProfit) || 0,
-        totalSales: Number(agent.totalSales) || 0,
-        totalTransactions: transactions.length,
-        todayProfit: Number(todayProfit.toFixed(2)),
-        todayTransactions: todayTransactions.length,
-      };
-      console.log("Agent stats:", JSON.stringify(stats, null, 2));
-      console.log("Total transactions with agentId:", transactions.length);
+
+      console.log("Stats for role", role, ":", JSON.stringify(stats, null, 2));
       res.json(stats);
     } catch (error: any) {
-      console.error("Error loading agent stats:", error);
-      res.status(500).json({ error: "Failed to load agent stats" });
+      console.error("Error loading stats:", error);
+      res.status(500).json({ error: "Failed to load stats" });
     }
   });
   // Get agent transaction stats
@@ -3074,16 +3158,24 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        return res.status(404).json({ error: "Agent not found" });
+
+      const role = dbUser.role;
+      let transactions: any[] = [];
+
+      if (role === UserRole.AGENT || role === UserRole.DEALER || role === UserRole.SUPER_DEALER || role === UserRole.MASTER) {
+        const agent = await storage.getAgentByUserId(dbUser.id);
+        if (agent) {
+          transactions = await storage.getTransactions({
+            agentId: agent.id,
+            limit: 10,
+          });
+        }
       }
-      const transactions = await storage.getTransactions({
-        agentId: agent.id,
-        limit: 10,
-      });
+      // For users without agent records or other roles, return empty array
+
       res.json(transactions);
     } catch (error: any) {
+      console.error("Error loading recent transactions:", error);
       res.status(500).json({ error: "Failed to load recent transactions" });
     }
   });

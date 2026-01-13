@@ -42,13 +42,14 @@ interface AgentStats {
   todayTransactions: number;
 }
 
-interface AgentProfileResponse {
-  agent: Agent & {
+interface ProfileResponse {
+  profile: Agent & {
     user: {
       name: string;
       email: string;
       phone: string | null;
     };
+    role: string;
   };
   stats: any;
 }
@@ -58,15 +59,15 @@ export default function AgentDashboard() {
   const [showApiModal, setShowApiModal] = useState(false);
   const [location, setLocation] = useLocation();
 
-  const { data: agent, isLoading: agentLoading, error: agentError } = useQuery<AgentProfileResponse["agent"]>({
-    queryKey: ["/api/agent/profile"],
+  const { data: agent, isLoading: agentLoading, error: agentError } = useQuery<ProfileResponse["profile"]>({
+    queryKey: ["/api/profile"],
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0,
     retry: (failureCount, error) => {
-      // Don't retry on 404 errors (agent not found)
-      if (error?.message?.includes('Agent profile not found') || error?.message?.includes('404')) {
+      // Don't retry on 404 errors (profile not found)
+      if (error?.message?.includes('Profile not found') || error?.message?.includes('404')) {
         return false;
       }
       return failureCount < 3;
@@ -89,8 +90,8 @@ export default function AgentDashboard() {
     staleTime: 0,
   });
 
-  // Handle case where agent profile is not found
-  if (!agentLoading && agentError && agentError.message?.includes('Agent profile not found')) {
+  // Handle case where profile is not found
+  if (!agentLoading && agentError && agentError.message?.includes('Profile not found')) {
     return (
       <div className="flex h-screen bg-gradient-to-br from-background to-muted/20">
         <div className="flex-1 flex items-center justify-center">

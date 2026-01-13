@@ -2372,7 +2372,7 @@ export async function registerRoutes(
             console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
             // Still mark as completed but log the error
             await storage.updateTransaction(transaction.id, {
-              notes: `API fulfillment failed: ${fulfillmentResult.error}`,
+              failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
             });
           }
         }
@@ -2640,7 +2640,7 @@ export async function registerRoutes(
           console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult.error);
           // Update transaction with error note but keep as completed since payment was successful
           await storage.updateTransaction(transaction.id, {
-            notes: `API fulfillment failed: ${fulfillmentResult.error}`,
+            failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
           });
         }
       }
@@ -5850,7 +5850,7 @@ export async function registerRoutes(
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
             completedAt: new Date(),
-            notes: `API fulfillment failed: ${fulfillmentResult.error}`,
+            failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
           });
         }
       }

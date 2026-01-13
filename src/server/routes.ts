@@ -964,7 +964,11 @@ export async function registerRoutes(
         // Check if they already have an agent account
         const existingAgent = await storage.getAgentByUserId(existingAuthUser.id);
         if (existingAgent) {
-          return res.status(400).json({ error: "This email is already registered as an agent" });
+          if (existingAgent.isApproved) {
+            return res.status(400).json({ error: "This email is already registered and activated as an agent. Please login instead." });
+          } else {
+            return res.status(400).json({ error: "This email has a pending agent registration. Please complete the activation process or contact support." });
+          }
         }
       }
 
@@ -2299,6 +2303,109 @@ export async function registerRoutes(
         agentProfit: totalAgentProfit.toFixed(2),
       });
 
+      // Handle wallet payments immediately
+      if (data.paymentMethod === 'wallet') {
+        console.log("[Checkout] Processing wallet payment for reference:", reference);
+        
+        // Get authenticated user
+        let dbUser: any = null;
+        try {
+          const authHeader = req.headers.authorization;
+          if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.substring(7);
+            const supabaseServer = getSupabase();
+            if (supabaseServer) {
+              const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+              if (!error && user && user.email) {
+                dbUser = await storage.getUserByEmail(user.email);
+              }
+            }
+          }
+        } catch (authError) {
+          console.error("[Checkout] Auth error for wallet payment:", authError);
+          return res.status(401).json({ error: "Authentication required for wallet payments" });
+        }
+
+        if (!dbUser) {
+          return res.status(401).json({ error: "User not found" });
+        }
+
+        // Check wallet balance
+        const walletBalance = parseFloat(dbUser.walletBalance || "0");
+        if (walletBalance < totalAmount) {
+          return res.status(400).json({ 
+            error: "Insufficient wallet balance",
+            balance: walletBalance.toFixed(2),
+            required: totalAmount.toFixed(2),
+          });
+        }
+
+        // Update transaction for wallet payment
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.CONFIRMED,
+          paymentStatus: "paid",
+          paymentMethod: "wallet",
+        });
+
+        // Deduct from wallet
+        const newBalance = walletBalance - totalAmount;
+        await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
+
+        // Process the order immediately
+        let deliveredPin: string | undefined;
+        let deliveredSerial: string | undefined;
+
+        if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
+          const checker = await storage.getResultChecker(transaction.productId);
+          if (checker && !checker.isSold) {
+            await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+            deliveredPin = checker.pin;
+            deliveredSerial = checker.serialNumber;
+          }
+        } else if (transaction.type === ProductType.DATA_BUNDLE) {
+          // Process data bundle through API
+          console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
+          
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
+          
+          if (!fulfillmentResult.success) {
+            console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
+            // Still mark as completed but log the error
+            await storage.updateTransaction(transaction.id, {
+              notes: `API fulfillment failed: ${fulfillmentResult.error}`,
+            });
+          }
+        }
+
+        // Mark transaction as completed
+        await storage.updateTransaction(transaction.id, {
+          status: TransactionStatus.COMPLETED,
+          completedAt: new Date(),
+          deliveredPin,
+          deliveredSerial,
+        });
+
+        // Credit agent if applicable
+        if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
+          const agentProfitValue = parseFloat(transaction.agentProfit || "0");
+          await storage.updateAgentBalance(transaction.agentId, agentProfitValue, true);
+        }
+
+        return res.json({
+          success: true,
+          transaction: {
+            id: transaction.id,
+            reference: transaction.reference,
+            amount: transaction.amount,
+            productName: transaction.productName,
+            status: TransactionStatus.COMPLETED,
+            deliveredPin,
+            deliveredSerial,
+          },
+          newBalance: newBalance.toFixed(2),
+        });
+      }
+
       // Initialize Paystack payment
       const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
       const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success?reference=${reference}`;
@@ -2519,6 +2626,23 @@ export async function registerRoutes(
           status: TransactionStatus.COMPLETED,
           paymentStatus: "paid",
         });
+      }
+
+      // Process data bundle transactions through API
+      if (transaction.type === ProductType.DATA_BUNDLE) {
+        console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
+        
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
+        
+        if (fulfillmentResult.success) {
+          console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
+        } else {
+          console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult.error);
+          // Update transaction with error note but keep as completed since payment was successful
+          await storage.updateTransaction(transaction.id, {
+            notes: `API fulfillment failed: ${fulfillmentResult.error}`,
+          });
+        }
       }
 
       console.log("[Verify] Verification complete, sending success response");
@@ -5660,6 +5784,7 @@ export async function registerRoutes(
         isBulkOrder: isBulkOrder || (orderItems && orderItems.length > 0) || false,
         paymentMethod: "wallet",
         status: TransactionStatus.CONFIRMED,
+        paymentStatus: "paid",
         agentId,
         agentProfit: agentProfit > 0 ? agentProfit.toFixed(2) : undefined,
       });
@@ -5708,11 +5833,26 @@ export async function registerRoutes(
           deliveredSerial,
         });
       } else {
-        // For data bundles, mark as completed immediately
-        await storage.updateTransaction(transaction.id, {
-          status: TransactionStatus.COMPLETED,
-          completedAt: new Date(),
-        });
+        // For data bundles, process through API first
+        console.log("[Wallet] Processing data bundle transaction via API:", transaction.reference);
+        
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
+        
+        if (fulfillmentResult.success) {
+          console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
+          await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.COMPLETED,
+            completedAt: new Date(),
+          });
+        } else {
+          console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
+          // Still mark as completed but log the error - in production you might want to handle this differently
+          await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.COMPLETED,
+            completedAt: new Date(),
+            notes: `API fulfillment failed: ${fulfillmentResult.error}`,
+          });
+        }
       }
 
       // Credit agent (wallet payments): only credit PROFIT and record admin revenue

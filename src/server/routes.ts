@@ -3560,127 +3560,24 @@ export async function registerRoutes(
         });
       }
 
-      // Handle different payment methods
-      let recipientCode = null;
-      let bankName = data.bankName || "";
-      let bankCode = data.bankCode || "";
-
-      if (data.paymentMethod === "bank") {
-        // Bank transfer - requires bank details
-        if (!data.bankName || !data.bankCode) {
-          return res.status(400).json({ error: "Bank name and code are required for bank transfers" });
-        }
-
-        // Check if agent already has a transfer recipient for this account
-        const existingWithdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-        const existingRecipient = existingWithdrawals.find(w => 
-          w.accountNumber === data.accountNumber && 
-          w.bankCode === data.bankCode &&
-          w.recipientCode
-        );
-
-        if (existingRecipient?.recipientCode) {
-          recipientCode = existingRecipient.recipientCode;
-        } else {
-          // Create new transfer recipient for bank
-          try {
-            const recipientResponse = await createTransferRecipient({
-              type: "nuban",
-              name: data.accountName,
-              account_number: data.accountNumber,
-              bank_code: data.bankCode,
-              currency: "GHS"
-            });
-            recipientCode = recipientResponse.data.recipient_code;
-          } catch (error: any) {
-            console.error("Failed to create bank transfer recipient:", error);
-            return res.status(400).json({ error: "Failed to setup bank account for transfer. Please check your bank details." });
-          }
-        }
-      } else {
-        // Mobile money transfer
-        const mobileMoneyConfig = {
-          mtn_momo: { name: "MTN Mobile Money", code: "UMTN" },
-          telecel_cash: { name: "Telecel Cash", code: "UTEL" },
-          airtel_tigo_cash: { name: "AirtelTigo Cash", code: "UAIRTIGO" },
-          vodafone_cash: { name: "Vodafone Cash", code: "UVODAFONE" },
-        };
-
-        const config = mobileMoneyConfig[data.paymentMethod as keyof typeof mobileMoneyConfig];
-        if (!config) {
-          return res.status(400).json({ error: "Invalid payment method" });
-        }
-
-        bankName = config.name;
-        bankCode = config.code;
-
-        // Check if agent already has a transfer recipient for this mobile money account
-        const existingWithdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-        const existingRecipient = existingWithdrawals.find(w => 
-          w.accountNumber === data.accountNumber && 
-          w.paymentMethod === data.paymentMethod &&
-          w.recipientCode
-        );
-
-        if (existingRecipient?.recipientCode) {
-          recipientCode = existingRecipient.recipientCode;
-        } else {
-          // Create new transfer recipient for mobile money
-          try {
-            const recipientResponse = await createTransferRecipient({
-              type: "mobile_money",
-              name: data.accountName,
-              account_number: data.accountNumber,
-              bank_code: config.code,
-              currency: "GHS"
-            });
-            recipientCode = recipientResponse.data.recipient_code;
-          } catch (error: any) {
-            console.error("Failed to create mobile money recipient:", error);
-            return res.status(400).json({ error: "Failed to setup mobile money account for transfer. Please check your phone number." });
-          }
-        }
-      }
-
-      // Generate transfer reference
-      const transferReference = `WD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-
-      // Initiate transfer
-      let transferResponse;
-      try {
-        transferResponse = await initiateTransfer({
-          source: "balance",
-          amount: data.amount,
-          recipient: recipientCode,
-          reason: `Agent withdrawal - ${agent.businessName} (${data.paymentMethod.toUpperCase()})`,
-          reference: transferReference
-        });
-      } catch (error: any) {
-        console.error("Failed to initiate transfer:", error);
-        return res.status(400).json({ error: "Failed to initiate transfer. Please try again." });
-      }
-
-      // Create withdrawal record
+      // Create withdrawal request with pending status - admin approval required
       const withdrawal = await storage.createWithdrawal({
         userId: dbUser.id,
         amount: data.amount.toFixed(2),
-        status: WithdrawalStatus.PROCESSING,
+        status: WithdrawalStatus.PENDING,
         paymentMethod: data.paymentMethod,
-        bankName: bankName,
-        bankCode: bankCode,
+        bankName: data.paymentMethod === "bank" ? data.bankName : "",
+        bankCode: data.paymentMethod === "bank" ? data.bankCode : "",
         accountNumber: data.accountNumber,
         accountName: data.accountName,
-        recipientCode: recipientCode,
-        transferReference: transferReference,
-        transferCode: transferResponse.data.transfer_code,
+        recipientCode: null, // Will be set by admin when approving
+        transferReference: null, // Will be set by admin when approving
+        transferCode: null, // Will be set by admin when approving
       });
-
-      // Deduct from agent balance immediately
-      await storage.updateAgentBalance(agent.id, -data.amount, false);
 
       res.json({
         ...withdrawal,
-        message: "Withdrawal initiated successfully. Funds will be transferred to your account within a few minutes."
+        message: "Withdrawal request submitted successfully. It will be processed after admin approval."
       });
     } catch (error: any) {
       console.error("Withdrawal error:", error);
@@ -5433,6 +5330,114 @@ export async function registerRoutes(
       }
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to process withdrawal" });
+    }
+  });
+
+  // Admin approve withdrawal
+  app.post("/api/admin/withdrawals/:id/approve", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { adminNote } = req.body;
+
+      const withdrawal = await storage.getWithdrawal(id);
+      if (!withdrawal) {
+        return res.status(404).json({ error: "Withdrawal not found" });
+      }
+
+      if (withdrawal.status !== "pending") {
+        return res.status(400).json({ error: "Withdrawal is not in pending status" });
+      }
+
+      // Create transfer recipient if not exists
+      let recipientCode = withdrawal.recipientCode;
+
+      if (!recipientCode) {
+        if (!withdrawal.bankCode) {
+          return res.status(400).json({ error: "Bank code is missing for this withdrawal" });
+        }
+        const { createTransferRecipient } = await import("./paystack.js");
+        const recipient = await createTransferRecipient({
+          type: "nuban",
+          name: withdrawal.accountName,
+          account_number: withdrawal.accountNumber,
+          bank_code: withdrawal.bankCode,
+        });
+        recipientCode = recipient.data.recipient_code;
+
+        // Update withdrawal with recipient code
+        await storage.updateWithdrawal(id, { recipientCode });
+      }
+
+      // Initiate transfer
+      const { initiateTransfer } = await import("./paystack.js");
+      const transfer = await initiateTransfer({
+        source: "balance",
+        amount: Math.round(parseFloat(withdrawal.amount) * 100), // Convert to pesewas
+        recipient: recipientCode,
+        reason: `Profit withdrawal - ${withdrawal.id}`,
+      });
+
+      // Update withdrawal with transfer details
+      await storage.updateWithdrawal(id, {
+        status: "processing",
+        transferReference: transfer.data.reference,
+        transferCode: transfer.data.transfer_code,
+        processedBy: req.user!.id,
+        processedAt: new Date(),
+        adminNote,
+      });
+
+      res.json({
+        message: "Withdrawal approved and transfer initiated",
+        withdrawal: await storage.getWithdrawal(id),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to approve withdrawal" });
+    }
+  });
+
+  // Admin reject withdrawal
+  app.post("/api/admin/withdrawals/:id/reject", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { adminNote } = req.body;
+
+      const withdrawal = await storage.getWithdrawal(id);
+      if (!withdrawal) {
+        return res.status(404).json({ error: "Withdrawal not found" });
+      }
+
+      if (withdrawal.status !== "pending") {
+        return res.status(400).json({ error: "Withdrawal is not in pending status" });
+      }
+
+      // Return funds to available balance
+      const wallet = await storage.getProfitWallet(withdrawal.userId);
+      if (wallet) {
+        const returnAmount = parseFloat(withdrawal.amount);
+        const newAvailableBalance = (parseFloat(wallet.availableBalance) + returnAmount).toFixed(2);
+        const newPendingBalance = (parseFloat(wallet.pendingBalance) - returnAmount).toFixed(2);
+
+        await storage.updateProfitWallet(withdrawal.userId, {
+          availableBalance: newAvailableBalance,
+          pendingBalance: newPendingBalance,
+        });
+      }
+
+      // Update withdrawal status
+      await storage.updateWithdrawal(id, {
+        status: "rejected",
+        processedBy: req.user!.id,
+        processedAt: new Date(),
+        adminNote,
+      });
+
+      res.json({
+        message: "Withdrawal rejected and funds returned",
+        withdrawal: await storage.getWithdrawal(id),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to reject withdrawal" });
     }
   });
 

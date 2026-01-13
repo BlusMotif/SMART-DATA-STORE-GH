@@ -53,6 +53,37 @@ export default function AdminWithdrawals() {
     );
   };
 
+  const actionMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
+      const response = await apiRequest(`/api/admin/withdrawals/${id}/${action}`, {
+        method: "POST",
+      });
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-withdrawals"] });
+      toast({
+        title: "Success",
+        description: "Withdrawal request updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update withdrawal request",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleApprove = (id: string) => {
+    actionMutation.mutate({ id, action: "approve" });
+  };
+
+  const handleReject = (id: string) => {
+    actionMutation.mutate({ id, action: "reject" });
+  };
+
   return (
     <div className="flex h-screen bg-background">
       {/* Mobile sidebar overlay */}
@@ -152,6 +183,7 @@ export default function AdminWithdrawals() {
                         <TableHead>Status</TableHead>
                         <TableHead>Requested</TableHead>
                         <TableHead>Transfer Reference</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -191,6 +223,30 @@ export default function AdminWithdrawals() {
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm font-mono text-xs">
                             {withdrawal.transferReference || "N/A"}
+                          </TableCell>
+                          <TableCell>
+                            {withdrawal.status === "pending" && (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => handleApprove(withdrawal.id)}
+                                  disabled={actionMutation.isPending}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleReject(withdrawal.id)}
+                                  disabled={actionMutation.isPending}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

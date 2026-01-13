@@ -100,8 +100,8 @@ export default function AgentWithdrawals() {
       setIsRequestOpen(false);
       form.reset();
       toast({ 
-        title: "Withdrawal Completed!", 
-        description: response.message || "Funds will be transferred to your account within 24 hours."
+        title: "Withdrawal Requested!", 
+        description: response.message || "Your withdrawal request has been submitted and is pending admin approval."
       });
     },
     onError: (error: Error) => {
@@ -185,14 +185,14 @@ export default function AgentWithdrawals() {
               <DialogTrigger asChild>
                 <Button data-testid="button-request-withdrawal">
                   <Plus className="h-4 w-4 mr-2" />
-                  Withdraw Funds
+                  Request Withdrawal
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Withdraw Funds</DialogTitle>
+                  <DialogTitle>Request Profit Withdrawal</DialogTitle>
                   <DialogDescription>
-                    Instant withdrawal (Minimum: GH₵10). Funds will be transferred within minutes.
+                    Request profit withdrawal (Minimum: GH₵10). Funds will be transferred after admin approval.
                   </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -342,7 +342,7 @@ export default function AgentWithdrawals() {
                       disabled={requestMutation.isPending}
                       data-testid="button-submit-withdrawal"
                     >
-                      {requestMutation.isPending ? "Processing..." : "Withdraw Now"}
+                      {requestMutation.isPending ? "Submitting..." : "Submit Request"}
                     </Button>
                   </form>
                 </Form>
@@ -450,7 +450,7 @@ export default function AgentWithdrawals() {
                   </Table>
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
-                    No withdrawals yet. Click "Withdraw Funds" to cash out your earnings (Min: GH₵50).
+                    No withdrawal requests yet. Click "Request Withdrawal" to submit a withdrawal request (Min: GH₵10).
                   </div>
                 )}
               </CardContent>

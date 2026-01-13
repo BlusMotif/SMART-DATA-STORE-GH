@@ -4096,21 +4096,38 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load announcements" });
     }
   });
+  // Admin - Withdrawals Management
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const status = req.query.status as string | undefined;
-      const withdrawals = await storage.getWithdrawals({ status });
-      const withdrawalsWithAgents = await Promise.all(withdrawals.map(async (w) => {
-        const user = await storage.getUser(w.userId);
-        const agent = user ? await storage.getAgentByUserId(w.userId) : null;
-        return {
-          ...w,
-          agent: agent ? { businessName: agent.businessName } : null,
-          user: user ? { name: user.name } : null,
-        };
-      }));
-      res.json(withdrawalsWithAgents);
+      const { status } = req.query;
+      const withdrawals = await storage.getWithdrawals({
+        status: status as string,
+      });
+      // Get user details for each withdrawal
+      const withdrawalsWithUsers = await Promise.all(
+        withdrawals.map(async (withdrawal) => {
+          const user = await storage.getUser(withdrawal.userId);
+          // Try to get agent info, but don't fail if it doesn't exist
+          let agentInfo = null;
+          try {
+            const agent = await storage.getAgentByUserId(withdrawal.userId);
+            if (agent) {
+              agentInfo = { businessName: agent.businessName, storefrontSlug: agent.storefrontSlug };
+            }
+          } catch (error) {
+            // Agent not found, continue without agent info
+            console.log(`No agent record found for user ${withdrawal.userId}`);
+          }
+          return {
+            ...withdrawal,
+            user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
+            agent: agentInfo,
+          };
+        })
+      );
+      res.json({ withdrawals: withdrawalsWithUsers });
     } catch (error: any) {
+      console.error("Admin withdrawals error:", error);
       res.status(500).json({ error: "Failed to load withdrawals" });
     }
   });
@@ -4652,27 +4669,7 @@ export async function registerRoutes(
     }
   });
   // Admin routes for withdrawal management
-  app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { status } = req.query;
-      const withdrawals = await storage.getWithdrawals({
-        status: status as string,
-      });
-      // Get user details for each withdrawal
-      const withdrawalsWithUsers = await Promise.all(
-        withdrawals.map(async (withdrawal) => {
-          const user = await storage.getUser(withdrawal.userId);
-          return {
-            ...withdrawal,
-            user: user ? { name: user.name, email: user.email } : null,
-          };
-        })
-      );
-      res.json({ withdrawals: withdrawalsWithUsers });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to load withdrawals" });
-    }
-  });
+
   // Admin approve/reject withdrawal
   app.patch("/api/admin/withdrawals/:id", requireAuth, requireAdmin, async (req, res) => {
     try {

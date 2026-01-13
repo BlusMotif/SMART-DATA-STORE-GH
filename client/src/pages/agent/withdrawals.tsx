@@ -135,9 +135,9 @@ export default function AgentWithdrawals() {
 
   const stats = {
     pending: withdrawals?.filter((w) => w.status === "pending").length || 0,
-    approved: withdrawals?.filter((w) => w.status === "approved" || w.status === "completed").length || 0,
+    approved: withdrawals?.filter((w) => w.status === "approved" || w.status === "paid").length || 0,
     totalWithdrawn: withdrawals
-      ?.filter((w) => w.status === "completed")
+      ?.filter((w) => w.status === "paid")
       .reduce((sum, w) => sum + parseFloat(w.amount), 0) || 0,
   };
 

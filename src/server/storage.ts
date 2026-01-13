@@ -581,11 +581,6 @@ export class DatabaseStorage implements IStorage {
     return withdrawal;
   }
 
-  async getWithdrawalByTransferReference(transferReference: string): Promise<Withdrawal | undefined> {
-    const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.transferReference, transferReference)).limit(1);
-    return withdrawal;
-  }
-
   // ============================================
   // PROFIT WALLETS
   // ============================================

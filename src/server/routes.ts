@@ -10,7 +10,7 @@ import {
   UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker,
   users, walletTopupTransactions, auditLogs
 } from "../shared/schema.js";
-import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, createTransferRecipient, initiateTransfer, verifyTransfer } from "./paystack.js";
+import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
 import { fulfillDataBundleTransaction } from "./providers.js";
 
 // Role labels for storefront display
@@ -288,29 +288,9 @@ async function processWebhookEvent(event: any) {
     }
   }
 
-  // Handle transfer events
-  if (event.event === "transfer.success") {
-    try {
-      const data = event.data;
-      const transferReference = data.reference;
-      
-      console.log("Processing transfer success:", transferReference);
-      
-      // Find withdrawal by transfer reference
-      const withdrawals = await storage.getWithdrawals();
-      const withdrawal = withdrawals.find(w => w.transferReference === transferReference);
-      
-      if (withdrawal) {
-        await storage.updateWithdrawal(withdrawal.id, {
-          status: WithdrawalStatus.COMPLETED,
-          processedAt: new Date(),
-        });
-        console.log("Withdrawal marked as completed:", withdrawal.id);
-      }
-    } catch (transferError: any) {
-      console.error("Error processing transfer webhook:", transferError);
-    }
-  }
+  // Handle other Paystack webhooks if needed
+  console.log(`Unhandled webhook event: ${event.event}`);
+}
 }
 import { getSupabaseServer } from "./index.js";
 import { 
@@ -3315,10 +3295,10 @@ export async function registerRoutes(
       const user = await storage.getUser(dbUser.id);
       const stats = await storage.getTransactionStats(agent.id);
 
-      // Compute withdrawals sum (exclude rejected withdrawals)
+      // Compute withdrawals sum (only include approved and paid withdrawals)
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       const withdrawnTotal = withdrawals
-        .filter(w => w.status !== 'rejected')
+        .filter(w => w.status === 'approved' || w.status === 'paid')
         .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
 
       // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
@@ -3551,16 +3531,23 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Agent not approved" });
       }
 
-      const balance = parseFloat(agent.balance);
-      if (data.amount > balance) {
+      // Validate user has sufficient profit wallet balance
+      const profitWallet = await storage.getProfitWallet(dbUser.id);
+      if (!profitWallet) {
+        return res.status(400).json({ error: "Profit wallet not found" });
+      }
+
+      const availableBalance = parseFloat(profitWallet.availableBalance);
+      if (availableBalance < data.amount) {
         return res.status(400).json({ 
-          error: "Insufficient balance",
-          balance: balance.toFixed(2),
+          error: "Insufficient profit wallet balance",
+          balance: availableBalance.toFixed(2),
           requested: data.amount.toFixed(2)
         });
       }
 
       // Create withdrawal request with pending status - admin approval required
+      // Note: Balance is NOT deducted here - only when admin approves
       const withdrawal = await storage.createWithdrawal({
         userId: dbUser.id,
         amount: data.amount.toFixed(2),
@@ -3570,9 +3557,6 @@ export async function registerRoutes(
         bankCode: data.paymentMethod === "bank" ? data.bankCode : "",
         accountNumber: data.accountNumber,
         accountName: data.accountName,
-        recipientCode: null, // Will be set by admin when approving
-        transferReference: null, // Will be set by admin when approving
-        transferCode: null, // Will be set by admin when approving
       });
 
       res.json({
@@ -3731,10 +3715,10 @@ export async function registerRoutes(
       )[0];
 
       // For agents, the "balance" refers to their profit balance (withdrawable profit)
-      // Compute withdrawals sum (exclude rejected withdrawals)
+      // Compute withdrawals sum (only include approved and paid withdrawals)
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       const withdrawnTotal = withdrawals
-        .filter(w => w.status !== 'rejected')
+        .filter(w => w.status === 'approved' || w.status === 'paid')
         .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
 
       // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
@@ -5164,7 +5148,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Profit wallet not found" });
       }
 
-      // Check available balance
+      // Check available balance (but don't deduct yet)
       const availableBalance = parseFloat(wallet.availableBalance);
       if (availableBalance < withdrawalAmount) {
         return res.status(400).json({
@@ -5174,20 +5158,11 @@ export async function registerRoutes(
         });
       }
 
-      // Lock funds atomically
-      const newAvailableBalance = (availableBalance - withdrawalAmount).toFixed(2);
-      const newPendingBalance = (parseFloat(wallet.pendingBalance) + withdrawalAmount).toFixed(2);
-
-      await storage.updateProfitWallet(dbUser.id, {
-        availableBalance: newAvailableBalance,
-        pendingBalance: newPendingBalance,
-      });
-
-      // Create withdrawal request
+      // Create withdrawal request (funds are NOT deducted here)
       const withdrawal = await storage.createWithdrawal({
         userId: dbUser.id,
         amount: withdrawalAmount.toFixed(2),
-        status: "pending",
+        status: WithdrawalStatus.PENDING,
         paymentMethod: "bank",
         bankName,
         bankCode,
@@ -5256,73 +5231,56 @@ export async function registerRoutes(
       }
 
       if (action === "approve") {
-        // Create transfer recipient if not exists
-        let recipientCode = withdrawal.recipientCode;
-
-        if (!recipientCode) {
-          if (!withdrawal.bankCode) {
-            return res.status(400).json({ error: "Bank code is missing for this withdrawal" });
-          }
-          const { createTransferRecipient } = await import("./paystack.js");
-          const recipient = await createTransferRecipient({
-            type: "nuban",
-            name: withdrawal.accountName,
-            account_number: withdrawal.accountNumber,
-            bank_code: withdrawal.bankCode,
-          });
-          recipientCode = recipient.data.recipient_code;
-
-          // Update withdrawal with recipient code
-          await storage.updateWithdrawal(id, { recipientCode });
+        // Check if withdrawal is pending
+        if (withdrawal.status !== "pending") {
+          return res.status(400).json({ error: "Withdrawal is not in pending status" });
         }
 
-        // Initiate transfer
-        const { initiateTransfer } = await import("./paystack.js");
-        const transfer = await initiateTransfer({
-          source: "balance",
-          amount: Math.round(parseFloat(withdrawal.amount) * 100), // Convert to pesewas
-          recipient: recipientCode,
-          reason: `Profit withdrawal - ${withdrawal.id}`,
+        // Deduct amount from profit wallet
+        const wallet = await storage.getProfitWallet(withdrawal.userId);
+        if (!wallet) {
+          return res.status(400).json({ error: "Profit wallet not found" });
+        }
+
+        const withdrawalAmount = parseFloat(withdrawal.amount);
+        const currentBalance = parseFloat(wallet.availableBalance);
+
+        if (currentBalance < withdrawalAmount) {
+          return res.status(400).json({ error: "Insufficient balance in profit wallet" });
+        }
+
+        const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
+
+        await storage.updateProfitWallet(withdrawal.userId, {
+          availableBalance: newBalance,
         });
 
-        // Update withdrawal with transfer details
+        // Update withdrawal status to approved
         await storage.updateWithdrawal(id, {
-          status: "processing",
-          transferReference: transfer.data.reference,
-          transferCode: transfer.data.transfer_code,
-          processedBy: req.user!.id,
-          processedAt: new Date(),
+          status: WithdrawalStatus.APPROVED,
+          approvedBy: req.user!.id,
+          approvedAt: new Date(),
           adminNote,
         });
 
         res.json({
-          message: "Withdrawal approved and transfer initiated",
+          message: "Withdrawal approved. Admin will manually send the money.",
           withdrawal: await storage.getWithdrawal(id),
         });
       } else if (action === "reject") {
-        // Return funds to available balance
-        const wallet = await storage.getProfitWallet(withdrawal.userId);
-        if (wallet) {
-          const returnAmount = parseFloat(withdrawal.amount);
-          const newAvailableBalance = (parseFloat(wallet.availableBalance) + returnAmount).toFixed(2);
-          const newPendingBalance = (parseFloat(wallet.pendingBalance) - returnAmount).toFixed(2);
-
-          await storage.updateProfitWallet(withdrawal.userId, {
-            availableBalance: newAvailableBalance,
-            pendingBalance: newPendingBalance,
-          });
+        // Check if withdrawal is pending
+        if (withdrawal.status !== "pending") {
+          return res.status(400).json({ error: "Withdrawal is not in pending status" });
         }
 
-        // Update withdrawal status
+        // Update withdrawal status to rejected
         await storage.updateWithdrawal(id, {
-          status: "rejected",
-          processedBy: req.user!.id,
-          processedAt: new Date(),
-          adminNote,
+          status: WithdrawalStatus.REJECTED,
+          rejectionReason: adminNote,
         });
 
         res.json({
-          message: "Withdrawal rejected and funds returned",
+          message: "Withdrawal rejected",
           withdrawal: await storage.getWithdrawal(id),
         });
       } else {
@@ -5348,47 +5306,35 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Withdrawal is not in pending status" });
       }
 
-      // Create transfer recipient if not exists
-      let recipientCode = withdrawal.recipientCode;
-
-      if (!recipientCode) {
-        if (!withdrawal.bankCode) {
-          return res.status(400).json({ error: "Bank code is missing for this withdrawal" });
-        }
-        const { createTransferRecipient } = await import("./paystack.js");
-        const recipient = await createTransferRecipient({
-          type: "nuban",
-          name: withdrawal.accountName,
-          account_number: withdrawal.accountNumber,
-          bank_code: withdrawal.bankCode,
-        });
-        recipientCode = recipient.data.recipient_code;
-
-        // Update withdrawal with recipient code
-        await storage.updateWithdrawal(id, { recipientCode });
+      // Deduct amount from profit wallet
+      const wallet = await storage.getProfitWallet(withdrawal.userId);
+      if (!wallet) {
+        return res.status(400).json({ error: "Profit wallet not found" });
       }
 
-      // Initiate transfer
-      const { initiateTransfer } = await import("./paystack.js");
-      const transfer = await initiateTransfer({
-        source: "balance",
-        amount: Math.round(parseFloat(withdrawal.amount) * 100), // Convert to pesewas
-        recipient: recipientCode,
-        reason: `Profit withdrawal - ${withdrawal.id}`,
+      const withdrawalAmount = parseFloat(withdrawal.amount);
+      const currentBalance = parseFloat(wallet.availableBalance);
+
+      if (currentBalance < withdrawalAmount) {
+        return res.status(400).json({ error: "Insufficient balance in profit wallet" });
+      }
+
+      const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
+
+      await storage.updateProfitWallet(withdrawal.userId, {
+        availableBalance: newBalance,
       });
 
-      // Update withdrawal with transfer details
+      // Update withdrawal status to approved
       await storage.updateWithdrawal(id, {
-        status: "processing",
-        transferReference: transfer.data.reference,
-        transferCode: transfer.data.transfer_code,
-        processedBy: req.user!.id,
-        processedAt: new Date(),
+        status: WithdrawalStatus.APPROVED,
+        approvedBy: req.user!.id,
+        approvedAt: new Date(),
         adminNote,
       });
 
       res.json({
-        message: "Withdrawal approved and transfer initiated",
+        message: "Withdrawal approved. Admin will manually send the money.",
         withdrawal: await storage.getWithdrawal(id),
       });
     } catch (error: any) {
@@ -5411,33 +5357,47 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Withdrawal is not in pending status" });
       }
 
-      // Return funds to available balance
-      const wallet = await storage.getProfitWallet(withdrawal.userId);
-      if (wallet) {
-        const returnAmount = parseFloat(withdrawal.amount);
-        const newAvailableBalance = (parseFloat(wallet.availableBalance) + returnAmount).toFixed(2);
-        const newPendingBalance = (parseFloat(wallet.pendingBalance) - returnAmount).toFixed(2);
-
-        await storage.updateProfitWallet(withdrawal.userId, {
-          availableBalance: newAvailableBalance,
-          pendingBalance: newPendingBalance,
-        });
-      }
-
-      // Update withdrawal status
+      // Update withdrawal status to rejected
       await storage.updateWithdrawal(id, {
-        status: "rejected",
-        processedBy: req.user!.id,
-        processedAt: new Date(),
-        adminNote,
+        status: WithdrawalStatus.REJECTED,
+        rejectionReason: adminNote,
       });
 
       res.json({
-        message: "Withdrawal rejected and funds returned",
+        message: "Withdrawal rejected",
         withdrawal: await storage.getWithdrawal(id),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to reject withdrawal" });
+    }
+  });
+
+  // Admin mark withdrawal as paid
+  app.post("/api/admin/withdrawals/:id/mark_paid", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const withdrawal = await storage.getWithdrawal(id);
+      if (!withdrawal) {
+        return res.status(404).json({ error: "Withdrawal not found" });
+      }
+
+      if (withdrawal.status !== "approved") {
+        return res.status(400).json({ error: "Withdrawal is not in approved status" });
+      }
+
+      // Update withdrawal status to paid
+      await storage.updateWithdrawal(id, {
+        status: WithdrawalStatus.PAID,
+        paidAt: new Date(),
+      });
+
+      res.json({
+        message: "Withdrawal marked as paid",
+        withdrawal: await storage.getWithdrawal(id),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to mark withdrawal as paid" });
     }
   });
 
@@ -5514,8 +5474,6 @@ export async function registerRoutes(
       console.error("Webhook processing error:", error);
       res.status(500).json({ error: "Webhook processing failed" });
     }
-  });
-
   app.get("/api/user/rank", requireAuth, async (req, res) => {
     try {
       const dbUser = await storage.getUserByEmail(req.user!.email);

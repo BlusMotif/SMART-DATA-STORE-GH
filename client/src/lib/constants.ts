@@ -52,9 +52,7 @@ export const WITHDRAWAL_STATUSES = {
   pending: { label: "Pending", color: "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400" },
   approved: { label: "Approved", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" },
   rejected: { label: "Rejected", color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" },
-  completed: { label: "Completed", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" },
-  processing: { label: "Processing", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" },
-  failed: { label: "Failed", color: "bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" },
+  paid: { label: "Paid", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" },
 } as const;
 
 export const PAYMENT_METHODS = [

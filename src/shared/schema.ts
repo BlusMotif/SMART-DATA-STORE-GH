@@ -67,11 +67,9 @@ export const ResultCheckerType = {
 // Withdrawal status enum
 export const WithdrawalStatus = {
   PENDING: "pending",
-  PROCESSING: "processing",
   APPROVED: "approved",
   REJECTED: "rejected",
-  COMPLETED: "completed",
-  FAILED: "failed",
+  PAID: "paid",
 } as const;
 
 // Payment method enum for withdrawals
@@ -236,19 +234,17 @@ export const withdrawals = pgTable("withdrawals", {
   id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  status: text("status").notNull().default("pending"), // "pending" | "approved" | "processing" | "completed" | "failed" | "rejected"
+  status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected" | "paid"
   paymentMethod: text("payment_method").notNull().default("bank"),
   bankName: text("bank_name"),
   bankCode: text("bank_code"),
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name").notNull(),
-  recipientCode: text("recipient_code"), // Paystack recipient code
-  transferReference: text("transfer_reference"), // Paystack transfer reference
-  transferCode: text("transfer_code"), // Paystack transfer code
   adminNote: text("admin_note"),
-  processedBy: varchar("processed_by", { length: 36 }),
-  processedAt: timestamp("processed_at"),
-  completedAt: timestamp("completed_at"),
+  rejectionReason: text("rejection_reason"),
+  approvedBy: varchar("approved_by", { length: 36 }),
+  approvedAt: timestamp("approved_at"),
+  paidAt: timestamp("paid_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   userIdx: index("withdrawals_user_idx").on(table.userId),
@@ -619,10 +615,11 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({
 export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
   id: true,
   createdAt: true,
-  processedAt: true,
-  processedBy: true,
+  approvedBy: true,
+  approvedAt: true,
+  paidAt: true,
   adminNote: true,
-  completedAt: true,
+  rejectionReason: true,
 });
 
 export const insertProfitWalletSchema = createInsertSchema(profitWallets).omit({

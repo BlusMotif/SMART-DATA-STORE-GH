@@ -38,9 +38,10 @@ export default function AdminWithdrawals() {
 
   const stats = {
     total: withdrawals?.length || 0,
-    processing: withdrawals?.filter((w) => w.status === "processing").length || 0,
-    completed: withdrawals?.filter((w) => w.status === "completed").length || 0,
-    failed: withdrawals?.filter((w) => w.status === "failed").length || 0,
+    pending: withdrawals?.filter((w) => w.status === "pending").length || 0,
+    approved: withdrawals?.filter((w) => w.status === "approved").length || 0,
+    rejected: withdrawals?.filter((w) => w.status === "rejected").length || 0,
+    paid: withdrawals?.filter((w) => w.status === "paid").length || 0,
     totalAmount: withdrawals?.reduce((sum, w) => sum + parseFloat(w.amount), 0) || 0,
   };
 
@@ -54,7 +55,7 @@ export default function AdminWithdrawals() {
   };
 
   const actionMutation = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" | "mark_paid" }) => {
       const response = await apiRequest(`/api/admin/withdrawals/${id}/${action}`, {
         method: "POST",
       });
@@ -82,6 +83,10 @@ export default function AdminWithdrawals() {
 
   const handleReject = (id: string) => {
     actionMutation.mutate({ id, action: "reject" });
+  };
+
+  const handleMarkPaid = (id: string) => {
+    actionMutation.mutate({ id, action: "mark_paid" });
   };
 
   return (
@@ -127,22 +132,22 @@ export default function AdminWithdrawals() {
                 description="All time"
               />
               <StatCard
-                title="Processing"
-                value={stats.processing}
+                title="Pending"
+                value={stats.pending}
                 icon={Clock}
-                description="Being transferred"
+                description="Awaiting approval"
               />
               <StatCard
-                title="Completed"
-                value={stats.completed}
+                title="Approved"
+                value={stats.approved}
                 icon={CheckCircle}
-                description="Successfully transferred"
+                description="Ready for manual payout"
               />
               <StatCard
-                title="Failed"
-                value={stats.failed}
-                icon={XCircle}
-                description="Transfer failed"
+                title="Paid"
+                value={stats.paid}
+                icon={CheckCircle}
+                description="Manually paid out"
               />
             </div>
 
@@ -163,9 +168,10 @@ export default function AdminWithdrawals() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="processing">Processing</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
                   </SelectContent>
                 </Select>
               </CardHeader>
@@ -182,7 +188,6 @@ export default function AdminWithdrawals() {
                         <TableHead>Account Details</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Requested</TableHead>
-                        <TableHead>Transfer Reference</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -221,9 +226,6 @@ export default function AdminWithdrawals() {
                           <TableCell className="text-muted-foreground text-sm">
                             {formatDate(withdrawal.createdAt)}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm font-mono text-xs">
-                            {withdrawal.transferReference || "N/A"}
-                          </TableCell>
                           <TableCell>
                             {withdrawal.status === "pending" && (
                               <div className="flex gap-2">
@@ -246,6 +248,17 @@ export default function AdminWithdrawals() {
                                   Reject
                                 </Button>
                               </div>
+                            )}
+                            {withdrawal.status === "approved" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleMarkPaid(withdrawal.id)}
+                                disabled={actionMutation.isPending}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Mark as Paid
+                              </Button>
                             )}
                           </TableCell>
                         </TableRow>

@@ -10,7 +10,12 @@ import type { Agent } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
+import banner1 from "@assets/banner1_1765774201032.jpeg";
+import banner2 from "@assets/banner2_1765774201033.jpeg";
+import banner3 from "@assets/banner3_1765774201030.jpeg";
 import { ROLE_LABELS } from "@/lib/constants";
+
+const bannerImages = [banner1, banner2, banner3];
 
 interface StorefrontData {
   store: {
@@ -36,6 +41,15 @@ interface StorefrontData {
 export default function StorefrontPage() {
   const { role, slug } = useParams<{ role: string; slug: string }>();
   const [, setLocation] = useLocation();
+  const [currentBanner, setCurrentBanner] = useState(0);
+
+  // Auto-rotate banner every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Store the agent slug in localStorage when visiting
   useEffect(() => {
@@ -125,29 +139,35 @@ export default function StorefrontPage() {
       
       <main className="flex-1">
         {/* Hero Section with Banner */}
-        <section className="relative bg-gradient-to-r from-primary/20 via-primary/10 to-secondary/20">
+        <section className="relative" data-testid="banner-carousel">
           <div className="relative h-[300px] md:h-[400px]">
-            {/* Background Pattern */}
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute inset-0" style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              }} />
-            </div>
-
+            {bannerImages.map((img, index) => (
+              <img
+                key={index}
+                src={img}
+                alt={`Banner ${index + 1}`}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                  index === currentBanner ? "opacity-100" : "opacity-0"
+                }`}
+                data-testid={`img-banner-${index + 1}`}
+              />
+            ))}
+            <div className="absolute inset-0 bg-black/50" />
+            
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="container mx-auto max-w-6xl text-center px-4">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-primary-foreground text-3xl font-bold mx-auto mb-6 shadow-lg">
                   {store.businessName.charAt(0).toUpperCase()}
                 </div>
-                <h1 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight" data-testid="text-store-name">
+                <h1 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight text-white" data-testid="text-store-name">
                   {store.businessName}
                 </h1>
-                <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
                   {store.businessDescription || `Welcome to ${store.businessName}. Browse our selection of data bundles and result checkers.`}
                 </p>
                 <div className="flex items-center justify-center gap-2 mt-6 text-sm">
-                  <Shield className="h-5 w-5 text-green-600" />
-                  <span className="font-medium">Secure payments powered by Paystack</span>
+                  <Shield className="h-5 w-5 text-green-400" />
+                  <span className="font-medium text-white/90">Secure payments powered by Paystack</span>
                 </div>
 
                 {/* WhatsApp Support Links */}
@@ -178,6 +198,20 @@ export default function StorefrontPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+              {bannerImages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentBanner(index)}
+                  className={`w-3 h-3 rounded-full transition-colors ${
+                    index === currentBanner ? "bg-white" : "bg-white/50"
+                  }`}
+                  aria-label={`Go to banner ${index + 1}`}
+                  data-testid={`button-banner-dot-${index + 1}`}
+                />
+              ))}
             </div>
           </div>
         </section>

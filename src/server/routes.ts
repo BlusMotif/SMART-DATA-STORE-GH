@@ -4130,13 +4130,21 @@ export async function registerRoutes(
     try {
       const limit = parseInt(req.query.limit as string) || 10;
       const topCustomers = await storage.getTopCustomers(limit);
-      // Remove sensitive email information for public view
-      const publicRankings = topCustomers.map((customer, index) => ({
-        rank: index + 1,
-        customerPhone: customer.customerPhone,
-        totalPurchases: customer.totalPurchases,
-        totalSpent: customer.totalSpent,
-      }));
+      // Include truncated email for public view (privacy-conscious)
+      const publicRankings = topCustomers.map((customer, index) => {
+        let truncatedEmail = "";
+        if (customer.customerEmail) {
+          const [localPart, domain] = customer.customerEmail.split("@");
+          truncatedEmail = localPart.length > 2 ? localPart.substring(0, 2) + ".....@" + domain : customer.customerEmail;
+        }
+        return {
+          rank: index + 1,
+          customerPhone: customer.customerPhone ? (customer.customerPhone.length > 6 ? customer.customerPhone.substring(0, 6) + "......." : customer.customerPhone) : "",
+          customerEmail: truncatedEmail,
+          totalPurchases: customer.totalPurchases,
+          totalSpent: customer.totalSpent,
+        };
+      });
       res.json(publicRankings);
     } catch (error: any) {
       console.error("Error fetching public rankings:", error);

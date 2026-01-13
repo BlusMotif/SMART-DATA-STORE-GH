@@ -52,7 +52,7 @@ const getRankingBadge = (role: string) => {
 
 const sidebarNavItems = [
   { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
-  { title: "Users Ranking", href: "/admin/rankings", icon: Trophy },
+  { title: "Users Ranking", href: "/rankings", icon: Trophy },
   { title: "My Storefront", href: "/agent/storefront", icon: Store },
   { title: "Pricing", href: "/agent/pricing", icon: DollarSign },
   { title: "Transactions", href: "/agent/transactions", icon: BarChart3 },

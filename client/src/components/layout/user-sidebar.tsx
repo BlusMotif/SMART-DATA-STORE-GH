@@ -45,7 +45,7 @@ const sidebarNavItems = [
   },
   {
     title: "Users Ranking",
-    href: "/admin/rankings",
+    href: "/rankings",
     icon: Trophy,
   },
   {

@@ -52,6 +52,7 @@ import AdminRankings from "@/pages/admin/rankings";
 import AdminBreakSettings from "@/pages/admin/break-settings";
 import AdminApiConfiguration from "@/pages/admin/api-configuration";
 import AdminAnnouncements from "@/pages/admin/announcements";
+import PublicRankings from "@/pages/public-rankings";
 import AgentPublicStorefront from "@/pages/agent/public-storefront";
 import { getAgentId } from "@/lib/store-context";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
@@ -116,6 +117,7 @@ function Router() {
       <Route path="/products/:network" component={NetworkProductsPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/rankings" component={PublicRankings} />
       <Route path="/checkout/:productType/:productId/:year?" component={CheckoutPage} />
       <Route path="/checkout/success" component={CheckoutSuccessPage} />
       <Route path="/wallet/topup/success" component={WalletTopupSuccessPage} />

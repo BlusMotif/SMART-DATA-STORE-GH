@@ -1,262 +1,167 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { supabase } from "@/lib/supabaseClient";
 
 export function useAuth() {
+  const queryClient = useQueryClient();
+
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const queryClient = useQueryClient();
-  const isFetchingUser = useRef(false);
-
-  // Get current session for enabling the query
-  const [currentSession, setCurrentSession] = useState<any>(null);
-
-  // Initialize session on mount and listen to auth state changes
+  /**
+   * ------------------------------------------------------
+   * AUTH BOOTSTRAP (single source of truth)
+   * ------------------------------------------------------
+   */
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setCurrentSession(session);
+    let mounted = true;
+
+    // Load initial session once
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) {
+        setSession(data.session);
+        setAuthLoading(false);
       }
     });
 
-    // Listen to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth event:", event);
+    // Listen for real auth transitions only
+    const { data: { subscription } } =
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          setSession(session);
+        }
 
         if (event === "SIGNED_OUT") {
-          console.log("User signed out");
-          setCurrentSession(null);
+          setSession(null);
           queryClient.setQueryData(["/api/auth/me"], { user: null });
-        } else if (event === "TOKEN_REFRESHED" && session) {
-          console.log("Token refreshed");
-          setCurrentSession(session);
-        } else if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
-          console.log("Session established:", event);
-          setCurrentSession(session);
+          queryClient.clear();
         }
-        // Ignore USER_UPDATED events to prevent unnecessary re-renders
-      }
-    );
+      });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [queryClient]);
 
-  const { data: authData, isLoading } = useQuery<{
+  /**
+   * ------------------------------------------------------
+   * CURRENT USER
+   * ------------------------------------------------------
+   */
+  const { data, isLoading } = useQuery<{
     user: User | null;
     agent?: any;
   }>({
     queryKey: ["/api/auth/me"],
-    enabled: !!currentSession?.access_token, // Only run when we have a session
+    enabled: !!session?.access_token,
     retry: false,
     refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      // Prevent duplicate calls
-      if (isFetchingUser.current) {
-        console.log("Already fetching user, skipping duplicate call");
-        return { user: null };
-      }
-      isFetchingUser.current = true;
-
-      try {
-        const token = currentSession?.access_token;
-        console.log("Auth check - token exists:", !!token);
-        if (!token) {
-          console.log("No token found, returning null user");
-          return { user: null };
-        }
-
-        console.log("Fetching /api/auth/me with token");
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        console.log("Auth response status:", response.status);
-        if (!response.ok) {
-          console.log("Auth response not ok, returning null user");
-          return { user: null };
-        }
-
-        const data = await response.json();
-        console.log("Auth response data:", data);
-        return data;
-      } catch (error) {
-        console.error("Auth check error:", error);
-        return { user: null };
-      } finally {
-        isFetchingUser.current = false;
-      }
-    },
-  });
-
-  const user = authData?.user ?? null;
-  const agent = authData?.agent;
-
-  const login = async ({ email, password }: { email: string; password: string }) => {
-    setIsLoginLoading(true);
-    setLoginError(null);
-    try {
-      // Validate inputs
-      if (!email || !password) {
-        const errorMsg = "Email and password are required";
-        setLoginError(errorMsg);
-        return { error: errorMsg };
-      }
-      
-      if (typeof email !== 'string' || typeof password !== 'string') {
-        const errorMsg = "Invalid input types";
-        setLoginError(errorMsg);
-        return { error: errorMsg };
-      }
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        setLoginError(error.message);
-        return { error: error.message };
-      }
-
-      // Manually update session and trigger refetch after successful login
-      if (data.session) {
-        console.log("Login successful, updating session");
-        setCurrentSession(data.session);
-        // Invalidate and refetch auth data to get user details
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      }
-      
-      console.log("Login complete");
-      return { user: data.user };
-    } catch (error: any) {
-      const errorMessage = error.message || "Login failed";
-      setLoginError(errorMessage);
-      return { error: errorMessage };
-    } finally {
-      setIsLoginLoading(false);
-    }
-  };
-
-  const register = async ({ email, password, name }: { email: string; password: string; name: string }) => {
-    setIsRegisterLoading(true);
-    setRegisterError(null);
-    try {
-      // Validate inputs
-      if (!email || !password || !name) {
-        const errorMsg = "All fields are required";
-        setRegisterError(errorMsg);
-        return { error: errorMsg };
-      }
-      
-      if (typeof email !== 'string' || typeof password !== 'string' || typeof name !== 'string') {
-        const errorMsg = "Invalid input types";
-        setRegisterError(errorMsg);
-        return { error: errorMsg };
-      }
-      
-      if (name.trim().length < 2) {
-        const errorMsg = "Name must be at least 2 characters";
-        setRegisterError(errorMsg);
-        return { error: errorMsg };
-      }
-      
-      if (password.length < 6) {
-        const errorMsg = "Password must be at least 6 characters";
-        setRegisterError(errorMsg);
-        return { error: errorMsg };
-      }
-      
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            name: name.trim(),
-          },
+      const res = await fetch("/api/auth/me", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
-      if (error) {
-        setRegisterError(error.message);
-        return { error: error.message };
+      if (!res.ok) {
+        return { user: null };
       }
 
-      // Manually update session after successful registration
-      if (data.session) {
-        console.log("Registration successful with session");
-        setCurrentSession(data.session);
-        // Invalidate and refetch auth data to get user details
-        await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      } else {
-        console.log("Registration successful but no session (email confirmation may be required)");
-      }
-      
-      return { user: data.user };
-    } catch (error: any) {
-      const errorMessage = error.message || "Registration failed";
-      setRegisterError(errorMessage);
-      return { error: errorMessage };
-    } finally {
-      setIsRegisterLoading(false);
+      return res.json();
+    },
+  });
+
+  const user = data?.user ?? null;
+  const agent = data?.agent;
+  const isAuthenticated = !!user;
+
+  /**
+   * ------------------------------------------------------
+   * ACTIONS
+   * ------------------------------------------------------
+   */
+  const login = async ({ email, password }: { email: string; password: string }) => {
+    setIsLoginLoading(true);
+    setLoginError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) {
+      setLoginError(error.message);
+      setIsLoginLoading(false);
+      return { error: error.message };
     }
+
+    setIsLoginLoading(false);
+    return { success: true };
+  };
+
+  const register = async ({
+    email,
+    password,
+    name,
+  }: {
+    email: string;
+    password: string;
+    name: string;
+  }) => {
+    setIsRegisterLoading(true);
+    setRegisterError(null);
+
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { name: name.trim() },
+      },
+    });
+
+    if (error) {
+      setRegisterError(error.message);
+      setIsRegisterLoading(false);
+      return { error: error.message };
+    }
+
+    setIsRegisterLoading(false);
+    return { success: true };
   };
 
   const logout = async () => {
     setIsLoggingOut(true);
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Logout failed:", error);
-      }
-
-      // Clear the session state
-      setCurrentSession(null);
-      
-      // Clear auth data from cache
-      queryClient.setQueryData(["/api/auth/me"], { user: null });
-      
-      // Clear all queries to reset the app state
-      queryClient.clear();
-
-      // Supabase will automatically clear the session
-      // The auth state change listener will handle clearing the query cache
-      console.log("Logout successful");
-      
-      // Redirect to home page
-      window.location.href = '/';
-    } catch (error: any) {
-      console.error("Logout failed:", error);
-    } finally {
-      setIsLoggingOut(false);
-    }
+    await supabase.auth.signOut();
+    setIsLoggingOut(false);
+    window.location.href = "/";
   };
 
-  const isAuthenticated = !!user;
-
+  /**
+   * ------------------------------------------------------
+   * PUBLIC API
+   * ------------------------------------------------------
+   */
   return {
     user,
     agent,
+    isAuthenticated,
+    isLoading: authLoading || isLoading,
     login,
     register,
     logout,
-    isLoading,
+    loginError,
+    registerError,
     isLoginLoading,
     isRegisterLoading,
     isLoggingOut,
-    loginError,
-    registerError,
-    isAuthenticated,
   };
 }

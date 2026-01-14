@@ -3211,80 +3211,91 @@ export async function registerRoutes(
   });
   app.get("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
-      // Get user from database using email from JWT
-      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!req.user || !req.user.email) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const dbUser = await storage.getUserByEmail(req.user.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
+
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-      const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
+
+      const withdrawals = (await storage.getWithdrawals({ userId: dbUser.id })) || [];
       res.json(withdrawals);
-    } catch (error: any) {
+    } catch (err) {
+      console.error("GET /withdrawals error:", err);
       res.status(500).json({ error: "Failed to load withdrawals" });
     }
   });
+
   app.post("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
     try {
-      // Validate input
-      if (!req.body || typeof req.body !== 'object') {
+      if (!req.user || !req.user.email) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      if (!req.body || typeof req.body !== "object") {
         return res.status(400).json({ error: "Invalid request body" });
       }
+
       const data = withdrawalRequestSchema.parse(req.body);
-      // Validate minimum withdrawal amount of GHC 10
+
+      // Validate min/max withdrawal
       if (data.amount < 10) {
         return res.status(400).json({ error: "Minimum withdrawal amount is GH₵10" });
       }
-      // Additional validation for maximum withdrawal amount
-      if (data.amount > 100000) {
+      if (data.amount > 100_000) {
         return res.status(400).json({ error: "Maximum withdrawal amount is GH₵100,000" });
       }
-      // Get user from database using email from JWT
-      const dbUser = await storage.getUserByEmail(req.user!.email);
+
+      const dbUser = await storage.getUserByEmail(req.user.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
+
       const agent = await storage.getAgentByUserId(dbUser.id);
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
+
       if (!agent.isApproved) {
         return res.status(403).json({ error: "Agent not approved" });
       }
-      // Validate user has sufficient profit wallet balance
+
       const profitWallet = await storage.getProfitWallet(dbUser.id);
-      if (!profitWallet) {
-        return res.status(400).json({ error: "Profit wallet not found" });
-      }
-      const availableBalance = parseFloat(profitWallet.availableBalance);
+      const availableBalance = profitWallet ? parseFloat(profitWallet.availableBalance || "0") : 0;
+
       if (availableBalance < data.amount) {
         return res.status(400).json({
           error: "Insufficient profit wallet balance",
           balance: availableBalance.toFixed(2),
-          requested: data.amount.toFixed(2)
+          requested: data.amount.toFixed(2),
         });
       }
-      // Create withdrawal request with pending status - admin approval required
-      // Note: Balance is NOT deducted here - only when admin approves
+
       const withdrawal = await storage.createWithdrawal({
         userId: dbUser.id,
         amount: data.amount.toFixed(2),
         status: WithdrawalStatus.PENDING,
         paymentMethod: data.paymentMethod,
-        bankName: data.paymentMethod === "bank" ? data.bankName : "",
-        bankCode: data.paymentMethod === "bank" ? data.bankCode : "",
+        bankName: data.paymentMethod === "bank" ? data.bankName || "" : "",
+        bankCode: data.paymentMethod === "bank" ? data.bankCode || "" : "",
         accountNumber: data.accountNumber,
         accountName: data.accountName,
       });
+
       res.json({
         ...withdrawal,
-        message: "Withdrawal request submitted successfully. It will be processed after admin approval."
+        message: "Withdrawal request submitted successfully. It will be processed after admin approval.",
       });
-    } catch (error: any) {
-      console.error("Withdrawal error:", error);
-      res.status(400).json({ error: error.message || "Withdrawal failed" });
+    } catch (err: any) {
+      console.error("POST /withdrawals error:", err);
+      res.status(400).json({ error: err.message || "Withdrawal failed" });
     }
   });
   // Agent storefront management

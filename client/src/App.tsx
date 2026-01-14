@@ -136,8 +136,8 @@ function Router() {
       <ProtectedRoute path="/master/dashboard" component={MasterDashboard} requiredRole="master" />
       <ProtectedRoute path="/agent/dashboard" component={AgentDashboard} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/transactions" component={AgentTransactions} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
-      <ProtectedRoute path="/agent/withdrawals" component={AgentWithdrawals} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/storefront" component={AgentStorefront} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+
       <ProtectedRoute path="/agent/settings" component={AgentSettings} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/support" component={AgentSupportPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
@@ -155,8 +155,8 @@ function Router() {
       <ProtectedRoute path="/admin/transactions" component={AdminTransactions} requiredRole="admin" />
       <ProtectedRoute path="/admin/users" component={AdminUsers} requiredRole="admin" />
       <ProtectedRoute path="/admin/agents" component={AdminAgents} requiredRole="admin" />
-      <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
       <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
+
       <ProtectedRoute path="/admin/announcements" component={AdminAnnouncements} requiredRole="admin" />
       <ProtectedRoute path="/admin/break-settings" component={AdminBreakSettings} requiredRole="admin" />
       <ProtectedRoute path="/admin/api-configuration" component={AdminApiConfiguration} requiredRole="admin" />

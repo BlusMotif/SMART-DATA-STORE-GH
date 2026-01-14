@@ -32,9 +32,6 @@ export interface IStorage {
   getAgentByUserId(userId: string): Promise<Agent | undefined>;
   getAgentBySlug(slug: string): Promise<Agent | undefined>;
   getAgents(filters?: { isApproved?: boolean }): Promise<Agent[]>;
-  getAgentsByDealer(dealerUserId: string): Promise<Agent[]>;
-  getAgentsBySuperDealer(superDealerUserId: string): Promise<Agent[]>;
-  getAgentsByMaster(masterUserId: string): Promise<Agent[]>;
   createAgent(agent: InsertAgent): Promise<Agent>;
   updateAgent(id: string, data: Partial<Agent>): Promise<Agent | undefined>;
   updateAgentBalance(id: string, amount: number, addProfit: boolean): Promise<Agent | undefined>;
@@ -299,24 +296,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAgent(id: string): Promise<void> {
     await db.delete(agents).where(eq(agents.id, id));
-  }
-
-  async getAgentsByDealer(dealerUserId: string): Promise<Agent[]> {
-    // For now, return empty array - this would need additional schema changes
-    // to track dealer-agent relationships
-    return [];
-  }
-
-  async getAgentsBySuperDealer(superDealerUserId: string): Promise<Agent[]> {
-    // For now, return empty array - this would need additional schema changes
-    // to track super dealer-dealer relationships
-    return [];
-  }
-
-  async getAgentsByMaster(masterUserId: string): Promise<Agent[]> {
-    // For now, return empty array - this would need additional schema changes
-    // to track master-super dealer relationships
-    return [];
   }
 
   async getUsers(): Promise<User[]> {

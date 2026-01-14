@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/constants";
 import { useState } from "react";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
+
 import {
   LayoutDashboard,
   Package,

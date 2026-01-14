@@ -2909,105 +2909,135 @@ export async function registerRoutes(
   // ============================================
   app.get("/api/profile", requireAuth, async (req, res) => {
     try {
-      console.log("Profile request for user:", req.user!.email, "role:", req.user!.role);
-      // Get user from database using email from JWT
-      const dbUser = await storage.getUserByEmail(req.user!.email);
+      /* --------------------------------------------------
+         1. AUTH GUARD (ABSOLUTELY REQUIRED)
+      -------------------------------------------------- */
+      if (!req.user || !req.user.email) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      console.log("Profile request for:", req.user.email);
+
+      /* --------------------------------------------------
+         2. LOAD USER (SOURCE OF TRUTH)
+      -------------------------------------------------- */
+      const dbUser = await storage.getUserByEmail(req.user.email);
+
       if (!dbUser) {
-        console.log("User not found in database:", req.user!.email);
         return res.status(404).json({ error: "User not found" });
       }
-      console.log("Found user in database:", dbUser.id, "role:", dbUser.role);
 
-      const user = await storage.getUser(dbUser.id);
-      console.log("User details:", user?.name, user?.email);
-
-      // Handle different roles
       const role = dbUser.role;
-      console.log("Processing profile for role:", role);
+      const userDetails = await storage.getUser(dbUser.id);
 
-      if (role === UserRole.AGENT || role === UserRole.DEALER || role === UserRole.SUPER_DEALER || role === UserRole.MASTER) {
-        // Try to get agent profile (agents table might be used for all these roles)
+      /* --------------------------------------------------
+         3. ROLE: AGENT / DEALER / MASTER
+      -------------------------------------------------- */
+      if (
+        role === UserRole.AGENT ||
+        role === UserRole.DEALER ||
+        role === UserRole.SUPER_DEALER ||
+        role === UserRole.MASTER
+      ) {
         const agent = await storage.getAgentByUserId(dbUser.id);
 
+        /* ------------------------
+           3A. AGENT EXISTS
+        ------------------------ */
         if (agent) {
-          console.log("Found agent profile:", agent.id);
-          console.log("Agent balance from DB:", agent.balance);
-          console.log("User wallet balance:", dbUser.walletBalance);
-          console.log("Agent total profit:", agent.totalProfit);
-
           const stats = await storage.getTransactionStats(agent.id);
-          console.log("Transaction stats:", stats);
 
-          // Compute withdrawals sum (only include approved and paid withdrawals)
-          const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-          console.log("Withdrawals count:", withdrawals.length);
+          const withdrawals = await storage.getWithdrawals({
+            userId: dbUser.id,
+          });
+
           const withdrawnTotal = withdrawals
-            .filter(w => w.status === 'approved' || w.status === 'paid')
-            .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
-          console.log("Total withdrawn:", withdrawnTotal);
+            .filter(w => w?.status === "approved" || w?.status === "paid")
+            .reduce((sum, w) => sum + Number(w?.amount || 0), 0);
 
-          // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
-          const totalProfit = parseFloat(agent.totalProfit || '0');
+          const totalProfit = Number(agent.totalProfit || 0);
           const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
-          console.log("Calculated profit balance:", profitBalance);
 
-          res.json({
+          return res.json({
             profile: {
               ...agent,
-              profitBalance: profitBalance, // Computed withdrawable profit
-              walletBalance: parseFloat(dbUser.walletBalance || '0'), // User's wallet balance for top-ups
-              user: { name: user?.name, email: user?.email, phone: user?.phone },
+              walletBalance: Number(dbUser.walletBalance || 0),
+              profitBalance,
               totalWithdrawals: withdrawnTotal,
-              role: role, // Include the actual role
-            },
-            stats,
-          });
-        } else {
-          // No agent record found - return basic user profile
-          console.log("No agent profile found for user:", dbUser.id, "returning basic profile");
-          const stats = { total: 0, completed: 0, pending: 0, revenue: 0, profit: 0 };
-
-          res.json({
-            profile: {
-              id: dbUser.id,
-              userId: dbUser.id,
-              walletBalance: parseFloat(dbUser.walletBalance || '0'),
-              profitBalance: 0,
-              totalProfit: '0',
-              totalSales: '0',
-              balance: '0',
-              user: { name: user?.name, email: user?.email, phone: user?.phone },
-              totalWithdrawals: 0,
-              role: role,
-              // Add default values for agent-specific fields
-              storefrontSlug: null,
-              businessName: null,
-              businessDescription: null,
-              isApproved: false,
-              paymentPending: false,
+              role,
+              user: {
+                name: userDetails?.name ?? null,
+                email: userDetails?.email ?? null,
+                phone: userDetails?.phone ?? null,
+              },
             },
             stats,
           });
         }
-      } else {
-        // For admin or other roles, return basic user info
-        console.log("Role not supported for detailed profile:", role);
-        res.json({
+
+        /* ------------------------
+           3B. NO AGENT RECORD YET
+        ------------------------ */
+        return res.json({
           profile: {
             id: dbUser.id,
             userId: dbUser.id,
-            walletBalance: parseFloat(dbUser.walletBalance || '0'),
+            walletBalance: Number(dbUser.walletBalance || 0),
             profitBalance: 0,
-            user: { name: user?.name, email: user?.email, phone: user?.phone },
-            role: role,
+            totalProfit: "0",
+            totalSales: "0",
+            balance: "0",
+            totalWithdrawals: 0,
+            role,
+            storefrontSlug: null,
+            businessName: null,
+            businessDescription: null,
+            isApproved: false,
+            paymentPending: false,
+            user: {
+              name: userDetails?.name ?? null,
+              email: userDetails?.email ?? null,
+              phone: userDetails?.phone ?? null,
+            },
           },
-          stats: { total: 0, completed: 0, pending: 0, revenue: 0, profit: 0 },
+          stats: {
+            total: 0,
+            completed: 0,
+            pending: 0,
+            revenue: 0,
+            profit: 0,
+          },
         });
       }
-    } catch (error: any) {
-      console.error("Profile error:", error);
-      console.error("Error stack:", error.stack);
-      res.status(500).json({ error: "Failed to load profile" });
+
+      /* --------------------------------------------------
+         4. OTHER ROLES (ADMIN ETC)
+      -------------------------------------------------- */
+      return res.json({
+        profile: {
+          id: dbUser.id,
+          userId: dbUser.id,
+          walletBalance: Number(dbUser.walletBalance || 0),
+          profitBalance: 0,
+          role,
+          user: {
+            name: userDetails?.name ?? null,
+            email: userDetails?.email ?? null,
+            phone: userDetails?.phone ?? null,
+          },
+        },
+        stats: {
+          total: 0,
+          completed: 0,
+          pending: 0,
+          revenue: 0,
+          profit: 0,
+        },
+      });
+
+    } catch (err) {
+      console.error("PROFILE API FATAL ERROR:", err);
+      return res.status(500).json({ error: "Failed to load profile" });
     }
   });
   app.patch("/api/profile", requireAuth, async (req, res) => {

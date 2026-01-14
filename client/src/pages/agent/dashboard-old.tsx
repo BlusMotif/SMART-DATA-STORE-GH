@@ -26,12 +26,16 @@ interface AgentStats {
 }
 
 interface AgentProfileResponse {
-  agent: Agent & {
+  profile: Agent & {
     user: {
       name: string;
       email: string;
       phone: string | null;
     };
+    profitBalance: number;
+    walletBalance: number;
+    totalWithdrawals: number;
+    role: string;
   };
   stats: any;
 }
@@ -47,7 +51,7 @@ export default function AgentDashboard() {
     refetchOnReconnect: true,
   });
   
-  const agent = profileData?.agent;
+  const agent = profileData?.profile;
   const [location] = useLocation();
 
   // Redirect to activation if agent is not approved (only if not already on activation page)

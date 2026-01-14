@@ -27,12 +27,16 @@ const storefrontSchema = z.object({
 type StorefrontFormData = z.infer<typeof storefrontSchema>;
 
 interface AgentProfileResponse {
-  agent: Agent & {
+  profile: Agent & {
     user: {
       name: string;
       email: string;
       phone: string | null;
     };
+    profitBalance: number;
+    walletBalance: number;
+    totalWithdrawals: number;
+    role: string;
   };
   stats: any;
 }
@@ -47,7 +51,7 @@ export default function AgentStorefront() {
     refetchOnWindowFocus: true,
   });
   
-  const agent = profileData?.agent;
+  const agent = profileData?.profile;
 
   const { data: bundles } = useQuery<DataBundle[]>({
     queryKey: ["/api/products/data-bundles"],

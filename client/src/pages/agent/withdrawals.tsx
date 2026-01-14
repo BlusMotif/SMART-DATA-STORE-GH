@@ -51,7 +51,7 @@ export default function AgentWithdrawals() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isRequestOpen, setIsRequestOpen] = useState(false);
 
-  const { data: profileData } = useQuery<{ agent: Agent }>({
+  const { data: profileData } = useQuery<{ profile: Agent & { profitBalance: number; walletBalance: number; totalWithdrawals: number; role: string } }>({
     queryKey: ["/api/profile"],
     refetchInterval: 30000, // Refresh every 30 seconds for real-time balance updates
     refetchOnWindowFocus: true,
@@ -59,7 +59,7 @@ export default function AgentWithdrawals() {
     staleTime: 0, // Always fetch fresh data
   });
 
-  const agent = profileData?.agent;
+  const agent = profileData?.profile;
 
   const { data: withdrawals, isLoading } = useQuery<Withdrawal[]>({
     queryKey: ["/api/agent/withdrawals"],

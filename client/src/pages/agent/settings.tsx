@@ -37,8 +37,12 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
 interface AgentProfileResponse {
-  agent: Agent & {
+  profile: Agent & {
     user: UserType;
+    profitBalance: number;
+    walletBalance: number;
+    totalWithdrawals: number;
+    role: string;
   };
   stats: any;
 }
@@ -51,7 +55,7 @@ export default function AgentSettings() {
     queryKey: ["/api/profile"],
   });
   
-  const profile = profileData?.agent;
+  const profile = profileData?.profile;
 
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),

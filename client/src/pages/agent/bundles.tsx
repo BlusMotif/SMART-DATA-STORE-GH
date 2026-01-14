@@ -110,7 +110,7 @@ export default function AgentBundlesPage() {
     if (!selectedBundle) return 0;
     // Use custom agent price if set, otherwise calculate with markup
     return selectedBundle.agentPrice ? parseFloat(selectedBundle.agentPrice) : 
-      parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100);
+      parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100);
   }, [selectedBundle, agentData]);
 
   // Calculate total for single purchase
@@ -141,7 +141,7 @@ export default function AgentBundlesPage() {
           
           if (matchingBundle) {
             const agentPrice = matchingBundle.agentPrice ? parseFloat(matchingBundle.agentPrice) : 
-              parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100);
+              parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100);
             total += agentPrice;
             count++;
           }
@@ -160,7 +160,7 @@ export default function AgentBundlesPage() {
       
       const phoneNumbers = [data.phoneNumber];
       const basePrice = parseFloat(bundle.basePrice);
-      const markup = agentData?.agent?.markupPercentage || 0;
+      const markup = agentData?.profile?.markupPercentage || 0;
       const agentPrice = basePrice + (basePrice * markup / 100);
       const isBulk = false;
 
@@ -296,7 +296,7 @@ export default function AgentBundlesPage() {
         
         const phoneNumbers = data.phoneNumbers;
         const basePrice = parseFloat(bundle.basePrice);
-        const markup = agentData?.agent?.markupPercentage || 0;
+        const markup = agentData?.profile?.markupPercentage || 0;
         const agentPrice = basePrice + (basePrice * markup / 100);
         const totalAmount = agentPrice * phoneNumbers.length;
 
@@ -368,7 +368,7 @@ export default function AgentBundlesPage() {
     if (!selectedBundle || !phoneNumber) return;
     
     const basePrice = parseFloat(selectedBundle.basePrice);
-    const markup = agentData?.agent?.markupPercentage || 0;
+    const markup = agentData?.profile?.markupPercentage || 0;
     const agentPrice = basePrice + (basePrice * markup / 100);
     
     if (paymentMethod === "wallet" && agentPrice > walletBalance) {
@@ -502,7 +502,7 @@ export default function AgentBundlesPage() {
       }
 
       const agentPrice = matchingBundle.agentPrice ? parseFloat(matchingBundle.agentPrice) : 
-        parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100);
+        parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100);
 
       orderItems.push({
         phone: item.phone,
@@ -667,7 +667,7 @@ export default function AgentBundlesPage() {
                             {bundles && bundles.length > 0 ? (
                               bundles.map((bundle) => {
                                 const basePrice = parseFloat(bundle.basePrice);
-                                const markup = agentData?.agent?.markupPercentage || 0;
+                                const markup = agentData?.profile?.markupPercentage || 0;
                                 const agentPrice = basePrice + (basePrice * markup / 100);
                                 return (
                                   <SelectItem key={bundle.id} value={bundle.id}>
@@ -696,11 +696,11 @@ export default function AgentBundlesPage() {
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <span className="text-2xl font-bold text-primary">
-                            GH₵{(parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)).toFixed(2)}
+                            GH₵{(parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)).toFixed(2)}
                           </span>
-                          {(agentData?.agent?.markupPercentage || 0) > 0 && (
+                          {(agentData?.profile?.markupPercentage || 0) > 0 && (
                             <Badge variant="outline" className="text-xs">
-                              +{(agentData?.agent?.markupPercentage || 0)}% markup
+                              +{(agentData?.profile?.markupPercentage || 0)}% markup
                             </Badge>
                           )}
                         </div>
@@ -737,12 +737,12 @@ export default function AgentBundlesPage() {
                             checked={paymentMethod === "wallet"}
                             onChange={() => setPaymentMethod("wallet")}
                             className="peer sr-only"
-                            disabled={selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance ? true : false}
+                            disabled={selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance ? true : false}
                           />
                           <Label
                             htmlFor="wallet-single"
                             className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all ${
-                              selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance
+                              selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""
                             }`}
@@ -760,7 +760,7 @@ export default function AgentBundlesPage() {
                               <CheckCircle className="h-5 w-5 text-primary" />
                             )}
                           </Label>
-                          {selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance && (
+                          {selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance && (
                             <div className="absolute top-2 right-2">
                               <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
                                 Insufficient
@@ -801,11 +801,11 @@ export default function AgentBundlesPage() {
                     </div>
 
                     {/* Insufficient Balance Alert */}
-                    {selectedBundle && paymentMethod === "wallet" && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance && (
+                    {selectedBundle && paymentMethod === "wallet" && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance && (
                       <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
-                          <strong>Insufficient Balance:</strong> You need GH₵{((parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) - walletBalance).toFixed(2)} more.
+                          <strong>Insufficient Balance:</strong> You need GH₵{((parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) - walletBalance).toFixed(2)} more.
                           <a href="/agent/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack.
                         </AlertDescription>
                       </Alert>
@@ -815,7 +815,7 @@ export default function AgentBundlesPage() {
                       className="w-full"
                       size="lg"
                       onClick={handleSinglePurchase}
-                      disabled={!selectedBundle || !phoneNumber || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.agent?.markupPercentage || 0) / 100)) > walletBalance)}
+                      disabled={!selectedBundle || !phoneNumber || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance)}
                     >
                       {purchaseMutation.isPending ? (
                         <>

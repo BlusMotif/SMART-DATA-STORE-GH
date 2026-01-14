@@ -29,8 +29,12 @@ import type { Agent, User } from "@shared/schema";
 import siteLogo from "@assets/logo_1765774201026.png";
 
 interface AgentProfileResponse {
-  agent: Agent & {
+  profile: Agent & {
     user: User;
+    profitBalance: number;
+    walletBalance: number;
+    totalWithdrawals: number;
+    role: string;
   };
   stats: any;
 }
@@ -98,7 +102,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
     refetchInterval: 30000, // Refresh every 30 seconds instead of 5
   });
 
-  const agent = profileData?.agent;
+  const agent = profileData?.profile;
 
   if (error) {
     return (

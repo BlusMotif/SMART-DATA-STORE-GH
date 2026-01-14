@@ -1,4 +1,46 @@
-import 
+import { Link, useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { formatCurrency } from "@/lib/utils";
+import { useState } from "react";
+import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
+import {
+  LayoutDashboard,
+  Package,
+  Settings,
+  LogOut,
+  MessageCircle,
+  ExternalLink,
+  ShoppingBag,
+  DollarSign,
+} from "lucide-react";
+
+interface AgentProfileResponse {
+  profile: {
+    profitBalance: number;
+    walletBalance: number;
+    totalProfit: string;
+    storefrontSlug?: string;
+  };
+  agent?: {
+    profitBalance: number;
+    walletBalance: number;
+    totalProfit: string;
+    storefrontSlug?: string;
+  };
+}
+
+const sidebarNavItems = [
+  { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
+  { title: "Bundles", href: "/agent/bundles", icon: Package },
+  { title: "Transactions", href: "/agent/transactions", icon: ShoppingBag },
+  { title: "Pricing", href: "/agent/pricing", icon: DollarSign },
+  { title: "Storefront", href: "/agent/storefront", icon: ExternalLink },
   { title: "Settings", href: "/agent/settings", icon: Settings },
   { title: "Support Chat", href: "/agent/support", icon: MessageCircle },
 ];

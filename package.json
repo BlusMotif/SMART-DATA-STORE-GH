@@ -1,7 +1,7 @@
 {
   "name": "smartdatastoregh",
   "version": "1.0.0",
-  "description": "Smart Data Store GH",
+  "description": "ResellersHubProGH - Data Bundles & Result Checkers",
   "main": "server/index.ts",
   "type": "module",
   "scripts": {

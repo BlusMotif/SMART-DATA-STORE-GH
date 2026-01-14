@@ -1,102 +1,109 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { supabase } from "./supabaseClient";
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    let errorMessage = res.statusText;
+/* --------------------------------------------------
+   Helpers
+-------------------------------------------------- */
+
+async function parseError(res: Response) {
+  try {
+    const text = await res.text();
+    if (!text) return res.statusText;
+
     try {
-      const text = await res.text();
-      if (text) {
-        // Try to parse as JSON first
-        try {
-          const json = JSON.parse(text);
-          errorMessage = json.error || json.message || text;
-        } catch {
-          // If not JSON, use the raw text
-          errorMessage = text;
-        }
-      }
-    } catch (e) {
-      // If parsing fails, use statusText
+      const json = JSON.parse(text);
+      return json.error || json.message || text;
+    } catch {
+      return text;
     }
-    throw new Error(errorMessage);
+  } catch {
+    return res.statusText;
   }
 }
 
-async function getAuthHeaders() {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  const headers: Record<string, string> = {};
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  return headers;
+  return token
+    ? { Authorization: `Bearer ${token}` }
+    : {};
 }
 
-export async function apiRequest(
+/* --------------------------------------------------
+   Fetch wrapper (mutations & manual requests)
+-------------------------------------------------- */
+
+export async function apiRequest<T = unknown>(
   method: string,
   url: string,
-  data?: unknown | undefined,
-): Promise<Response> {
+  body?: unknown
+): Promise<T> {
   const authHeaders = await getAuthHeaders();
 
   const res = await fetch(url, {
     method,
     headers: {
       "Content-Type": "application/json",
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
       ...authHeaders,
     },
-    body: data ? JSON.stringify(data) : undefined,
+    body: body ? JSON.stringify(body) : undefined,
     credentials: "include",
-    cache: 'no-store',
   });
 
-  await throwIfResNotOk(res);
-  return res;
+  if (!res.ok) {
+    const message = await parseError(res);
+    throw new Error(message);
+  }
+
+  return res.json();
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
+/* --------------------------------------------------
+   React Query default fetcher
+-------------------------------------------------- */
+
+type UnauthorizedBehavior = "throw" | "returnNull";
+
+export const getQueryFn =
+  <T>({ on401 }: { on401: UnauthorizedBehavior }): QueryFunction<T> =>
   async ({ queryKey }) => {
     const authHeaders = await getAuthHeaders();
 
-    const res = await fetch(queryKey.join("/") as string, {
+    const res = await fetch(queryKey[0] as string, {
       headers: {
         ...authHeaders,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
       },
       credentials: "include",
-      cache: 'no-store',
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401 && on401 === "returnNull") {
+      return null as T;
     }
 
-    await throwIfResNotOk(res);
-    return await res.json();
+    if (!res.ok) {
+      const message = await parseError(res);
+      throw new Error(message);
+    }
+
+    return res.json();
   };
+
+/* --------------------------------------------------
+   Query Client
+-------------------------------------------------- */
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: true, // Refetch when returning to tab
-      refetchOnReconnect: true, // Refetch when reconnecting
-      staleTime: 0, // Data is immediately considered stale
-      gcTime: 0, // Don't keep unused data in memory (was cacheTime in v4)
+
+      // ✅ sane defaults (NO request storms)
+      staleTime: 60 * 1000,          // 1 minute
+      gcTime: 5 * 60 * 1000,         // 5 minutes
       retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
     },
     mutations: {
       retry: false,

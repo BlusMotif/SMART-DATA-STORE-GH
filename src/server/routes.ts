@@ -6,8 +6,7 @@ import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import multer from "multer";
 import {
-  loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
-  UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker,
+  loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, UserRole, TransactionStatus, ProductType, InsertResultChecker,
   users, walletTopupTransactions, auditLogs
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
@@ -2938,18 +2937,8 @@ export async function registerRoutes(
           const stats = await storage.getTransactionStats(agent.id);
           console.log("Transaction stats:", stats);
 
-          // Compute withdrawals sum (only include approved and paid withdrawals)
-          const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-          console.log("Withdrawals count:", withdrawals.length);
-          const withdrawnTotal = withdrawals
-            .filter(w => w.status === 'approved' || w.status === 'paid')
-            .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
-          console.log("Total withdrawn:", withdrawnTotal);
-
-          // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
-          const totalProfit = parseFloat(agent.totalProfit || '0');
-          const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
-          console.log("Calculated profit balance:", profitBalance);
+          // Profit balance = totalProfit (withdrawals removed)
+            const profitBalance = parseFloat(agent.totalProfit || '0');
 
           res.json({
             profile: {
@@ -2957,7 +2946,7 @@ export async function registerRoutes(
               profitBalance: profitBalance, // Computed withdrawable profit
               walletBalance: parseFloat(dbUser.walletBalance || '0'), // User's wallet balance for top-ups
               user: { name: user?.name, email: user?.email, phone: user?.phone },
-              totalWithdrawals: withdrawnTotal,
+              // totalWithdrawals removed
               role: role, // Include the actual role
             },
             stats,
@@ -2977,7 +2966,7 @@ export async function registerRoutes(
               totalSales: '0',
               balance: '0',
               user: { name: user?.name, email: user?.email, phone: user?.phone },
-              totalWithdrawals: 0,
+              
               role: role,
               // Add default values for agent-specific fields
               storefrontSlug: null,
@@ -3179,85 +3168,8 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load recent transactions" });
     }
   });
-  app.get("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
-    try {
-      // Get user from database using email from JWT
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        return res.status(404).json({ error: "Agent not found" });
-      }
-      const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-      res.json(withdrawals);
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to load withdrawals" });
-    }
-  });
-  app.post("/api/agent/withdrawals", requireAuth, requireAgent, async (req, res) => {
-    try {
-      // Validate input
-      if (!req.body || typeof req.body !== 'object') {
-        return res.status(400).json({ error: "Invalid request body" });
-      }
-      const data = withdrawalRequestSchema.parse(req.body);
-      // Validate minimum withdrawal amount of GHC 10
-      if (data.amount < 10) {
-        return res.status(400).json({ error: "Minimum withdrawal amount is GH₵10" });
-      }
-      // Additional validation for maximum withdrawal amount
-      if (data.amount > 100000) {
-        return res.status(400).json({ error: "Maximum withdrawal amount is GH₵100,000" });
-      }
-      // Get user from database using email from JWT
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        return res.status(404).json({ error: "Agent not found" });
-      }
-      if (!agent.isApproved) {
-        return res.status(403).json({ error: "Agent not approved" });
-      }
-      // Validate user has sufficient profit wallet balance
-      const profitWallet = await storage.getProfitWallet(dbUser.id);
-      if (!profitWallet) {
-        return res.status(400).json({ error: "Profit wallet not found" });
-      }
-      const availableBalance = parseFloat(profitWallet.availableBalance);
-      if (availableBalance < data.amount) {
-        return res.status(400).json({
-          error: "Insufficient profit balance",
-          balance: availableBalance.toFixed(2),
-          requested: data.amount.toFixed(2)
-        });
-      }
-      // Create withdrawal request with pending status - admin approval required
-      // Note: Balance is NOT deducted here - only when admin approves
-      const withdrawal = await storage.createWithdrawal({
-        userId: dbUser.id,
-        amount: data.amount.toFixed(2),
-        status: WithdrawalStatus.PENDING,
-        paymentMethod: data.paymentMethod,
-        bankName: data.paymentMethod === "bank" ? data.bankName : "",
-        bankCode: data.paymentMethod === "bank" ? data.bankCode : "",
-        accountNumber: data.accountNumber,
-        accountName: data.accountName,
-      });
-      res.json({
-        ...withdrawal,
-        message: "Withdrawal request submitted successfully. It will be processed after admin approval."
-      });
-    } catch (error: any) {
-      console.error("Withdrawal error:", error);
-      console.error("Error stack:", error.stack);
-      res.status(400).json({ error: error.message || "Withdrawal failed", details: process.env.NODE_ENV === 'development' ? error.stack : undefined });
-    }
-  });
+  // Withdrawal GET endpoint removed
+  // Withdrawal POST endpoint removed
   // Agent storefront management
   app.patch("/api/agent/storefront", requireAuth, requireAgent, async (req, res) => {
     try {
@@ -3354,53 +3266,7 @@ export async function registerRoutes(
     }
   });
   // Agent wallet stats
-  app.get("/api/agent/wallet", requireAuth, requireAgent, async (req, res) => {
-    try {
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const agent = await storage.getAgentByUserId(dbUser.id);
-      if (!agent) {
-        return res.status(404).json({ error: "Agent not found" });
-      }
-      // Get agent transactions for wallet topups and spending
-      const transactions = await storage.getTransactions({
-        agentId: agent.id,
-      });
-      // Filter wallet topups (when agents top up their user wallet)
-      const walletTopups = transactions.filter(t => t.type === 'wallet_topup' && t.status === 'completed');
-      const totalTopups = walletTopups.length;
-      const totalTopupAmount = walletTopups.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      // Filter wallet payments (when agents spend from their user wallet)
-      const walletPayments = transactions.filter(t => t.paymentMethod === 'wallet');
-      const totalSpent = walletPayments.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      // Get last topup
-      const lastTopup = walletTopups.sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )[0];
-      // For agents, the "balance" refers to their profit balance (withdrawable profit)
-      // Compute withdrawals sum (only include approved and paid withdrawals)
-      const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-      const withdrawnTotal = withdrawals
-        .filter(w => w.status === 'approved' || w.status === 'paid')
-        .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
-      // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
-      const totalProfit = parseFloat(agent.totalProfit || '0');
-      const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
-      res.json({
-        balance: profitBalance.toFixed(2), // Agent's withdrawable profit balance
-        totalTopups,
-        totalTopupAmount: totalTopupAmount.toFixed(2),
-        totalSpent: totalSpent.toFixed(2),
-        lastTopupDate: lastTopup?.createdAt || null,
-        lastTopupAmount: lastTopup?.amount || null,
-      });
-    } catch (error: any) {
-      console.error("Error loading agent wallet stats:", error);
-      res.status(500).json({ error: "Failed to load wallet stats" });
-    }
-  });
+  // Agent wallet endpoint removed
   // ============================================
   // DEALER PRICING ROUTES
   // ============================================
@@ -4098,40 +3964,7 @@ export async function registerRoutes(
     }
   });
   // Admin - Withdrawals Management
-  app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { status } = req.query;
-      const withdrawals = await storage.getWithdrawals({
-        status: status as string,
-      });
-      // Get user details for each withdrawal
-      const withdrawalsWithUsers = await Promise.all(
-        withdrawals.map(async (withdrawal) => {
-          const user = await storage.getUser(withdrawal.userId);
-          // Try to get agent info, but don't fail if it doesn't exist
-          let agentInfo = null;
-          try {
-            const agent = await storage.getAgentByUserId(withdrawal.userId);
-            if (agent) {
-              agentInfo = { businessName: agent.businessName, storefrontSlug: agent.storefrontSlug };
-            }
-          } catch (error) {
-            // Agent not found, continue without agent info
-            console.log(`No agent record found for user ${withdrawal.userId}`);
-          }
-          return {
-            ...withdrawal,
-            user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
-            agent: agentInfo,
-          };
-        })
-      );
-      res.json({ withdrawals: withdrawalsWithUsers });
-    } catch (error: any) {
-      console.error("Admin withdrawals error:", error);
-      res.status(500).json({ error: "Failed to load withdrawals" });
-    }
-  });
+  // Admin withdrawals endpoint removed
   // Admin - Data Bundles CRUD
   app.get("/api/admin/data-bundles", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -4548,7 +4381,6 @@ export async function registerRoutes(
     }
   });
   // ============================================
-  // PROFIT WALLET & WITHDRAWAL ROUTES
   // ============================================
   // Get profit wallet balance
   app.get("/api/user/profit-wallet", requireAuth, async (req, res) => {
@@ -4610,217 +4442,16 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Failed to verify bank account" });
     }
   });
-  // Request withdrawal
-  app.post("/api/user/withdrawals", requireAuth, async (req, res) => {
-    try {
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const { amount, accountNumber, accountName, bankCode, bankName } = req.body;
-      // Validate amount
-      const withdrawalAmount = parseFloat(amount);
-      if (isNaN(withdrawalAmount) || withdrawalAmount < 10) {
-        return res.status(400).json({ error: "Minimum withdrawal amount is GHS 10" });
-      }
-      // Get profit wallet
-      const wallet = await storage.getProfitWallet(dbUser.id);
-      if (!wallet) {
-        return res.status(400).json({ error: "Profit wallet not found" });
-      }
-      // Check available balance (but don't deduct yet)
-      const availableBalance = parseFloat(wallet.availableBalance);
-      if (availableBalance < withdrawalAmount) {
-        return res.status(400).json({
-          error: "Insufficient available balance",
-          available: availableBalance.toFixed(2),
-          requested: withdrawalAmount.toFixed(2),
-        });
-      }
-      // Create withdrawal request (funds are NOT deducted here)
-      const withdrawal = await storage.createWithdrawal({
-        userId: dbUser.id,
-        amount: withdrawalAmount.toFixed(2),
-        status: WithdrawalStatus.PENDING,
-        paymentMethod: "bank",
-        bankName,
-        bankCode,
-        accountNumber,
-        accountName,
-      });
-      res.json({
-        withdrawal,
-        message: "Withdrawal request submitted successfully. It will be processed after admin approval.",
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to create withdrawal request" });
-    }
-  });
-  // Get user withdrawals
-  app.get("/api/user/withdrawals", requireAuth, async (req, res) => {
-    try {
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
-      res.json({ withdrawals });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to load withdrawals" });
-    }
-  });
-  // Admin routes for withdrawal management
-
+  // User withdrawal POST endpoint removed
+  // User withdrawal GET endpoint removed
   // Admin approve/reject withdrawal
-  app.patch("/api/admin/withdrawals/:id", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { action, adminNote } = req.body; // action: "approve" | "reject"
-      const withdrawal = await storage.getWithdrawal(id);
-      if (!withdrawal) {
-        return res.status(404).json({ error: "Withdrawal not found" });
-      }
-      if (action === "approve") {
-        // Check if withdrawal is pending
-        if (withdrawal.status !== "pending") {
-          return res.status(400).json({ error: "Withdrawal is not in pending status" });
-        }
-        // Deduct amount from profit wallet
-        const wallet = await storage.getProfitWallet(withdrawal.userId);
-        if (!wallet) {
-          return res.status(400).json({ error: "Profit wallet not found" });
-        }
-        const withdrawalAmount = parseFloat(withdrawal.amount);
-        const currentBalance = parseFloat(wallet.availableBalance);
-        if (currentBalance < withdrawalAmount) {
-          return res.status(400).json({ error: "Insufficient balance in profit wallet" });
-        }
-        const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
-        await storage.updateProfitWallet(withdrawal.userId, {
-          availableBalance: newBalance,
-        });
-        // Update withdrawal status to approved
-        await storage.updateWithdrawal(id, {
-          status: WithdrawalStatus.APPROVED,
-          approvedBy: req.user!.id,
-          approvedAt: new Date(),
-          adminNote,
-        });
-        res.json({
-          message: "Withdrawal approved. Admin will manually send the money.",
-          withdrawal: await storage.getWithdrawal(id),
-        });
-      } else if (action === "reject") {
-        // Check if withdrawal is pending
-        if (withdrawal.status !== "pending") {
-          return res.status(400).json({ error: "Withdrawal is not in pending status" });
-        }
-        // Update withdrawal status to rejected
-        await storage.updateWithdrawal(id, {
-          status: WithdrawalStatus.REJECTED,
-          rejectionReason: adminNote,
-        });
-        res.json({
-          message: "Withdrawal rejected",
-          withdrawal: await storage.getWithdrawal(id),
-        });
-      } else {
-        return res.status(400).json({ error: "Invalid action" });
-      }
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to process withdrawal" });
-    }
-  });
+  // Admin withdrawal PATCH endpoint removed
   // Admin approve withdrawal
-  app.post("/api/admin/withdrawals/:id/approve", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { adminNote } = req.body;
-      const withdrawal = await storage.getWithdrawal(id);
-      if (!withdrawal) {
-        return res.status(404).json({ error: "Withdrawal not found" });
-      }
-      if (withdrawal.status !== "pending") {
-        return res.status(400).json({ error: "Withdrawal is not in pending status" });
-      }
-      // Deduct amount from profit wallet
-      const wallet = await storage.getProfitWallet(withdrawal.userId);
-      if (!wallet) {
-        return res.status(400).json({ error: "Profit wallet not found" });
-      }
-      const withdrawalAmount = parseFloat(withdrawal.amount);
-      const currentBalance = parseFloat(wallet.availableBalance);
-      if (currentBalance < withdrawalAmount) {
-        return res.status(400).json({ error: "Insufficient balance in profit wallet" });
-      }
-      const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
-      await storage.updateProfitWallet(withdrawal.userId, {
-        availableBalance: newBalance,
-      });
-      // Update withdrawal status to approved
-      await storage.updateWithdrawal(id, {
-        status: WithdrawalStatus.APPROVED,
-        approvedBy: req.user!.id,
-        approvedAt: new Date(),
-        adminNote,
-      });
-      res.json({
-        message: "Withdrawal approved. Admin will manually send the money.",
-        withdrawal: await storage.getWithdrawal(id),
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to approve withdrawal" });
-    }
-  });
+  // Admin withdrawal approve endpoint removed
   // Admin reject withdrawal
-  app.post("/api/admin/withdrawals/:id/reject", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { adminNote } = req.body;
-      const withdrawal = await storage.getWithdrawal(id);
-      if (!withdrawal) {
-        return res.status(404).json({ error: "Withdrawal not found" });
-      }
-      if (withdrawal.status !== "pending") {
-        return res.status(400).json({ error: "Withdrawal is not in pending status" });
-      }
-      // Update withdrawal status to rejected
-      await storage.updateWithdrawal(id, {
-        status: WithdrawalStatus.REJECTED,
-        rejectionReason: adminNote,
-      });
-      res.json({
-        message: "Withdrawal rejected",
-        withdrawal: await storage.getWithdrawal(id),
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to reject withdrawal" });
-    }
-  });
+  // Admin withdrawal reject endpoint removed
   // Admin mark withdrawal as paid
-  app.post("/api/admin/withdrawals/:id/mark_paid", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const withdrawal = await storage.getWithdrawal(id);
-      if (!withdrawal) {
-        return res.status(404).json({ error: "Withdrawal not found" });
-      }
-      if (withdrawal.status !== "approved") {
-        return res.status(400).json({ error: "Withdrawal is not in approved status" });
-      }
-      // Update withdrawal status to paid
-      await storage.updateWithdrawal(id, {
-        status: WithdrawalStatus.PAID,
-        paidAt: new Date(),
-      });
-      res.json({
-        message: "Withdrawal marked as paid",
-        withdrawal: await storage.getWithdrawal(id),
-      });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to mark withdrawal as paid" });
-    }
-  });
+  // Admin withdrawal mark_paid endpoint removed
   // Paystack webhook for transfer status updates
   app.post("/api/webhooks/paystack", async (req, res) => {
     try {

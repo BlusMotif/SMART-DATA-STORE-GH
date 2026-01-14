@@ -27,7 +27,7 @@ import DealerDashboard from "@/pages/dealer/dashboard";
 import SuperDealerDashboard from "@/pages/super-dealer/dashboard";
 import MasterDashboard from "@/pages/master/dashboard";
 import AgentTransactions from "@/pages/agent/transactions";
-import AgentWithdrawals from "@/pages/agent/withdrawals";
+
 import AgentStorefront from "@/pages/agent/storefront";
 import AgentSettings from "@/pages/agent/settings";
 import AgentSupportPage from "@/pages/agent/support";
@@ -45,7 +45,7 @@ import AdminResultCheckers from "@/pages/admin/result-checkers";
 import AdminTransactions from "@/pages/admin/transactions";
 import AdminUsers from "@/pages/admin/users";
 import AdminAgents from "@/pages/admin/agents";
-import AdminWithdrawals from "@/pages/admin/withdrawals";
+
 import AdminChatSupport from "@/pages/admin/chat-support";
 import AdminSettings from "@/pages/admin/settings";
 import AdminRankings from "@/pages/admin/rankings";

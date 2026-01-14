@@ -1,10 +1,10 @@
-# Smart Data Store Ghana
+# ResellersHubProGH
 
 A comprehensive full-stack web application for managing mobile data bundles, result checkers, and agent storefronts. Built with React, TypeScript, Express, PostgreSQL, and Supabase.
 
 ## 🌟 Overview
 
-Smart Data Store is a multi-role platform that enables:
+ResellersHubProGH is a multi-role platform that enables:
 - **Users** to purchase data bundles and result checkers with instant delivery
 - **Agents** to run their own storefronts and earn commissions
 - **Admins** to manage products, approve agents, and monitor the entire system
@@ -115,7 +115,7 @@ Smartdatastoregh/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/BlusMotif/SMART-DATA-STORE-GH.git
+   git clone https://github.com/BlusMotif/ResellersHubProGH.git
    cd Smartdatastoregh
    ```
 
@@ -319,7 +319,7 @@ ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'paystack';
 
 1. **Connect Repository:**
    ```
-   Repository: https://github.com/BlusMotif/SMART-DATA-STORE-GH.git
+   Repository: https://github.com/BlusMotif/ResellersHubProGH.git
    Branch: main
    ```
 
@@ -395,8 +395,8 @@ This project is licensed under the MIT License.
 ## 📞 Support
 
 For issues, questions, or contributions:
-- **GitHub Issues:** [Create an issue](https://github.com/BlusMotif/SMART-DATA-STORE-GH/issues)
-- **Email:** support@smartdatastore.com
+- **GitHub Issues:** [Create an issue](https://github.com/BlusMotif/ResellersHubProGH/issues)
+- **Email:** support@resellershubprogh.com
 
 ---
 

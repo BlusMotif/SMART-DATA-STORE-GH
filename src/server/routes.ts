@@ -3007,7 +3007,7 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Profile error:", error);
       console.error("Error stack:", error.stack);
-      res.status(500).json({ error: "Failed to load profile" });
+      res.status(500).json({ error: "Failed to load profile", details: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
   });
   app.patch("/api/profile", requireAuth, async (req, res) => {
@@ -3231,7 +3231,7 @@ export async function registerRoutes(
       const availableBalance = parseFloat(profitWallet.availableBalance);
       if (availableBalance < data.amount) {
         return res.status(400).json({
-          error: "Insufficient profit wallet balance",
+          error: "Insufficient profit balance",
           balance: availableBalance.toFixed(2),
           requested: data.amount.toFixed(2)
         });
@@ -3254,7 +3254,8 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       console.error("Withdrawal error:", error);
-      res.status(400).json({ error: error.message || "Withdrawal failed" });
+      console.error("Error stack:", error.stack);
+      res.status(400).json({ error: error.message || "Withdrawal failed", details: process.env.NODE_ENV === 'development' ? error.stack : undefined });
     }
   });
   // Agent storefront management
@@ -5900,3 +5901,4 @@ export async function registerRoutes(
   });
 
 }
+

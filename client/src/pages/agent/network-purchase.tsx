@@ -19,12 +19,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
-import { NetworkBadge } from "@/components/products/network-badge";
 import { 
-  Phone, Mail, Loader2, Wifi, Clock, CreditCard, AlertCircle, 
-  ArrowLeft, Package, Layers, Upload, FileText, AlertTriangle, ShoppingCart, Smartphone 
+  Phone, Mail, Loader2, Clock, CreditCard, AlertTriangle, 
+  ArrowLeft, Package, ShoppingCart, Smartphone 
 } from "lucide-react";
-import type { DataBundle, Agent } from "@shared/schema";
+import type { DataBundle } from "@shared/schema";
 import * as XLSX from "xlsx";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -152,7 +151,6 @@ export default function AgentNetworkPurchasePage() {
     
     const lines = phoneNumbers.split('\n').filter(line => line.trim());
     // Pricing is already resolved on the server side, no additional markup needed
-    const markup = 0;
     let total = 0;
     let count = 0;
     
@@ -239,8 +237,6 @@ export default function AgentNetworkPurchasePage() {
       console.log("[Agent Frontend] Phone numbers array:", phoneNumbers);
       console.log("[Agent Frontend] First phone:", phoneNumbers[0]);
 
-      const totalAmount = price * phoneNumbers.length;
-
       const payload = {
         productType: "data_bundle",
         productId: selectedBundle.id,
@@ -269,50 +265,6 @@ export default function AgentNetworkPurchasePage() {
     },
   });
 
-  const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: "binary" });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<{ [key: string]: any }>(firstSheet, { header: 1 });
-
-        const phoneNumbers = jsonData
-          .flat()
-          .map((cell) => String(cell).trim())
-          .filter((cell) => cell && /^0[0-9]{9}$/.test(cell));
-
-        if (phoneNumbers.length === 0) {
-          toast({
-            title: "No Valid Numbers",
-            description: "Could not find any valid phone numbers in the file",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        bulkForm.setValue("phoneNumbers", phoneNumbers.join("\n"));
-        validateBulkNumbers(phoneNumbers);
-
-        toast({
-          title: "✅ File Uploaded",
-          description: `Found ${phoneNumbers.length} valid phone numbers`,
-        });
-      } catch (error) {
-        toast({
-          title: "Upload Failed",
-          description: "Could not read the Excel file",
-          variant: "destructive",
-        });
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
   const validateBulkNumbers = (numbers: string[]) => {
     if (!selectedBundle) return;
 
@@ -334,24 +286,6 @@ export default function AgentNetworkPurchasePage() {
     });
 
     setValidationResult({ valid, invalid });
-  };
-
-  const handleValidateNumbers = () => {
-    const phoneNumbers = bulkForm.getValues("phoneNumbers")
-      .split(/[\n,]/)
-      .map(n => n.trim())
-      .filter(n => n);
-
-    if (phoneNumbers.length === 0) {
-      toast({
-        title: "No Numbers Entered",
-        description: "Please enter phone numbers to validate",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    validateBulkNumbers(phoneNumbers);
   };
 
   const onSubmit = (data: SingleOrderFormData | BulkOrderFormData) => {
@@ -478,7 +412,6 @@ export default function AgentNetworkPurchasePage() {
     // Find matching bundles for each GB amount
     const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
     let totalAmount = 0;
-    const markup = 0; // Pricing is already resolved in the API
 
     for (const item of parsedData) {
       // Find a bundle that matches the GB amount
@@ -544,13 +477,9 @@ export default function AgentNetworkPurchasePage() {
     );
   }
 
-  const totalAmount = orderType === "bulk" && bulkForm.watch("phoneNumbers")
-    ? price * bulkForm.watch("phoneNumbers").split(/[\n,]/).map(n => n.trim()).filter(n => n).length
-    : price;
-
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 w-full border-b bg-background">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link href={`/store/${role}/${slug}`}>
             <Button variant="ghost" className="gap-2">
@@ -811,14 +740,14 @@ export default function AgentNetworkPurchasePage() {
                 </div>
               </Card>
 
-              <Card className="p-6 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800">
+              <Card className="p-6 border-red-200 bg-white text-black dark:bg-black dark:text-white dark:border-red-600">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <h3 className="font-semibold text-lg mb-2 text-orange-900 dark:text-orange-100">
+                    <h3 className="font-semibold text-lg mb-2 text-red-900 dark:text-red-100">
                       Our DATA REQUEST DOES NOT support:
                     </h3>
-                    <ul className="text-muted-foreground space-y-1 ml-4">
+                    <ul className="text-red-800 dark:text-red-200 space-y-1 ml-4 opacity-90">
                       <li>• Turbonet SIM</li>
                       <li>• Merchant SIM</li>
                       <li>• EVD SIM</li>
@@ -829,9 +758,25 @@ export default function AgentNetworkPurchasePage() {
                       <li>• Wrong Number</li>
                       <li>• Inactive Number</li>
                     </ul>
-                    <p className="text-orange-800 dark:text-orange-200 font-medium mt-3">
+                    <p className="text-red-800 dark:text-red-200 font-medium mt-3 opacity-95">
                       Important Notice: Any data transferred to the above SIM types is burnt and irreversible.
                     </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 border-amber-200 bg-white text-black dark:bg-black dark:text-white dark:border-amber-600">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold text-lg mb-2 text-amber-900 dark:text-amber-100">
+                      Complaint Resolution Policy
+                    </h3>
+                    <div className="text-amber-800 dark:text-amber-200 space-y-2">
+                      <p>Complaints can only be resolved within 24 hours.</p>
+                      <p>If you purchase data and do not receive it, kindly report the issue within 24 hours.</p>
+                      <p className="font-medium">Reports made after 24 hours will not be attended to.</p>
+                    </div>
                   </div>
                 </div>
               </Card>

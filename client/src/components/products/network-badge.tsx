@@ -39,7 +39,7 @@ const networkLabels: Record<string, string> = {
 
 export function NetworkBadge({ network, size = "sm", className }: NetworkBadgeProps) {
   const styles = networkStyles[network.toLowerCase()] || {
-    bg: "bg-gray-100 dark:bg-gray-800",
+    bg: "bg-gray-100 dark:bg-white",
     text: "text-gray-800 dark:text-gray-300",
     border: "border-gray-300 dark:border-gray-700",
   };

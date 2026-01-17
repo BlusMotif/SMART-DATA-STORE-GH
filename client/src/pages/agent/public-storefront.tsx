@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -20,14 +19,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/constants";
-import { validatePhoneNetwork, detectNetwork, getNetworkDisplayName, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
+import { validatePhoneNetwork, detectNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { 
-  Store, Shield, Phone, Mail, Upload, FileSpreadsheet, FileText, 
-  CheckCircle, XCircle, AlertCircle, Download, ShoppingCart, 
-  Loader2, Package, CreditCard, Smartphone, ChevronDown, ChevronUp 
+  Store, Phone, Mail, Upload, 
+  CheckCircle, XCircle, Download, 
+  Loader2, CreditCard, Smartphone, ChevronDown, ChevronUp 
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import type { Agent, DataBundle } from "@shared/schema";
+import type { Agent } from "@shared/schema";
 import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
@@ -74,7 +73,7 @@ export default function AgentPublicStorefront() {
   
   // State management
   const [currentBanner, setCurrentBanner] = useState(0);
-  const [orderType, setOrderType] = useState<"single" | "bulk">("single");
+  const [orderType] = useState<"single" | "bulk">("single");
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [selectedNetwork, setSelectedNetwork] = useState<string>("");
   const [phoneNumbers, setPhoneNumbers] = useState("");
@@ -264,7 +263,8 @@ export default function AgentPublicStorefront() {
         }
       }
 
-      const totalAmount = parseFloat(selectedBundle.price) * phoneNumbersList.length;
+      // Calculate total but don't store it since it's not used
+      parseFloat(selectedBundle.price) * phoneNumbersList.length;
 
       const payload = {
         productType: "data_bundle",
@@ -392,7 +392,7 @@ export default function AgentPublicStorefront() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur">
+      <header className="border-b sticky top-0 z-50 bg-background">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <Store className="h-6 w-6" />
@@ -717,7 +717,7 @@ export default function AgentPublicStorefront() {
                           }}>
                             <div className="grid grid-cols-2 gap-3 mt-2">
                               <Label className="cursor-pointer">
-                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "mtn" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "mtn" ? "border-primary bg-primary/10" : "border-muted hover:border-primary/50"}`}>
                                   <RadioGroupItem value="mtn" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#FFCC00", color: "#000" }}>MTN</Badge>
                                   <span className="text-sm text-center">
@@ -726,7 +726,7 @@ export default function AgentPublicStorefront() {
                                 </div>
                               </Label>
                               <Label className="cursor-pointer">
-                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "telecel" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "telecel" ? "border-primary bg-primary/10" : "border-muted hover:border-primary/50"}`}>
                                   <RadioGroupItem value="telecel" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#0066CC", color: "#fff" }}>Telecel</Badge>
                                   <span className="text-sm text-center">
@@ -735,7 +735,7 @@ export default function AgentPublicStorefront() {
                                 </div>
                               </Label>
                               <Label className="cursor-pointer">
-                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_bigtime" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_bigtime" ? "border-primary bg-primary/10" : "border-muted hover:border-primary/50"}`}>
                                   <RadioGroupItem value="at_bigtime" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AT BIG TIME</Badge>
                                   <span className="text-sm text-center">
@@ -744,7 +744,7 @@ export default function AgentPublicStorefront() {
                                 </div>
                               </Label>
                               <Label className="cursor-pointer">
-                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_ishare" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_ishare" ? "border-primary bg-primary/10" : "border-muted hover:border-primary/50"}`}>
                                   <RadioGroupItem value="at_ishare" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AT iShare</Badge>
                                   <span className="text-sm text-center">
@@ -767,7 +767,7 @@ export default function AgentPublicStorefront() {
                                   
                                   return (
                                     <Label key={bundle.id} className="cursor-pointer">
-                                      <div className={`flex items-center justify-between p-4 border-2 rounded-lg transition-all ${selectedBundleId === bundle.id ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
+                                      <div className={`flex items-center justify-between p-4 border-2 rounded-lg transition-all ${selectedBundleId === bundle.id ? "border-primary bg-primary/10" : "border-muted hover:border-primary/50"}`}>
                                         <div className="flex items-center gap-3">
                                           <RadioGroupItem value={bundle.id} className="sr-only" />
                                           <Smartphone className="h-5 w-5 text-muted-foreground" />

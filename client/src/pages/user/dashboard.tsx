@@ -27,7 +27,7 @@ export default function UserDashboard() {
   // Fetch user stats
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/user/stats"],
-    queryFn: () => apiRequest("/api/user/stats"),
+    queryFn: () => apiRequest("/api/user/stats", { disableAutoLogout: true }),
     refetchInterval: 10000,
   });
 
@@ -56,7 +56,7 @@ export default function UserDashboard() {
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
+        <SheetContent side="left" className="p-0 w-64 bg-background">
           <VisuallyHidden>
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for your dashboard</SheetDescription>
@@ -75,7 +75,7 @@ export default function UserDashboard() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64">
+              <SheetContent side="left" className="p-0 w-64 bg-background">
                 <VisuallyHidden>
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for your dashboard</SheetDescription>

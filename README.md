@@ -1,10 +1,10 @@
-# Smart Data Store Ghana
+# resellershubprogh
 
 A comprehensive full-stack web application for managing mobile data bundles, result checkers, and agent storefronts. Built with React, TypeScript, Express, PostgreSQL, and Supabase.
 
 ## 🌟 Overview
 
-Smart Data Store is a multi-role platform that enables:
+resellershubprogh is a multi-role platform that enables:
 - **Users** to purchase data bundles and result checkers with instant delivery
 - **Agents** to run their own storefronts and earn commissions
 - **Admins** to manage products, approve agents, and monitor the entire system

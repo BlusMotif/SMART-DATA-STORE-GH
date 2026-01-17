@@ -236,7 +236,7 @@ export default function CheckoutPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       
-      <main className="flex-1 py-12 px-4">
+      <main className="flex-1 py-12 px-4 pt-16">
         <div className="container mx-auto max-w-4xl">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             {/* Order Summary */}
@@ -337,7 +337,7 @@ export default function CheckoutPage() {
                                       disabled={hasInsufficientBalance}
                                     />
                                     <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all ${
+                                      className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 cursor-pointer transition-all ${
                                         hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
                                     >
@@ -371,7 +371,7 @@ export default function CheckoutPage() {
                                     className="peer sr-only"
                                   />
                                   <Label
-                                    className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
+                                    className="flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 cursor-pointer transition-all"
                                   >
                                     <div className="flex items-center gap-3">
                                       <CreditCard className="h-5 w-5" />
@@ -395,7 +395,7 @@ export default function CheckoutPage() {
                       />
 
                       {hasInsufficientBalance && form.watch("paymentMethod") === "wallet" && (
-                        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                        <Alert variant="destructive" className="border-destructive/50 bg-destructive/20">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-sm">
                             <strong>Insufficient Balance:</strong> You need GH₵{(price - walletBalance).toFixed(2)} more. 

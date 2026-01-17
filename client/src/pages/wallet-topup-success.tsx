@@ -14,11 +14,29 @@ export default function WalletTopupSuccessPage() {
   const reference = searchParams.get("reference");
   const queryClient = useQueryClient();
   const [verificationAttempts, setVerificationAttempts] = useState(0);
-  const { user, agent } = useAuth();
+  const { user, agent, isLoading: authLoading } = useAuth();
+
+  // Show loading while authentication is being restored
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-16 flex items-center justify-center">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Restoring Session</h2>
+              <p className="text-muted-foreground">Please wait while we verify your authentication...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const { data: verificationResult, isLoading, error } = useQuery({
     queryKey: [`/api/wallet/topup/verify/${reference}`],
-    queryFn: () => apiRequest(`/api/wallet/topup/verify/${reference}`),
+    queryFn: () => apiRequest(`/api/wallet/topup/verify/${reference}`, { disableAutoLogout: true }),
     enabled: !!reference,
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -122,7 +140,7 @@ export default function WalletTopupSuccessPage() {
               <p className="text-muted-foreground">
                 {verificationResult?.message || "We couldn't verify your payment. If you were charged, please contact support with the transaction reference above."}
               </p>
-              <div className="bg-card p-3 rounded-lg">
+              <div className="bg-white dark:bg-black p-3 rounded-lg">
                 <p className="text-sm font-medium mb-1">ℹ️ What to do next:</p>
                 <ul className="text-sm text-muted-foreground space-y-1 ml-4 list-disc">
                   <li>Check your email for payment confirmation</li>
@@ -163,7 +181,7 @@ export default function WalletTopupSuccessPage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="container mx-auto px-4 py-16 flex items-center justify-center">
+      <div className="container mx-auto px-4 py-16 pt-16 flex items-center justify-center">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-600">

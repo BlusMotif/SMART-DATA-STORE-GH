@@ -38,7 +38,7 @@ export default function PublicRankings() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-background">
       <header className="border-b">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-4">
@@ -84,7 +84,7 @@ export default function PublicRankings() {
                       {topCustomers.map((customer, index) => (
                         <TableRow
                           key={customer.customerPhone}
-                          className={isCurrentUser(customer.customerPhone) ? "bg-primary/10" : ""}
+                          className={isCurrentUser(customer.customerPhone) ? "bg-primary/20" : ""}
                         >
                           <TableCell className="text-center">
                             {getRankIcon(index)}

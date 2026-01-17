@@ -25,7 +25,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
-import siteLogo from "@assets/logo_1765774201026.png";
 
 // Function to get ranking badge based on user role
 const getRankingBadge = (role: string) => {
@@ -156,16 +155,11 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
         </div>
       )}
       <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
-        <img
-          src={siteLogo}
-          alt="Logo"
-          className="h-8 w-8 rounded-lg object-contain"
-        />
         <div className="flex flex-col">
           <span className="font-semibold text-sm">{user?.name || 'Admin'}</span>
           {rankData && (
             <div className="flex items-center gap-1.5 mt-1">
-              <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/10 to-orange-500/10 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
                 <Trophy className="h-3 w-3" />
                 <span>
                   {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}

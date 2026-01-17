@@ -13,6 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { AlertTriangle, Save, Menu, Settings, Lock, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 
 interface BreakSettings {
   isEnabled: boolean;
@@ -22,6 +23,7 @@ interface BreakSettings {
 export default function AdminBreakSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user, isLoading: authLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
   const [message, setMessage] = useState("");
@@ -29,6 +31,7 @@ export default function AdminBreakSettings() {
   // Fetch current break settings
   const { data: breakSettings, isLoading } = useQuery<BreakSettings>({
     queryKey: ["/api/admin/break-settings"],
+    enabled: !!user,
   });
 
   useEffect(() => {
@@ -78,6 +81,14 @@ export default function AdminBreakSettings() {
       message: message.trim(),
     });
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -178,7 +189,7 @@ export default function AdminBreakSettings() {
                       <div className="text-center space-y-4">
                         <div className="flex justify-center">
                           <div className="relative">
-                            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                               <Lock className="h-8 w-8 text-red-600 dark:text-red-400" />
                             </div>
                             <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">

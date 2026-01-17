@@ -22,8 +22,10 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
 import { Loader2, Mail, Lock, User, Phone, Store, Link2, Eye, EyeOff, ArrowLeft, AlertCircle, CheckCircle2, Info, Copy } from "lucide-react";
-import siteLogo from "@assets/logo_1765774201026.png";
 import { getAgentId } from "@/lib/store-context";
+import { useTheme } from "@/components/theme-provider";
+import logoLight from "@assets/logo_1765774201026.png";
+import logoDark from "@assets/darkmode-icon.jpg";
 
 const agentRegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -57,6 +59,7 @@ export default function AgentRegisterPage() {
     return true;
   });
   const { toast } = useToast();
+  const { theme } = useTheme();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -156,7 +159,7 @@ export default function AgentRegisterPage() {
       </nav>
       
       <Dialog open={showInfoDialog} onOpenChange={handleInfoDialogChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Info className="h-6 w-6 text-blue-600" />
@@ -235,7 +238,7 @@ export default function AgentRegisterPage() {
           <Card className="w-full shadow-xl border-2 border-yellow-400">
             <CardHeader className="text-center space-y-2">
               <div className="flex justify-center mb-4">
-                <img src={siteLogo} alt="Logo" className="h-16 w-auto object-contain" />
+                <img src={theme === 'dark' ? logoDark : logoLight} alt="ResellersHub Pro" className="h-12 w-auto" />
               </div>
               <CardTitle className="text-2xl font-bold">Become an Agent</CardTitle>
               <CardDescription>

@@ -91,14 +91,14 @@ export default function WalletDashboard() {
   // Fetch wallet stats
   const { data: stats, isLoading: statsLoading } = useQuery<WalletStats>({
     queryKey: ["/api/wallet/stats"],
-    queryFn: () => apiRequest("/api/wallet/stats"),
+    queryFn: () => apiRequest("/api/wallet/stats", { disableAutoLogout: true }),
     refetchInterval: 10000, // Refresh every 10 seconds
   });
 
   // Fetch all transactions
   const { data: allTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/transactions"],
-    queryFn: () => apiRequest("/api/transactions"),
+    queryFn: () => apiRequest("/api/transactions", { disableAutoLogout: true }),
     refetchInterval: 10000,
   });
 
@@ -125,7 +125,7 @@ export default function WalletDashboard() {
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
+        <SheetContent side="left" className="p-0 w-64 bg-background">
           <VisuallyHidden>
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for your wallet</SheetDescription>
@@ -144,7 +144,7 @@ export default function WalletDashboard() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64">
+              <SheetContent side="left" className="p-0 w-64 bg-background">
                 <VisuallyHidden>
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for your wallet</SheetDescription>

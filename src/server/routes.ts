@@ -845,7 +845,7 @@ export async function registerRoutes(
       const activationFee = 60.00; // GHC 60.00
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
       console.log("Initializing payment without creating account");
-      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
@@ -858,7 +858,7 @@ export async function registerRoutes(
           amount: Math.round(activationFee * 100), // Convert to pesewas
           currency: "GHS",
           reference: tempReference,
-          callback_url: `${baseUrl}/agent/activation-complete`,
+          callback_url: `${frontendUrl}/agent/activation-complete`,
           metadata: {
             purpose: "agent_activation",
             pending_registration: true,
@@ -987,7 +987,7 @@ export async function registerRoutes(
         console.log("Initializing Paystack payment...");
         // Initialize Paystack payment
         console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
-        const baseUrl = `${req.protocol}://${req.get("host")}`;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",
           headers: {
@@ -999,7 +999,7 @@ export async function registerRoutes(
             amount: Math.round(activationFee * 100),
             currency: "GHS",
             reference: tempReference,
-            callback_url: `${baseUrl}/agent/activation-complete`,
+            callback_url: `${frontendUrl}/agent/activation-complete`,
             metadata: {
               purpose: "agent_activation",
               agent_id: agent.id,
@@ -2141,7 +2141,9 @@ export async function registerRoutes(
       }
       // Initialize Paystack payment
       const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
-      const callbackUrl = `${req.protocol}://${req.get("host")}/checkout/success?reference=${reference}`;
+      // Use frontend URL for callback instead of backend URL
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
       console.log("[Checkout] Paystack initialization:", {
         totalAmount,
         amountInPesewas: Math.round(totalAmount * 100),
@@ -4427,33 +4429,73 @@ export async function registerRoutes(
   app.post("/api/seed/products", requireAuth, requireAdmin, async (req, res) => {
     try {
       const existingBundles = await storage.getDataBundles({});
-      if (existingBundles.length > 0) {
-        return res.json({ message: "Products already exist", count: existingBundles.length });
+      const existingCheckers = await storage.getResultCheckers({});
+      
+      let bundlesSeeded = 0;
+      let checkersSeeded = 0;
+      
+      // Seed data bundles if they don't exist
+      if (existingBundles.length === 0) {
+        const sampleBundles = [
+          { name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
+          { name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
+          { name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", agentPrice: "7.20", dealerPrice: "6.80", superDealerPrice: "6.40", masterPrice: "6.00", adminPrice: "5.60" },
+          { name: "Weekly Pro", network: "mtn", dataAmount: "5GB", validity: "7 Days", basePrice: "15.00", agentPrice: "13.50", dealerPrice: "12.75", superDealerPrice: "12.00", masterPrice: "11.25", adminPrice: "10.50" },
+          { name: "Monthly Starter", network: "mtn", dataAmount: "10GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
+          { name: "Monthly Premium", network: "mtn", dataAmount: "20GB", validity: "30 Days", basePrice: "45.00", agentPrice: "40.50", dealerPrice: "38.25", superDealerPrice: "36.00", masterPrice: "33.75", adminPrice: "31.50" },
+          { name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
+          { name: "Daily Plus", network: "telecel", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
+          { name: "Weekly Basic", network: "telecel", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
+          { name: "Weekly Pro", network: "telecel", dataAmount: "6GB", validity: "7 Days", basePrice: "18.00", agentPrice: "16.20", dealerPrice: "15.30", superDealerPrice: "14.40", masterPrice: "13.50", adminPrice: "12.60" },
+          { name: "Monthly Basic", network: "telecel", dataAmount: "8GB", validity: "30 Days", basePrice: "22.00", agentPrice: "19.80", dealerPrice: "18.70", superDealerPrice: "17.60", masterPrice: "16.50", adminPrice: "15.40" },
+          { name: "Monthly Plus", network: "telecel", dataAmount: "15GB", validity: "30 Days", basePrice: "38.00", agentPrice: "34.20", dealerPrice: "32.30", superDealerPrice: "30.40", masterPrice: "28.50", adminPrice: "26.60" },
+          { name: "Daily Bundle", network: "at_bigtime", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
+          { name: "Weekly Bundle", network: "at_bigtime", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", agentPrice: "7.20", dealerPrice: "6.80", superDealerPrice: "6.40", masterPrice: "6.00", adminPrice: "5.60" },
+          { name: "Monthly Bundle", network: "at_bigtime", dataAmount: "5GB", validity: "30 Days", basePrice: "20.00", agentPrice: "18.00", dealerPrice: "17.00", superDealerPrice: "16.00", masterPrice: "15.00", adminPrice: "14.00" },
+          { name: "Daily iShare", network: "at_ishare", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", agentPrice: "2.25", dealerPrice: "2.13", superDealerPrice: "2.00", masterPrice: "1.88", adminPrice: "1.75" },
+          { name: "Weekly iShare", network: "at_ishare", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
+          { name: "Monthly iShare", network: "at_ishare", dataAmount: "8GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
+        ];
+        for (const bundle of sampleBundles) {
+          await storage.createDataBundle(bundle);
+        }
+        bundlesSeeded = sampleBundles.length;
       }
-      const sampleBundles = [
-        { name: "Daily Lite", network: "mtn", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
-        { name: "Daily Plus", network: "mtn", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
-        { name: "Weekly Basic", network: "mtn", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", agentPrice: "7.20", dealerPrice: "6.80", superDealerPrice: "6.40", masterPrice: "6.00", adminPrice: "5.60" },
-        { name: "Weekly Pro", network: "mtn", dataAmount: "5GB", validity: "7 Days", basePrice: "15.00", agentPrice: "13.50", dealerPrice: "12.75", superDealerPrice: "12.00", masterPrice: "11.25", adminPrice: "10.50" },
-        { name: "Monthly Starter", network: "mtn", dataAmount: "10GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
-        { name: "Monthly Premium", network: "mtn", dataAmount: "20GB", validity: "30 Days", basePrice: "45.00", agentPrice: "40.50", dealerPrice: "38.25", superDealerPrice: "36.00", masterPrice: "33.75", adminPrice: "31.50" },
-        { name: "Daily Lite", network: "telecel", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
-        { name: "Daily Plus", network: "telecel", dataAmount: "1GB", validity: "1 Day", basePrice: "3.50", agentPrice: "3.15", dealerPrice: "2.98", superDealerPrice: "2.80", masterPrice: "2.63", adminPrice: "2.45" },
-        { name: "Weekly Basic", network: "telecel", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
-        { name: "Weekly Pro", network: "telecel", dataAmount: "6GB", validity: "7 Days", basePrice: "18.00", agentPrice: "16.20", dealerPrice: "15.30", superDealerPrice: "14.40", masterPrice: "13.50", adminPrice: "12.60" },
-        { name: "Monthly Basic", network: "telecel", dataAmount: "8GB", validity: "30 Days", basePrice: "22.00", agentPrice: "19.80", dealerPrice: "18.70", superDealerPrice: "17.60", masterPrice: "16.50", adminPrice: "15.40" },
-        { name: "Monthly Plus", network: "telecel", dataAmount: "15GB", validity: "30 Days", basePrice: "38.00", agentPrice: "34.20", dealerPrice: "32.30", superDealerPrice: "30.40", masterPrice: "28.50", adminPrice: "26.60" },
-        { name: "Daily Bundle", network: "at_bigtime", dataAmount: "500MB", validity: "1 Day", basePrice: "2.00", agentPrice: "1.80", dealerPrice: "1.70", superDealerPrice: "1.60", masterPrice: "1.50", adminPrice: "1.40" },
-        { name: "Weekly Bundle", network: "at_bigtime", dataAmount: "2GB", validity: "7 Days", basePrice: "8.00", agentPrice: "7.20", dealerPrice: "6.80", superDealerPrice: "6.40", masterPrice: "6.00", adminPrice: "5.60" },
-        { name: "Monthly Bundle", network: "at_bigtime", dataAmount: "5GB", validity: "30 Days", basePrice: "20.00", agentPrice: "18.00", dealerPrice: "17.00", superDealerPrice: "16.00", masterPrice: "15.00", adminPrice: "14.00" },
-        { name: "Daily iShare", network: "at_ishare", dataAmount: "750MB", validity: "1 Day", basePrice: "2.50", agentPrice: "2.25", dealerPrice: "2.13", superDealerPrice: "2.00", masterPrice: "1.88", adminPrice: "1.75" },
-        { name: "Weekly iShare", network: "at_ishare", dataAmount: "3GB", validity: "7 Days", basePrice: "10.00", agentPrice: "9.00", dealerPrice: "8.50", superDealerPrice: "8.00", masterPrice: "7.50", adminPrice: "7.00" },
-        { name: "Monthly iShare", network: "at_ishare", dataAmount: "8GB", validity: "30 Days", basePrice: "25.00", agentPrice: "22.50", dealerPrice: "21.25", superDealerPrice: "20.00", masterPrice: "18.75", adminPrice: "17.50" },
-      ];
-      for (const bundle of sampleBundles) {
-        await storage.createDataBundle(bundle);
+
+      // Seed result checkers if they don't exist
+      if (existingCheckers.length === 0) {
+        const currentYear = new Date().getFullYear();
+        const years = [currentYear, currentYear - 1, currentYear - 2];
+        const sampleResultCheckers = [];
+        
+        for (const year of years) {
+          for (const type of ["bece", "wassce"]) {
+            // Create 10 sample result checkers for each type/year combination
+            for (let i = 1; i <= 10; i++) {
+              sampleResultCheckers.push({
+                type,
+                year,
+                serialNumber: `${type.toUpperCase()}${year}${String(i).padStart(3, '0')}`,
+                pin: `PIN${year}${String(i).padStart(3, '0')}`,
+                basePrice: type === "bece" ? "15.00" : "25.00"
+              });
+            }
+          }
+        }
+
+        for (const checker of sampleResultCheckers) {
+          await storage.createResultChecker(checker);
+        }
+        checkersSeeded = sampleResultCheckers.length;
       }
-      res.json({ message: "Products seeded successfully", count: sampleBundles.length });
+
+      res.json({ 
+        message: "Products seeded successfully", 
+        dataBundles: bundlesSeeded || existingBundles.length,
+        resultCheckers: checkersSeeded || existingCheckers.length,
+        bundlesSeeded,
+        checkersSeeded
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to seed products" });
     }
@@ -5265,7 +5307,8 @@ export async function registerRoutes(
         status: TransactionStatus.PENDING,
       });
       // Initialize Paystack payment
-      const callbackUrl = `${req.protocol}://${req.get("host")}/wallet/topup/success`;
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const callbackUrl = `${frontendUrl}/wallet/topup/success`;
       const paystackResponse = await initializePayment({
         email: dbUser.email,
         amount: Math.round(parseFloat(amount) * 100),

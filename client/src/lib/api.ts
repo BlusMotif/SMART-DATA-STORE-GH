@@ -57,7 +57,8 @@ export const api = {
 };
 
 // API request utility
-export async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+export async function apiRequest(endpoint: string, options: RequestInit & { disableAutoLogout?: boolean } = {}): Promise<any> {
+  const { disableAutoLogout, ...fetchOptions } = options;
   const url = api.buildUrl(endpoint);
 
   // Get access token from Supabase session
@@ -71,10 +72,10 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}): P
       'Pragma': 'no-cache',
       'Expires': '0',
       ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
+      ...fetchOptions.headers,
     },
     cache: 'no-store',
-    ...options,
+    ...fetchOptions,
   });
 
   if (!response.ok) {
@@ -82,8 +83,8 @@ export async function apiRequest(endpoint: string, options: RequestInit = {}): P
     const errorMessage = errorData.error || errorData.message || `API request failed: ${response.status} ${response.statusText}`;
     console.error('API Error:', { endpoint, status: response.status, error: errorData });
     
-    // If unauthorized, sign out the user
-    if (response.status === 401) {
+    // If unauthorized, sign out the user (unless disabled)
+    if (response.status === 401 && !disableAutoLogout) {
       await supabase.auth.signOut();
       window.location.href = '/login';
       throw new Error('Session expired. Please log in again.');

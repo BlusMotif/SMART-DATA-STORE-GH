@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, Loader2, XCircle, AlertCircle } from "lucide-react";
-import siteLogo from "@assets/logo_1765774201026.png";
 import { APP_NAME } from "@/lib/constants";
+import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/components/theme-provider";
+import logoLight from "@assets/logo_1765774201026.png";
+import logoDark from "@assets/darkmode-icon.jpg";
 
 export default function AgentActivationCompletePage() {
   const [status, setStatus] = useState<"processing" | "success" | "failed" | "cancelled">("processing");
@@ -15,6 +18,8 @@ export default function AgentActivationCompletePage() {
   const [agentEmail, setAgentEmail] = useState<string>("");
   const [, setLocation] = useLocation();
   const [redirectCountdown, setRedirectCountdown] = useState<number>(6);
+  const { user, isLoading: authLoading } = useAuth();
+  const { theme } = useTheme();
 
   useEffect(() => {
     // Get reference from URL
@@ -95,10 +100,10 @@ export default function AgentActivationCompletePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
       <div className="flex-1 flex items-center justify-center">
-        <Card className="w-full max-w-lg shadow-xl border-2 bg-white border-gray-200">
+        <Card className="w-full max-w-lg shadow-xl border-2 bg-white dark:bg-black border-gray-200">
           <CardHeader className="text-center space-y-2">
             <div className="flex justify-center mb-4">
-              <img src={siteLogo} alt="Logo" className="h-16 w-auto object-contain" />
+              <img src={theme === 'dark' ? logoDark : logoLight} alt="ResellersHub Pro" className="h-12 w-auto" />
             </div>
             <CardTitle className="text-2xl font-bold">Agent Activation</CardTitle>
             <CardDescription>
@@ -107,7 +112,7 @@ export default function AgentActivationCompletePage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {status === "processing" && (
-              <Alert className="bg-white border border-blue-200">
+              <Alert className="bg-white dark:bg-black border border-blue-200">
                 <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                 <AlertTitle className="text-blue-900">Processing Payment...</AlertTitle>
                 <AlertDescription className="text-blue-800">
@@ -118,7 +123,7 @@ export default function AgentActivationCompletePage() {
 
             {status === "success" && (
               <>
-                <Alert className="bg-white border border-green-200">
+                <Alert className="bg-white dark:bg-black border border-green-200">
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                   <AlertTitle className="text-green-900 text-lg font-semibold">🎉 Account Activated Successfully!</AlertTitle>
                   <AlertDescription className="text-green-800 space-y-3 mt-2">
@@ -126,7 +131,7 @@ export default function AgentActivationCompletePage() {
                       Congratulations! Your agent account has been successfully created and activated.
                     </p>
                     
-                    <div className="bg-white/50 p-3 rounded-md border border-green-300">
+                    <div className="bg-white/80 dark:bg-black/80 p-3 rounded-md border border-green-300">
                       <p className="font-semibold text-sm mb-2">✉️ Account Details:</p>
                       {agentEmail && (
                         <p className="text-sm">
@@ -166,7 +171,7 @@ export default function AgentActivationCompletePage() {
 
             {status === "cancelled" && (
               <>
-                <Alert className="bg-white border border-amber-200">
+                <Alert className="bg-white dark:bg-black border border-amber-200">
                   <AlertCircle className="h-5 w-5 text-amber-600" />
                   <AlertTitle className="text-amber-900 text-lg font-semibold">Payment Cancelled</AlertTitle>
                   <AlertDescription className="text-amber-800">
@@ -198,7 +203,7 @@ export default function AgentActivationCompletePage() {
 
             {status === "failed" && (
               <>
-                <Alert className="bg-white border border-red-200">
+                <Alert className="bg-white dark:bg-black border border-red-200">
                   <XCircle className="h-5 w-5 text-red-600" />
                   <AlertTitle className="text-red-900 text-lg font-semibold">Activation Failed</AlertTitle>
                   <AlertDescription className="text-red-800">

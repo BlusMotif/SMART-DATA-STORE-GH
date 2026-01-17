@@ -45,7 +45,7 @@ export default function DataBundlesPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
 
-      <main className="flex-1">
+      <main className="flex-1 pt-16">
         {/* Products Section - Logo Grid */}
         <section id="products" className="py-12 px-4">
           <div className="container mx-auto max-w-4xl space-y-8">

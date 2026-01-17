@@ -35,7 +35,7 @@ export default function MainDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-16">
         <div className="max-w-5xl mx-auto space-y-6">
           {/* Page Title */}
           <div className="text-center space-y-2">
@@ -64,8 +64,8 @@ export default function MainDashboard() {
                       key={customer.customerPhone}
                       className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
                         isCurrentUser(customer.customerPhone)
-                          ? "bg-primary/10 border-primary shadow-md"
-                          : "bg-card hover:bg-accent/50"
+                          ? "bg-primary/20 border-primary shadow-md"
+                          : "bg-white dark:bg-black hover:bg-accent/80"
                       }`}
                     >
                       <div className="flex items-center gap-4 flex-1">

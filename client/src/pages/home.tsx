@@ -1,13 +1,26 @@
 import { useState, useEffect } from "react";
-// import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
-import { Card } from "@/components/ui/card";
-import { APP_NAME } from "@/lib/constants";
-import { ArrowRight, Truck, Shield, Headphones, DollarSign } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Hero } from "@/components/ui/hero";
+import { Stats } from "@/components/ui/stats";
+import { Features } from "@/components/ui/features";
+import { CTA } from "@/components/ui/cta";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  ArrowRight,
+  Zap,
+  Shield,
+  Headphones,
+  DollarSign,
+  Users,
+  Smartphone,
+  CheckCircle,
+  Award
+} from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
@@ -19,77 +32,125 @@ import { OrderTracker } from "@/components/order-tracker";
 
 const bannerImages = [banner1, banner2, banner3];
 
-
-// Fetch data bundles from backend
 export default function HomePage() {
   const [currentBanner, setCurrentBanner] = useState(0);
   const { user, isAuthenticated } = useAuth();
+
+  // Auto-rotate banners
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Product categories for homepage
   const productCategories = [
     {
       id: "mtn",
-      name: "MTN Data Bundles",
-      description: "Buy MTN data bundles.",
-      image: mtnLogo,
-      href: "/products/mtn"
+      title: "MTN Data Bundles",
+      description: "Fast & reliable MTN data packages",
+      icon: () => (
+        <img
+          src={mtnLogo}
+          alt="MTN"
+          className="w-8 h-8 object-contain"
+        />
+      ),
+      color: "bg-gradient-to-br from-yellow-400 to-orange-500"
     },
     {
       id: "telecel",
-      name: "Telecel Data Bundles",
-      description: "Buy Telecel data bundles.",
-      image: telecelLogo,
-      href: "/products/telecel"
+      title: "Telecel Data Bundles",
+      description: "Affordable Telecel data solutions",
+      icon: () => (
+        <img
+          src={telecelLogo}
+          alt="Telecel"
+          className="w-8 h-8 object-contain"
+        />
+      ),
+      color: "bg-gradient-to-br from-blue-400 to-blue-600"
     },
     {
       id: "at_bigtime",
-      name: "AT BIG TIME Bundles",
-      description: "Buy AT BIG TIME data bundles.",
-      image: airteltigoLogo,
-      href: "/products/at_bigtime"
+      title: "AT BIG TIME Bundles",
+      description: "High-speed AirtelTigo bundles",
+      icon: () => (
+        <img
+          src={airteltigoLogo}
+          alt="AirtelTigo"
+          className="w-8 h-8 object-contain"
+        />
+      ),
+      color: "bg-gradient-to-br from-red-400 to-red-600"
     },
     {
       id: "at_ishare",
-      name: "AT iShare Bundles",
-      description: "Buy AT iShare data bundles.",
-      image: airteltigoLogo,
-      href: "/products/at_ishare"
+      title: "AT iShare Bundles",
+      description: "Flexible AirtelTigo iShare plans",
+      icon: () => (
+        <img
+          src={airteltigoLogo}
+          alt="AirtelTigo"
+          className="w-8 h-8 object-contain"
+        />
+      ),
+      color: "bg-gradient-to-br from-purple-400 to-purple-600"
     },
     {
       id: "waec-result-checker",
-      name: "WAEC Result Checker",
-      description: "Purchase BECE & WASSCE result checkers.",
-      image: resultLogo,
-      href: "/products/result-checkers"
+      title: "WAEC Result Checker",
+      description: "Instant BECE & WASSCE results",
+      icon: () => (
+        <img
+          src={resultLogo}
+          alt="WAEC"
+          className="w-8 h-8 object-contain"
+        />
+      ),
+      color: "bg-gradient-to-br from-green-400 to-green-600"
     },
   ];
 
   // Features for homepage
   const features = [
     {
-      id: "fast-delivery",
-      title: "Fast Delivery",
-      description: "Faster data delivery for all networks.",
-      icon: Truck,
+      id: "instant-delivery",
+      title: "Instant Delivery",
+      description: "Get your data bundles delivered instantly after payment",
+      icon: Zap,
+      color: "bg-gradient-to-br from-yellow-400/10 to-orange-500/10"
     },
     {
       id: "secured-payment",
-      title: "Secured Payment",
-      description: "100% secured payment.",
+      title: "100% Secure Payment",
+      description: "Bank-grade security with encrypted transactions",
       icon: Shield,
+      color: "bg-gradient-to-br from-green-400/10 to-green-600/10"
     },
     {
       id: "customer-support",
-      title: "Customer Support",
-      description: "24/7 Customer support.",
+      title: "24/7 Support",
+      description: "Round-the-clock customer support for all your needs",
       icon: Headphones,
+      color: "bg-gradient-to-br from-blue-400/10 to-blue-600/10"
     },
     {
-      id: "affordable-packages",
-      title: "Affordable Packages",
-      description: "Access cheap data bundles easily.",
+      id: "best-prices",
+      title: "Best Market Prices",
+      description: "Competitive pricing with exclusive agent discounts",
       icon: DollarSign,
+      color: "bg-gradient-to-br from-purple-400/10 to-purple-600/10"
     },
+  ];
+
+  // Stats
+  const stats = [
+    { label: "Happy Customers", value: "50K+", icon: Users },
+    { label: "Data Bundles Sold", value: "1M+", icon: Smartphone },
+    { label: "Success Rate", value: "99.9%", icon: CheckCircle },
+    { label: "Years of Service", value: "5+", icon: Award },
   ];
 
   const getAgentCtaLink = () => {
@@ -99,137 +160,130 @@ export default function HomePage() {
   };
 
   const getAgentCtaText = () => {
-    if (!isAuthenticated || !user) return "Start Earning Today";
+    if (!isAuthenticated || !user) return "Become an Agent";
     if (user.role === "agent" || user.role === "dealer" || user.role === "super_dealer") return "Go to Dashboard";
     return "Become an Agent";
   };
 
-  return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <Header />
-      
-      <main className="flex-1">
-        {/* Hero Section with Banner */}
-        <section className="relative" data-testid="banner-carousel">
-          <div className="relative h-[400px] md:h-[500px]">
-            {bannerImages.map((img, index) => (
-              <img
-                key={index}
-                src={img}
-                alt={`Banner ${index + 1}`}
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-                  index === currentBanner ? "opacity-100" : "opacity-0"
-                }`}
-                data-testid={`img-banner-${index + 1}`}
-              />
-            ))}
-            <div className="absolute inset-0 bg-black/50" />
-            
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="container mx-auto max-w-6xl text-center px-4">
-                <h1 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight text-white" data-testid="text-hero-title">
-                  Your Trusted Platform for
-                  <span className="text-blue-400"> Digital Products</span>
-                </h1>
-                <p className="text-lg text-white/90 max-w-2xl mx-auto">
-                  Purchase data bundles and WAEC result checkers instantly.
-                </p>
-              </div>
-            </div>
+  const nextBanner = () => {
+    setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
+  };
 
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-              {bannerImages.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentBanner(index)}
-                  className={`w-3 h-3 rounded-full transition-colors ${
-                    index === currentBanner ? "bg-white" : "bg-white/50"
-                  }`}
-                  aria-label={`Go to banner ${index + 1}`}
-                  data-testid={`button-banner-dot-${index + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
+  const prevBanner = () => {
+    setCurrentBanner((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+
+      <main>
+        {/* Hero Section */}
+        <Hero
+          title={
+            <span className="text-xl md:text-4xl lg:text-5xl font-bold text-center block">
+              Your Trusted Platform for Digital{" "}
+              <span className="text-blue-600">Products</span>
+            </span>
+          }
+          description="Purchase data bundles and WAEC result checkers instantly with secure payments and instant delivery."
+          primaryButton={{
+            text: "Browse Products",
+            href: "/data-bundles",
+            icon: ArrowRight,
+            className: "bg-yellow-500 hover:bg-yellow-600 dark:text-white text-black"
+          }}
+          images={bannerImages}
+          showNavigation={false}
+          background="gradient"
+          size="lg"
+        />
 
         {/* Product Categories Section */}
-        <section id="products" className="py-12 px-4">
-          <div className="container mx-auto max-w-4xl">
-            <h2 className="text-2xl font-bold text-center mb-8">Product Categories</h2>
-            <div className="flex justify-center">
-              <div className="grid grid-cols-3 gap-4 max-w-2xl">
-                {productCategories.map((cat) => (
-                  <Link key={cat.id} href={cat.href}>
-                    <Card className="p-3 h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover-elevate transition-all min-h-[120px] w-full max-w-[180px]">
-                      <img
-                        src={cat.image}
-                        alt={cat.name}
-                        className="w-10 h-10 md:w-12 md:h-12 object-contain rounded-lg flex-shrink-0"
-                      />
-                      <div className="flex flex-col items-center gap-1 flex-1 justify-center">
-                        <p className="text-sm font-semibold text-center leading-tight">{cat.name}</p>
-                        <p className="text-xs text-center text-muted-foreground leading-tight">{cat.description}</p>
-                      </div>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
+        <section id="products" className="py-20">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <Badge variant="outline" className="mb-4">Our Products</Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                Choose Your Network
+              </h2>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Select from our wide range of data bundles and result checkers from all major networks
+              </p>
             </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+              {productCategories.map((cat) => (
+                <Link key={cat.id} href={`/products/${cat.id.replace('at_', '')}`}>
+                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 dark:border-white shadow-md bg-gradient-to-br from-card to-card/50">
+                    <CardContent className="p-2 text-center">
+                      <div className="w-full h-32 mx-auto mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                        <cat.icon />
+                      </div>
+                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
+                        {cat.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {cat.description}
+                      </p>
+                      <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ArrowRight className="w-5 h-5 text-primary mx-auto" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+
+            {/* Stats Section - moved here */}
+            <Stats
+              stats={stats}
+              background="muted"
+            />
           </div>
         </section>
 
         {/* Features Section */}
-        <section className="py-12 px-4 bg-muted">
-          <div className="container mx-auto max-w-4xl">
-            <h2 className="text-2xl font-bold text-center mb-8">Why Choose Us?</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {features.map((feature) => {
-                const IconComponent = feature.icon;
-                return (
-                  <Card key={feature.id} className="p-4 text-center hover-elevate transition-all">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-full">
-                        <IconComponent className="h-6 w-6 text-primary" />
-                      </div>
-                      <h3 className="text-lg font-semibold">{feature.title}</h3>
-                      <p className="text-sm text-muted-foreground">{feature.description}</p>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+        <Features
+          title="Experience Excellence"
+          subtitle="Why Choose Us"
+          description="We're committed to providing the best digital product experience with top-notch service"
+          columns={2}
+          className="py-0"
+          features={features}
+          variant="cards"
+          background="muted"
+        />
 
         {/* Order Tracking Section */}
-        <section className="py-16 px-4 bg-gray-50">
-          <div className="container mx-auto max-w-4xl">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-4">Track Your Orders</h2>
-              <p className="text-lg text-muted-foreground">
+        <section className="py-20">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-4xl mx-auto text-center">
+              <Badge variant="outline" className="mb-4">Track Orders</Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+                Never Lose Track
+              </h2>
+              <p className="text-lg text-muted-foreground mb-12 max-w-2xl mx-auto">
                 Easily track your data bundle and result checker orders using your transaction ID or beneficiary phone number.
               </p>
+              <OrderTracker />
             </div>
-            <OrderTracker />
           </div>
         </section>
 
-        {/* Agent CTA */}
-        <section className="py-16 px-4 bg-primary/10">
-          <div className="container mx-auto max-w-4xl text-center">
-            <h2 className="text-3xl font-bold mb-4">Become a {APP_NAME} Agent</h2>
-            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Start your own digital products business. Get your custom storefront and earn profits on every sale.
-            </p>
-            <Link href={getAgentCtaLink()}>
-              <Button size="lg" className="gap-2" data-testid="button-cta-agent">
-                {getAgentCtaText()}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        </section>
+        {/* Agent CTA Section */}
+        <CTA
+          title="Start Your Own Business"
+          subtitle="Become an Agent"
+          description="Join thousands of successful agents earning commissions. Get your custom storefront and start selling digital products today."
+          primaryButton={{
+            text: getAgentCtaText(),
+            href: getAgentCtaLink(),
+            icon: ArrowRight
+          }}
+          background="gradient"
+          size="lg"
+        />
       </main>
 
       <Footer />

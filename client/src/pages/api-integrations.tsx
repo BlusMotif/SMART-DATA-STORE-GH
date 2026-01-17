@@ -121,9 +121,9 @@ export default function ApiIntegrationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-background">
       <Header />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 pt-16">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Page Header */}
           <div className="text-center space-y-2">

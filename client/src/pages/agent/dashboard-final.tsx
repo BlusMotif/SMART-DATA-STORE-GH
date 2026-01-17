@@ -98,7 +98,7 @@ export default function AgentDashboard() {
           <Card className="max-w-md mx-4">
             <CardContent className="pt-6 text-center">
               <div className="mb-4">
-                <div className="w-16 h-16 bg-card rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-white dark:bg-black rounded-full flex items-center justify-center mx-auto mb-4">
                   <Clock className="h-8 w-8 text-orange-600" />
                 </div>
                 <h2 className="text-xl font-semibold mb-2">Agent Profile Setup</h2>
@@ -170,7 +170,7 @@ export default function AgentDashboard() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Welcome Section */}
-            <Card className="bg-card border-primary/20">
+            <Card className="bg-white dark:bg-black border-primary/20">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
@@ -253,7 +253,7 @@ export default function AgentDashboard() {
                 <CardContent className="space-y-6">
                   {/* Today's Performance */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-card rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="p-4 bg-white dark:bg-black rounded-lg border border-green-200 dark:border-green-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Zap className="h-4 w-4 text-green-600" />
                         <span className="text-sm font-medium text-green-800 dark:text-green-200">Today's Earnings</span>
@@ -265,7 +265,7 @@ export default function AgentDashboard() {
                         {stats?.todayTransactions || 0} transactions completed
                       </p>
                     </div>
-                    <div className="p-4 bg-card rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="p-4 bg-white dark:bg-black rounded-lg border border-blue-200 dark:border-blue-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Target className="h-4 w-4 text-blue-600" />
                         <span className="text-sm font-medium text-blue-800 dark:text-blue-200">Monthly Goal</span>
@@ -329,7 +329,7 @@ export default function AgentDashboard() {
                   ) : recentTransactions && recentTransactions.length > 0 ? (
                     <div className="space-y-3">
                       {recentTransactions.slice(0, 4).map((tx) => (
-                        <div key={tx.id} className="flex items-center justify-between p-3 bg-card rounded-lg">
+                        <div key={tx.id} className="flex items-center justify-between p-3 bg-white dark:bg-black rounded-lg">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{tx.productName}</p>
                             <p className="text-xs text-muted-foreground">
@@ -376,7 +376,7 @@ export default function AgentDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="p-4 bg-card rounded-lg border">
+                      <div className="p-4 bg-white dark:bg-black rounded-lg border">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">{agent.businessName}</span>
                           <Badge variant="outline">Live</Badge>
@@ -457,7 +457,7 @@ export default function AgentDashboard() {
             </Card>
 
             {/* Withdrawal Section */}
-            <Card className="bg-card border-green-200 dark:border-green-800">
+            <Card className="bg-white dark:bg-black border-green-200 dark:border-green-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-green-800 dark:text-green-200">
                   <Wallet className="h-5 w-5" />
@@ -493,7 +493,7 @@ export default function AgentDashboard() {
                     </Link>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-card rounded-lg">
+                <div className="mt-4 p-3 bg-white dark:bg-black rounded-lg">
                   <p className="text-xs text-green-800 dark:text-green-200 text-center">
                     💡 Withdrawals require admin approval and are processed within 24-48 hours
                   </p>

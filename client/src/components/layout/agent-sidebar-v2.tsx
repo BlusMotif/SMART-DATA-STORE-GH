@@ -26,7 +26,6 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME, formatCurrency } from "@/lib/constants";
 import type { Agent, User } from "@shared/schema";
-import siteLogo from "@assets/logo_1765774201026.png";
 
 interface AgentProfileResponse {
   profile: Agent & {
@@ -187,7 +186,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
       {agent && (
         <div className="border-b p-4">
-          <div className="rounded-lg bg-primary/5 p-4">
+          <div className="rounded-lg bg-primary/10 p-4">
             <p className="text-xs text-muted-foreground mb-1">Profit Balance</p>
             <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-profit-balance">{formatCurrency(agent.profitBalance)}</p>
             <p className="text-xs text-muted-foreground mt-2">Wallet Balance: {formatCurrency(agent.walletBalance)}</p>

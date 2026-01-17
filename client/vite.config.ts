@@ -100,6 +100,6 @@ export default defineConfig({
   cacheDir: "node_modules/.vite",
 
   optimizeDeps: {
-    include: ["react", "react-dom", "axios", "lodash", "jspdf"],
+    include: ["react", "react-dom", "lodash", "jspdf"],
   },
 });

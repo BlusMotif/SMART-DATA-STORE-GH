@@ -12,7 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { APP_NAME } from "@/lib/constants";
 import { getAgentId } from "@/lib/store-context";
 import { Loader2, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft } from "lucide-react";
-import siteLogo from "@assets/logo_1765774201026.png";
+import { useTheme } from "@/components/theme-provider";
+import logoLight from "@assets/logo_1765774201026.png";
+import logoDark from "@assets/darkmode-icon.jpg";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -32,6 +34,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { register, isRegisterLoading, registerError, user, isLoading } = useAuth();
   const { toast } = useToast();
+  const { theme } = useTheme();
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -113,7 +116,11 @@ export default function RegisterPage() {
         <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400">
           <CardHeader className="text-center space-y-2">
             <div className="flex justify-center mb-4">
-              <img src={siteLogo} alt="Logo" className="h-16 w-auto object-contain" />
+              <img
+                src={theme === "dark" ? logoDark : logoLight}
+                alt={APP_NAME}
+                className="h-8 w-auto"
+              />
             </div>
             <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
             <CardDescription>

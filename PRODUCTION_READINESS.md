@@ -1,4 +1,4 @@
-# Production Deployment Checklist - Smart Data Store Ghana
+# Production Deployment Checklist - resellershubprogh
 
 ## 🚀 Deployment Summary
 

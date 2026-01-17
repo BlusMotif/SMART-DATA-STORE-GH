@@ -11,8 +11,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { APP_NAME } from "@/lib/constants";
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
-import siteLogo from "@assets/logo_1765774201026.png";
 import { getAgentId, clearAgentStore } from "@/lib/store-context";
+import { useTheme } from "@/components/theme-provider";
+import logoLight from "@assets/logo_1765774201026.png";
+import logoDark from "@assets/darkmode-icon.jpg";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -26,6 +28,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoginLoading, loginError, user, isLoading } = useAuth();
   const { toast } = useToast();
+  const { theme } = useTheme();
   const [hasRedirected, setHasRedirected] = useState(false);
 
   const form = useForm<LoginFormData>({
@@ -106,7 +109,7 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center">
         <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400 relative">
           {isLoginLoading && (
-            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+            <div className="absolute inset-0 bg-background flex items-center justify-center z-10 rounded-lg">
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <p className="text-sm text-muted-foreground">Signing you in...</p>
@@ -115,7 +118,11 @@ export default function LoginPage() {
           )}
           <CardHeader className="text-center space-y-2">
             <div className="flex justify-center mb-4">
-              <img src={siteLogo} alt="Logo" className="h-16 w-auto object-contain" />
+              <img
+                src={theme === "dark" ? logoDark : logoLight}
+                alt={APP_NAME}
+                className="h-8 w-auto"
+              />
             </div>
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
             <CardDescription>

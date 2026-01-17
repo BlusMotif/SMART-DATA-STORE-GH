@@ -9,12 +9,15 @@ import { PageLoader } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate } from "@/lib/constants";
 import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Phone as PhoneIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/api";
 import type { Transaction } from "@shared/schema";
 
 export default function CheckoutSuccessPage() {
   const search = useSearch();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useAuth();
   const params = new URLSearchParams(search);
   const reference = params.get("reference");
   const paystackReference = params.get("trxref"); // Paystack adds this
@@ -31,6 +34,7 @@ export default function CheckoutSuccessPage() {
 
   const { data: verifyResult, isLoading, error } = useQuery<{ success: boolean; transaction: Transaction }>({
     queryKey: [`/api/transactions/verify/${reference || paystackReference}`],
+    queryFn: () => apiRequest(`/api/transactions/verify/${reference || paystackReference}`, { disableAutoLogout: true }),
     enabled: !!(reference || paystackReference) && !paymentFailed,
     retry: 1,
     retryDelay: 1000,
@@ -47,6 +51,25 @@ export default function CheckoutSuccessPage() {
   }, [verifyResult]);
 
   const transaction = verifyResult?.transaction;
+
+  // Show loading while authentication is being restored
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <PageLoader />
+              <h2 className="text-xl font-semibold mb-2 mt-4">Restoring Session</h2>
+              <p className="text-muted-foreground">Please wait while we verify your authentication...</p>
+            </CardContent>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -114,40 +137,6 @@ export default function CheckoutSuccessPage() {
     );
   }
 
-  // Show payment failed state if Paystack indicates failure
-  if (paymentFailed) {
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <Header />
-        <main className="flex-1 flex items-center justify-center px-4">
-          <Card className="max-w-md w-full">
-            <CardContent className="pt-6 text-center">
-              <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold mb-2">Payment {paystackStatus === "cancelled" ? "Cancelled" : "Failed"}</h2>
-              <p className="text-muted-foreground mb-4">
-                {paystackStatus === "cancelled" 
-                  ? "You cancelled the payment. No charges were made to your account."
-                  : "Your payment could not be processed. Please try again."}
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button onClick={() => {
-                  const agentStore = localStorage.getItem("agentStore");
-                  setLocation(agentStore ? `/store/agent/${agentStore}` : "/");
-                }}>
-                  {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
-                </Button>
-                <Button variant="outline" onClick={() => window.history.back()}>
-                  Try Again
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   // Show success immediately and verify in background
   const statusConfig = {
     completed: {
@@ -167,7 +156,7 @@ export default function CheckoutSuccessPage() {
     failed: {
       icon: XCircle,
       color: "text-red-500",
-      bgColor: "bg-red-50 dark:bg-red-900/20",
+      bgColor: "bg-red-50 dark:bg-red-900/30",
       title: "Payment Failed",
       description: "Your payment could not be processed. Please try again.",
     },
@@ -181,7 +170,7 @@ export default function CheckoutSuccessPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       
-      <main className="flex-1 py-12 px-4">
+      <main className="flex-1 py-12 px-4 pt-16">
         <div className="container mx-auto max-w-lg">
           <Card>
             <CardHeader className="text-center">
@@ -200,7 +189,7 @@ export default function CheckoutSuccessPage() {
               )}
               {transaction && (
                 <>
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="bg-muted/80 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between">
                       <span className="text-sm text-muted-foreground">Transaction ID</span>
                       <div className="flex items-center gap-2">
@@ -267,7 +256,7 @@ export default function CheckoutSuccessPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
                         {((transaction as any).phoneNumbers as string[]).map((phone: string, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-white dark:bg-gray-800 rounded px-2 py-1">
+                          <div key={idx} className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-white dark:bg-black rounded px-2 py-1">
                             <span className="text-xs text-muted-foreground">{idx + 1}.</span>
                             <code className="font-mono">{phone}</code>
                           </div>

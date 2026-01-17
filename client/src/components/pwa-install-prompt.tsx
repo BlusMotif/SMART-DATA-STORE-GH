@@ -82,7 +82,7 @@ export function PWAInstallPrompt() {
 
   return (
     <div 
-      className="fixed top-0 left-0 right-0 bg-card border-b shadow-md p-3 z-50"
+      className="fixed top-0 left-0 right-0 bg-white dark:bg-black border-b shadow-md p-3 z-50"
       data-testid="pwa-install-prompt"
     >
       <div className="container mx-auto max-w-7xl flex items-center gap-3">

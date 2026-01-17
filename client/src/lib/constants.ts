@@ -1,6 +1,6 @@
-// resellershubprogh.com Constants
+// resellershubprogh Constants
 
-export const APP_NAME = "resellershubprogh.com";
+export const APP_NAME = "resellershubprogh";
 export const APP_DESCRIPTION = "Digital Products & Data Bundle Marketplace";
 
 export const ROLE_LABELS = {

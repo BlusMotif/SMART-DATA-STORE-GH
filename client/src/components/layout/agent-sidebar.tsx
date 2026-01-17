@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME, formatCurrency } from "@/lib/constants";
 import type { Agent, User } from "@shared/schema";
-import siteLogo from "@assets/logo_1765774201026.png";
 
 interface AgentProfileResponse {
   profile: Agent & {
@@ -58,7 +57,6 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
     return (
       <div className="flex h-screen w-64 flex-col border-r bg-background relative">
         <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-4' : ''}`}>
-          <img src={siteLogo} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
           <div className="flex flex-col">
             <span className="font-semibold text-sm">{APP_NAME}</span>
             <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Super Dealer Portal' : 'Reseller Portal'}</span>
@@ -137,7 +135,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
 
       {agent && (
         <div className="border-b p-4">
-          <div className="rounded-lg bg-primary/5 p-4">
+          <div className="rounded-lg bg-primary/10 p-4">
             <p className="text-xs text-muted-foreground mb-1">Profit Balance</p>
             <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-profit-balance">{formatCurrency(agent.profitBalance)}</p>
             <p className="text-xs text-muted-foreground mt-2">Wallet Balance: {formatCurrency(agent.walletBalance)}</p>
@@ -202,7 +200,6 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME, formatCurrency } from "@/lib/constants";
 import type { Agent, User } from "@shared/schema";
-import siteLogo from "@assets/logo_1765774201026.png";
 
 interface AgentProfileResponse {
   agent: Agent & {
@@ -299,11 +296,6 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
     return (
       <div className="flex h-screen w-64 flex-col border-r bg-background relative">
         <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
-          <img
-            src={siteLogo}
-            alt="Logo"
-            className="h-8 w-8 rounded-lg object-contain"
-          />
           <div className="flex flex-col">
             <span className="font-semibold text-sm">{APP_NAME}</span>
             <span className="text-xs text-muted-foreground">{user?.role === 'agent' ? 'Agent Portal' : user?.role === 'dealer' ? 'Dealer Portal' : user?.role === 'super_dealer' ? 'Super Dealer Portal' : 'Reseller Portal'}</span>
@@ -375,7 +367,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
 
       {agent && (
         <div className="border-b p-4">
-          <div className="rounded-lg bg-primary/5 p-4">
+          <div className="rounded-lg bg-primary/10 p-4">
             <p className="text-xs text-muted-foreground mb-1">Profit Balance</p>
             <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-profit-balance">
               {formatCurrency(agent.profitBalance)}

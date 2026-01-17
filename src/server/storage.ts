@@ -465,7 +465,7 @@ export class DatabaseStorage implements IStorage {
 
     // If not found, search in phoneNumbers array for bulk orders
     if (!transaction) {
-      const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers}::text LIKE ${'%' + phone + '%'}`).orderBy(desc(transactions.createdAt)).limit(1);
+      const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers} LIKE ${'%' + phone + '%'}`).orderBy(desc(transactions.createdAt)).limit(1);
       transaction = allTransactions[0];
     }
 
@@ -552,8 +552,8 @@ export class DatabaseStorage implements IStorage {
     const totalSql = sql`count(*)`;
     const completedSql = sql`sum(case when status = 'completed' then 1 else 0 end)`;
     const pendingSql = sql`sum(case when status = 'pending' then 1 else 0 end)`;
-    const revenueSql = sql`coalesce(sum(case when status = 'completed' then CAST(amount AS NUMERIC) else 0 end), 0)`;
-    const profitSql = sql`coalesce(sum(case when status = 'completed' then CAST(profit AS NUMERIC) else 0 end), 0)`;
+    const revenueSql = sql`coalesce(sum(case when status = 'completed' then cast(amount as numeric) else 0 end), 0)`;
+    const profitSql = sql`coalesce(sum(case when status = 'completed' then cast(profit as numeric) else 0 end), 0)`;
     
     const stats = await db.select({
       total: totalSql,
@@ -771,13 +771,13 @@ export class DatabaseStorage implements IStorage {
   }> {
     const [txStats] = await db.select({
       totalTransactions: sql`count(*)`,
-      totalRevenue: sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
-      totalProfit: sql`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`,
+      totalRevenue: sql`coalesce(sum(case when status = 'completed' then cast(amount as numeric) else 0 end), 0)`,
+      totalProfit: sql`coalesce(sum(case when status = 'completed' then cast(profit as numeric) else 0 end), 0)`,
     }).from(transactions);
 
     // Get agent activation revenue
     const [activationStats] = await db.select({
-      revenue: sql`coalesce(sum(case when status = 'completed' and type = 'agent_activation' then amount::numeric else 0 end), 0)`,
+      revenue: sql`coalesce(sum(case when status = 'completed' and type = 'agent_activation' then cast(amount as numeric) else 0 end), 0)`,
     }).from(transactions);
 
     const [withdrawalStats] = await db.select({
@@ -799,7 +799,7 @@ export class DatabaseStorage implements IStorage {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const [todayStats] = await db.select({
-      revenue: sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
+      revenue: sql`coalesce(sum(case when status = 'completed' then cast(amount as numeric) else 0 end), 0)`,
       transactions: sql`count(*)`,
     }).from(transactions).where(and(gte(transactions.createdAt, today.toISOString()), lt(transactions.createdAt, tomorrow.toISOString())));
 

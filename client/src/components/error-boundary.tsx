@@ -59,7 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <Card className="max-w-2xl w-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="rounded-full bg-red-100 dark:bg-red-900/20 p-3">
+                <div className="rounded-full bg-red-100 dark:bg-red-900/30 p-3">
                   <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
                 </div>
                 <div>
@@ -80,7 +80,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </Alert>
 
               {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
-                <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-auto max-h-64">
+                <div className="bg-gray-100 dark:bg-black p-4 rounded-lg overflow-auto max-h-64">
                   <p className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                     {this.state.errorInfo.componentStack}
                   </p>

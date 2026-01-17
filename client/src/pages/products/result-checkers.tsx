@@ -17,7 +17,7 @@ export default function ResultCheckersPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       
-      <main className="flex-1 py-8 px-4">
+      <main className="flex-1 py-8 px-4 pt-16">
         <div className="container mx-auto max-w-4xl">
           <Link href={agentStore ? `/store/${agentStore}` : "/"}>
             <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back">

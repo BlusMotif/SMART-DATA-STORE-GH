@@ -68,7 +68,7 @@ const getStatusConfig = (status: string) => {
         variant: 'destructive' as const,
         icon: XCircle,
         color: 'text-red-600',
-        bgColor: 'bg-red-50 dark:bg-red-900/20',
+        bgColor: 'bg-red-50 dark:bg-red-900/30',
         label: 'Failed'
       };
     default:
@@ -89,14 +89,14 @@ export default function AgentWalletPage() {
   // Fetch wallet stats
   const { data: stats, isLoading: statsLoading } = useQuery<WalletStats>({
     queryKey: ["/api/agent/wallet"],
-    queryFn: () => apiRequest("/api/agent/wallet"),
+    queryFn: () => apiRequest("/api/agent/wallet", { disableAutoLogout: true }),
     refetchInterval: 30000,
   });
 
   // Fetch recent transactions (last 10)
   const { data: transactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions"],
-    queryFn: () => apiRequest("/api/agent/transactions"),
+    queryFn: () => apiRequest("/api/agent/transactions", { disableAutoLogout: true }),
     refetchInterval: 30000,
     select: (data) => data.slice(0, 10), // Only show 10 most recent
   });
@@ -118,7 +118,7 @@ export default function AgentWalletPage() {
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
+        <SheetContent side="left" className="p-0 w-64 bg-background">
           <VisuallyHidden>
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for your dashboard</SheetDescription>
@@ -137,7 +137,7 @@ export default function AgentWalletPage() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64">
+              <SheetContent side="left" className="p-0 w-64 bg-background">
                 <VisuallyHidden>
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for your dashboard</SheetDescription>

@@ -1,21 +1,20 @@
 import { APP_NAME } from "@/lib/constants";
 import { SiVisa, SiMastercard } from "react-icons/si";
 import { Shield, Lock } from "lucide-react";
-import siteLogo from "@assets/logo_1765774201026.png";
+import { useTheme } from "@/components/theme-provider";
+import logoLight from "@assets/logo_1765774201026.png";
+import logoDark from "@assets/darkmode-icon.jpg";
 
 export function Footer() {
+  const { theme } = useTheme();
+
   return (
     <footer className="border-t bg-muted/30">
       <div className="container mx-auto max-w-7xl px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <img
-                src={siteLogo}
-                alt="Logo"
-                className="h-8 w-8 rounded-lg object-contain"
-              />
-              <span className="font-semibold text-lg">{APP_NAME}</span>
+              <img src={theme === 'dark' ? logoDark : logoLight} alt="ResellersHub Pro" className="h-8 w-auto" />
             </div>
             <p className="text-sm text-muted-foreground">
               Your trusted platform for data bundles and result checker purchases in Ghana.
@@ -56,10 +55,10 @@ export function Footer() {
               </div>
             </div>
             <div className="flex items-center gap-3 pt-2">
-              <div className="rounded bg-white dark:bg-gray-800 p-2">
+              <div className="rounded bg-white dark:bg-black p-2">
                 <SiVisa className="h-6 w-10 text-[#1A1F71]" />
               </div>
-              <div className="rounded bg-white dark:bg-gray-800 p-2">
+              <div className="rounded bg-white dark:bg-black p-2">
                 <SiMastercard className="h-6 w-10 text-[#EB001B]" />
               </div>
               <div className="rounded bg-[#00C3F7] px-2 py-1">

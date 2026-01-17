@@ -50,7 +50,7 @@ export function BreakModeGuard({ children }: { children: React.ReactNode }) {
         <div className="max-w-md w-full text-center space-y-6">
           <div className="flex justify-center">
             <div className="relative">
-              <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+              <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
                 <Lock className="h-10 w-10 text-red-600 dark:text-red-400" />
               </div>
               <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">

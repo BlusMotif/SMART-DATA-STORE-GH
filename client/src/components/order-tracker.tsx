@@ -81,7 +81,7 @@ export function OrderTracker() {
     } else if (status === 'failed' || deliveryStatus === 'failed') {
       return <Badge variant="destructive">Failed</Badge>;
     } else if (status === 'completed' && deliveryStatus === 'processing') {
-      return <Badge variant="secondary" className="bg-yellow-500 text-black">Processing</Badge>;
+      return <Badge variant="secondary" className="bg-yellow-500 dark:text-white text-black">Processing</Badge>;
     } else if (status === 'completed' && deliveryStatus === 'pending') {
       return <Badge variant="secondary">Pending Delivery</Badge>;
     } else {

@@ -32,7 +32,7 @@ export function PageLoader({ text = "Loading..." }: { text?: string }) {
 
 export function CardSkeleton() {
   return (
-    <div className="rounded-lg border bg-card p-6 animate-pulse">
+    <div className="rounded-lg border bg-white dark:bg-black p-6 animate-pulse">
       <div className="h-4 bg-muted rounded w-1/3 mb-4" />
       <div className="h-8 bg-muted rounded w-2/3 mb-2" />
       <div className="h-3 bg-muted rounded w-1/2" />

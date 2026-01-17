@@ -40,7 +40,7 @@ export default function NetworkProductsPage() {
     <div className="min-h-screen flex flex-col bg-background">
       <Header />
       
-      <main className="flex-1 py-8 px-4">
+      <main className="flex-1 py-8 px-4 pt-16">
         <div className="container mx-auto max-w-4xl">
           <Link href={agentStore ? `/store/${agentStore}` : "/"}>
             <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back">
@@ -86,14 +86,14 @@ export default function NetworkProductsPage() {
               </div>
             </Card>
 
-            <Card className="p-6 border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800">
+            <Card className="p-6 border-red-200 bg-white text-black dark:bg-black dark:text-white dark:border-red-600">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-lg mb-2 text-orange-900 dark:text-orange-100">
+                  <h3 className="font-semibold text-lg mb-2 text-red-900 dark:text-red-100">
                     Our DATA REQUEST DOES NOT support:
                   </h3>
-                  <ul className="text-muted-foreground space-y-1 ml-4">
+                  <ul className="text-red-800 dark:text-red-200 space-y-1 ml-4 opacity-90">
                     <li>• Turbonet SIM</li>
                     <li>• Merchant SIM</li>
                     <li>• EVD SIM</li>
@@ -104,9 +104,25 @@ export default function NetworkProductsPage() {
                     <li>• Wrong Number</li>
                     <li>• Inactive Number</li>
                   </ul>
-                  <p className="text-orange-800 dark:text-orange-200 font-medium mt-3">
+                  <p className="text-red-800 dark:text-red-200 font-medium mt-3 opacity-95">
                     Important Notice: Any data transferred to the above SIM types is burnt and irreversible.
                   </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6 border-amber-200 bg-white text-black dark:bg-black dark:text-white dark:border-amber-600">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-lg mb-2 text-amber-900 dark:text-amber-100">
+                    Complaint Resolution Policy
+                  </h3>
+                  <div className="text-amber-800 dark:text-amber-200 space-y-2">
+                    <p>Complaints can only be resolved within 24 hours.</p>
+                    <p>If you purchase data and do not receive it, kindly report the issue within 24 hours.</p>
+                    <p className="font-medium">Reports made after 24 hours will not be attended to.</p>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -336,7 +352,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               </div>
 
               {selectedBundle && (
-                <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="p-4 bg-primary/20 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
                   <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{(selectedBundle.customPrice ? parseFloat(selectedBundle.customPrice) : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
                   <p className="text-2xl font-bold text-primary mt-2">GH₵{(selectedBundle.customPrice ? parseFloat(selectedBundle.customPrice) : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>

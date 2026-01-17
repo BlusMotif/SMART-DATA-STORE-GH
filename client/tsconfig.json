@@ -23,7 +23,8 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@shared/*": ["../src/shared/*"]
     },
 
     /* Vite types */

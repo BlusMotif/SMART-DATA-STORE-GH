@@ -120,7 +120,7 @@ export default function StorefrontPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Storefront Header - Simple, no navigation to main app */}
-      <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="border-b sticky top-0 z-50 bg-background">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <h1 className="font-semibold text-lg">Digital Store</h1>
@@ -279,7 +279,7 @@ export default function StorefrontPage() {
       </main>
 
       {/* Simple Footer */}
-      <footer className="border-t py-8 px-4 bg-muted/30">
+      <footer className="border-t py-8 px-4 bg-muted">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center">
             <p className="text-sm text-muted-foreground">

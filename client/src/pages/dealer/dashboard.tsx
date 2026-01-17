@@ -99,7 +99,7 @@ export default function DealerDashboard() {
   });
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-background to-muted/20">
+    <div className="flex h-screen bg-background">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -116,7 +116,7 @@ export default function DealerDashboard() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <header className="flex items-center justify-between gap-4 h-16 border-b bg-background px-4 lg:px-6">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -149,7 +149,7 @@ export default function DealerDashboard() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Welcome Section */}
-            <Card className="bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 dark:from-purple-950/20 dark:via-blue-950/20 dark:to-indigo-950/20 border-purple-200 dark:border-purple-800">
+            <Card className="bg-card border-purple-200 dark:border-purple-800">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
@@ -232,7 +232,7 @@ export default function DealerDashboard() {
                 <CardContent className="space-y-6">
                   {/* Today's Performance */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="p-4 bg-card rounded-lg border border-purple-200 dark:border-purple-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Crown className="h-4 w-4 text-purple-600" />
                         <span className="text-sm font-medium text-purple-800 dark:text-purple-200">Today's Earnings</span>
@@ -244,7 +244,7 @@ export default function DealerDashboard() {
                         {stats?.todayTransactions || 0} network transactions
                       </p>
                     </div>
-                    <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="p-4 bg-card rounded-lg border border-blue-200 dark:border-blue-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Target className="h-4 w-4 text-blue-600" />
                         <span className="text-sm font-medium text-blue-800 dark:text-blue-200">Monthly Target</span>
@@ -308,7 +308,7 @@ export default function DealerDashboard() {
                   ) : recentTransactions && recentTransactions.length > 0 ? (
                     <div className="space-y-3">
                       {recentTransactions.slice(0, 4).map((tx) => (
-                        <div key={tx.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div key={tx.id} className="flex items-center justify-between p-3 bg-card rounded-lg">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{tx.productName}</p>
                             <p className="text-xs text-muted-foreground">
@@ -355,7 +355,7 @@ export default function DealerDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="p-4 bg-card rounded-lg border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">{dealer.businessName}</span>
                           <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Dealer</Badge>
@@ -436,7 +436,7 @@ export default function DealerDashboard() {
             </Card>
 
             {/* Withdrawal Section */}
-            <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 border-purple-200 dark:border-purple-800">
+            <Card className="bg-card border-purple-200 dark:border-purple-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-purple-800 dark:text-purple-200">
                   <Wallet className="h-5 w-5" />
@@ -472,7 +472,7 @@ export default function DealerDashboard() {
                     </Link>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <div className="mt-4 p-3 bg-card rounded-lg">
                   <p className="text-xs text-purple-800 dark:text-purple-200 text-center">
                     💎 Dealer withdrawals require admin approval and are processed within 24-48 hours
                   </p>

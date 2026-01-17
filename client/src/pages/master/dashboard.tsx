@@ -105,7 +105,7 @@ export default function MasterDashboard() {
   });
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-background to-muted/20">
+    <div className="flex h-screen bg-background">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -122,7 +122,7 @@ export default function MasterDashboard() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <header className="flex items-center justify-between gap-4 h-16 border-b bg-background px-4 lg:px-6">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -155,7 +155,7 @@ export default function MasterDashboard() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Welcome Section */}
-            <Card className="bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 dark:from-purple-950/20 dark:via-indigo-950/20 dark:to-blue-950/20 border-purple-200 dark:border-purple-800">
+            <Card className="bg-card border-purple-200 dark:border-purple-800">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
@@ -238,7 +238,7 @@ export default function MasterDashboard() {
                 <CardContent className="space-y-6">
                   {/* Today's Performance */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <div className="p-4 bg-card rounded-lg border border-purple-200 dark:border-purple-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Trophy className="h-4 w-4 text-purple-600" />
                         <span className="text-sm font-medium text-purple-800 dark:text-purple-200">Today's Earnings</span>
@@ -250,7 +250,7 @@ export default function MasterDashboard() {
                         {stats?.todayTransactions || 0} empire transactions
                       </p>
                     </div>
-                    <div className="p-4 bg-indigo-50 dark:bg-indigo-950/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                    <div className="p-4 bg-card rounded-lg border border-indigo-200 dark:border-indigo-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Target className="h-4 w-4 text-indigo-600" />
                         <span className="text-sm font-medium text-indigo-800 dark:text-indigo-200">Monthly Target</span>
@@ -271,17 +271,17 @@ export default function MasterDashboard() {
                       Network Hierarchy
                     </h4>
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="text-center p-3 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/20 dark:to-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="text-center p-3 bg-card rounded-lg border border-purple-200 dark:border-purple-800">
                         <Crown className="h-6 w-6 mx-auto mb-1 text-purple-600" />
                         <p className="text-lg font-bold text-purple-900 dark:text-purple-100">{stats?.superDealerCount || 0}</p>
                         <p className="text-xs text-purple-700 dark:text-purple-300">Super Dealers</p>
                       </div>
-                      <div className="text-center p-3 bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/20 dark:to-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      <div className="text-center p-3 bg-card rounded-lg border border-indigo-200 dark:border-indigo-800">
                         <Award className="h-6 w-6 mx-auto mb-1 text-indigo-600" />
                         <p className="text-lg font-bold text-indigo-900 dark:text-indigo-100">{stats?.dealerCount || 0}</p>
                         <p className="text-xs text-indigo-700 dark:text-indigo-300">Dealers</p>
                       </div>
-                      <div className="text-center p-3 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <div className="text-center p-3 bg-card rounded-lg border border-blue-200 dark:border-blue-800">
                         <Users className="h-6 w-6 mx-auto mb-1 text-blue-600" />
                         <p className="text-lg font-bold text-blue-900 dark:text-blue-100">{stats?.agentCount || 0}</p>
                         <p className="text-xs text-blue-700 dark:text-blue-300">Agents</p>
@@ -339,7 +339,7 @@ export default function MasterDashboard() {
                   ) : recentTransactions && recentTransactions.length > 0 ? (
                     <div className="space-y-3">
                       {recentTransactions.slice(0, 4).map((tx) => (
-                        <div key={tx.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div key={tx.id} className="flex items-center justify-between p-3 bg-card rounded-lg">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{tx.productName}</p>
                             <p className="text-xs text-muted-foreground">
@@ -386,7 +386,7 @@ export default function MasterDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <div className="p-4 bg-card rounded-lg border border-purple-200 dark:border-purple-800">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">{master.businessName}</span>
                           <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Master</Badge>
@@ -467,7 +467,7 @@ export default function MasterDashboard() {
             </Card>
 
             {/* Withdrawal Section */}
-            <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20 border-purple-200 dark:border-purple-800">
+            <Card className="bg-card border-purple-200 dark:border-purple-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-purple-800 dark:text-purple-200">
                   <Wallet className="h-5 w-5" />
@@ -503,7 +503,7 @@ export default function MasterDashboard() {
                     </Link>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <div className="mt-4 p-3 bg-card rounded-lg">
                   <p className="text-xs text-purple-800 dark:text-purple-200 text-center">
                     👑 Master withdrawals require admin approval and are processed within 24-48 hours
                   </p>

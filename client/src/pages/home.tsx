@@ -180,7 +180,7 @@ export default function HomePage() {
         </section>
 
         {/* Features Section */}
-        <section className="py-12 px-4 bg-muted/30">
+        <section className="py-12 px-4 bg-muted">
           <div className="container mx-auto max-w-4xl">
             <h2 className="text-2xl font-bold text-center mb-8">Why Choose Us?</h2>
             <div className="grid grid-cols-2 gap-4">
@@ -216,7 +216,7 @@ export default function HomePage() {
         </section>
 
         {/* Agent CTA */}
-        <section className="py-16 px-4 bg-primary/5">
+        <section className="py-16 px-4 bg-primary/10">
           <div className="container mx-auto max-w-4xl text-center">
             <h2 className="text-3xl font-bold mb-4">Become a {APP_NAME} Agent</h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">

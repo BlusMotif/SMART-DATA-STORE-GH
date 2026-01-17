@@ -44,7 +44,7 @@ const getStatusConfig = (status: string) => {
         variant: 'default' as const,
         icon: CheckCircle,
         color: 'text-green-600',
-        bgColor: 'bg-green-50 dark:bg-green-900/20',
+        bgColor: 'bg-green-50 dark:bg-green-900',
         label: status === 'completed' ? 'Completed' : 'Delivered'
       };
     case 'confirmed':
@@ -52,7 +52,7 @@ const getStatusConfig = (status: string) => {
         variant: 'secondary' as const,
         icon: CheckCircle,
         color: 'text-blue-600',
-        bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+        bgColor: 'bg-blue-50 dark:bg-blue-900',
         label: 'Confirmed'
       };
     case 'pending':
@@ -60,7 +60,7 @@ const getStatusConfig = (status: string) => {
         variant: 'secondary' as const,
         icon: Clock,
         color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+        bgColor: 'bg-yellow-50 dark:bg-yellow-900',
         label: 'Pending'
       };
     case 'cancelled':
@@ -69,7 +69,7 @@ const getStatusConfig = (status: string) => {
         variant: 'destructive' as const,
         icon: XCircle,
         color: 'text-red-600',
-        bgColor: 'bg-red-50 dark:bg-red-900/20',
+        bgColor: 'bg-red-50 dark:bg-red-900',
         label: status === 'cancelled' ? 'Cancelled' : 'Failed'
       };
     default:
@@ -77,7 +77,7 @@ const getStatusConfig = (status: string) => {
         variant: 'secondary' as const,
         icon: Clock,
         color: 'text-gray-600',
-        bgColor: 'bg-gray-50 dark:bg-gray-900/20',
+        bgColor: 'bg-gray-50 dark:bg-gray-900',
         label: status
       };
   }

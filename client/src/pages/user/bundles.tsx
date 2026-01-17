@@ -657,7 +657,7 @@ export default function UserBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                      <div className="p-4 bg-card rounded-lg border border-primary/20">
                         <p className="text-sm text-muted-foreground">Selected Bundle</p>
                         <p className="font-medium text-lg">{selectedBundle.name}</p>
                         <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
@@ -761,7 +761,7 @@ export default function UserBundlesPage() {
 
                     {/* Insufficient Balance Alert */}
                     {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
-                      <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                      <Alert variant="destructive" className="border-destructive bg-card">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
                           <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBundle.basePrice) - (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)).toFixed(2)} more.

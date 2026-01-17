@@ -101,7 +101,7 @@ export default function SuperDealerDashboard() {
   });
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-background to-muted/20">
+    <div className="flex h-screen bg-background">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
@@ -118,7 +118,7 @@ export default function SuperDealerDashboard() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
+        <header className="flex items-center justify-between gap-4 h-16 border-b bg-background px-4 lg:px-6">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -151,7 +151,7 @@ export default function SuperDealerDashboard() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Welcome Section */}
-            <Card className="bg-gradient-to-r from-yellow-50 via-orange-50 to-red-50 dark:from-yellow-950/20 dark:via-orange-950/20 dark:to-red-950/20 border-yellow-200 dark:border-yellow-800">
+            <Card className="bg-card border-yellow-200 dark:border-yellow-800">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
@@ -234,7 +234,7 @@ export default function SuperDealerDashboard() {
                 <CardContent className="space-y-6">
                   {/* Today's Performance */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                    <div className="p-4 bg-card rounded-lg border border-orange-200 dark:border-orange-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Trophy className="h-4 w-4 text-orange-600" />
                         <span className="text-sm font-medium text-orange-800 dark:text-orange-200">Today's Earnings</span>
@@ -246,7 +246,7 @@ export default function SuperDealerDashboard() {
                         {stats?.todayTransactions || 0} network transactions
                       </p>
                     </div>
-                    <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800">
+                    <div className="p-4 bg-card rounded-lg border border-red-200 dark:border-red-800">
                       <div className="flex items-center gap-2 mb-2">
                         <Target className="h-4 w-4 text-red-600" />
                         <span className="text-sm font-medium text-red-800 dark:text-red-200">Monthly Target</span>
@@ -310,7 +310,7 @@ export default function SuperDealerDashboard() {
                   ) : recentTransactions && recentTransactions.length > 0 ? (
                     <div className="space-y-3">
                       {recentTransactions.slice(0, 4).map((tx) => (
-                        <div key={tx.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div key={tx.id} className="flex items-center justify-between p-3 bg-card rounded-lg">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{tx.productName}</p>
                             <p className="text-xs text-muted-foreground">
@@ -357,7 +357,7 @@ export default function SuperDealerDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                      <div className="p-4 bg-card rounded-lg border border-orange-200 dark:border-orange-800">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium">{superDealer.businessName}</span>
                           <Badge variant="outline" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Super Dealer</Badge>
@@ -438,7 +438,7 @@ export default function SuperDealerDashboard() {
             </Card>
 
             {/* Withdrawal Section */}
-            <Card className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 border-orange-200 dark:border-orange-800">
+            <Card className="bg-card border-orange-200 dark:border-orange-800">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
                   <Wallet className="h-5 w-5" />

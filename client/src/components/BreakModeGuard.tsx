@@ -15,11 +15,12 @@ export function BreakModeGuard({ children }: { children: React.ReactNode }) {
   const { user: authData, isLoading: authLoading } = useAuth();
   const { data: breakSettings, isLoading: breakLoading } = useQuery<BreakSettings>({
     queryKey: ["/api/break-settings"],
-    refetchInterval: 30000, // Check every 30 seconds
+    refetchInterval: 5 * 60 * 1000, // Check every 5 minutes instead of 30 seconds
+    staleTime: 4 * 60 * 1000, // Consider data fresh for 4 minutes
   });
 
-  // Show loading state while checking auth and break settings
-  if (authLoading || breakLoading) {
+  // Show loading state ONLY on initial load, not on refetches
+  if ((authLoading || breakLoading) && !breakSettings && !authData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

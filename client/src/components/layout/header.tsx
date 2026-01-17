@@ -16,9 +16,12 @@ import { getAgentId } from "@/lib/store-context";
 import logoImg from "@assets/logo_1765774201026.png";
 
 export function Header() {
-  const { user, isAuthenticated, logout, isLoggingOut } = useAuth();
+  const { user, isAuthenticated, logout, isLoggingOut, authLoading } = useAuth();
   const [location] = useLocation();
   const agentStore = typeof window !== "undefined" ? getAgentId() : null;
+
+  // Debug authentication state
+  console.log("Header auth state:", { authLoading, isAuthenticated, user: user ? { email: user.email, role: user.role } : null });
 
   const getInitials = (name: string | undefined | null) => {
     if (!name) return "U";
@@ -88,7 +91,14 @@ export function Header() {
           <div className="flex items-center gap-2">
             <ThemeToggle />
 
-            {isAuthenticated && user ? (
+            {authLoading ? (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" disabled>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
+                  Loading...
+                </Button>
+              </div>
+            ) : isAuthenticated && user && user.email ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-9 w-9 rounded-full" data-testid="button-user-menu">

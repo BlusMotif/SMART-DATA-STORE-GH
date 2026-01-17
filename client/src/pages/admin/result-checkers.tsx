@@ -440,7 +440,7 @@ function BulkAddForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="type">Type</Label>
+          <Label>Type</Label>
           <Select
             value={formData.type}
             onValueChange={(value) => setFormData({ ...formData, type: value })}
@@ -458,7 +458,7 @@ function BulkAddForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="year">Year</Label>
+          <Label>Year</Label>
           <Select
             value={formData.year}
             onValueChange={(value) => setFormData({ ...formData, year: value })}
@@ -586,7 +586,7 @@ function EditForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="edit-type">Type</Label>
+          <Label>Type</Label>
           <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
             <SelectTrigger>
               <SelectValue />
@@ -601,7 +601,7 @@ function EditForm({
           </Select>
         </div>
         <div>
-          <Label htmlFor="edit-year">Year</Label>
+          <Label>Year</Label>
           <Select value={formData.year} onValueChange={(value) => setFormData({ ...formData, year: value })}>
             <SelectTrigger>
               <SelectValue />

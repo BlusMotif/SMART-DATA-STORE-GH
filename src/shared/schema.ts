@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, boolean, timestamp, index, jsonb } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, real, blob, index } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -106,16 +106,16 @@ export const SmsStatus = {
 // ============================================
 // USERS TABLE
 // ============================================
-export const users = pgTable("users", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+export const users = sqliteTable("users", {
+  id: text("id", { length: 36 }).primaryKey(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
   phone: text("phone"),
   role: text("role").notNull().default("guest"),
-  walletBalance: decimal("wallet_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  walletBalance: text("wallet_balance").notNull().default("0.00"),
+  isActive: integer("is_active", { mode: 'boolean' }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   emailIdx: index("users_email_idx").on(table.email),
   roleIdx: index("users_role_idx").on(table.role),
@@ -124,22 +124,22 @@ export const users = pgTable("users", {
 // ============================================
 // AGENTS TABLE
 // ============================================
-export const agents = pgTable("agents", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+export const agents = sqliteTable("agents", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
   storefrontSlug: text("storefront_slug").notNull().unique(),
   businessName: text("business_name").notNull(),
   businessDescription: text("business_description"),
-  customPricingMarkup: decimal("custom_pricing_markup", { precision: 5, scale: 2 }).notNull().default("0.00"),
-  balance: decimal("balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  totalSales: decimal("total_sales", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  totalProfit: decimal("total_profit", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  isApproved: boolean("is_approved").notNull().default(false),
-  paymentPending: boolean("payment_pending").notNull().default(true),
-  activationFee: decimal("activation_fee", { precision: 10, scale: 2 }).default("60.00"),
+  customPricingMarkup: text("custom_pricing_markup").notNull().default("0.00"),
+  balance: text("balance").notNull().default("0.00"),
+  totalSales: text("total_sales").notNull().default("0.00"),
+  totalProfit: text("total_profit").notNull().default("0.00"),
+  isApproved: integer("is_approved", { mode: 'boolean' }).notNull().default(false),
+  paymentPending: integer("payment_pending", { mode: 'boolean' }).notNull().default(true),
+  activationFee: text("activation_fee").default("60.00"),
   whatsappSupportLink: text("whatsapp_support_link"),
   whatsappChannelLink: text("whatsapp_channel_link"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   userIdIdx: index("agents_user_id_idx").on(table.userId),
   slugIdx: index("agents_slug_idx").on(table.storefrontSlug),
@@ -148,21 +148,21 @@ export const agents = pgTable("agents", {
 // ============================================
 // DATA BUNDLES TABLE
 // ============================================
-export const dataBundles = pgTable("data_bundles", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+export const dataBundles = sqliteTable("data_bundles", {
+  id: text("id", { length: 36 }).primaryKey(),
   name: text("name").notNull(),
   network: text("network").notNull(),
   dataAmount: text("data_amount").notNull(),
   validity: text("validity").notNull(),
-  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  agentPrice: decimal("agent_price", { precision: 10, scale: 2 }),
-  dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }),
-  superDealerPrice: decimal("super_dealer_price", { precision: 10, scale: 2 }),
-  masterPrice: decimal("master_price", { precision: 10, scale: 2 }),
-  adminPrice: decimal("admin_price", { precision: 10, scale: 2 }),
-  isActive: boolean("is_active").notNull().default(true),
+  basePrice: text("base_price").notNull(),
+  agentPrice: text("agent_price"),
+  dealerPrice: text("dealer_price"),
+  superDealerPrice: text("super_dealer_price"),
+  masterPrice: text("master_price"),
+  adminPrice: text("admin_price"),
+  isActive: integer("is_active", { mode: 'boolean' }).notNull().default(true),
   apiCode: text("api_code"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   networkIdx: index("data_bundles_network_idx").on(table.network),
   activeIdx: index("data_bundles_active_idx").on(table.isActive),
@@ -171,18 +171,18 @@ export const dataBundles = pgTable("data_bundles", {
 // ============================================
 // RESULT CHECKERS TABLE (Stock-based)
 // ============================================
-export const resultCheckers = pgTable("result_checkers", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+export const resultCheckers = sqliteTable("result_checkers", {
+  id: text("id", { length: 36 }).primaryKey(),
   type: text("type").notNull(),
   year: integer("year").notNull(),
   serialNumber: text("serial_number").notNull().unique(),
   pin: text("pin").notNull(),
-  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  isSold: boolean("is_sold").notNull().default(false),
-  soldAt: timestamp("sold_at"),
+  basePrice: text("base_price").notNull(),
+  isSold: integer("is_sold", { mode: 'boolean' }).notNull().default(false),
+  soldAt: text("sold_at"),
   soldToPhone: text("sold_to_phone"),
-  transactionId: varchar("transaction_id", { length: 36 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  transactionId: text("transaction_id", { length: 36 }),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   typeIdx: index("result_checkers_type_idx").on(table.type),
   soldIdx: index("result_checkers_sold_idx").on(table.isSold),
@@ -192,33 +192,33 @@ export const resultCheckers = pgTable("result_checkers", {
 // ============================================
 // TRANSACTIONS TABLE
 // ============================================
-export const transactions = pgTable("transactions", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+export const transactions = sqliteTable("transactions", {
+  id: text("id", { length: 36 }).primaryKey(),
   reference: text("reference").notNull().unique(),
   type: text("type").notNull(),
-  productId: varchar("product_id", { length: 36 }),
+  productId: text("product_id", { length: 36 }),
   productName: text("product_name").notNull(),
   network: text("network"),
-  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
+  amount: text("amount").notNull(),
+  profit: text("profit").notNull(),
   customerPhone: text("customer_phone"),
   customerEmail: text("customer_email"),
-  phoneNumbers: jsonb("phone_numbers"), // Array of phone numbers for bulk orders
-  isBulkOrder: boolean("is_bulk_order").default(false),
+  phoneNumbers: text("phone_numbers"), // Array of phone numbers for bulk orders
+  isBulkOrder: integer("is_bulk_order", { mode: 'boolean' }).default(false),
   paymentMethod: text("payment_method").notNull().default("paystack"), // "paystack" or "wallet"
   status: text("status").notNull().default("pending"),
   deliveryStatus: text("delivery_status").notNull().default("pending"),
   paymentReference: text("payment_reference"),
   paymentStatus: text("payment_status").notNull().default("pending"),
-  agentId: varchar("agent_id", { length: 36 }),
-  agentProfit: decimal("agent_profit", { precision: 12, scale: 2 }).default("0.00"),
-  apiResponse: jsonb("api_response"),
+  agentId: text("agent_id", { length: 36 }),
+  agentProfit: text("agent_profit").default("0.00"),
+  apiResponse: text("api_response"),
   deliveredPin: text("delivered_pin"),
   deliveredSerial: text("delivered_serial"),
   smsStatus: text("sms_status"),
   failureReason: text("failure_reason"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  completedAt: timestamp("completed_at"),
+  createdAt: text("created_at").notNull(),
+  completedAt: text("completed_at"),
 }, (table) => ({
   referenceIdx: index("transactions_reference_idx").on(table.reference),
   statusIdx: index("transactions_status_idx").on(table.status),
@@ -230,10 +230,10 @@ export const transactions = pgTable("transactions", {
 // ============================================
 // WITHDRAWALS TABLE (UPDATED FOR ALL ROLES)
 // ============================================
-export const withdrawals = pgTable("withdrawals", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+export const withdrawals = sqliteTable("withdrawals", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: text("amount").notNull(),
   status: text("status").notNull().default("pending"), // "pending" | "approved" | "rejected" | "paid"
   paymentMethod: text("payment_method").notNull().default("bank"),
   bankName: text("bank_name"),
@@ -242,10 +242,10 @@ export const withdrawals = pgTable("withdrawals", {
   accountName: text("account_name").notNull(),
   adminNote: text("admin_note"),
   rejectionReason: text("rejection_reason"),
-  approvedBy: varchar("approved_by", { length: 36 }),
-  approvedAt: timestamp("approved_at"),
-  paidAt: timestamp("paid_at"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  approvedBy: text("approved_by", { length: 36 }),
+  approvedAt: text("approved_at"),
+  paidAt: text("paid_at"),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   userIdx: index("withdrawals_user_idx").on(table.userId),
   statusIdx: index("withdrawals_status_idx").on(table.status),
@@ -254,19 +254,19 @@ export const withdrawals = pgTable("withdrawals", {
 // ============================================
 // SMS LOGS TABLE
 // ============================================
-export const smsLogs = pgTable("sms_logs", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  transactionId: varchar("transaction_id", { length: 36 }).notNull(),
+export const smsLogs = sqliteTable("sms_logs", {
+  id: text("id", { length: 36 }).primaryKey(),
+  transactionId: text("transaction_id", { length: 36 }).notNull(),
   phone: text("phone").notNull(),
   message: text("message").notNull(),
   status: text("status").notNull().default("pending"),
   provider: text("provider"),
   providerMessageId: text("provider_message_id"),
   retryCount: integer("retry_count").notNull().default(0),
-  lastRetryAt: timestamp("last_retry_at"),
-  sentAt: timestamp("sent_at"),
+  lastRetryAt: text("last_retry_at"),
+  sentAt: text("sent_at"),
   errorMessage: text("error_message"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   transactionIdx: index("sms_logs_transaction_idx").on(table.transactionId),
   statusIdx: index("sms_logs_status_idx").on(table.status),
@@ -275,17 +275,17 @@ export const smsLogs = pgTable("sms_logs", {
 // ============================================
 // AUDIT LOGS TABLE
 // ============================================
-export const auditLogs = pgTable("audit_logs", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }),
+export const auditLogs = sqliteTable("audit_logs", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }),
   action: text("action").notNull(),
   entityType: text("entity_type").notNull(),
-  entityId: varchar("entity_id", { length: 36 }),
-  oldValue: jsonb("old_value"),
-  newValue: jsonb("new_value"),
+  entityId: text("entity_id", { length: 36 }),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   userIdx: index("audit_logs_user_idx").on(table.userId),
   actionIdx: index("audit_logs_action_idx").on(table.action),
@@ -296,14 +296,14 @@ export const auditLogs = pgTable("audit_logs", {
 // ============================================
 // CUSTOM PRICING TABLE (Unified for all roles)
 // ============================================
-export const customPricing = pgTable("custom_pricing", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  productId: varchar("product_id", { length: 36 }).notNull(), // Can reference dataBundles or resultCheckers
-  roleOwnerId: varchar("role_owner_id", { length: 36 }).notNull(), // Agent ID, Dealer User ID, etc.
+export const customPricing = sqliteTable("custom_pricing", {
+  id: text("id", { length: 36 }).primaryKey(),
+  productId: text("product_id", { length: 36 }).notNull(), // Can reference dataBundles or resultCheckers
+  roleOwnerId: text("role_owner_id", { length: 36 }).notNull(), // Agent ID, Dealer User ID, etc.
   role: text("role").notNull(), // agent, dealer, super_dealer, master
-  sellingPrice: decimal("selling_price", { precision: 10, scale: 2 }).notNull(), // Final selling price
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  sellingPrice: text("selling_price").notNull(), // Final selling price
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
 }, (table) => ({
   productIdx: index("custom_pricing_product_idx").on(table.productId),
   roleOwnerIdx: index("custom_pricing_role_owner_idx").on(table.roleOwnerId),
@@ -314,12 +314,12 @@ export const customPricing = pgTable("custom_pricing", {
 // ============================================
 // ADMIN BASE PRICES TABLE
 // ============================================
-export const adminBasePrices = pgTable("admin_base_prices", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  productId: varchar("product_id", { length: 36 }).notNull(), // Can reference dataBundles or resultCheckers
-  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(), // Admin-set base price
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+export const adminBasePrices = sqliteTable("admin_base_prices", {
+  id: text("id", { length: 36 }).primaryKey(),
+  productId: text("product_id", { length: 36 }).notNull(), // Can reference dataBundles or resultCheckers
+  basePrice: text("base_price").notNull(), // Admin-set base price
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
 }, (table) => ({
   productIdx: index("admin_base_prices_product_idx").on(table.productId),
   uniqueProduct: index("admin_base_prices_unique").on(table.productId),
@@ -328,13 +328,13 @@ export const adminBasePrices = pgTable("admin_base_prices", {
 // ============================================
 // ROLE BASE PRICES TABLE
 // ============================================
-export const roleBasePrices = pgTable("role_base_prices", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  bundleId: varchar("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
+export const roleBasePrices = sqliteTable("role_base_prices", {
+  id: text("id", { length: 36 }).primaryKey(),
+  bundleId: text("bundle_id", { length: 36 }).notNull().references(() => dataBundles.id, { onDelete: "cascade" }),
   role: text("role").notNull(), // admin, agent, dealer, super_dealer, master
-  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  basePrice: text("base_price").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
 }, (table) => ({
   bundleIdx: index("role_base_prices_bundle_idx").on(table.bundleId),
   roleIdx: index("role_base_prices_role_idx").on(table.role),
@@ -344,16 +344,16 @@ export const roleBasePrices = pgTable("role_base_prices", {
 // ============================================
 // SUPPORT CHATS TABLE
 // ============================================
-export const supportChats = pgTable("support_chats", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull(),
+export const supportChats = sqliteTable("support_chats", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull(),
   userEmail: text("user_email").notNull(),
   userName: text("user_name").notNull(),
   status: text("status").notNull().default("open"), // open, closed
-  lastMessageAt: timestamp("last_message_at").notNull().defaultNow(),
-  assignedToAdminId: varchar("assigned_to_admin_id", { length: 36 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  closedAt: timestamp("closed_at"),
+  lastMessageAt: text("last_message_at").notNull(),
+  assignedToAdminId: text("assigned_to_admin_id", { length: 36 }),
+  createdAt: text("created_at").notNull(),
+  closedAt: text("closed_at"),
 }, (table) => ({
   userIdx: index("support_chats_user_idx").on(table.userId),
   statusIdx: index("support_chats_status_idx").on(table.status),
@@ -363,14 +363,14 @@ export const supportChats = pgTable("support_chats", {
 // ============================================
 // CHAT MESSAGES TABLE
 // ============================================
-export const chatMessages = pgTable("chat_messages", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  chatId: varchar("chat_id", { length: 36 }).notNull(),
-  senderId: varchar("sender_id", { length: 36 }).notNull(),
+export const chatMessages = sqliteTable("chat_messages", {
+  id: text("id", { length: 36 }).primaryKey(),
+  chatId: text("chat_id", { length: 36 }).notNull(),
+  senderId: text("sender_id", { length: 36 }).notNull(),
   senderType: text("sender_type").notNull(), // user, admin
   message: text("message").notNull(),
-  isRead: boolean("is_read").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  isRead: integer("is_read").notNull().default(0),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   chatIdx: index("chat_messages_chat_idx").on(table.chatId),
   senderIdx: index("chat_messages_sender_idx").on(table.senderId),
@@ -379,15 +379,15 @@ export const chatMessages = pgTable("chat_messages", {
 // ============================================
 // API KEYS TABLE
 // ============================================
-export const apiKeys = pgTable("api_keys", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+export const apiKeys = sqliteTable("api_keys", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   key: text("key").notNull().unique(),
-  permissions: jsonb("permissions").notNull().default({}),
-  isActive: boolean("is_active").notNull().default(true),
-  lastUsed: timestamp("last_used"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  permissions: text("permissions").notNull().default("{}"),
+  isActive: integer("is_active").notNull().default(1),
+  lastUsed: text("last_used"),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   userIdx: index("api_keys_user_idx").on(table.userId),
   keyIdx: index("api_keys_key_idx").on(table.key),
@@ -397,14 +397,14 @@ export const apiKeys = pgTable("api_keys", {
 // ============================================
 // ANNOUNCEMENTS TABLE
 // ============================================
-export const announcements = pgTable("announcements", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+export const announcements = sqliteTable("announcements", {
+  id: text("id", { length: 36 }).primaryKey(),
   title: text("title").notNull(),
   message: text("message").notNull(),
-  isActive: boolean("is_active").notNull().default(true),
-  createdBy: varchar("created_by", { length: 36 }).notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  isActive: integer("is_active").notNull().default(1),
+  createdBy: text("created_by", { length: 36 }).notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
 }, (table) => ({
   activeIdx: index("announcements_active_idx").on(table.isActive),
   createdAtIdx: index("announcements_created_at_idx").on(table.createdAt),
@@ -413,14 +413,14 @@ export const announcements = pgTable("announcements", {
 // ============================================
 // WALLET TOP-UP TRANSACTIONS TABLE
 // ============================================
-export const walletTopupTransactions = pgTable("wallet_topup_transactions", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  adminId: varchar("admin_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+export const walletTopupTransactions = sqliteTable("wallet_topup_transactions", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  adminId: text("admin_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  amount: text("amount").notNull(),
   reason: text("reason"),
-  transactionId: varchar("transaction_id", { length: 36 }).references(() => transactions.id, { onDelete: 'set null' }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  transactionId: text("transaction_id", { length: 36 }).references(() => transactions.id, { onDelete: 'set null' }),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   userIdx: index("wallet_topup_transactions_user_idx").on(table.userId),
   adminIdx: index("wallet_topup_transactions_admin_idx").on(table.adminId),
@@ -430,23 +430,23 @@ export const walletTopupTransactions = pgTable("wallet_topup_transactions", {
 // ============================================
 // SETTINGS TABLE
 // ============================================
-export const settings = pgTable("settings", {
+export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
   description: text("description"),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  updatedAt: text("updated_at").notNull(),
 });
 
 // ============================================
 // PROFIT WALLETS TABLE
 // ============================================
-export const profitWallets = pgTable("profit_wallets", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  availableBalance: decimal("available_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  pendingBalance: decimal("pending_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  totalEarned: decimal("total_earned", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+export const profitWallets = sqliteTable("profit_wallets", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  availableBalance: text("available_balance").notNull().default("0.00"),
+  pendingBalance: text("pending_balance").notNull().default("0.00"),
+  totalEarned: text("total_earned").notNull().default("0.00"),
+  updatedAt: text("updated_at").notNull(),
 }, (table) => ({
   userIdx: index("profit_wallets_user_idx").on(table.userId),
 }));
@@ -454,16 +454,16 @@ export const profitWallets = pgTable("profit_wallets", {
 // ============================================
 // PROFIT TRANSACTIONS TABLE (LEDGER)
 // ============================================
-export const profitTransactions = pgTable("profit_transactions", {
-  id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
-  orderId: varchar("order_id", { length: 36 }).references(() => transactions.id, { onDelete: 'set null' }),
-  productId: varchar("product_id", { length: 36 }),
-  sellingPrice: decimal("selling_price", { precision: 12, scale: 2 }).notNull(),
-  basePrice: decimal("base_price", { precision: 12, scale: 2 }).notNull(),
-  profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
+export const profitTransactions = sqliteTable("profit_transactions", {
+  id: text("id", { length: 36 }).primaryKey(),
+  userId: text("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  orderId: text("order_id", { length: 36 }).references(() => transactions.id, { onDelete: 'set null' }),
+  productId: text("product_id", { length: 36 }),
+  sellingPrice: text("selling_price").notNull(),
+  basePrice: text("base_price").notNull(),
+  profit: text("profit").notNull(),
   status: text("status").notNull().default("pending"), // "pending" | "available"
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdAt: text("created_at").notNull(),
 }, (table) => ({
   userIdx: index("profit_transactions_user_idx").on(table.userId),
   orderIdx: index("profit_transactions_order_idx").on(table.orderId),
@@ -767,7 +767,7 @@ export const purchaseSchema = z.object({
     bundleName: z.string(),
     dataAmount: z.string(),
   })).optional(),
-  isBulkOrder: z.boolean().optional(),
+  isBulkOrder: z.number().optional(),
   network: z.string().optional(),
   orderItems: z.array(z.object({
     phone: z.string(),
@@ -778,7 +778,7 @@ export const purchaseSchema = z.object({
   totalAmount: z.number().optional(),
 }).refine((data) => {
   // customerPhone is required for data_bundle, optional for result_checker
-  if (data.productType === "data_bundle" && (!data.customerPhone || data.customerPhone.length < 10)) {
+  if (data.productType === "data_bundle" && (!data.customerPhone || (typeof data.customerPhone === 'string' && data.customerPhone.length < 10))) {
     return false;
   }
   return true;
@@ -787,7 +787,7 @@ export const purchaseSchema = z.object({
   path: ["customerPhone"],
 }).refine((data) => {
   // If orderItems exist, productId is not required
-  if (data.orderItems && data.orderItems.length > 0) return true;
+  if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) return true;
   // Otherwise, productId is required
   return data.productId !== undefined;
 }, {

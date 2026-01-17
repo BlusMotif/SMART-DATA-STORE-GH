@@ -81,6 +81,7 @@ async function processWebhookEvent(event: any) {
             userId: userId,
             storefrontSlug: regData.storefrontSlug,
             businessName: regData.businessName,
+            businessDescription: regData.businessDescription,
             isApproved: true,
             paymentPending: false,
           });
@@ -121,7 +122,7 @@ async function processWebhookEvent(event: any) {
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date(),
+              completedAt: new Date().toISOString(),
               paymentReference: reference,
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
@@ -198,14 +199,14 @@ async function processWebhookEvent(event: any) {
                 await storage.updateTransaction(transaction.id, {
                   status: TransactionStatus.DELIVERED,
                   deliveryStatus: "delivered",
-                  completedAt: new Date(),
+                  completedAt: new Date().toISOString(),
                   paymentReference: data.reference,
                 });
               } else {
                 await storage.updateTransaction(transaction.id, {
                   status: TransactionStatus.COMPLETED,
                   deliveryStatus: "processing",
-                  completedAt: new Date(),
+                  completedAt: new Date().toISOString(),
                   paymentReference: data.reference,
                   failureReason: JSON.stringify(fulfillResult.results),
                 });
@@ -214,7 +215,7 @@ async function processWebhookEvent(event: any) {
               await storage.updateTransaction(transaction.id, {
                 status: TransactionStatus.COMPLETED,
                 deliveryStatus: "failed",
-                completedAt: new Date(),
+                completedAt: new Date().toISOString(),
                 paymentReference: data.reference,
                 failureReason: fulfillResult?.error || "Provider fulfillment failed",
               });
@@ -224,7 +225,7 @@ async function processWebhookEvent(event: any) {
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.COMPLETED,
               deliveryStatus: "failed",
-              completedAt: new Date(),
+              completedAt: new Date().toISOString(),
               paymentReference: data.reference,
               failureReason: String(err?.message || err),
             });
@@ -234,14 +235,14 @@ async function processWebhookEvent(event: any) {
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
             deliveryStatus: "pending",
-            completedAt: new Date(),
+            completedAt: new Date().toISOString(),
             paymentReference: data.reference,
           });
         }
       } else {
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
           deliveredPin,
           deliveredSerial,
           paymentReference: data.reference,
@@ -311,9 +312,9 @@ declare global {
         name: string;
         key: string;
         permissions: any;
-        isActive: boolean;
-        lastUsed: Date | null;
-        createdAt: Date;
+        isActive: number;
+        lastUsed: string | null;
+        createdAt: string;
       };
     }
   }
@@ -442,7 +443,7 @@ const requireApiKey = async (req: Request, res: Response, next: NextFunction) =>
       return res.status(401).json({ error: "Invalid API key" });
     }
     // Update last used timestamp
-    await storage.updateApiKey(apiKey.id, { lastUsed: new Date() });
+    await storage.updateApiKey(apiKey.id, { lastUsed: new Date().toISOString() });
     req.apiKey = apiKey;
     next();
   } catch (error) {
@@ -935,7 +936,7 @@ export async function registerRoutes(
           });
           console.log("User created in db:", dbUser.id);
         }
-        const { businessName, storefrontSlug } = req.body || {};
+        const { businessName, businessDescription, storefrontSlug } = req.body || {};
         if (!businessName || !storefrontSlug) {
           return res.status(400).json({ error: "Business name and storefront slug are required" });
         }
@@ -955,9 +956,13 @@ export async function registerRoutes(
           userId: dbUser.id,
           storefrontSlug,
           businessName,
+          businessDescription,
           isApproved: false,
           paymentPending: true,
         } as any);
+        if (!agent) {
+          return res.status(500).json({ error: "Failed to create agent record" });
+        }
         console.log("Agent created:", agent.id);
         // Create pending transaction record
         const activationFee = 60.0;
@@ -1616,7 +1621,7 @@ export async function registerRoutes(
         profit: "0.00", // Will be calculated per item
         customerPhone: user.phone || "",
         customerEmail: user.email,
-        phoneNumbers: processedOrderItems,
+        phoneNumbers: JSON.stringify(processedOrderItems),
         isBulkOrder: true,
         status: "pending",
         agentId: user.role === 'agent' ? user.id : undefined,
@@ -1636,7 +1641,7 @@ export async function registerRoutes(
       // Mark transaction as completed immediately for wallet payments
       await storage.updateTransaction(transaction.id, {
         status: "completed",
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         paymentReference: "wallet",
       });
       // Financial integrity: credit agent only their profit, and record admin revenue separately
@@ -2035,7 +2040,7 @@ export async function registerRoutes(
         profit: totalProfit.toFixed(2),
         customerPhone: normalizedPhone || null,
         customerEmail: data.customerEmail,
-        phoneNumbers: (isBulkOrder && phoneNumbersData) ? phoneNumbersData : undefined,
+        phoneNumbers: (isBulkOrder && phoneNumbersData) ? JSON.stringify(phoneNumbersData) : undefined,
         isBulkOrder: isBulkOrder || false,
         status: TransactionStatus.PENDING,
         paymentStatus: "pending",
@@ -2111,7 +2116,7 @@ export async function registerRoutes(
         // Mark transaction as completed
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
           deliveredPin,
           deliveredSerial,
         });
@@ -2296,7 +2301,7 @@ export async function registerRoutes(
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
         paymentStatus: "paid",
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         deliveredPin,
         deliveredSerial,
         paymentReference: paystackVerification.data.reference,
@@ -2486,69 +2491,122 @@ export async function registerRoutes(
           }
           // Now create the account after successful payment
           try {
-            console.log("Step 1: Creating user in Supabase Auth:", regData.email);
-            const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
-              email: regData.email,
-              password: regData.password,
-              user_metadata: {
+            console.log("Step 1: Checking if user already exists in Supabase");
+            const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
+            const existingAuthUser = existingUsers?.users.find(u => u.email === regData.email);
+
+            let userId: string;
+            if (existingAuthUser) {
+              console.log("User already exists in Supabase:", existingAuthUser.id);
+              userId = existingAuthUser.id;
+            } else {
+              console.log("Step 1: Creating user in Supabase Auth:", regData.email);
+              const { data: authData, error: authError } = await supabaseServer.auth.admin.createUser({
+                email: regData.email,
+                password: regData.password,
+                user_metadata: {
+                  name: regData.name,
+                  phone: regData.phone,
+                  role: 'agent'
+                },
+                email_confirm: true
+              });
+              if (authError) {
+                console.error("Step 1 FAILED: Auth user creation error:", authError);
+                console.error("Auth error details:", JSON.stringify(authError, null, 2));
+                return res.json({
+                  status: "failed",
+                  message: "Payment successful but account creation failed. Please contact support.",
+                  error: authError.message
+                });
+              }
+              userId = authData.user.id;
+              console.log("Step 1 SUCCESS: Supabase user created:", userId);
+            }
+
+            // Check if user already exists in local database
+            const existingLocalUser = await storage.getUserByEmail(regData.email);
+            if (existingLocalUser) {
+              console.log("User already exists in local database:", existingLocalUser.id);
+              // Update the user role if needed
+              if (existingLocalUser.role !== UserRole.AGENT) {
+                await storage.updateUser(existingLocalUser.id, { role: UserRole.AGENT });
+                console.log("Updated user role to agent");
+              }
+            } else {
+              // Create user in local database
+              console.log("Step 2: Creating user in local database");
+              const localUser = await storage.createUser({
+                id: userId,
+                email: regData.email,
+                password: '', // Empty password since auth is handled by Supabase
                 name: regData.name,
                 phone: regData.phone,
-                role: 'agent'
-              },
-              email_confirm: true
-            });
-            if (authError) {
-              console.error("Step 1 FAILED: Auth user creation error:", authError);
-              return res.json({
-                status: "failed",
-                message: "Payment successful but account creation failed. Please contact support.",
-                error: authError.message
+                role: UserRole.AGENT,
               });
+              console.log("Step 2 SUCCESS: User created in local database:", localUser.id);
             }
-            const userId = authData.user.id;
-            console.log("Step 1 SUCCESS: Supabase user created:", userId);
-            // Create user in local database
-            console.log("Step 2: Creating user in local database");
-            const localUser = await storage.createUser({
-              id: userId,
-              email: regData.email,
-              password: '', // Empty password since auth is handled by Supabase
-              name: regData.name,
-              phone: regData.phone,
-              role: UserRole.AGENT,
-            });
-            console.log("Step 2 SUCCESS: User created in local database:", localUser.id);
-            // Create agent record (already approved since payment is complete)
-            console.log("Step 3: Creating agent record");
-            const agent = await storage.createAgent({
-              userId: userId,
-              storefrontSlug: regData.storefrontSlug,
-              businessName: regData.businessName,
-              isApproved: true, // Approved since payment is successful
-              paymentPending: false,
-            });
-            console.log("Step 3 SUCCESS: Agent created and approved:", agent.id);
-            // Create transaction record for the activation payment
-            console.log("Step 4: Recording activation transaction");
-            const activationFee = 60.00;
-            const transaction = await storage.createTransaction({
-              reference: paymentData.reference,
-              type: ProductType.AGENT_ACTIVATION,
-              productId: agent.id,
-              productName: "Agent Account Activation",
-              network: null,
-              amount: activationFee.toString(),
-              profit: activationFee.toString(),
-              customerPhone: regData.phone,
-              customerEmail: regData.email,
-              paymentMethod: "paystack",
-              status: TransactionStatus.COMPLETED,
-              paymentStatus: "paid",
-              paymentReference: paymentData.reference,
-              agentId: null,
-              agentProfit: "0.00",
-            });
-            console.log("Step 4 SUCCESS: Activation transaction recorded:", transaction.id);
+
+            // Check if agent already exists
+            const existingAgent = await storage.getAgentByUserId(userId);
+            let agent;
+            if (existingAgent) {
+              console.log("Agent already exists:", existingAgent.id);
+              // Update agent to approved if not already
+              if (!existingAgent.isApproved) {
+                agent = await storage.updateAgent(existingAgent.id, {
+                  isApproved: true,
+                  paymentPending: false
+                });
+                console.log("Updated agent to approved");
+              } else {
+                agent = existingAgent;
+              }
+            } else {
+              // Create agent record (already approved since payment is complete)
+              console.log("Step 3: Creating agent record");
+              agent = await storage.createAgent({
+                userId: userId,
+                storefrontSlug: regData.storefrontSlug,
+                businessName: regData.businessName,
+                isApproved: true, // Approved since payment is successful
+                paymentPending: false,
+              });
+              console.log("Step 3 SUCCESS: Agent created and approved:", agent.id);
+            }
+
+            // Ensure agent is defined before proceeding
+            if (!agent) {
+              throw new Error("Failed to create or update agent");
+            }
+
+            // Create transaction record for the activation payment (only if it doesn't exist)
+            const existingTransaction = await storage.getTransactionByReference(paymentData.reference);
+            if (!existingTransaction) {
+              console.log("Step 4: Recording activation transaction");
+              const activationFee = 60.00;
+              const transaction = await storage.createTransaction({
+                reference: paymentData.reference,
+                type: ProductType.AGENT_ACTIVATION,
+                productId: agent.id,
+                productName: "Agent Account Activation",
+                network: null,
+                amount: activationFee.toString(),
+                profit: activationFee.toString(),
+                customerPhone: regData.phone,
+                customerEmail: regData.email,
+                paymentMethod: "paystack",
+                status: TransactionStatus.COMPLETED,
+                paymentStatus: "paid",
+                paymentReference: paymentData.reference,
+                agentId: null,
+                agentProfit: "0.00",
+              });
+              console.log("Step 4 SUCCESS: Activation transaction recorded:", transaction.id);
+            } else {
+              console.log("Transaction already exists for reference:", paymentData.reference);
+            }
+
             // Generate success response
             console.log("Step 5: Preparing success response");
             const response = {
@@ -2575,11 +2633,15 @@ export async function registerRoutes(
             return res.json(response);
           } catch (createError: any) {
             console.error("ERROR in account creation process:", createError);
+            console.error("Error message:", createError.message);
             console.error("Error stack:", createError.stack);
+            console.error("Error code:", createError.code);
+
             return res.json({
               status: "failed",
-              message: "Payment successful but account creation failed. Please contact support.",
-              error: createError.message
+              message: "Payment successful but account creation failed. Please contact support with this reference: " + paymentData.reference,
+              error: createError.message,
+              reference: paymentData.reference
             });
           }
         }
@@ -2590,7 +2652,7 @@ export async function registerRoutes(
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date(),
+              completedAt: new Date().toISOString(),
               paymentReference: paymentData.reference,
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
@@ -2708,6 +2770,10 @@ export async function registerRoutes(
               paymentPending: false,
             });
             console.log("Agent created via webhook:", agent.id);
+            if (!agent) {
+              console.error("Failed to create agent in webhook");
+              return;
+            }
             // Check if transaction already exists
             const existingTransaction = await storage.getTransactionByReference(reference);
             if (!existingTransaction) {
@@ -2743,7 +2809,7 @@ export async function registerRoutes(
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date(),
+              completedAt: new Date().toISOString(),
               paymentReference: reference,
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
@@ -2805,7 +2871,7 @@ export async function registerRoutes(
       }
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         deliveredPin,
         deliveredSerial,
         paymentReference: data.reference,
@@ -2854,8 +2920,8 @@ export async function registerRoutes(
         action: 'wallet_topup',
         entityType: 'user',
         entityId: userId,
-        oldValue: { walletBalance: user.walletBalance },
-        newValue: { walletBalance: newBalance, amount: topupAmount, reason },
+        oldValue: JSON.stringify({ walletBalance: user.walletBalance }),
+        newValue: JSON.stringify({ walletBalance: newBalance, amount: topupAmount, reason }),
         ipAddress: req.ip || req.connection.remoteAddress,
         userAgent: req.get('User-Agent'),
       });
@@ -3744,8 +3810,8 @@ export async function registerRoutes(
         customerEmail: tx.customerEmail,
         paymentStatus: tx.paymentStatus,
         deliveryStatus: tx.deliveryStatus || "pending",
-        createdAt: tx.createdAt.toISOString(),
-        completedAt: tx.completedAt?.toISOString() || "",
+        createdAt: tx.createdAt,
+        completedAt: tx.completedAt || "",
         phoneNumbers: (tx.phoneNumbers && Array.isArray(tx.phoneNumbers)) ?
           tx.phoneNumbers.map((p: any) => p.phone).join("; ") :
           "",
@@ -3862,7 +3928,7 @@ export async function registerRoutes(
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         const lastPurchase = sortedTransactions.length > 0 ? {
-          date: sortedTransactions[0].createdAt.toISOString(),
+          date: sortedTransactions[0].createdAt,
           amount: parseFloat(sortedTransactions[0].amount),
           productType: sortedTransactions[0].type,
         } : null;
@@ -3875,7 +3941,7 @@ export async function registerRoutes(
           email: user.email,
           phone: user.phone,
           role: user.role,
-          createdAt: user.createdAt.toISOString(),
+          createdAt: user.createdAt,
           lastPurchase,
           totalPurchases: sortedTransactions.length,
           totalSpent,
@@ -4091,7 +4157,7 @@ export async function registerRoutes(
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
         message: message.trim(),
-        isActive: true,
+        isActive: 1,
         createdBy: dbUser.name || dbUser.email,
       });
       res.json(announcement);
@@ -4743,7 +4809,7 @@ export async function registerRoutes(
         await storage.updateWithdrawal(id, {
           status: WithdrawalStatus.APPROVED,
           approvedBy: req.user!.id,
-          approvedAt: new Date(),
+          approvedAt: new Date().toISOString(),
           adminNote,
         });
         res.json({
@@ -4801,7 +4867,7 @@ export async function registerRoutes(
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.APPROVED,
         approvedBy: req.user!.id,
-        approvedAt: new Date(),
+        approvedAt: new Date().toISOString(),
         adminNote,
       });
       res.json({
@@ -4851,7 +4917,7 @@ export async function registerRoutes(
       // Update withdrawal status to paid
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.PAID,
-        paidAt: new Date(),
+        paidAt: new Date().toISOString(),
       });
       res.json({
         message: "Withdrawal marked as paid",
@@ -5260,7 +5326,7 @@ export async function registerRoutes(
       // Update transaction
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
-        completedAt: new Date(),
+        completedAt: new Date().toISOString(),
         paymentReference: paystackVerification.data.reference,
       });
       res.json({
@@ -5422,7 +5488,7 @@ export async function registerRoutes(
         }
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
-          completedAt: new Date(),
+          completedAt: new Date().toISOString(),
           deliveredPin,
           deliveredSerial,
         });
@@ -5434,14 +5500,14 @@ export async function registerRoutes(
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
-            completedAt: new Date(),
+            completedAt: new Date().toISOString(),
           });
         } else {
           console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
           // Still mark as completed but log the error - in production you might want to handle this differently
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
-            completedAt: new Date(),
+            completedAt: new Date().toISOString(),
             failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
           });
         }
@@ -5796,7 +5862,7 @@ export async function registerRoutes(
         serialNumber: transaction.deliveredSerial,
         customerName: dbUser.name,
         customerPhone: transaction.customerPhone || undefined,
-        purchaseDate: transaction.completedAt || transaction.createdAt,
+        purchaseDate: new Date(transaction.completedAt || transaction.createdAt),
         transactionReference: transaction.reference,
       });
       // Set headers for PDF download
@@ -5866,8 +5932,8 @@ export async function registerRoutes(
         userId: resolvedUserId,
         name: name.trim(),
         key,
-        permissions: {},
-        isActive: true,
+        permissions: "{}",
+        isActive: 1,
       });
       // Return the key (this is the only time it will be shown)
       res.json({

@@ -9,7 +9,7 @@ import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormLabelWithoutFor, FormMessage, FormDescription } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { NetworkBadge } from "@/components/products/network-badge";
@@ -321,7 +321,7 @@ export default function CheckoutPage() {
                         name="paymentMethod"
                         render={({ field }) => (
                           <FormItem className="space-y-3">
-                            <FormLabel>Payment Method</FormLabel>
+                            <FormLabelWithoutFor>Payment Method</FormLabelWithoutFor>
                             <FormControl>
                               <RadioGroup
                                 onValueChange={field.onChange}
@@ -337,7 +337,6 @@ export default function CheckoutPage() {
                                       disabled={hasInsufficientBalance}
                                     />
                                     <Label
-                                      htmlFor="wallet"
                                       className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all ${
                                         hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
@@ -372,7 +371,6 @@ export default function CheckoutPage() {
                                     className="peer sr-only"
                                   />
                                   <Label
-                                    htmlFor="paystack"
                                     className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
                                   >
                                     <div className="flex items-center gap-3">
@@ -417,6 +415,7 @@ export default function CheckoutPage() {
                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                   placeholder="0241234567"
+                                  autoComplete="tel"
                                   className="pl-10"
                                   data-testid="input-phone"
                                   {...field}
@@ -450,6 +449,7 @@ export default function CheckoutPage() {
                                 <Input
                                   placeholder="you@example.com"
                                   type="email"
+                                  autoComplete="email"
                                   className="pl-10"
                                   data-testid="input-email"
                                   {...field}

@@ -344,8 +344,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               )}
 
               <div>
-                <Label>Beneficiary Number</Label>
-                <Input placeholder="0241234567" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Label htmlFor="beneficiary-phone">Beneficiary Number</Label>
+                <Input id="beneficiary-phone" autoComplete="tel" placeholder="0241234567" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 <p className="text-xs text-muted-foreground">Enter one number. Supports 0241234567 or 233241234567 (no +). Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
               </div>
 

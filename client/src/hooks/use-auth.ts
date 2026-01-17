@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { User } from "@shared/schema";
+import type { User } from "../../../src/shared/schema";
 import { supabase } from "@/lib/supabaseClient";
 
 export function useAuth() {
@@ -24,16 +24,34 @@ export function useAuth() {
     let mounted = true;
 
     // Load initial session once
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data, error }) => {
       if (mounted) {
-        setSession(data.session);
+        if (error) {
+          console.error('Session error:', error);
+          // Clear invalid session data
+          supabase.auth.signOut();
+          setSession(null);
+        } else {
+          setSession(data.session);
+        }
+        setAuthLoading(false);
+      }
+    }).catch((err) => {
+      console.error('Failed to get session:', err);
+      if (mounted) {
+        setSession(null);
         setAuthLoading(false);
       }
     });
 
     // Listen for real auth transitions only
     const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((event, session) => {
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        // Only log important auth events, not INITIAL_SESSION
+        if (event !== 'INITIAL_SESSION') {
+          console.log('Auth state change:', event, session ? 'session exists' : 'no session');
+        }
+
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
           setSession(session);
         }
@@ -41,6 +59,14 @@ export function useAuth() {
         if (event === "SIGNED_OUT") {
           setSession(null);
           queryClient.setQueryData(["/api/auth/me"], { user: null });
+          queryClient.clear();
+        }
+
+        // Handle token refresh errors
+        if (event === "TOKEN_REFRESHED" && !session) {
+          console.warn('Token refresh failed, signing out');
+          await supabase.auth.signOut();
+          setSession(null);
           queryClient.clear();
         }
       });
@@ -66,7 +92,9 @@ export function useAuth() {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const res = await fetch("/api/auth/me", {
+      // In development, use the full backend URL
+      const baseUrl = import.meta.env.DEV ? 'http://localhost:10000' : '';
+      const res = await fetch(`${baseUrl}/api/auth/me`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -120,7 +148,7 @@ export function useAuth() {
     setIsRegisterLoading(true);
     setRegisterError(null);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -132,6 +160,16 @@ export function useAuth() {
       setRegisterError(error.message);
       setIsRegisterLoading(false);
       return { error: error.message };
+    }
+
+    // Check if user is immediately signed in (email confirmation disabled)
+    if (data.session) {
+      // User is signed in, session will be handled by onAuthStateChange
+    } else if (data.user && !data.session) {
+      // Email confirmation required
+      setRegisterError("Please check your email and click the confirmation link to complete registration.");
+      setIsRegisterLoading(false);
+      return { error: "Email confirmation required" };
     }
 
     setIsRegisterLoading(false);

@@ -77,7 +77,7 @@ export default function AgentActivationCompletePage() {
           setErrorMessage(data.message || "Payment was cancelled");
         } else {
           setStatus("failed");
-          setErrorMessage(data.message || "Payment verification failed");
+          setErrorMessage(data.message || data.error || "Payment verification failed");
         }
       } catch (error) {
         console.error("Payment verification error:", error);
@@ -90,7 +90,7 @@ export default function AgentActivationCompletePage() {
     setTimeout(() => {
       verifyPayment();
     }, 3000);
-  }, []);
+  }, [setLocation]); // Added proper dependency
 
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
@@ -107,7 +107,7 @@ export default function AgentActivationCompletePage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {status === "processing" && (
-              <Alert className="bg-blue-50 border-blue-200 bg-white border border-blue-200">
+              <Alert className="bg-white border border-blue-200">
                 <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                 <AlertTitle className="text-blue-900">Processing Payment...</AlertTitle>
                 <AlertDescription className="text-blue-800">
@@ -118,7 +118,7 @@ export default function AgentActivationCompletePage() {
 
             {status === "success" && (
               <>
-                <Alert className="bg-green-50 border-green-200 bg-white border border-green-200">
+                <Alert className="bg-white border border-green-200">
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                   <AlertTitle className="text-green-900 text-lg font-semibold">🎉 Account Activated Successfully!</AlertTitle>
                   <AlertDescription className="text-green-800 space-y-3 mt-2">
@@ -166,7 +166,7 @@ export default function AgentActivationCompletePage() {
 
             {status === "cancelled" && (
               <>
-                <Alert className="bg-amber-50 border-amber-200 bg-white border border-amber-200">
+                <Alert className="bg-white border border-amber-200">
                   <AlertCircle className="h-5 w-5 text-amber-600" />
                   <AlertTitle className="text-amber-900 text-lg font-semibold">Payment Cancelled</AlertTitle>
                   <AlertDescription className="text-amber-800">
@@ -198,7 +198,7 @@ export default function AgentActivationCompletePage() {
 
             {status === "failed" && (
               <>
-                <Alert className="bg-red-50 border-red-200 bg-white border border-red-200">
+                <Alert className="bg-white border border-red-200">
                   <XCircle className="h-5 w-5 text-red-600" />
                   <AlertTitle className="text-red-900 text-lg font-semibold">Activation Failed</AlertTitle>
                   <AlertDescription className="text-red-800">

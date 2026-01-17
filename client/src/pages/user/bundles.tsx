@@ -622,7 +622,7 @@ export default function UserBundlesPage() {
                   <CardContent className="space-y-4">
                     {/* Bundle Dropdown */}
                     <div className="space-y-2">
-                      <Label htmlFor="bundle-select">Select Bundle</Label>
+                      <Label>Select Bundle</Label>
                       {isLoading ? (
                         <div className="flex justify-center py-4">
                           <Loader2 className="h-5 w-5 animate-spin" />
@@ -635,7 +635,7 @@ export default function UserBundlesPage() {
                             setSelectedBundle(bundle || null);
                           }}
                         >
-                          <SelectTrigger id="bundle-select">
+                          <SelectTrigger>
                             <SelectValue placeholder="Choose a data bundle" />
                           </SelectTrigger>
                           <SelectContent>
@@ -701,7 +701,6 @@ export default function UserBundlesPage() {
                             disabled={selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) ? true : false}
                           />
                           <Label
-                            htmlFor="wallet-single"
                             className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all ${
                               selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
                                 ? "opacity-50 cursor-not-allowed"
@@ -741,7 +740,6 @@ export default function UserBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            htmlFor="paystack-single"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
@@ -848,7 +846,6 @@ export default function UserBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            htmlFor="wallet-bulk"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
@@ -877,7 +874,6 @@ export default function UserBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            htmlFor="paystack-bulk"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">

@@ -254,7 +254,7 @@ global.upload = upload;
 const FRONTEND_URL = process.env.APP_URL
   || (process.env.NODE_ENV === "production"
     ? "https://resellershubprogh.com"
-    : `http://localhost:${process.env.PORT || 10000}`);
+    : [`http://localhost:5173`, `http://localhost:${process.env.PORT || 10000}`]);
 
 app.use(cors({
   origin: FRONTEND_URL,
@@ -349,7 +349,6 @@ app.use((req, res, next) => {
     {
       port: PORT,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${PORT}`);

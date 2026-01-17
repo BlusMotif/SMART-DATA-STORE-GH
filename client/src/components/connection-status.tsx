@@ -20,13 +20,13 @@ export function ConnectionStatus() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Check connection periodically
+    // Check connection periodically (less frequent)
     const checkConnection = setInterval(() => {
       if (!navigator.onLine && isOnline) {
         setIsOnline(false);
         setShowOffline(true);
       }
-    }, 5000);
+    }, 30000); // Check every 30 seconds instead of 5
 
     return () => {
       window.removeEventListener('online', handleOnline);

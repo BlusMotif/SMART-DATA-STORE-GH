@@ -620,12 +620,12 @@ export default function AgentNetworkPurchasePage() {
                       <form onSubmit={singleForm.handleSubmit(onSubmit)} className="space-y-4">
                       {/* Bundle Selection */}
                       <div className="space-y-2">
-                        <Label htmlFor="single-bundle-select">Select Data Bundle</Label>
+                        <Label>Select Data Bundle</Label>
                         <Select value={selectedBundleId} onValueChange={(value) => {
                           setSelectedBundleId(value);
                           setValidationResult(null);
                         }}>
-                          <SelectTrigger id="single-bundle-select" className="w-full">
+                          <SelectTrigger className="w-full">
                             <SelectValue placeholder="Choose a data bundle..." />
                           </SelectTrigger>
                           <SelectContent>

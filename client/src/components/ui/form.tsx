@@ -103,6 +103,23 @@ const FormLabel = React.forwardRef<
 })
 FormLabel.displayName = "FormLabel"
 
+// FormLabel without htmlFor for components like RadioGroup that don't have a single focusable element
+const FormLabelWithoutFor = React.forwardRef<
+  React.ElementRef<typeof LabelPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root>
+>(({ className, ...props }, ref) => {
+  const { error } = useFormField()
+
+  return (
+    <Label
+      ref={ref}
+      className={cn(error && "text-destructive", className)}
+      {...props}
+    />
+  )
+})
+FormLabelWithoutFor.displayName = "FormLabelWithoutFor"
+
 const FormControl = React.forwardRef<
   React.ElementRef<typeof Slot>,
   React.ComponentPropsWithoutRef<typeof Slot>
@@ -126,13 +143,13 @@ const FormControl = React.forwardRef<
 FormControl.displayName = "FormControl"
 
 const FormDescription = React.forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
+  HTMLDivElement,
+  React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
   const { formDescriptionId } = useFormField()
 
   return (
-    <p
+    <div
       ref={ref}
       id={formDescriptionId}
       className={cn("text-sm text-muted-foreground", className)}
@@ -171,6 +188,7 @@ export {
   Form,
   FormItem,
   FormLabel,
+  FormLabelWithoutFor,
   FormControl,
   FormDescription,
   FormMessage,

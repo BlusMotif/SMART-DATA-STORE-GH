@@ -113,7 +113,7 @@ export function BulkUploadSection() {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="network">Network</Label>
+            <Label>Network</Label>
             <Select
               value={uploadData.network}
               onValueChange={(value) => setUploadData({ ...uploadData, network: value })}

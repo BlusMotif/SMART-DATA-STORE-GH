@@ -298,7 +298,7 @@ function BundleForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="network">Network</Label>
+          <Label>Network</Label>
           <Select
             value={formData.network}
             onValueChange={(value) => setFormData({ ...formData, network: value })}
@@ -405,7 +405,7 @@ function BundleForm({
             onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
             data-testid="switch-bundle-active"
           />
-          <Label htmlFor="isActive">Active</Label>
+          <Label>Active</Label>
         </div>
         <Button type="submit" disabled={isLoading} data-testid="button-submit-bundle">
           {isLoading ? "Saving..." : bundle ? "Update Bundle" : "Create Bundle"}

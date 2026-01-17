@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoginLoading, loginError, user, isLoading } = useAuth();
   const { toast } = useToast();
+  const [hasRedirected, setHasRedirected] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -37,34 +38,30 @@ export default function LoginPage() {
 
   // Navigate based on user role when user is loaded and auth is ready
   useEffect(() => {
-    // Don't redirect while auth is still loading
-    if (isLoading) {
-      console.log("Auth still loading, waiting...");
+    // Don't redirect while auth is still loading or if already redirected
+    if (isLoading || hasRedirected) {
       return;
     }
 
     if (user) {
-      console.log("User authenticated in login page:", user);
-      console.log("User role:", user.role);
-      const role = user.role;
-      console.log("Redirecting based on role:", role);
+      setHasRedirected(true);
 
-      if (role === "admin") {
+      if (user.role === "admin") {
         console.log("Redirecting admin to /admin");
         setLocation("/admin");
-      } else if (role === "agent") {
+      } else if (user.role === "agent") {
         console.log("Redirecting agent to /agent/dashboard");
         setLocation("/agent/dashboard");
-      } else if (role === "dealer") {
+      } else if (user.role === "dealer") {
         console.log("Redirecting dealer to /dealer/dashboard");
         setLocation("/dealer/dashboard");
-      } else if (role === "super_dealer") {
+      } else if (user.role === "super_dealer") {
         console.log("Redirecting super dealer to /super-dealer/dashboard");
         setLocation("/super-dealer/dashboard");
-      } else if (role === "master") {
+      } else if (user.role === "master") {
         console.log("Redirecting master to /master/dashboard");
         setLocation("/master/dashboard");
-      } else if (role === "user") {
+      } else if (user.role === "user") {
         console.log("Redirecting user to /user/dashboard");
         setLocation("/user/dashboard");
       } else {
@@ -79,7 +76,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     try {
       const result = await login({ email: data.email, password: data.password });
-      if (result.user) {
+      if (!result.error) {
         // Clear agent store context after successful login
         clearAgentStore();
         toast({
@@ -107,7 +104,15 @@ export default function LoginPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400">
+        <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400 relative">
+          {isLoginLoading && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 rounded-lg">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Signing you in...</p>
+              </div>
+            </div>
+          )}
           <CardHeader className="text-center space-y-2">
             <div className="flex justify-center mb-4">
               <img src={siteLogo} alt="Logo" className="h-16 w-auto object-contain" />
@@ -126,18 +131,20 @@ export default function LoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <FormControl>
                         <Input
                           placeholder="you@example.com"
                           type="email"
                           className="pl-10"
                           data-testid="input-email"
+                          name={field.name}
+                          autoComplete="email"
                           {...field}
                         />
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -149,31 +156,33 @@ export default function LoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <FormControl>
                         <Input
                           placeholder="Enter your password"
                           type={showPassword ? "text" : "password"}
                           className="pl-10 pr-10"
                           data-testid="input-password"
+                          name={field.name}
+                          autoComplete="current-password"
                           {...field}
                         />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-0 h-full px-3"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </Button>
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-0 h-full px-3"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

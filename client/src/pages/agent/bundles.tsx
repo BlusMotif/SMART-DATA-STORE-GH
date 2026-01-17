@@ -647,7 +647,7 @@ export default function AgentBundlesPage() {
                   <CardContent className="space-y-4">
                     {/* Bundle Dropdown */}
                     <div className="space-y-2">
-                      <Label htmlFor="bundle-select">Select Bundle</Label>
+                      <Label>Select Bundle</Label>
                       {bundlesLoading ? (
                         <div className="flex justify-center py-4">
                           <Loader2 className="h-5 w-5 animate-spin" />
@@ -660,7 +660,7 @@ export default function AgentBundlesPage() {
                             setSelectedBundle(bundle || null);
                           }}
                         >
-                          <SelectTrigger id="bundle-select">
+                          <SelectTrigger>
                             <SelectValue placeholder="Choose a data bundle" />
                           </SelectTrigger>
                           <SelectContent>
@@ -740,7 +740,6 @@ export default function AgentBundlesPage() {
                             disabled={selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance ? true : false}
                           />
                           <Label
-                            htmlFor="wallet-single"
                             className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all ${
                               selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance
                                 ? "opacity-50 cursor-not-allowed"
@@ -780,7 +779,6 @@ export default function AgentBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            htmlFor="paystack-single"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
@@ -888,7 +886,6 @@ export default function AgentBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            htmlFor="wallet-bulk"
                             className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all`}
                           >
                             <div className="flex items-center gap-3">
@@ -917,7 +914,6 @@ export default function AgentBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            htmlFor="paystack-bulk"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">

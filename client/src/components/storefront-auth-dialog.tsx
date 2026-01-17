@@ -60,7 +60,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
       localStorage.setItem("agentStore", agentSlug);
       toast({ title: "✅ Welcome back!", description: "You've been logged in successfully." });
       setOpen(false);
-      window.location.reload();
+      // Navigation will be handled by auth state change, no need to reload
     },
     onError: (error: Error) => {
       toast({
@@ -81,7 +81,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
         description: "Welcome! You can now purchase products.",
       });
       setOpen(false);
-      window.location.reload();
+      // Navigation will be handled by auth state change, no need to reload
     },
     onError: (error: Error) => {
       toast({
@@ -136,7 +136,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="your@email.com" {...field} />
+                        <Input placeholder="your@email.com" type="email" autoComplete="email" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -149,7 +149,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
+                        <Input type="password" autoComplete="current-password" placeholder="••••••••" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -172,7 +172,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="John Doe" {...field} />
+                        <Input placeholder="John Doe" autoComplete="name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -185,7 +185,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input placeholder="your@email.com" {...field} />
+                        <Input placeholder="your@email.com" type="email" autoComplete="email" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -198,7 +198,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
-                        <Input placeholder="0241234567" {...field} />
+                        <Input placeholder="0241234567" autoComplete="tel" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -211,7 +211,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
+                        <Input type="password" autoComplete="new-password" placeholder="••••••••" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -224,7 +224,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
                     <FormItem>
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} />
+                        <Input type="password" autoComplete="new-password" placeholder="••••••••" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

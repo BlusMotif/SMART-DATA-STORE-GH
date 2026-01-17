@@ -591,12 +591,11 @@ export default function AgentPublicStorefront() {
                           <Label>Upload Excel File</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center hover:border-muted-foreground/50 transition-colors">
                             <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-                            <Label htmlFor="file-upload" className="cursor-pointer">
+                            <Label className="cursor-pointer">
                               <span className="text-sm text-muted-foreground">
                                 Click to upload or drag and drop
                               </span>
                               <Input
-                                id="file-upload"
                                 type="file"
                                 accept=".xlsx,.xls,.csv"
                                 onChange={handleFileUpload}
@@ -717,36 +716,36 @@ export default function AgentPublicStorefront() {
                             setSelectedBundleId("");
                           }}>
                             <div className="grid grid-cols-2 gap-3 mt-2">
-                              <Label htmlFor="bulk-mtn" className="cursor-pointer">
+                              <Label className="cursor-pointer">
                                 <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "mtn" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
-                                  <RadioGroupItem value="mtn" id="bulk-mtn" className="sr-only" />
+                                  <RadioGroupItem value="mtn" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#FFCC00", color: "#000" }}>MTN</Badge>
                                   <span className="text-sm text-center">
                                     {validationResults.filter(r => r.isValid && r.network === "mtn").length} numbers
                                   </span>
                                 </div>
                               </Label>
-                              <Label htmlFor="bulk-telecel" className="cursor-pointer">
+                              <Label className="cursor-pointer">
                                 <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "telecel" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
-                                  <RadioGroupItem value="telecel" id="bulk-telecel" className="sr-only" />
+                                  <RadioGroupItem value="telecel" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#0066CC", color: "#fff" }}>Telecel</Badge>
                                   <span className="text-sm text-center">
                                     {validationResults.filter(r => r.isValid && r.network === "telecel").length} numbers
                                   </span>
                                 </div>
                               </Label>
-                              <Label htmlFor="bulk-at_bigtime" className="cursor-pointer">
+                              <Label className="cursor-pointer">
                                 <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_bigtime" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
-                                  <RadioGroupItem value="at_bigtime" id="bulk-at_bigtime" className="sr-only" />
+                                  <RadioGroupItem value="at_bigtime" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AT BIG TIME</Badge>
                                   <span className="text-sm text-center">
                                     {validationResults.filter(r => r.isValid && r.network === "at_bigtime").length} numbers
                                   </span>
                                 </div>
                               </Label>
-                              <Label htmlFor="bulk-at_ishare" className="cursor-pointer">
+                              <Label className="cursor-pointer">
                                 <div className={`flex flex-col items-center gap-2 p-4 border-2 rounded-lg transition-all ${selectedNetwork === "at_ishare" ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
-                                  <RadioGroupItem value="at_ishare" id="bulk-at_ishare" className="sr-only" />
+                                  <RadioGroupItem value="at_ishare" className="sr-only" />
                                   <Badge style={{ backgroundColor: "#FF0000", color: "#fff" }}>AT iShare</Badge>
                                   <span className="text-sm text-center">
                                     {validationResults.filter(r => r.isValid && r.network === "at_ishare").length} numbers
@@ -767,10 +766,10 @@ export default function AgentPublicStorefront() {
                                   const totalPrice = parseFloat(bundle.price) * validCount;
                                   
                                   return (
-                                    <Label key={bundle.id} htmlFor={`bulk-${bundle.id}`} className="cursor-pointer">
+                                    <Label key={bundle.id} className="cursor-pointer">
                                       <div className={`flex items-center justify-between p-4 border-2 rounded-lg transition-all ${selectedBundleId === bundle.id ? "border-primary bg-primary/5" : "border-muted hover:border-primary/50"}`}>
                                         <div className="flex items-center gap-3">
-                                          <RadioGroupItem value={bundle.id} id={`bulk-${bundle.id}`} className="sr-only" />
+                                          <RadioGroupItem value={bundle.id} className="sr-only" />
                                           <Smartphone className="h-5 w-5 text-muted-foreground" />
                                           <div>
                                             <div className="font-medium">{bundle.name}</div>

@@ -7,17 +7,14 @@ import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sideba
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { formatCurrency, NETWORKS } from "@/lib/constants";
 import { Store, ExternalLink, Copy, Save, Smartphone, Menu } from "lucide-react";
-import type { Agent, DataBundle } from "@shared/schema";
+import type { Agent } from "../../../../src/shared/schema";
 
 const storefrontSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters"),
@@ -28,15 +25,15 @@ type StorefrontFormData = z.infer<typeof storefrontSchema>;
 
 interface AgentProfileResponse {
   profile: Agent & {
-    user: {
-      name: string;
-      email: string;
-      phone: string | null;
-    };
-    profitBalance: number;
     walletBalance: number;
+    profitBalance: number;
     totalWithdrawals: number;
     role: string;
+    user: {
+      name: string | null;
+      email: string | null;
+      phone: string | null;
+    };
   };
   stats: any;
 }
@@ -45,19 +42,13 @@ export default function AgentStorefront() {
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { data: profileData } = useQuery<AgentProfileResponse>({
+  const { data: profileData, isLoading: profileLoading } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/profile"],
     refetchInterval: 30000, // Refresh every 30 seconds
     refetchOnWindowFocus: true,
   });
   
   const agent = profileData?.profile;
-
-  const { data: bundles } = useQuery<DataBundle[]>({
-    queryKey: ["/api/products/data-bundles"],
-    refetchInterval: 30000, // Refresh every 30 seconds for product updates
-    refetchOnWindowFocus: true,
-  });
 
   const form = useForm<StorefrontFormData>({
     resolver: zodResolver(storefrontSchema),
@@ -80,7 +71,7 @@ export default function AgentStorefront() {
     mutationFn: (data: StorefrontFormData) =>
       apiRequest("PATCH", "/api/agent/storefront", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/agent/profile"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
       toast({ title: "Store details updated successfully" });
     },
     onError: (error: Error) => {
@@ -151,13 +142,11 @@ export default function AgentStorefront() {
                 </div>
               </div>
               
-              {agent?.businessDescription && (
-                <div className="bg-background/50 rounded-md p-4 border">
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {agent.businessDescription}
-                  </p>
-                </div>
-              )}
+              <div className="bg-background/50 rounded-md p-4 border">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {agent?.businessDescription || "No business description provided. Update it below to tell customers about your store."}
+                </p>
+              </div>
               
               <div className="flex items-center gap-4 mt-6">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -225,6 +214,7 @@ export default function AgentStorefront() {
                           <FormControl>
                             <Input
                               placeholder="Your business name"
+                              disabled={profileLoading}
                               data-testid="input-business-name"
                               {...field}
                             />
@@ -245,6 +235,7 @@ export default function AgentStorefront() {
                               placeholder="Tell customers about your business..."
                               className="resize-none"
                               rows={3}
+                              disabled={profileLoading}
                               data-testid="input-business-description"
                               {...field}
                             />
@@ -259,11 +250,11 @@ export default function AgentStorefront() {
 
                     <Button
                       type="submit"
-                      disabled={updateStoreMutation.isPending}
+                      disabled={updateStoreMutation.isPending || profileLoading}
                       data-testid="button-save-details"
                     >
                       <Save className="h-4 w-4 mr-2" />
-                      {updateStoreMutation.isPending ? "Saving..." : "Save Details"}
+                      {updateStoreMutation.isPending ? "Saving..." : profileLoading ? "Loading..." : "Save Details"}
                     </Button>
                   </form>
                 </Form>

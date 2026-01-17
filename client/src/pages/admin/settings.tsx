@@ -339,6 +339,7 @@ export default function AdminSettings() {
                     <Input
                       id="supportEmail"
                       type="email"
+                      autoComplete="email"
                       value={settings.support_email || ""}
                       onChange={(e) => handleSettingChange("support_email", e.target.value)}
                       placeholder="support@clectech.com"
@@ -357,6 +358,7 @@ export default function AdminSettings() {
                   <div className="flex gap-2">
                     <Input
                       id="supportPhone"
+                      autoComplete="tel"
                       value={settings.support_phone || ""}
                       onChange={(e) => handleSettingChange("support_phone", e.target.value)}
                       placeholder="+233 XX XXX XXXX"
@@ -449,6 +451,7 @@ export default function AdminSettings() {
                         <Input
                           id="userEmail"
                           type="email"
+                          autoComplete="email"
                           value={credentialForm.email}
                           onChange={(e) => setCredentialForm(prev => ({ ...prev, email: e.target.value }))}
                         />
@@ -458,6 +461,7 @@ export default function AdminSettings() {
                         <Label htmlFor="userName">Name</Label>
                         <Input
                           id="userName"
+                          autoComplete="name"
                           value={credentialForm.name}
                           onChange={(e) => setCredentialForm(prev => ({ ...prev, name: e.target.value }))}
                         />
@@ -467,6 +471,7 @@ export default function AdminSettings() {
                         <Label htmlFor="userPhone">Phone</Label>
                         <Input
                           id="userPhone"
+                          autoComplete="tel"
                           value={credentialForm.phone}
                           onChange={(e) => setCredentialForm(prev => ({ ...prev, phone: e.target.value }))}
                         />
@@ -477,6 +482,7 @@ export default function AdminSettings() {
                         <Input
                           id="userPassword"
                           type="password"
+                          autoComplete="new-password"
                           value={credentialForm.password}
                           onChange={(e) => setCredentialForm(prev => ({ ...prev, password: e.target.value }))}
                           placeholder="Enter new password"

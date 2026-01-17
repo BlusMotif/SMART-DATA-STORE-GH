@@ -72,7 +72,16 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      await register({ email: data.email, password: data.password, name: data.name });
+      const result = await register({ email: data.email, password: data.password, name: data.name });
+      
+      if (result?.error === "Email confirmation required") {
+        toast({
+          title: "Check your email",
+          description: "Please click the confirmation link in your email to complete registration.",
+        });
+        return;
+      }
+      
       toast({
         title: "Account created!",
         description: "Welcome to " + APP_NAME,
@@ -126,6 +135,7 @@ export default function RegisterPage() {
                         <Input
                           placeholder="John Doe"
                           className="pl-10"
+                          autoComplete="name"
                           data-testid="input-name"
                           {...field}
                         />
@@ -148,6 +158,7 @@ export default function RegisterPage() {
                         <Input
                           placeholder="you@example.com"
                           type="email"
+                          autoComplete="email"
                           className="pl-10"
                           data-testid="input-email"
                           {...field}
@@ -170,6 +181,7 @@ export default function RegisterPage() {
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           placeholder="0241234567"
+                          autoComplete="tel"
                           className="pl-10"
                           data-testid="input-phone"
                           {...field}
@@ -193,6 +205,7 @@ export default function RegisterPage() {
                         <Input
                           placeholder="Create a password"
                           type={showPassword ? "text" : "password"}
+                          autoComplete="new-password"
                           className="pl-10 pr-10"
                           data-testid="input-password"
                           {...field}
@@ -229,6 +242,7 @@ export default function RegisterPage() {
                         <Input
                           placeholder="Confirm your password"
                           type={showPassword ? "text" : "password"}
+                          autoComplete="new-password"
                           className="pl-10"
                           data-testid="input-confirm-password"
                           {...field}

@@ -30,6 +30,8 @@ export function AnnouncementPopup() {
     queryKey: ['announcements'],
     queryFn: () => apiRequest('/api/announcements/active'),
     enabled: true,
+    staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch on tab focus
   });
 
   // Check if there are any active announcements that haven't been dismissed

@@ -277,7 +277,7 @@ function PriceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="bundleId">Data Bundle</Label>
+        <Label>Data Bundle</Label>
         <Select
           value={formData.bundleId}
           onValueChange={(value) => setFormData({ ...formData, bundleId: value })}
@@ -296,7 +296,7 @@ function PriceForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="role">Role</Label>
+        <Label>Role</Label>
         <Select
           value={formData.role}
           onValueChange={(value) => setFormData({ ...formData, role: value })}

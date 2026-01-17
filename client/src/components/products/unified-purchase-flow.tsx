@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormLabelWithoutFor, FormMessage, FormDescription } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -595,7 +595,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         name="paymentMethod"
                         render={({ field }) => (
                           <FormItem className="space-y-3">
-                            <FormLabel>Payment Method</FormLabel>
+                            <FormLabelWithoutFor>Payment Method</FormLabelWithoutFor>
                             <FormControl>
                               <RadioGroup
                                 onValueChange={field.onChange}
@@ -611,7 +611,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                       disabled={hasInsufficientBalance}
                                     />
                                     <Label
-                                      htmlFor="wallet"
                                       className={`flex items-center justify-between rounded-lg border-2 border-black bg-card p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
                                         hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
@@ -646,7 +645,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                     className="peer sr-only"
                                   />
                                   <Label
-                                    htmlFor="paystack"
                                     className="flex items-center justify-between rounded-lg border-2 border-black bg-card p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all"
                                   >
                                     <div className="flex items-center gap-3">
@@ -691,6 +689,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input
                                   placeholder="0241234567"
+                                  autoComplete="tel"
                                   className="pl-10"
                                   {...field}
                                 />
@@ -787,7 +786,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         name="paymentMethod"
                         render={({ field }) => (
                           <FormItem className="space-y-3">
-                            <FormLabel>Payment Method</FormLabel>
+                            <FormLabelWithoutFor>Payment Method</FormLabelWithoutFor>
                             <FormControl>
                               <RadioGroup
                                 onValueChange={field.onChange}
@@ -803,7 +802,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                       disabled={walletBalance < totalAmount}
                                     />
                                     <Label
-                                      htmlFor="wallet-bulk"
                                       className={`flex items-center justify-between rounded-lg border-2 border-black bg-card p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
                                         walletBalance < totalAmount ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
@@ -838,7 +836,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                     className="peer sr-only"
                                   />
                                   <Label
-                                    htmlFor="paystack-bulk"
                                     className="flex items-center justify-between rounded-lg border-2 border-black bg-card p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all"
                                   >
                                     <div className="flex items-center gap-3">

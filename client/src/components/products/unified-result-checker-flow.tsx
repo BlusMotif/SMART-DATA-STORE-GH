@@ -7,7 +7,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormLabelWithoutFor, FormMessage, FormDescription } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -287,7 +287,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                   name="paymentMethod"
                   render={({ field }) => (
                     <FormItem className="space-y-3">
-                      <FormLabel>Payment Method</FormLabel>
+                      <FormLabelWithoutFor>Payment Method</FormLabelWithoutFor>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -303,7 +303,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                                 disabled={hasInsufficientBalance}
                               />
                               <Label
-                                htmlFor="wallet"
                                 className={`flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all ${
                                   hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                 }`}
@@ -338,7 +337,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                               className="peer sr-only"
                             />
                             <Label
-                              htmlFor="paystack"
                               className="flex items-center justify-between rounded-lg border-2 border-muted bg-card p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 cursor-pointer transition-all"
                             >
                               <div className="flex items-center gap-3">

@@ -5,6 +5,9 @@ import { supabase } from "./supabaseClient";
    Helpers
 -------------------------------------------------- */
 
+let cachedToken: string | null = null;
+let tokenExpiry: number | null = null;
+
 async function parseError(res: Response) {
   try {
     const text = await res.text();
@@ -22,12 +25,38 @@ async function parseError(res: Response) {
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  const now = Date.now();
 
-  return token
-    ? { Authorization: `Bearer ${token}` }
-    : {};
+  // Use cached token if it's still valid (expires in 5 minutes)
+  if (cachedToken && tokenExpiry && now < tokenExpiry) {
+    return cachedToken ? { Authorization: `Bearer ${cachedToken}` } : {};
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn('Session error in getAuthHeaders:', error);
+      // Clear cache on error
+      cachedToken = null;
+      tokenExpiry = null;
+      return {};
+    }
+    const token = data.session?.access_token;
+
+    // Cache the token for 5 minutes
+    cachedToken = token || null;
+    tokenExpiry = token ? now + (5 * 60 * 1000) : null;
+
+    return token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+  } catch (err) {
+    console.error('Failed to get session in getAuthHeaders:', err);
+    // Clear cache on error
+    cachedToken = null;
+    tokenExpiry = null;
+    return {};
+  }
 }
 
 /* --------------------------------------------------
@@ -41,7 +70,11 @@ export async function apiRequest<T = unknown>(
 ): Promise<T> {
   const authHeaders = await getAuthHeaders();
 
-  const res = await fetch(url, {
+  // In development, use the full backend URL
+  const baseUrl = import.meta.env.DEV ? 'http://localhost:10000' : '';
+  const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+
+  const res = await fetch(fullUrl, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -70,7 +103,12 @@ export const getQueryFn =
   async ({ queryKey }) => {
     const authHeaders = await getAuthHeaders();
 
-    const res = await fetch(queryKey[0] as string, {
+    // In development, use the full backend URL
+    const baseUrl = import.meta.env.DEV ? 'http://localhost:10000' : '';
+    const url = queryKey[0] as string;
+    const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+
+    const res = await fetch(fullUrl, {
       headers: {
         ...authHeaders,
       },

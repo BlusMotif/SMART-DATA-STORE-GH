@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useLocation } from "wouter";
@@ -61,6 +61,7 @@ export default function AgentDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showApiModal, setShowApiModal] = useState(false);
   const [, setLocation] = useLocation();
+  const hasRedirected = useRef(false);
 
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/profile"],
@@ -72,12 +73,14 @@ export default function AgentDashboard() {
   const agent = profileData?.profile;
   const [location] = useLocation();
 
-  // Redirect to activation if agent is not approved
+  // Redirect to activation if agent is not approved (run only once)
   useEffect(() => {
-    if (agent && !agent.isApproved && location !== "/agent/activation-complete") {
+    if (agent && !agent.isApproved && location !== "/agent/activation-complete" && !hasRedirected.current) {
+      hasRedirected.current = true;
+      console.log('Redirecting to activation page - agent not approved');
       setLocation("/agent/activation-complete");
     }
-  }, [agent?.isApproved, location, setLocation]);
+  }, [agent, location, setLocation]);
 
   const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],

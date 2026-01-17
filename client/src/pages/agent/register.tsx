@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
-import { Loader2, Mail, Lock, User, Phone, Store, Link2, Eye, EyeOff, ArrowLeft, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Loader2, Mail, Lock, User, Phone, Store, Link2, Eye, EyeOff, ArrowLeft, AlertCircle, CheckCircle2, Info, Copy } from "lucide-react";
 import siteLogo from "@assets/logo_1765774201026.png";
 import { getAgentId } from "@/lib/store-context";
 
@@ -47,13 +47,28 @@ const agentRegisterSchema = z.object({
 type AgentRegisterFormData = z.infer<typeof agentRegisterSchema>;
 
 export default function AgentRegisterPage() {
-  const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const [showInfoDialog, setShowInfoDialog] = useState(true);
+  const [showInfoDialog, setShowInfoDialog] = useState(() => {
+    // Only show dialog if user hasn't dismissed it before
+    if (typeof window !== 'undefined') {
+      const hasSeenDialog = localStorage.getItem('agent-info-dialog-seen');
+      return !hasSeenDialog;
+    }
+    return true;
+  });
   const { toast } = useToast();
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: "URL copied to clipboard",
+    });
+  };
 
   const form = useForm<AgentRegisterFormData>({
     resolver: zodResolver(agentRegisterSchema),
+    mode: 'onSubmit', // Only validate on submit to reduce re-renders
     defaultValues: {
       name: "",
       email: typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('email') || '' : '',
@@ -69,8 +84,13 @@ export default function AgentRegisterPage() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: AgentRegisterFormData) => {
-      const response = await apiRequest("POST", "/api/agent/register", data);
-      return response.json();
+      const result = await apiRequest("POST", "/api/agent/register", data);
+      return result as {
+        message: string;
+        paymentUrl: string;
+        paymentReference: string;
+        amount: number;
+      };
     },
     onSuccess: (data) => {
       // Redirect to Paystack payment
@@ -90,6 +110,7 @@ export default function AgentRegisterPage() {
       }
     },
     onError: (error: any) => {
+      console.error("Mutation error:", error);
       // Check if it's a rate limit error
       if (error.message && error.message.includes('rate limit')) {
         toast({
@@ -112,7 +133,16 @@ export default function AgentRegisterPage() {
     registerMutation.mutate(data);
   };
 
-  const storefrontSlug = form.watch("storefrontSlug");
+  const handleInfoDialogChange = (open: boolean) => {
+    setShowInfoDialog(open);
+    if (!open && typeof window !== 'undefined') {
+      // Remember that user has seen the dialog
+      localStorage.setItem('agent-info-dialog-seen', 'true');
+    }
+  };
+  
+  // Memoize the origin to prevent re-computation on every render
+  const siteOrigin = useMemo(() => typeof window !== 'undefined' ? window.location.origin : '', []);
 
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
@@ -125,7 +155,7 @@ export default function AgentRegisterPage() {
         </Link>
       </nav>
       
-      <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
+      <Dialog open={showInfoDialog} onOpenChange={handleInfoDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
@@ -229,7 +259,7 @@ export default function AgentRegisterPage() {
                       <FormControl>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="John Doe" className="pl-10" data-testid="input-name" {...field} />
+                          <Input placeholder="John Doe" autoComplete="name" className="pl-10" data-testid="input-name" {...field} />
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -245,7 +275,7 @@ export default function AgentRegisterPage() {
                       <FormControl>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="0241234567" className="pl-10" data-testid="input-phone" {...field} />
+                          <Input placeholder="0241234567" autoComplete="tel" className="pl-10" data-testid="input-phone" {...field} />
                         </div>
                       </FormControl>
                       <FormMessage />
@@ -263,7 +293,7 @@ export default function AgentRegisterPage() {
                     <FormControl>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="you@example.com" type="email" className="pl-10" data-testid="input-email" {...field} />
+                        <Input placeholder="you@example.com" type="email" autoComplete="email" className="pl-10" data-testid="input-email" {...field} />
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -301,10 +331,21 @@ export default function AgentRegisterPage() {
                       </div>
                     </FormControl>
                     <FormDescription>
-                      {storefrontSlug && (
-                        <span className="text-xs">
-                          Your store: {window.location.origin}/store/agent/<strong>{storefrontSlug}</strong>
-                        </span>
+                      {field.value && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span>
+                            Your store: {siteOrigin}/store/agent/<strong>{field.value}</strong>
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => copyToClipboard(`${siteOrigin}/store/agent/${field.value}`)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -336,7 +377,7 @@ export default function AgentRegisterPage() {
                       <FormControl>
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input type={showPassword ? "text" : "password"} className="pl-10 pr-10" data-testid="input-password" {...field} />
+                          <Input type={showPassword ? "text" : "password"} autoComplete="new-password" className="pl-10 pr-10" data-testid="input-password" {...field} />
                           <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </Button>
@@ -355,7 +396,7 @@ export default function AgentRegisterPage() {
                       <FormControl>
                         <div className="relative">
                           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input type={showPassword ? "text" : "password"} className="pl-10" data-testid="input-confirm" {...field} />
+                          <Input type={showPassword ? "text" : "password"} autoComplete="new-password" className="pl-10" data-testid="input-confirm" {...field} />
                         </div>
                       </FormControl>
                       <FormMessage />

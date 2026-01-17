@@ -1,6 +1,6 @@
-﻿import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt } from "drizzle-orm";
 import { db } from "./db.js";
-import { randomBytes } from "crypto";
+import { randomUUID } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
@@ -14,7 +14,8 @@ import {
   type CustomPricing, type InsertCustomPricing, type AdminBasePrices, type InsertAdminBasePrices,
   type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction,
-  type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction
+  type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction,
+  type Settings
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -227,9 +228,11 @@ export class DatabaseStorage implements IStorage {
     }
     
     const result = await db.insert(users).values({
+      id: randomUUID(),
       ...insertUser,
       email: normalizedEmail,
       password: insertUser.password || '', // Default to empty string if not provided
+      createdAt: new Date().toISOString(),
     }).returning();
     return result[0];
   }
@@ -267,8 +270,10 @@ export class DatabaseStorage implements IStorage {
 
   async createAgent(insertAgent: InsertAgent): Promise<Agent> {
     const [agent] = await db.insert(agents).values({
+      id: randomUUID(),
       ...insertAgent,
       storefrontSlug: insertAgent.storefrontSlug.toLowerCase(),
+      createdAt: new Date().toISOString(),
     }).returning();
     return agent;
   }
@@ -327,7 +332,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createDataBundle(bundle: InsertDataBundle): Promise<DataBundle> {
-    const [created] = await db.insert(dataBundles).values(bundle).returning();
+    const [created] = await db.insert(dataBundles).values({
+      id: randomUUID(),
+      ...bundle,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
@@ -385,13 +394,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createResultChecker(checker: InsertResultChecker): Promise<ResultChecker> {
-    const [created] = await db.insert(resultCheckers).values(checker).returning();
+    const [created] = await db.insert(resultCheckers).values({
+      id: randomUUID(),
+      ...checker,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
   async createResultCheckersBulk(checkers: InsertResultChecker[]): Promise<ResultChecker[]> {
     if (checkers.length === 0) return [];
-    return db.insert(resultCheckers).values(checkers).returning();
+    const checkersWithIds = checkers.map(checker => ({
+      id: randomUUID(),
+      ...checker
+    }));
+    return db.insert(resultCheckers).values(checkersWithIds).returning();
   }
 
   async markResultCheckerSold(id: string, transactionId: string, phone: string | null): Promise<ResultChecker | undefined> {
@@ -511,7 +528,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
-    const [created] = await db.insert(transactions).values(transaction).returning();
+    const [created] = await db.insert(transactions).values({
+      id: randomUUID(),
+      ...transaction,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
@@ -531,8 +552,8 @@ export class DatabaseStorage implements IStorage {
     const totalSql = sql`count(*)`;
     const completedSql = sql`sum(case when status = 'completed' then 1 else 0 end)`;
     const pendingSql = sql`sum(case when status = 'pending' then 1 else 0 end)`;
-    const revenueSql = sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`;
-    const profitSql = sql`coalesce(sum(case when status = 'completed' then profit::numeric else 0 end), 0)`;
+    const revenueSql = sql`coalesce(sum(case when status = 'completed' then CAST(amount AS NUMERIC) else 0 end), 0)`;
+    const profitSql = sql`coalesce(sum(case when status = 'completed' then CAST(profit AS NUMERIC) else 0 end), 0)`;
     
     const stats = await db.select({
       total: totalSql,
@@ -572,7 +593,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal> {
-    const [created] = await db.insert(withdrawals).values(withdrawal).returning();
+    const [created] = await db.insert(withdrawals).values({
+      id: randomUUID(),
+      ...withdrawal,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
@@ -590,20 +615,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProfitWallet(wallet: InsertProfitWallet): Promise<ProfitWallet> {
-    const [created] = await db.insert(profitWallets).values(wallet).returning();
+    const [created] = await db.insert(profitWallets).values({
+      id: randomUUID(),
+      ...wallet,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
   async updateProfitWallet(userId: string, data: Partial<ProfitWallet>): Promise<ProfitWallet | undefined> {
-    const [wallet] = await db.update(profitWallets).set({ ...data, updatedAt: new Date() }).where(eq(profitWallets.userId, userId)).returning();
+    const [wallet] = await db.update(profitWallets).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(profitWallets.userId, userId)).returning();
     return wallet;
   }
 
   async addProfit(userId: string, amount: number, orderId?: string, productId?: string, sellingPrice?: number, basePrice?: number): Promise<void> {
     // Start transaction for atomicity
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: typeof db) => {
       // Get or create profit wallet
-      let wallet = await tx.select().from(profitWallets).where(eq(profitWallets.userId, userId)).limit(1).then(rows => rows[0]);
+      let wallet = await tx.select().from(profitWallets).where(eq(profitWallets.userId, userId)).limit(1).then((rows: ProfitWallet[]) => rows[0]);
       if (!wallet) {
         [wallet] = await tx.insert(profitWallets).values({
           userId,
@@ -633,7 +662,7 @@ export class DatabaseStorage implements IStorage {
       await tx.update(profitWallets).set({
         totalEarned: newTotalEarned,
         availableBalance: newAvailableBalance,
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString(),
       }).where(eq(profitWallets.userId, userId));
     });
   }
@@ -653,7 +682,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProfitTransaction(transaction: InsertProfitTransaction): Promise<ProfitTransaction> {
-    const [created] = await db.insert(profitTransactions).values(transaction).returning();
+    const [created] = await db.insert(profitTransactions).values({
+      id: randomUUID(),
+      ...transaction,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
@@ -666,7 +699,11 @@ export class DatabaseStorage implements IStorage {
   // SMS LOGS
   // ============================================
   async createSmsLog(log: InsertSmsLog): Promise<SmsLog> {
-    const [created] = await db.insert(smsLogs).values(log).returning();
+    const [created] = await db.insert(smsLogs).values({
+      id: randomUUID(),
+      ...log,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
@@ -688,7 +725,11 @@ export class DatabaseStorage implements IStorage {
   // AUDIT LOGS
   // ============================================
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
-    const [created] = await db.insert(auditLogs).values(log).returning();
+    const [created] = await db.insert(auditLogs).values({
+      id: randomUUID(),
+      ...log,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 
@@ -760,7 +801,7 @@ export class DatabaseStorage implements IStorage {
     const [todayStats] = await db.select({
       revenue: sql`coalesce(sum(case when status = 'completed' then amount::numeric else 0 end), 0)`,
       transactions: sql`count(*)`,
-    }).from(transactions).where(and(gte(transactions.createdAt, today), lt(transactions.createdAt, tomorrow)));
+    }).from(transactions).where(and(gte(transactions.createdAt, today.toISOString()), lt(transactions.createdAt, tomorrow.toISOString())));
 
     const [bundleStats] = await db.select({
       count: sql`count(*)`,
@@ -788,12 +829,13 @@ export class DatabaseStorage implements IStorage {
   // Support Chat Methods
   async createSupportChat(userId: string, userEmail: string, userName: string): Promise<string> {
     const [chat] = await db.insert(supportChats).values({
+      id: randomUUID(),
       userId,
       userEmail,
       userName,
       status: 'open',
       lastMessageAt: new Date(),
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     }).returning();
     return chat.id;
   }
@@ -838,12 +880,13 @@ export class DatabaseStorage implements IStorage {
 
   async createChatMessage(chatId: string, senderId: string, senderType: string, message: string): Promise<string> {
     const [msg] = await db.insert(chatMessages).values({
+      id: randomUUID(),
       chatId,
       senderId,
       senderType: senderType as any,
       message,
       isRead: false,
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
     }).returning();
 
     // Update last message timestamp on chat
@@ -875,7 +918,7 @@ export class DatabaseStorage implements IStorage {
     
     if (userChats.length === 0) return 0;
     
-    const chatIds = userChats.map(chat => chat.id);
+    const chatIds = userChats.map((chat: { id: string }) => chat.id);
     
     // Count unread messages from admin in user's chats
     const result = await db.select({ count: count() })
@@ -884,7 +927,7 @@ export class DatabaseStorage implements IStorage {
         and(
           chatIds.length > 0 ? inArray(chatMessages.chatId, chatIds) : eq(chatMessages.chatId, ''),
           eq(chatMessages.senderType, 'admin'),
-          eq(chatMessages.isRead, false)
+          eq(chatMessages.isRead, 0)
         )
       );
     
@@ -898,7 +941,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(chatMessages.senderType, 'user'),
-          eq(chatMessages.isRead, false)
+          eq(chatMessages.isRead, 0)
         )
       );
     
@@ -921,7 +964,7 @@ export class DatabaseStorage implements IStorage {
           )
         );
 
-      return pricing.map(p => ({
+      return pricing.map((p: { productId: string; sellingPrice: string | null }) => ({
         productId: p.productId,
         sellingPrice: p.sellingPrice || "0",
       }));
@@ -955,7 +998,7 @@ export class DatabaseStorage implements IStorage {
         await db.update(customPricing)
           .set({
             sellingPrice: sellingPrice,
-            updatedAt: new Date()
+            updatedAt: new Date().toISOString()
           })
           .where(
             and(
@@ -967,10 +1010,13 @@ export class DatabaseStorage implements IStorage {
       } else {
         // Insert new
         await db.insert(customPricing).values({
+          id: randomUUID(),
           productId,
           roleOwnerId,
           role,
           sellingPrice: sellingPrice,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
       }
     } catch (error) {
@@ -1052,14 +1098,17 @@ export class DatabaseStorage implements IStorage {
         await db.update(adminBasePrices)
           .set({
             basePrice: basePrice,
-            updatedAt: new Date()
+            updatedAt: new Date().toISOString()
           })
           .where(eq(adminBasePrices.productId, productId));
       } else {
         // Insert new
         await db.insert(adminBasePrices).values({
+          id: randomUUID(),
           productId,
           basePrice: basePrice,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         });
       }
     } catch (error) {
@@ -1097,7 +1146,7 @@ export class DatabaseStorage implements IStorage {
       // Transform the data to match the expected format
       const prices: Array<{ bundleId: string; role: string; basePrice: string }> = [];
 
-      bundles.forEach(bundle => {
+      bundles.forEach((bundle: { id: string; basePrice: string | null; agentPrice: string | null; dealerPrice: string | null; superDealerPrice: string | null; masterPrice: string | null; adminPrice: string | null }) => {
         // Add pricing for each role
         prices.push({
           bundleId: bundle.id,
@@ -1250,7 +1299,7 @@ export class DatabaseStorage implements IStorage {
       customerPhone: transactions.customerPhone,
       totalPurchases: count(),
       totalSpent: sum(transactions.amount),
-      lastPurchase: sql<Date>`coalesce(max(${transactions.createdAt}), '1970-01-01'::timestamp)`,
+      lastPurchase: sql<Date>`coalesce(max(${transactions.createdAt}), '1970-01-01')`,
     })
       .from(transactions)
       .where(eq(transactions.status, 'completed'))
@@ -1258,7 +1307,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(sum(transactions.amount)))
       .limit(limit);
 
-    return results.map(r => ({
+    return results.map((r: { customerEmail: string | null; customerPhone: string | null; totalPurchases: number; totalSpent: string | null; lastPurchase: Date }) => ({
       customerEmail: r.customerEmail || '',
       customerPhone: r.customerPhone,
       totalPurchases: Number(r.totalPurchases),
@@ -1275,17 +1324,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveAnnouncements(): Promise<Announcement[]> {
-    return await db.select().from(announcements).where(eq(announcements.isActive, true)).orderBy(desc(announcements.createdAt));
+    return await db.select().from(announcements).where(eq(announcements.isActive, 1)).orderBy(desc(announcements.createdAt));
   }
 
   async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
-    const result = await db.insert(announcements).values(announcement).returning();
+    const result = await db.insert(announcements).values({
+      id: randomUUID(),
+      ...announcement,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }).returning();
     return result[0];
   }
 
   async updateAnnouncement(id: string, data: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
     const result = await db.update(announcements)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...data, updatedAt: new Date().toISOString() })
       .where(eq(announcements.id, id))
       .returning();
     return result[0];
@@ -1309,7 +1363,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
-    const result = await db.insert(apiKeys).values(apiKey).returning();
+    const result = await db.insert(apiKeys).values({
+      id: randomUUID(),
+      ...apiKey,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return result[0];
   }
 
@@ -1336,7 +1394,7 @@ export class DatabaseStorage implements IStorage {
     
     if (existing[0]) {
       await db.update(settings)
-        .set({ value, description, updatedAt: new Date() })
+        .set({ value, description, updatedAt: new Date().toISOString() })
         .where(eq(settings.key, key));
     } else {
       await db.insert(settings).values({ key, value, description });
@@ -1344,7 +1402,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllSettings(): Promise<Array<{ key: string; value: string; description?: string }>> {
-    const result = await db.select().from(settings);
+    const result: Settings[] = await db.select().from(settings);
     return result.map(setting => ({
       key: setting.key,
       value: setting.value,
@@ -1356,7 +1414,11 @@ export class DatabaseStorage implements IStorage {
   // WALLET TOP-UP TRANSACTIONS
   // ============================================
   async createWalletTopupTransaction(topup: InsertWalletTopupTransaction): Promise<WalletTopupTransaction> {
-    const [created] = await db.insert(walletTopupTransactions).values(topup).returning();
+    const [created] = await db.insert(walletTopupTransactions).values({
+      id: randomUUID(),
+      ...topup,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return created;
   }
 

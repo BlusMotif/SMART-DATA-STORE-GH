@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import logoLight from "@assets/logo_1765774201026.png";
+import { Button } from "@/components/ui/button";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -82,13 +83,13 @@ export function PWAInstallPrompt() {
 
   return (
     <div 
-      className="fixed top-0 left-0 right-0 bg-white dark:bg-black border-b shadow-md p-3 z-50"
+      className="fixed top-0 left-0 right-0 bg-white border-b shadow-md p-3 z-[60]"
       data-testid="pwa-install-prompt"
     >
       <div className="container mx-auto max-w-7xl flex items-center gap-3">
         <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden">
           <img 
-            src="/pwa-192x192.png" 
+            src={logoLight} 
             alt="App Icon" 
             className="w-full h-full object-contain"
           />

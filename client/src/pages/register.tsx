@@ -113,7 +113,7 @@ export default function RegisterPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400">
+        <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white">
           <CardHeader className="text-center space-y-2">
             <div className="flex justify-center mb-4">
               <img

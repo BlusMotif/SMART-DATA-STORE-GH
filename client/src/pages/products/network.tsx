@@ -317,8 +317,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
       <Tabs defaultValue="single" className="w-full" onValueChange={(v) => setOrderType(v as 'single' | 'bulk')}>
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="single"><ShoppingCart className="h-4 w-4 mr-2"/>Single Purchase</TabsTrigger>
-          <TabsTrigger value="bulk" disabled={network === "at_ishare"}>
+          <TabsTrigger value="single" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white"><ShoppingCart className="h-4 w-4 mr-2"/>Single Purchase</TabsTrigger>
+          <TabsTrigger value="bulk" disabled={network === "at_ishare"} className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
             <Package className="h-4 w-4 mr-2"/>Bulk Purchase
             {network === "at_ishare" && (
               <span className="text-xs text-muted-foreground ml-1">(Disabled)</span>

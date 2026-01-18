@@ -54,7 +54,7 @@ export function Header() {
   ];
 
   return (
-    <header className={`sticky top-0 z-50 w-full border-b backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-black/60 shadow-sm ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+    <header className={`sticky top-0 z-50 w-full border-b shadow-sm ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
       {/* Logo positioned absolutely in left corner */}
       <Link
         href={agentStore ? `/store/${agentStore}` : "/"}
@@ -84,7 +84,7 @@ export function Header() {
                     href={item.href}
                     className={`flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary px-3 py-2 rounded-md ${
                       isActive
-                        ? "text-primary bg-primary/10"
+                        ? "bg-yellow-500 text-white"
                         : "text-muted-foreground hover:text-primary"
                     }`}
                   >
@@ -130,7 +130,7 @@ export function Header() {
                             onClick={() => setMobileMenuOpen(false)}
                             className={`flex items-center gap-3 text-base font-medium transition-colors hover:text-primary px-4 py-3 rounded-lg ${
                               isActive
-                                ? "text-primary bg-primary/10"
+                                ? "bg-yellow-500 text-white"
                                 : "text-muted-foreground hover:text-primary"
                             }`}
                           >

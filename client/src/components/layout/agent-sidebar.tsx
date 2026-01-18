@@ -82,7 +82,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
                     variant={isActive ? "secondary" : "ghost"}
                     className={cn(
                       "w-full justify-start gap-3 font-normal relative",
-                      isActive && "bg-primary/10 text-primary font-medium"
+                      isActive && "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium"
                     )}
                     onClick={() => onClose && onClose()}
                   >
@@ -155,7 +155,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-3 font-normal relative",
-                    isActive && "bg-primary/10 text-primary font-medium"
+                    isActive && "bg-yellow-500 text-white font-medium"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   onClick={() => onClose && onClose()}
@@ -313,7 +313,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
                     variant={isActive ? "secondary" : "ghost"}
                     className={cn(
                       "w-full justify-start gap-3 font-normal relative",
-                      isActive && "bg-primary/10 text-primary font-medium"
+                      isActive && "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium"
                     )}
                     onClick={onClose}
                   >
@@ -393,7 +393,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-3 font-normal relative",
-                    isActive && "bg-primary/10 text-primary font-medium"
+                    isActive && "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(" ", "-")}`}
                   onClick={() => onClose && onClose()}

@@ -182,7 +182,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-3 font-normal relative",
-                    isActive && "bg-primary/10 text-primary font-medium"
+                    isActive && "bg-yellow-500 text-white font-medium"
                   )}
                   onClick={onClose}
                   data-testid={`link-admin-${item.title.toLowerCase().replace(" ", "-")}`}

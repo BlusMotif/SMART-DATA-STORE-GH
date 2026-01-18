@@ -178,9 +178,37 @@ export function useAuth() {
 
   const logout = async () => {
     setIsLoggingOut(true);
-    await supabase.auth.signOut();
-    setIsLoggingOut(false);
-    window.location.href = "/";
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Logout error:', error);
+        // Even if signOut fails, clear local state and redirect
+        setSession(null);
+        queryClient.setQueryData(["/api/auth/me"], { user: null });
+        queryClient.clear();
+      }
+    } catch (err) {
+      console.error('Logout failed:', err);
+      // Force clear state on error
+      setSession(null);
+      queryClient.setQueryData(["/api/auth/me"], { user: null });
+      queryClient.clear();
+    } finally {
+      // Force clear localStorage to ensure logout works in production
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (supabaseUrl) {
+        const storageKey = `sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`;
+        localStorage.removeItem(storageKey);
+      }
+      // Also clear any other supabase storage keys
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.removeItem(key);
+        }
+      });
+      setIsLoggingOut(false);
+      window.location.href = "/";
+    }
   };
 
   /**

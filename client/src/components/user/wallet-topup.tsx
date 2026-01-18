@@ -8,19 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormLabelWithoutFor, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/api";
-import { Wallet, Plus, Loader2, CreditCard, CheckCircle, AlertCircle } from "lucide-react";
+import { Wallet, Plus, Loader2, CreditCard, CheckCircle } from "lucide-react";
 
 const topupSchema = z.object({
   amount: z.string().refine((val) => {
     const num = parseFloat(val);
     return !isNaN(num) && num >= 1;
   }, "Minimum top-up amount is GHS 1"),
-  paymentMethod: z.enum(["wallet", "paystack"], {
+  paymentMethod: z.enum(["paystack"], {
     required_error: "Please select a payment method",
   }),
 });
@@ -44,17 +42,18 @@ export function WalletTopup() {
     resolver: zodResolver(topupSchema),
     defaultValues: {
       amount: "",
+      paymentMethod: "paystack",
     },
   });
 
   const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
   const topupAmount = parseFloat(form.watch("amount") || "0");
-  const hasInsufficientBalance = topupAmount > 0 && walletBalance < topupAmount;
 
   useEffect(() => {
     if (open) {
       form.reset({
         amount: "",
+        paymentMethod: "paystack",
       });
     }
   }, [open, form]);
@@ -146,30 +145,6 @@ export function WalletTopup() {
                       value={field.value}
                       className="grid gap-3"
                     >
-                      {user && (
-                        <div className="relative">
-                          <div className="flex items-center space-x-3 p-4 rounded-lg border-2 border-black !bg-white opacity-50 cursor-not-allowed">
-                            <RadioGroupItem value="wallet" id="wallet" disabled />
-                            <div className="flex items-center justify-between flex-1">
-                              <div className="flex items-center gap-3">
-                                <Wallet className="h-5 w-5 text-green-600" />
-                                <div>
-                                  <div className="font-medium text-green-700">Wallet Balance</div>
-                                  <div className="text-sm text-green-600">
-                                    Available: GH₵{walletBalance.toFixed(2)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="absolute top-2 right-2">
-                            <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded">
-                              N/A for topup
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
                       <div className="flex items-center space-x-3 p-4 rounded-lg border-2 border-black !bg-white hover:border-green-500 hover:shadow-md cursor-pointer transition-all">
                         <RadioGroupItem value="paystack" id="paystack" />
                         <div className="flex items-center justify-between flex-1">
@@ -194,16 +169,6 @@ export function WalletTopup() {
               )}
             />
 
-            {hasInsufficientBalance && form.watch("paymentMethod") === "wallet" && (
-              <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">
-                  <strong>Insufficient Balance:</strong> You need GH₵{(topupAmount - walletBalance).toFixed(2)} more.
-                  Current balance: GH₵{walletBalance.toFixed(2)}. Please select "Pay with MoMo" or top up your wallet first.
-                </AlertDescription>
-              </Alert>
-            )}
-
             <div>
               <p className="text-sm text-muted-foreground mb-2">Quick amounts:</p>
               <div className="grid grid-cols-3 gap-2">
@@ -225,7 +190,7 @@ export function WalletTopup() {
             <Button
               type="submit"
               className="w-full"
-              disabled={isProcessing || (form.watch("paymentMethod") === "wallet" && hasInsufficientBalance)}
+              disabled={isProcessing}
             >
               {isProcessing ? (
                 <>
@@ -234,12 +199,8 @@ export function WalletTopup() {
                 </>
               ) : (
                 <>
-                  {form.watch("paymentMethod") === "wallet" ? (
-                    <Wallet className="w-4 h-4 mr-2" />
-                  ) : (
-                    <CreditCard className="w-4 h-4 mr-2" />
-                  )}
-                  {form.watch("paymentMethod") === "wallet" ? "Top Up Wallet" : "Continue to Payment"}
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Continue to Payment
                 </>
               )}
             </Button>

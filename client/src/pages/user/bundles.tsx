@@ -582,12 +582,12 @@ export default function UserBundlesPage() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Network Header */}
-            <Card>
+            <Card className={`bg-gradient-to-r ${networkInfo?.color} text-white border-0`}>
               <CardContent className="flex items-center gap-4 p-4">
-                <img src={networkInfo?.logo} alt={networkInfo?.name} className="h-12 w-12 rounded-lg object-contain" />
+                <img src={networkInfo?.logo} alt={networkInfo?.name} className="h-12 w-12 rounded-lg object-contain bg-white p-1" />
                 <div>
                   <h2 className="font-semibold text-lg">{networkInfo?.name}</h2>
-                  <p className="text-sm text-muted-foreground">Choose from our available data bundles</p>
+                  <p className="text-sm opacity-90">Choose from our available data bundles</p>
                 </div>
               </CardContent>
             </Card>
@@ -614,9 +614,9 @@ export default function UserBundlesPage() {
 
               {/* Single Purchase Tab */}
               <TabsContent value="single" className="space-y-6">
-                <Card>
+                <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
                   <CardHeader>
-                    <CardTitle>Purchase Data Bundle</CardTitle>
+                    <CardTitle className="text-blue-900 dark:text-blue-100">Purchase Data Bundle</CardTitle>
                     <CardDescription>Select a bundle and enter recipient details</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -794,9 +794,9 @@ export default function UserBundlesPage() {
 
               {/* Bulk Purchase Tab */}
               <TabsContent value="bulk" className="space-y-6">
-                <Card>
+                <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
                     <CardHeader>
-                      <CardTitle>Bulk Purchase</CardTitle>
+                      <CardTitle className="text-green-900 dark:text-green-100">Bulk Purchase</CardTitle>
                       <CardDescription>Enter phone numbers with GB amounts for {networkInfo?.name}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">

@@ -48,7 +48,7 @@ export default function MainDashboard() {
           </div>
 
           {/* Rankings Card */}
-          <Card>
+          <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-yellow-200 dark:border-yellow-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-yellow-500" />

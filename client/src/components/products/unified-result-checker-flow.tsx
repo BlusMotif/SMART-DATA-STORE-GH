@@ -303,7 +303,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                                 disabled={hasInsufficientBalance}
                               />
                               <Label
-                                className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 cursor-pointer transition-all ${
+                                className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 cursor-pointer transition-all ${
                                   hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                 }`}
                               >

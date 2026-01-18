@@ -611,7 +611,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                       disabled={hasInsufficientBalance}
                                     />
                                     <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
+                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
                                         hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
                                     >
@@ -802,7 +802,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                       disabled={walletBalance < totalAmount}
                                     />
                                     <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
+                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
                                         walletBalance < totalAmount ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
                                     >

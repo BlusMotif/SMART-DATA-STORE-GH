@@ -701,7 +701,7 @@ export default function UserBundlesPage() {
                             disabled={selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) ? true : false}
                           />
                           <Label
-                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all ${
+                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all ${
                               selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""

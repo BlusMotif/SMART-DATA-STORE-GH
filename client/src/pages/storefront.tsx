@@ -286,7 +286,7 @@ export default function StorefrontPage() {
               © {new Date().getFullYear()} {store.businessName}. All rights reserved.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Developed by <a href="https://blusmotif.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">BlusMotif</a>
+              Developed by <a href="https://bm-portfolio-up2x.onrender.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">BlusMotif</a>
             </p>
             <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
               <Shield className="h-3 w-3" />

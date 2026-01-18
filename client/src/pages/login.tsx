@@ -107,7 +107,7 @@ export default function LoginPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white dark:bg-black rounded-xl p-8" style={{ backgroundColor: theme === 'dark' ? '#000000' : undefined }}>
+        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white rounded-xl p-8">
             {isLoginLoading && (
               <div className="absolute inset-0 bg-background flex items-center justify-center z-10 rounded-lg">
                 <div className="flex flex-col items-center gap-2">

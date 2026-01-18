@@ -5,11 +5,17 @@ import { useTheme } from "@/components/theme-provider";
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
+  const handleToggle = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    console.log("Theme toggle clicked. Current theme:", theme, "New theme:", newTheme);
+    setTheme(newTheme);
+  };
+
   return (
     <Button
       variant="ghost"
       size="sm"
-      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+      onClick={handleToggle}
       data-testid="button-theme-toggle"
       className="h-8 w-8"
     >

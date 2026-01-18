@@ -50,18 +50,22 @@ export function ThemeProvider({
         : "light";
 
       root.classList.add(systemTheme);
+      console.log("Applied system theme:", systemTheme);
       return;
     }
 
     root.classList.add(theme);
+    console.log("Applied theme:", theme, "Classes on root:", root.classList.toString());
   }, [theme]);
 
   const value = {
     theme,
     setTheme: (theme: Theme) => {
       try {
+        console.log("Setting theme to:", theme);
         if (typeof window !== "undefined" && window.localStorage) {
           localStorage.setItem(storageKey, theme);
+          console.log("Saved theme to localStorage:", theme);
         }
         setTheme(theme);
       } catch (error) {

@@ -56,7 +56,6 @@ const getRankingBadge = (role: string) => {
 
 const sidebarNavItems = [
   { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
-  { title: "Users Ranking", href: "/rankings", icon: Trophy },
   { title: "My Storefront", href: "/agent/storefront", icon: Store },
   { title: "Pricing", href: "/agent/pricing", icon: DollarSign },
   { title: "Transactions", href: "/agent/transactions", icon: BarChart3 },
@@ -202,6 +201,26 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
           </div>
         </div>
       )}
+
+      {/* User Info */}
+      <div className="border-b px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{user?.name || 'Agent'}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            {rankData && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                  <Trophy className="h-3 w-3" />
+                  <span>
+                    {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="flex flex-col gap-1">

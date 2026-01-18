@@ -44,11 +44,6 @@ const sidebarNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Users Ranking",
-    href: "/rankings",
-    icon: Trophy,
-  },
-  {
     title: "MTN Bundles",
     href: "/user/bundles/mtn",
     icon: Smartphone,

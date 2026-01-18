@@ -65,7 +65,7 @@ export default function StorefrontPage() {
   };
 
   const { data, isLoading, error } = useQuery<StorefrontData>({
-    queryKey: ["/api/store", role, slug],
+    queryKey: [`/api/store/${role}/${slug}`],
     enabled: !!role && !!slug,
     refetchInterval: 30000,
     refetchOnWindowFocus: true,

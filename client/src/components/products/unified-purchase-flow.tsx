@@ -154,7 +154,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   });
 
   const { data: agentStore, isLoading: agentStoreLoading } = useQuery<any>({
-    queryKey: agentSlug ? [`/api/store/${agentSlug}`] : [],
+    queryKey: agentSlug ? [`/api/store/agent/${agentSlug}`] : [],
     enabled: !!agentSlug,
     refetchInterval: 30000,
   });

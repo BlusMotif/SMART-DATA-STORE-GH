@@ -160,10 +160,10 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   });
 
   const { data: agent } = useQuery({
-    queryKey: ['/api/store', agentSlug],
+    queryKey: ['/api/store/agent', agentSlug],
     queryFn: async () => {
       if (!agentSlug) return null;
-      const res = await apiRequest('GET', `/api/store/${agentSlug}`);
+      const res = await apiRequest('GET', `/api/store/agent/${agentSlug}`);
       return res.json();
     },
     enabled: !!agentSlug

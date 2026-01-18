@@ -92,7 +92,7 @@ export default function AgentPublicStorefront() {
 
   // Queries
   const { data, isLoading } = useQuery<StorefrontData & { dataBundles?: Array<any> }>({
-    queryKey: ["/api/store", slug],
+    queryKey: [`/api/store/agent/${slug}`],
     enabled: !!slug,
     refetchInterval: 30000,
   });

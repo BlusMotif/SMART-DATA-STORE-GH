@@ -1286,20 +1286,26 @@ export async function registerRoutes(
       let roleOwnerId: string;
       if (role === 'agent') {
         // Handle agent storefront
-        const agent = await storage.getAgentBySlug(slug);
-        if (!agent || !agent.isApproved) {
-          return res.status(404).json({ error: "Store not found" });
+        try {
+          const agent = await storage.getAgentBySlug(slug);
+          if (!agent || !agent.isApproved) {
+            console.log(`Storefront not found: slug=${slug}, agent=${!!agent}, approved=${agent?.isApproved}`);
+            return res.status(404).json({ error: "Store not found" });
+          }
+          const user = await storage.getUser(agent.userId);
+          storeData = {
+            businessName: agent.businessName,
+            businessDescription: agent.businessDescription,
+            slug: agent.storefrontSlug,
+            whatsappSupportLink: agent.whatsappSupportLink,
+            whatsappChannelLink: agent.whatsappChannelLink,
+            role: 'agent'
+          };
+          roleOwnerId = agent.id;
+        } catch (dbError) {
+          console.error('Database error in storefront lookup:', dbError);
+          return res.status(500).json({ error: "Database error" });
         }
-        const user = await storage.getUser(agent.userId);
-        storeData = {
-          businessName: agent.businessName,
-          businessDescription: agent.businessDescription,
-          slug: agent.storefrontSlug,
-          whatsappSupportLink: agent.whatsappSupportLink,
-          whatsappChannelLink: agent.whatsappChannelLink,
-          role: 'agent'
-        };
-        roleOwnerId = agent.id;
       } else {
         // Handle dealer/super_dealer/master storefronts
         const user = await storage.getUserBySlug(slug, role);

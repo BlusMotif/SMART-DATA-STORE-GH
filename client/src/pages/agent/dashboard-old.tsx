@@ -350,12 +350,12 @@ export default function AgentDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
-                    <div>
+                    <div className="w-full sm:flex-1">
                       <p className="font-medium">{agent.businessName}</p>
                       <p className="text-sm text-muted-foreground mt-1">
                         Share this link with your customers:
                       </p>
-                      <code className="text-sm bg-background px-2 py-1 rounded mt-2 inline-block">
+                      <code className="text-xs sm:text-sm bg-background px-2 py-1 rounded mt-2 block sm:inline-block break-all sm:break-normal">
                         {window.location.origin}/store/agent/{agent.storefrontSlug}
                       </code>
                     </div>
@@ -363,6 +363,7 @@ export default function AgentDashboard() {
                       variant="outline"
                       onClick={() => navigator.clipboard.writeText(`${window.location.origin}/store/agent/${agent.storefrontSlug}`)}
                       data-testid="button-copy-link"
+                      className="w-full sm:w-auto shrink-0"
                     >
                       Copy Link
                     </Button>

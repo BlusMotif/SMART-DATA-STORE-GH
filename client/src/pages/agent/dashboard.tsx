@@ -362,20 +362,21 @@ export default function AgentDashboard() {
                         <p className="text-xs text-white/90 mb-3">
                           Share this link with your customers:
                         </p>
-                        <code className="text-sm bg-white text-green-600 px-2 py-1 rounded mt-2 inline-block border border-green-700">
+                        <code className="text-xs sm:text-sm bg-white text-green-600 px-2 py-1 rounded mt-2 block sm:inline-block border border-green-700 break-all sm:break-normal">
                           {window.location.origin}/store/agent/{agent.storefrontSlug}
                         </code>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigator.clipboard.writeText(`${window.location.origin}/store/agent/${agent.storefrontSlug}`)}
+                          className="w-full sm:w-auto"
                         >
                           Copy Link
                         </Button>
-                        <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm">
+                        <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+                          <Button size="sm" className="w-full">
                             <ExternalLink className="h-4 w-4 mr-1" />
                             Visit
                           </Button>

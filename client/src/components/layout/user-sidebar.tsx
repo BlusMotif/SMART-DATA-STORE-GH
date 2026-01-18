@@ -116,13 +116,10 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
       <div className="border-b px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-xs font-semibold text-primary text-center leading-tight">
-              VIVIAN OTOO
-            </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">VIVIAN OTOO</p>
-            <p className="text-xs text-muted-foreground truncate">vivian@gmail.com</p>
+            <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email || 'user@example.com'}</p>
             <div className="flex items-center gap-1.5 mt-1">
               <div className="flex items-center gap-1.5 rounded-full bg-green-500 px-2.5 py-1 text-xs font-medium text-white border border-green-600">
                 <Trophy className="h-3 w-3" />

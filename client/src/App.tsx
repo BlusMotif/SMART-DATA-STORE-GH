@@ -10,6 +10,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ConnectionStatus } from "@/components/connection-status";
 import { useSessionTimeout } from "@/hooks/use-session-timeout";
+import { BreakModeGuard } from "@/components/BreakModeGuard";
+import { AnnouncementPopup } from "@/components/announcement-popup";
 
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
@@ -64,6 +66,7 @@ import UserHistoryPage from "@/pages/user/history";
 import UserSupportPage from "@/pages/user/support";
 import UserVouchersPage from "@/pages/user/vouchers";
 import UserSettingsPage from "@/pages/user/settings";
+import NotFound from "@/pages/not-found";
 
 // Storefront
 import StorefrontPage from "@/pages/storefront";

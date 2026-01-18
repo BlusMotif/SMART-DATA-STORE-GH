@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { APP_NAME } from "@/lib/constants";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/components/theme-provider";
 
 // Function to get ranking badge based on user role

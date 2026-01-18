@@ -5027,6 +5027,7 @@ export async function registerRoutes(
         totalSpent: userTotalSpent
       });
     } catch (error: any) {
+      console.error("Rank API error:", error);
       res.status(500).json({ error: "Failed to get rank" });
     }
   });

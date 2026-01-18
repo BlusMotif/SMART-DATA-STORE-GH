@@ -127,7 +127,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
               <div className="flex items-center gap-1.5 rounded-full bg-green-500 px-2.5 py-1 text-xs font-medium text-white border border-green-600">
                 <Trophy className="h-3 w-3" />
                 <span>
-                  {rankError ? 'Error loading rank' : rankData ? `Rank #${rankData.rank || 'N/A'}` : 'Rank #1'}
+                  {rankError ? 'Rank #1' : rankData ? `Rank #${rankData.rank || 'N/A'}` : 'Rank #1'}
                 </span>
               </div>
             </div>

@@ -91,13 +91,24 @@ export function useAuth() {
    * CURRENT USER
    * ------------------------------------------------------
    */
-  const { data, isLoading } = useQuery<{
+  const { data, isLoading, error } = useQuery<{
     user: User | null;
     agent?: any;
   }>({
     queryKey: ["/api/auth/me"],
     enabled: !!session?.access_token,
-    retry: false,
+    retry: (failureCount, error: any) => {
+      // Don't retry on network errors or connection refused
+      if (error?.message?.includes('ERR_CONNECTION_REFUSED') || 
+          error?.message?.includes('Failed to fetch') ||
+          error?.message?.includes('NetworkError')) {
+        console.log('🚫 Not retrying auth query due to network error');
+        return false;
+      }
+      // Only retry once for other errors
+      return failureCount < 1;
+    },
+    retryDelay: 2000, // Wait 2 seconds before retry
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
@@ -105,28 +116,56 @@ export function useAuth() {
     cacheTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
     queryFn: async () => {
       console.log('🔄 Running /api/auth/me query');
-      // In development, use the full backend URL
-      const baseUrl = import.meta.env.DEV ? 'http://localhost:10000' : '';
-      const res = await fetch(`${baseUrl}/api/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      try {
+        // In development, use the full backend URL
+        const baseUrl = import.meta.env.DEV ? 'http://localhost:10000' : '';
+        const res = await fetch(`${baseUrl}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          // Add timeout to prevent hanging
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        });
 
-      if (!res.ok) {
-        console.log('❌ /api/auth/me query failed:', res.status);
-        return { user: null };
+        if (!res.ok) {
+          console.log('❌ /api/auth/me query failed:', res.status);
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const result = await res.json();
+        console.log('✅ /api/auth/me query success:', { user: result.user?.email, agent: !!result.agent });
+        return result;
+      } catch (error: any) {
+        console.error('🚨 /api/auth/me query error:', error.message);
+        // Re-throw to let React Query handle it
+        throw error;
       }
-
-      const result = await res.json();
-      console.log('✅ /api/auth/me query success:', { user: result.user?.email, agent: !!result.agent });
-      return result;
     },
   });
 
   const user = data?.user ?? null;
   const agent = data?.agent;
-  const isAuthenticated = !!user;
+  
+  // If server is unavailable but we have a Supabase session, create a basic user object
+  const fallbackUser = session?.user ? {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+    role: session.user.user_metadata?.role || 'user',
+    phone: session.user.phone || null,
+  } : null;
+
+  const effectiveUser = user || fallbackUser;
+  const isAuthenticated = !!effectiveUser;
+
+  // Handle network errors gracefully
+  const isNetworkError = error?.message?.includes('ERR_CONNECTION_REFUSED') ||
+                        error?.message?.includes('Failed to fetch') ||
+                        error?.message?.includes('NetworkError') ||
+                        error?.message?.includes('AbortError');
+
+  // If there's a network error and no cached data, show loading
+  const effectiveLoading = isLoading && !effectiveUser;
 
   /**
    * ------------------------------------------------------
@@ -233,10 +272,10 @@ export function useAuth() {
    * ------------------------------------------------------
    */
   return {
-    user,
+    user: effectiveUser,
     agent,
     isAuthenticated,
-    isLoading: authLoading || isLoading,
+    isLoading: authLoading || effectiveLoading,
     login,
     register,
     logout,

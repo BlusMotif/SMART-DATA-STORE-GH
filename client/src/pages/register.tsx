@@ -105,7 +105,7 @@ export default function RegisterPage() {
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
       <nav className="mb-6 px-2">
         <Link href={agentStore ? `/store/${agentStore}` : "/"} data-testid="link-back-home">
-          <Button variant="outline" size="sm" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2 text-black dark:text-white">
             <ArrowLeft className="h-4 w-4" />
             Back to Home
           </Button>
@@ -113,7 +113,7 @@ export default function RegisterPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white dark:bg-black rounded-xl p-8" style={{ backgroundColor: theme === 'dark' ? '#000000' : undefined }}>
+        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white dark:bg-black text-black dark:text-white rounded-xl p-8" style={{ backgroundColor: theme === 'dark' ? '#000000' : undefined }}>
           <div className="text-center space-y-2">
             <div className="flex justify-center mb-4">
               <img

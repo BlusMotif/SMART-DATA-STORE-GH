@@ -166,7 +166,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
           <Link href="/agent/register">
             <Button
               variant="default"
-              className="w-full justify-start gap-3 mb-3 bg-primary text-primary-foreground"
+              className="w-full justify-start gap-3 mb-3 bg-yellow-500 text-white hover:bg-yellow-600"
               onClick={onClose}
             >
               <Smartphone className="h-4 w-4" />

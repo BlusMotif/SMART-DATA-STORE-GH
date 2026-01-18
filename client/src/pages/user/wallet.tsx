@@ -43,24 +43,24 @@ const getStatusConfig = (status: string) => {
       return {
         variant: 'default' as const,
         icon: CheckCircle,
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 dark:bg-green-900',
+        color: 'text-green-600 dark:text-green-400',
+        bgColor: 'bg-green-100 dark:bg-green-900 border border-green-200 dark:border-green-800',
         label: status === 'completed' ? 'Completed' : 'Delivered'
       };
     case 'confirmed':
       return {
         variant: 'secondary' as const,
         icon: CheckCircle,
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-50 dark:bg-blue-900',
+        color: 'text-blue-600 dark:text-blue-400',
+        bgColor: 'bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-800',
         label: 'Confirmed'
       };
     case 'pending':
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900',
+        color: 'text-yellow-600 dark:text-yellow-400',
+        bgColor: 'bg-yellow-100 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800',
         label: 'Pending'
       };
     case 'cancelled':
@@ -68,16 +68,16 @@ const getStatusConfig = (status: string) => {
       return {
         variant: 'destructive' as const,
         icon: XCircle,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50 dark:bg-red-900',
+        color: 'text-red-600 dark:text-red-400',
+        bgColor: 'bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-800',
         label: status === 'cancelled' ? 'Cancelled' : 'Failed'
       };
     default:
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-gray-600',
-        bgColor: 'bg-gray-50 dark:bg-gray-900',
+        color: 'text-gray-600 dark:text-gray-400',
+        bgColor: 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
         label: status
       };
   }

@@ -146,7 +146,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   });
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-background relative">
+    <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -179,10 +179,10 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
             return (
               <Link key={item.href} href={item.href}>
                 <Button
-                  variant={isActive ? "secondary" : "ghost"}
+                  variant={isActive ? "default" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-3 font-normal relative",
-                    isActive && "bg-yellow-500 text-white font-medium"
+                    isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                   )}
                   onClick={onClose}
                   data-testid={`link-admin-${item.title.toLowerCase().replace(" ", "-")}`}

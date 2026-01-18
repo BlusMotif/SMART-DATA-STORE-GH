@@ -105,7 +105,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   if (error) {
     return (
-      <div className="flex h-full w-64 flex-col border-r bg-background relative">
+      <div className="flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
         <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
             {user?.name?.charAt(0).toUpperCase() || 'A'}
@@ -123,10 +123,10 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                 return (
                   <Button
                     key={item.href}
-                    variant={isActive ? "secondary" : "ghost"}
+                    variant={isActive ? "default" : "ghost"}
                     className={cn(
                       "w-full justify-start gap-3 font-normal relative",
-                      isActive && "bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 font-medium"
+                      isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                     )}
                     onClick={() => {
                       setShowApiModal(true);
@@ -142,10 +142,10 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
-                    variant={isActive ? "secondary" : "ghost"}
+                    variant={isActive ? "default" : "ghost"}
                     className={cn(
                       "w-full justify-start gap-3 font-normal relative",
-                      isActive && "bg-yellow-500 text-white font-medium"
+                      isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                     )}
                     onClick={() => onClose && onClose()}
                   >
@@ -177,7 +177,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   }
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-background relative">
+    <div className="flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
       <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
           {user?.name?.charAt(0).toUpperCase() || 'A'}
@@ -203,10 +203,10 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
             return (
               <Link key={item.href} href={item.href}>
                 <Button
-                  variant={isActive ? "secondary" : "ghost"}
+                  variant={isActive ? "default" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-3 font-normal relative",
-                    isActive && "bg-yellow-500 text-white font-medium"
+                    isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   onClick={() => onClose && onClose()}

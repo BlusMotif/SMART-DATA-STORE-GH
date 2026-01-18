@@ -31,18 +31,18 @@ export default function AdminWithdrawals() {
     refetchOnWindowFocus: true,
   });
 
-  const filteredWithdrawals = Array.isArray(withdrawals) ? withdrawals.filter((w) => {
+  const filteredWithdrawals = Array.isArray(withdrawals) && withdrawals ? withdrawals.filter((w) => {
     if (statusFilter === "all") return true;
     return w.status === statusFilter;
   }) : [];
 
   const stats = {
-    total: Array.isArray(withdrawals) ? withdrawals.length : 0,
-    pending: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "pending").length : 0,
-    approved: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "approved").length : 0,
-    rejected: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "rejected").length : 0,
-    paid: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "paid").length : 0,
-    totalAmount: Array.isArray(withdrawals) ? withdrawals.reduce((sum, w) => sum + parseFloat(w.amount), 0) : 0,
+    total: Array.isArray(withdrawals) && withdrawals ? withdrawals.length : 0,
+    pending: Array.isArray(withdrawals) && withdrawals ? withdrawals.filter((w) => w.status === "pending").length : 0,
+    approved: Array.isArray(withdrawals) && withdrawals ? withdrawals.filter((w) => w.status === "approved").length : 0,
+    rejected: Array.isArray(withdrawals) && withdrawals ? withdrawals.filter((w) => w.status === "rejected").length : 0,
+    paid: Array.isArray(withdrawals) && withdrawals ? withdrawals.filter((w) => w.status === "paid").length : 0,
+    totalAmount: Array.isArray(withdrawals) && withdrawals ? withdrawals.reduce((sum, w) => sum + parseFloat(w.amount), 0) : 0,
   };
 
   const getStatusBadge = (status: string) => {
@@ -95,7 +95,7 @@ export default function AdminWithdrawals() {
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-black border-r transform transition-transform duration-200 ease-in-out">
             <AdminSidebar onClose={() => setSidebarOpen(false)} />
           </div>
         </div>

@@ -107,16 +107,16 @@ export default function LoginPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <Card className="w-full max-w-md shadow-xl border-2 border-yellow-400 relative bg-white">
-          {isLoginLoading && (
-            <div className="absolute inset-0 bg-background flex items-center justify-center z-10 rounded-lg">
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Signing you in...</p>
+        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-[#ffffff] dark:bg-black rounded-xl p-8" style={{ backgroundColor: theme === 'light' ? '#ffffff' : undefined }}>
+            {isLoginLoading && (
+              <div className="absolute inset-0 bg-background flex items-center justify-center z-10 rounded-lg">
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Signing you in...</p>
+                </div>
               </div>
-            </div>
-          )}
-          <CardHeader className="text-center space-y-2">
+            )}
+          <div className="text-center space-y-2">
             <div className="flex justify-center mb-4">
               <img
                 src={theme === "dark" ? logoDark : logoLight}
@@ -124,12 +124,12 @@ export default function LoginPage() {
                 className="h-8 w-auto"
               />
             </div>
-            <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-            <CardDescription>
+            <h2 className="text-2xl font-bold">Welcome back</h2>
+            <p className="text-muted-foreground">
               Sign in to your {APP_NAME} account
-            </CardDescription>
-          </CardHeader>
-        <CardContent>
+            </p>
+          </div>
+        <div>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -227,9 +227,9 @@ export default function LoginPage() {
               Register as Agent
             </Link>
           </div>
-        </CardContent>
-        </Card>
+        </div>
       </div>
     </div>
+  </div>
   );
 }

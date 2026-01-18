@@ -546,7 +546,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                     <TabsList className="grid w-full grid-cols-3 p-1 bg-muted/50 border-2 border-black rounded-lg">
                       <TabsTrigger 
                         value="single" 
-                        className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all"
+                        className="gap-2 border-2 border-transparent data-[state=active]:border-yellow-500 data-[state=active]:bg-yellow-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
                       >
                         <Package className="h-4 w-4" />
                         Single Order
@@ -554,7 +554,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                       <TabsTrigger 
                         value="bulk" 
                         disabled={network === "at_ishare"}
-                        className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="gap-2 border-2 border-transparent data-[state=active]:border-yellow-500 data-[state=active]:bg-yellow-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Layers className="h-4 w-4" />
                         Bulk Order
@@ -565,7 +565,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                       <TabsTrigger 
                         value="excel" 
                         disabled={!user || user.role === 'guest' || network === "at_ishare"}
-                        className="gap-2 border-2 border-transparent data-[state=active]:border-black data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="gap-2 border-2 border-transparent data-[state=active]:border-yellow-500 data-[state=active]:bg-yellow-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <FileSpreadsheet className="h-4 w-4" />
                         Excel Upload

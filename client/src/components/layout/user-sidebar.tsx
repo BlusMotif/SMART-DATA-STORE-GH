@@ -105,7 +105,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   });
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-background relative">
+    <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
       <div className="flex h-16 items-center gap-2 border-b px-6">
         <div className="flex flex-col">
           <span className="font-semibold text-sm">My Account</span>
@@ -149,7 +149,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
                     isActive
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-yellow-500 text-white"
                       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                   onClick={onClose}

@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { AlertTriangle, Save, Menu, Settings, Lock, X } from "lucide-react";
+import { AlertTriangle, Lock, X, CheckCircle, Power, PowerOff, Menu, Settings, Save } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -126,132 +126,113 @@ export default function AdminBreakSettings() {
           <ThemeToggle />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Warning Alert */}
-            <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-              <AlertDescription className="text-orange-800 dark:text-orange-200">
-                <strong>Warning:</strong> Enabling break mode will make the entire site unavailable to all users except administrators.
-                Only enable this during maintenance or emergency situations.
-              </AlertDescription>
-            </Alert>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-500" />
-                  Site Maintenance Mode
-                </CardTitle>
-                <CardDescription>
-                  Control site availability and display custom maintenance messages to users.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Break Mode Toggle */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base font-medium">Enable Break Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      When enabled, the site will be unavailable to all users
-                    </p>
-                  </div>
-                  <Switch
-                    checked={isEnabled}
-                    onCheckedChange={setIsEnabled}
-                    disabled={updateMutation.isPending}
-                  />
-                </div>
-
-                {/* Custom Message */}
-                <div className="space-y-2">
-                  <Label htmlFor="break-message">Maintenance Message</Label>
-                  <Textarea
-                    id="break-message"
-                    placeholder="Enter a message to display to users when the site is in break mode..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    disabled={!isEnabled || updateMutation.isPending}
-                    rows={4}
-                    className="resize-none"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    This message will be displayed to users when they try to access the site.
-                    Keep it clear and informative about when the site will be available again.
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+          <div className="max-w-5xl mx-auto space-y-8">
+            {/* Break Mode Toggle - Slide Switch */}
+            <div className="p-6 border-2 border-gray-200 dark:border-gray-700 rounded-lg bg-red-500">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="space-y-2 flex-1">
+                  <Label className="text-lg font-bold flex items-center gap-3 text-white">
+                    <Lock className="h-6 w-6 text-white drop-shadow-lg" />
+                    Enable Break Mode
+                  </Label>
+                  <p className="text-base leading-relaxed text-white">
+                    ⚠️ When enabled, the site will be completely unavailable to all users except administrators
                   </p>
                 </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 lg:gap-6">
+                  <span className={`px-4 py-2 rounded-full text-sm font-bold min-w-[100px] text-center ${
+                    isEnabled
+                      ? 'bg-red-500 text-white shadow-lg'
+                      : 'bg-green-500 text-white shadow-md'
+                  }`}>
+                    {isEnabled ? '🚫 ENABLED' : '✅ DISABLED'}
+                  </span>
+                  <div className="flex items-center space-x-3">
+                    <Label htmlFor="break-mode-toggle" className="text-sm font-medium text-white">
+                      {isEnabled ? 'ON' : 'OFF'}
+                    </Label>
+                    <Switch
+                      id="break-mode-toggle"
+                      checked={isEnabled}
+                      onCheckedChange={setIsEnabled}
+                      disabled={updateMutation.isPending}
+                      className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-300 [&>span]:data-[state=checked]:bg-white [&>span]:data-[state=unchecked]:bg-white [&>span]:shadow-md"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                {/* Preview */}
-                {isEnabled && message && (
-                  <div className="space-y-2">
-                    <Label>Preview</Label>
-                    <div className="p-4 bg-muted rounded-lg border">
-                      <div className="text-center space-y-4">
-                        <div className="flex justify-center">
-                          <div className="relative">
-                            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                              <Lock className="h-8 w-8 text-red-600 dark:text-red-400" />
-                            </div>
-                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                              <X className="h-2.5 w-2.5 text-white" />
-                            </div>
-                          </div>
+            {/* Custom Message */}
+            <div className="space-y-4 p-4 bg-white rounded-lg border-2 border-gray-300 text-black">
+              <Label htmlFor="break-message" className="text-lg font-semibold">Maintenance Message</Label>
+              <Textarea
+                id="break-message"
+                placeholder="Enter a message to display to users when the site is in break mode..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                disabled={!isEnabled || updateMutation.isPending}
+                rows={5}
+                className="resize-none text-base p-4 border-2 border-gray-400"
+              />
+              <p className="text-sm text-black leading-relaxed">
+                This message will be displayed to users when they try to access the site.
+                Keep it clear and informative about when the site will be available again.
+              </p>
+            </div>
+
+            {/* Preview */}
+            {isEnabled && message && (
+              <div className="space-y-4 p-6 bg-blue-50 dark:bg-blue-950/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+                <Label className="text-lg font-semibold text-blue-900 dark:text-blue-100">Preview</Label>
+                <div className="p-6 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-inner">
+                  <div className="text-center space-y-6">
+                    <div className="flex justify-center">
+                      <div className="relative">
+                        <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center shadow-lg">
+                          <Lock className="h-10 w-10 text-red-600 dark:text-red-400" />
                         </div>
-                        <div>
-                          <h2 className="text-xl font-semibold text-red-600 dark:text-red-400 mb-2">
-                            Site Closed
-                          </h2>
-                          <p className="text-muted-foreground whitespace-pre-wrap">
-                            {message}
-                          </p>
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg">
+                          <X className="h-3 w-3 text-white" />
                         </div>
                       </div>
                     </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-3">
+                        Site Closed
+                      </h2>
+                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-base leading-relaxed">
+                        {message}
+                      </p>
+                    </div>
                   </div>
-                )}
-
-                {/* Save Button */}
-                <div className="flex justify-end pt-4">
-                  <Button
-                    onClick={handleSave}
-                    disabled={updateMutation.isPending}
-                    className="min-w-32"
-                  >
-                    {updateMutation.isPending ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Settings
-                      </>
-                    )}
-                  </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            )}
 
-            {/* Current Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${isEnabled ? 'bg-red-500' : 'bg-green-500'}`} />
-                  <span className="font-medium">
-                    Break Mode: {isEnabled ? 'ENABLED' : 'DISABLED'}
-                  </span>
-                </div>
-                {isEnabled && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Site is currently unavailable to users
-                  </p>
+            {/* Save Button */}
+            <div className="flex flex-col sm:flex-row justify-center sm:justify-end gap-4 pt-6 mt-6 border-t border-gray-200 dark:border-gray-700">
+              <Button
+                onClick={handleSave}
+                disabled={updateMutation.isPending}
+                className="min-w-40 h-12 text-lg font-semibold"
+                size="lg"
+              >
+                {updateMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3" />
+                    Saving Changes...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5 mr-3" />
+                    Save Settings
+                  </>
                 )}
-              </CardContent>
-            </Card>
+              </Button>
+            </div>
+
           </div>
         </main>
       </div>

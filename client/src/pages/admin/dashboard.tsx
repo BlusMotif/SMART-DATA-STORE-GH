@@ -180,39 +180,39 @@ export default function AdminDashboard() {
                   <CardTitle className="text-lg">Quick Stats</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-900 rounded-lg border border-green-200 dark:border-green-800">
                     <div className="flex items-center gap-3">
-                      <TrendingUp className="h-5 w-5 text-green-600" />
-                      <span className="text-sm font-medium">Today's Revenue</span>
+                      <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <span className="text-sm font-medium text-green-900 dark:text-green-100">Today's Revenue</span>
                     </div>
-                    <span className="font-bold text-green-700 dark:text-green-400">
+                    <span className="font-bold text-green-700 dark:text-green-300">
                       {formatCurrency(stats?.todayRevenue || 0)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-blue-100 dark:bg-blue-900 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-center gap-3">
-                      <Package className="h-5 w-5 text-blue-600" />
-                      <span className="text-sm font-medium">Today's Orders</span>
+                      <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Today's Orders</span>
                     </div>
-                    <span className="font-bold text-blue-700 dark:text-blue-400">
+                    <span className="font-bold text-blue-700 dark:text-blue-300">
                       {stats?.todayTransactions || 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-purple-100 dark:bg-purple-900 rounded-lg border border-purple-200 dark:border-purple-800">
                     <div className="flex items-center gap-3">
-                      <DollarSign className="h-5 w-5 text-purple-600" />
-                      <span className="text-sm font-medium">Activation Revenue</span>
+                      <DollarSign className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      <span className="text-sm font-medium text-purple-900 dark:text-purple-100">Activation Revenue</span>
                     </div>
-                    <span className="font-bold text-purple-700 dark:text-purple-400">
+                    <span className="font-bold text-purple-700 dark:text-purple-300">
                       {formatCurrency(stats?.activationRevenue || 0)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+                  <div className="flex items-center justify-between p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
                     <div className="flex items-center gap-3">
-                      <Users className="h-5 w-5 text-orange-600" />
-                      <span className="text-sm font-medium">Pending Agents</span>
+                      <Users className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      <span className="text-sm font-medium text-orange-900 dark:text-orange-100">Pending Agents</span>
                     </div>
-                    <span className="font-bold text-orange-700 dark:text-orange-400">
+                    <span className="font-bold text-orange-700 dark:text-orange-300">
                       {stats?.pendingAgents || 0}
                     </span>
                   </div>

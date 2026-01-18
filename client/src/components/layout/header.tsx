@@ -115,7 +115,7 @@ export function Header() {
                 </SheetTrigger>
                 <SheetContent 
                   side="right" 
-                  className="w-80"
+                  className={`w-80 ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}
                   style={{ backgroundColor: theme === 'dark' ? '#000000' : '#ffffff' }}
                 >
                   <div className="flex flex-col gap-6 mt-6">

@@ -95,10 +95,18 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
   const { logout, isLoggingOut, user, agent } = useAuth();
   const { theme } = useTheme();
 
-  const { data: rankData, error: rankError } = useQuery({
+  const { data: rankData, error: rankError, isLoading: rankLoading } = useQuery({
     queryKey: ["user-rank"],
     queryFn: () => apiRequest("/api/user/rank"),
     enabled: !!user,
+    refetchInterval: 15000, // Refetch every 15 seconds for more real-time updates
+    refetchOnWindowFocus: true, // Update when user comes back to the tab
+    onSuccess: (data) => {
+      console.log('Real-time rank data:', data);
+    },
+    onError: (error) => {
+      console.error('Rank API error:', error);
+    },
   });
 
   return (
@@ -126,7 +134,10 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
               <div className="flex items-center gap-1.5 rounded-full bg-green-500 px-2.5 py-1 text-xs font-medium text-white border border-green-600">
                 <Trophy className="h-3 w-3" />
                 <span>
-                  {rankError ? 'Rank #1' : rankData ? `Rank #${rankData.rank || 'N/A'}` : 'Rank #1'}
+                  {rankLoading ? 'Loading...' : 
+                   rankError ? 'Rank #1' : 
+                   rankData ? `Rank #${rankData.rank || 'N/A'}` : 
+                   'Rank #1'}
                 </span>
               </div>
             </div>

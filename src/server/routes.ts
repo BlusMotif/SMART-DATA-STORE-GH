@@ -5003,30 +5003,50 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      // Calculate user's total spent from completed transactions only
-      const transactions = await storage.getTransactions({
+
+      // Calculate user's stats from all transactions (completed and pending)
+      const allTransactions = await storage.getTransactions({
         customerEmail: req.user!.email,
-        status: "completed",
       });
-      const userTotalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      // Get all users' total spent from completed transactions
+
+      const completedTransactions = allTransactions.filter(t => t.status === 'completed');
+      const pendingTransactions = allTransactions.filter(t => t.status === 'pending' || t.status === 'confirmed');
+
+      const userTotalSpent = completedTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      const userPendingSpent = pendingTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      const userTotalTransactions = allTransactions.length;
+
+      // Get all users' stats
       const allUsers = await storage.getUsers();
       const userRanks = await Promise.all(allUsers.map(async (u) => {
-        const txns = await storage.getTransactions({
+        const userTxns = await storage.getTransactions({
           customerEmail: u.email,
-          status: "completed",
         });
-        const total = txns.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-        return { email: u.email, totalSpent: total };
+        const completed = userTxns.filter(t => t.status === 'completed');
+        const totalSpent = completed.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        const totalTransactions = userTxns.length;
+
+        return {
+          email: u.email,
+          totalSpent,
+          totalTransactions,
+          score: totalSpent + (totalTransactions * 0.1) // Give small bonus for transaction count
+        };
       }));
-      // Sort by totalSpent descending
-      userRanks.sort((a, b) => b.totalSpent - a.totalSpent);
+
+      // Sort by score descending (spending + transaction bonus)
+      userRanks.sort((a, b) => b.score - a.score);
+
       // Find user's rank (1-based)
       const userRank = userRanks.findIndex(u => u.email === req.user!.email) + 1;
+
       res.json({
         rank: userRank,
         totalUsers: userRanks.length,
-        totalSpent: userTotalSpent
+        totalSpent: userTotalSpent,
+        pendingSpent: userPendingSpent,
+        totalTransactions: userTotalTransactions,
+        score: userTotalSpent + (userTotalTransactions * 0.1)
       });
     } catch (error: any) {
       console.error("Rank API error:", error);

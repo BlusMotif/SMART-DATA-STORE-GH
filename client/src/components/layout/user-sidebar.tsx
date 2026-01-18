@@ -108,7 +108,9 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
     >
       <div className="flex h-16 items-center gap-2 border-b px-6">
         <div className="flex flex-col">
-          <span className="font-semibold text-sm">My Account</span>
+          <span className="font-semibold text-sm">
+            {user?.role === 'agent' ? 'Agent' : 'My Account'}
+          </span>
         </div>
       </div>
 

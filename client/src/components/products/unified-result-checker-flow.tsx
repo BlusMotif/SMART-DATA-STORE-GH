@@ -287,7 +287,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                   name="paymentMethod"
                   render={({ field }) => (
                     <FormItem className="space-y-3">
-                      <FormLabelWithoutFor>Payment Method</FormLabelWithoutFor>
+                      <FormLabelWithoutFor className="text-green-700">Payment Method</FormLabelWithoutFor>
                       <FormControl>
                         <RadioGroup
                           onValueChange={field.onChange}
@@ -303,7 +303,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                                 disabled={hasInsufficientBalance}
                               />
                               <Label
-                                className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all ${
+                                className={`flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all ${
                                   hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                 }`}
                               >
@@ -337,19 +337,19 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                               className="peer sr-only"
                             />
                             <Label
-                              className="flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 cursor-pointer transition-all"
+                              className="flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all"
                             >
                               <div className="flex items-center gap-3">
-                                <CreditCard className="h-5 w-5" />
+                                <CreditCard className="h-5 w-5 text-green-600" />
                                 <div>
-                                  <div className="font-medium">Paystack</div>
-                                  <div className="text-sm text-muted-foreground">
+                                  <div className="font-medium text-green-700">Paystack</div>
+                                  <div className="text-sm text-green-600">
                                     Pay with card, bank transfer
                                   </div>
                                 </div>
                               </div>
                               {field.value === "paystack" && (
-                                <CheckCircle className="h-5 w-5 text-primary" />
+                                <CheckCircle className="h-5 w-5 text-green-600" />
                               )}
                             </Label>
                           </div>

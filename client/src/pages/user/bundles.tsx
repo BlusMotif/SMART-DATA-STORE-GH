@@ -846,19 +846,23 @@ export default function UserBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all"
+                            className={`flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all ${
+                              selectedBundle && parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Wallet className="h-5 w-5" />
+                              <Wallet className="h-5 w-5 text-green-600" />
                               <div>
-                                <div className="font-medium">Wallet Balance</div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="font-medium text-green-700">Wallet Balance</div>
+                                <div className="text-sm text-green-600">
                                   Available: GH₵{stats?.walletBalance || '0.00'}
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "wallet" && (
-                              <CheckCircle className="h-5 w-5 text-primary" />
+                              <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
                         </div>

@@ -5329,10 +5329,16 @@ export async function registerRoutes(
   // Initialize wallet topup
   app.post("/api/wallet/topup/initialize", requireAuth, async (req, res) => {
     try {
-      const { amount } = req.body;
+      const { amount, paymentMethod = "paystack" } = req.body;
       if (!amount || parseFloat(amount) < 1) {
         return res.status(400).json({ error: "Invalid amount. Minimum topup is GHS 1" });
       }
+
+      // For wallet topup, only Paystack is supported
+      if (paymentMethod === "wallet") {
+        return res.status(400).json({ error: "Wallet balance cannot be used to top up wallet. Please use Paystack." });
+      }
+
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
@@ -5347,7 +5353,7 @@ export async function registerRoutes(
         profit: "0.00",
         customerPhone: dbUser.phone || "",
         customerEmail: dbUser.email,
-        paymentMethod: "paystack",
+        paymentMethod: paymentMethod,
         status: TransactionStatus.PENDING,
       });
       // Initialize Paystack payment

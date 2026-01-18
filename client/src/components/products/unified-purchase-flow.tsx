@@ -37,7 +37,9 @@ const singleOrderSchema = z.object({
     .max(10, "Phone number must be exactly 10 digits")
     .regex(/^0[0-9]{9}$/, "Phone number must start with 0 and be 10 digits (e.g., 0241234567)"),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
+  paymentMethod: z.enum(["paystack", "wallet"], {
+    required_error: "Please select a payment method",
+  }),
 });
 
 const bulkOrderSchema = z.object({
@@ -57,7 +59,9 @@ const bulkOrderSchema = z.object({
       return phoneNumbers.length === uniquePhones.size;
     }, "Duplicate phone numbers found. Please remove duplicates before proceeding."),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
+  paymentMethod: z.enum(["paystack", "wallet"], {
+    required_error: "Please select a payment method",
+  }),
 });
 
 type SingleOrderFormData = z.infer<typeof singleOrderSchema>;
@@ -217,7 +221,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     defaultValues: {
       customerPhone: user?.phone || "",
       customerEmail: "",
-      paymentMethod: "paystack",
     },
   });
 
@@ -226,7 +229,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     defaultValues: {
       phoneNumbers: "",
       customerEmail: "",
-      paymentMethod: "paystack",
     },
   });
 
@@ -323,7 +325,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
           customerPhone: phoneNumbers[0],
           phoneNumbers: isBulk ? phoneNumbers : undefined,
           orderItems: isBulk ? orderItems : undefined,
-          isBulkOrder: isBulk,
+          isBulkOrder: isBulk ? 1 : 0,
           agentSlug: agentSlug || undefined,
         };
 
@@ -338,7 +340,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
           customerPhone: phoneNumbers[0],
           phoneNumbers: isBulk ? phoneNumbers : undefined,
           orderItems: isBulk ? orderItems : undefined,
-          isBulkOrder: isBulk,
+          isBulkOrder: isBulk ? 1 : 0,
           customerEmail: data.customerEmail || undefined,
           agentSlug: agentSlug || undefined,
         };
@@ -552,7 +554,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
               </Select>
 
               {selectedBundle && (
-                <div className="mt-4 p-4 bg-muted rounded-lg">
+                <div className="mt-4 p-2 bg-yellow-100 rounded-lg">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-semibold text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - {formatCurrency(getBundlePrice(selectedBundle))}</h3>
@@ -665,30 +667,25 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                               >
                                 {user && (
                                   <div className="relative">
-                                    <RadioGroupItem
-                                      value="wallet"
-                                      id="wallet"
-                                      className="peer sr-only"
-                                      disabled={hasInsufficientBalance}
-                                    />
-                                    <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-black !bg-white p-4 hover:border-green-500 hover:shadow-md peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
-                                        hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <Wallet className="h-5 w-5 text-green-600" />
-                                        <div>
-                                          <div className="font-medium text-green-700">Wallet Balance</div>
-                                          <div className="text-sm text-green-600">
-                                            Available: GH₵{walletBalance.toFixed(2)}
+                                    <div className={`flex items-center space-x-2 p-4 rounded-lg border-2 border-black !bg-white hover:border-green-500 hover:shadow-md cursor-pointer transition-all ${
+                                      hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
+                                    }`}>
+                                      <RadioGroupItem value="wallet" id="wallet" disabled={hasInsufficientBalance} />
+                                      <Label htmlFor="wallet" className="flex items-center justify-between flex-1 cursor-pointer">
+                                        <div className="flex items-center gap-3">
+                                          <Wallet className="h-5 w-5 text-green-600" />
+                                          <div>
+                                            <div className="font-medium text-green-700">Wallet Balance</div>
+                                            <div className="text-sm text-green-600">
+                                              Available: GH₵{walletBalance.toFixed(2)}
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                      {field.value === "wallet" && (
-                                        <CheckCircle className="h-5 w-5 text-green-600" />
-                                      )}
-                                    </Label>
+                                        {field.value === "wallet" && (
+                                          <CheckCircle className="h-5 w-5 text-green-600" />
+                                        )}
+                                      </Label>
+                                    </div>
                                     {hasInsufficientBalance && (
                                       <div className="absolute top-2 right-2">
                                         <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
@@ -699,15 +696,9 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                   </div>
                                 )}
 
-                                <div>
-                                  <RadioGroupItem
-                                    value="paystack"
-                                    id="paystack"
-                                    className="peer sr-only"
-                                  />
-                                  <Label
-                                    className="flex items-center justify-between rounded-lg border-2 border-black !bg-white p-4 hover:border-green-500 hover:shadow-md peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 peer-data-[state=checked]:shadow-md cursor-pointer transition-all"
-                                  >
+                                <div className="flex items-center space-x-2">
+                                  <RadioGroupItem value="paystack" id="paystack" />
+                                  <Label htmlFor="paystack" className="flex items-center justify-between flex-1 cursor-pointer">
                                     <div className="flex items-center gap-3">
                                       <CreditCard className="h-5 w-5 text-green-600" />
                                       <div>
@@ -730,7 +721,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                       />
 
                       {hasInsufficientBalance && singleForm.watch("paymentMethod") === "wallet" && (
-                        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                        <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-sm">
                             <strong>Insufficient Balance:</strong> You need GH₵{(price - walletBalance).toFixed(2)} more. 
@@ -810,7 +801,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         type="submit"
                         size="lg"
                         className="w-full gap-2"
-                        disabled={isProcessing || (singleForm.watch("paymentMethod") === "wallet" && hasInsufficientBalance)}
+                        disabled={isProcessing || !singleForm.watch("paymentMethod") || (singleForm.watch("paymentMethod") === "wallet" && hasInsufficientBalance)}
                       >
                         {isProcessing ? (
                           <>
@@ -856,30 +847,25 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                               >
                                 {user && (
                                   <div className="relative">
-                                    <RadioGroupItem
-                                      value="wallet"
-                                      id="wallet-bulk"
-                                      className="peer sr-only"
-                                      disabled={walletBalance < totalAmount}
-                                    />
-                                    <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-black !bg-white p-4 hover:border-green-500 hover:shadow-md peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
-                                        walletBalance < totalAmount ? "opacity-50 cursor-not-allowed" : ""
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <Wallet className="h-5 w-5 text-green-600" />
-                                        <div>
-                                          <div className="font-medium text-green-700">Wallet Balance</div>
-                                          <div className="text-sm text-green-600">
-                                            Available: GH₵{walletBalance.toFixed(2)}
+                                    <div className={`flex items-center space-x-2 p-4 rounded-lg border-2 border-black !bg-white hover:border-green-500 hover:shadow-md cursor-pointer transition-all ${
+                                      walletBalance < totalAmount ? "opacity-50 cursor-not-allowed" : ""
+                                    }`}>
+                                      <RadioGroupItem value="wallet" id="wallet-bulk" disabled={walletBalance < totalAmount} />
+                                      <Label htmlFor="wallet-bulk" className="flex items-center justify-between flex-1 cursor-pointer">
+                                        <div className="flex items-center gap-3">
+                                          <Wallet className="h-5 w-5 text-green-600" />
+                                          <div>
+                                            <div className="font-medium text-green-700">Wallet Balance</div>
+                                            <div className="text-sm text-green-600">
+                                              Available: GH₵{walletBalance.toFixed(2)}
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                      {field.value === "wallet" && (
-                                        <CheckCircle className="h-5 w-5 text-green-600" />
-                                      )}
-                                    </Label>
+                                        {field.value === "wallet" && (
+                                          <CheckCircle className="h-5 w-5 text-green-600" />
+                                        )}
+                                      </Label>
+                                    </div>
                                     {walletBalance < totalAmount && (
                                       <div className="absolute top-2 right-2">
                                         <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
@@ -890,15 +876,12 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                   </div>
                                 )}
 
-                                <div>
+                                <div className="flex items-center space-x-2 p-4 rounded-lg border-2 border-black !bg-white hover:border-green-500 hover:shadow-md cursor-pointer transition-all">
                                   <RadioGroupItem
                                     value="paystack"
                                     id="paystack-bulk"
-                                    className="peer sr-only"
                                   />
-                                  <Label
-                                    className="flex items-center justify-between rounded-lg border-2 border-black !bg-white p-4 hover:border-green-500 hover:shadow-md peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 peer-data-[state=checked]:shadow-md cursor-pointer transition-all"
-                                  >
+                                  <Label htmlFor="paystack-bulk" className="flex items-center justify-between flex-1 cursor-pointer">
                                     <div className="flex items-center gap-3">
                                       <CreditCard className="h-5 w-5 text-green-600" />
                                       <div>
@@ -921,7 +904,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                       />
 
                       {walletBalance < totalAmount && bulkForm.watch("paymentMethod") === "wallet" && (
-                        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                        <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-sm">
                             <strong>Insufficient Balance:</strong> You need GH₵{(totalAmount - walletBalance).toFixed(2)} more. 
@@ -1076,7 +1059,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         type="submit"
                         size="lg"
                         className="w-full gap-2"
-                        disabled={isProcessing || (bulkForm.watch("paymentMethod") === "wallet" && walletBalance < totalAmount)}
+                        disabled={isProcessing || !bulkForm.watch("paymentMethod") || (bulkForm.watch("paymentMethod") === "wallet" && walletBalance < totalAmount)}
                       >
                         {isProcessing ? (
                           <>

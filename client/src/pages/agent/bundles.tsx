@@ -80,11 +80,11 @@ export default function AgentBundlesPage() {
   // Single purchase state
   const [selectedBundle, setSelectedBundle] = useState<BundleWithPrice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
   
   // Bulk purchase state
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
-  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
 
   // Fetch bundles for the selected network
   const { data: bundles, isLoading: bundlesLoading } = useQuery({
@@ -186,7 +186,7 @@ export default function AgentBundlesPage() {
           productId: bundle.id,
           customerPhone: phoneNumbers[0],
           phoneNumbers: undefined,
-          isBulkOrder: isBulk,
+          isBulkOrder: isBulk ? 1 : 0,
           customerEmail: user?.email || undefined,
         };
         
@@ -267,7 +267,7 @@ export default function AgentBundlesPage() {
             productType: "data_bundle",
             network: network,
             customerPhone: phoneNumbers[0],
-            isBulkOrder: isBulk,
+            isBulkOrder: isBulk ? 1 : 0,
             orderItems: data.orderItems,
             totalAmount: totalAmount,
             customerEmail: user?.email || undefined,
@@ -680,7 +680,7 @@ export default function AgentBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-4 bg-white dark:bg-black rounded-lg border border-primary/20">
+                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
                         <p className="text-sm text-muted-foreground">Selected Bundle</p>
                         <p className="font-medium text-lg">{selectedBundle.name}</p>
                         <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
@@ -717,7 +717,7 @@ export default function AgentBundlesPage() {
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
                       <RadioGroup 
-                        value={paymentMethod} 
+                        value={paymentMethod || ""} 
                         onValueChange={(value: "wallet" | "paystack") => setPaymentMethod(value)}
                         className="grid gap-3"
                       >
@@ -793,7 +793,7 @@ export default function AgentBundlesPage() {
 
                     {/* Insufficient Balance Alert */}
                     {selectedBundle && paymentMethod === "wallet" && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance && (
-                      <Alert variant="destructive" className="border-destructive bg-white dark:bg-black">
+                      <Alert variant="default" className="border-destructive bg-white text-destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
                           <strong>Insufficient Balance:</strong> You need GH₵{((parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) - walletBalance).toFixed(2)} more.
@@ -806,7 +806,7 @@ export default function AgentBundlesPage() {
                       className="w-full"
                       size="lg"
                       onClick={handleSinglePurchase}
-                      disabled={!selectedBundle || !phoneNumber || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance)}
+                      disabled={!selectedBundle || !phoneNumber || !paymentMethod || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance)}
                     >
                       {purchaseMutation.isPending ? (
                         <>
@@ -864,7 +864,7 @@ export default function AgentBundlesPage() {
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
                       <RadioGroup 
-                        value={bulkPaymentMethod} 
+                        value={bulkPaymentMethod || ""} 
                         onValueChange={(value: "wallet" | "paystack") => setBulkPaymentMethod(value)}
                         className="grid gap-3"
                       >
@@ -932,6 +932,7 @@ export default function AgentBundlesPage() {
                         onClick={handleBulkPurchase}
                         disabled={
                           !bulkPhoneNumbers.trim() || 
+                          !bulkPaymentMethod ||
                           bulkPurchaseMutation.isPending
                         }
                       >

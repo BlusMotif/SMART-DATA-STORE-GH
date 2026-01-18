@@ -27,7 +27,9 @@ import { Phone, Mail, Loader2, ShieldCheck, FileCheck, Wallet, CreditCard, Check
 
 const checkoutSchema = z.object({
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  paymentMethod: z.enum(["paystack", "wallet"]).default("paystack"),
+  paymentMethod: z.enum(["paystack", "wallet"], {
+    required_error: "Please select a payment method",
+  }),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>;
@@ -84,7 +86,6 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
       customerEmail: "",
-      paymentMethod: "paystack",
     },
   });
 
@@ -296,30 +297,25 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                         >
                           {user && (
                             <div className="relative">
-                              <RadioGroupItem
-                                value="wallet"
-                                id="wallet"
-                                className="peer sr-only"
-                                disabled={hasInsufficientBalance}
-                              />
-                              <Label
-                                className={`flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all ${
-                                  hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Wallet className="h-5 w-5 text-green-600" />
-                                  <div>
-                                    <div className="font-medium text-green-700">Wallet Balance</div>
-                                    <div className="text-sm text-green-600">
-                                      Available: GH₵{walletBalance.toFixed(2)}
+                              <div className={`flex items-center space-x-2 p-4 rounded-lg border-2 border-muted !bg-white hover:border-green-500 cursor-pointer transition-all ${
+                                hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
+                              }`}>
+                                <RadioGroupItem value="wallet" id="wallet" disabled={hasInsufficientBalance} />
+                                <Label htmlFor="wallet" className="flex items-center justify-between flex-1 cursor-pointer">
+                                  <div className="flex items-center gap-3">
+                                    <Wallet className="h-5 w-5 text-green-600" />
+                                    <div>
+                                      <div className="font-medium text-green-700">Wallet Balance</div>
+                                      <div className="text-sm text-green-600">
+                                        Available: GH₵{walletBalance.toFixed(2)}
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                                {field.value === "wallet" && (
-                                  <CheckCircle className="h-5 w-5 text-green-600" />
-                                )}
-                              </Label>
+                                  {field.value === "wallet" && (
+                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                  )}
+                                </Label>
+                              </div>
                               {hasInsufficientBalance && (
                                 <div className="absolute top-2 right-2">
                                   <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
@@ -330,15 +326,12 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                             </div>
                           )}
 
-                          <div>
+                          <div className="flex items-center space-x-2 p-4 rounded-lg border-2 border-muted !bg-white hover:border-green-500 cursor-pointer transition-all">
                             <RadioGroupItem
                               value="paystack"
                               id="paystack"
-                              className="peer sr-only"
                             />
-                            <Label
-                              className="flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all"
-                            >
+                            <Label htmlFor="paystack" className="flex items-center justify-between flex-1 cursor-pointer">
                               <div className="flex items-center gap-3">
                                 <CreditCard className="h-5 w-5 text-green-600" />
                                 <div>
@@ -361,7 +354,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                 />
 
                 {hasInsufficientBalance && form.watch("paymentMethod") === "wallet" && (
-                  <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                  <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription className="text-sm">
                       <strong>Insufficient Balance:</strong> You need GH₵{(price - walletBalance).toFixed(2)} more. 
@@ -413,7 +406,7 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                   type="submit"
                   size="lg"
                   className="w-full gap-2"
-                  disabled={isProcessing || (form.watch("paymentMethod") === "wallet" && hasInsufficientBalance)}
+                  disabled={isProcessing || !form.watch("paymentMethod") || (form.watch("paymentMethod") === "wallet" && hasInsufficientBalance)}
                 >
                   {isProcessing ? (
                     <>

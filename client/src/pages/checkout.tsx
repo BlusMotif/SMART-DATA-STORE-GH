@@ -395,7 +395,7 @@ export default function CheckoutPage() {
                       />
 
                       {hasInsufficientBalance && form.watch("paymentMethod") === "wallet" && (
-                        <Alert variant="destructive" className="border-destructive/50 bg-destructive/20">
+                        <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-sm">
                             <strong>Insufficient Balance:</strong> You need GH₵{(price - walletBalance).toFixed(2)} more. 

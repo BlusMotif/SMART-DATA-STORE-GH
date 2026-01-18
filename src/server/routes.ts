@@ -122,7 +122,7 @@ async function processWebhookEvent(event: any) {
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date().toISOString(),
+              completedAt: new Date(),
               paymentReference: reference,
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
@@ -199,14 +199,14 @@ async function processWebhookEvent(event: any) {
                 await storage.updateTransaction(transaction.id, {
                   status: TransactionStatus.DELIVERED,
                   deliveryStatus: "delivered",
-                  completedAt: new Date().toISOString(),
+                  completedAt: new Date(),
                   paymentReference: data.reference,
                 });
               } else {
                 await storage.updateTransaction(transaction.id, {
                   status: TransactionStatus.COMPLETED,
                   deliveryStatus: "processing",
-                  completedAt: new Date().toISOString(),
+                  completedAt: new Date(),
                   paymentReference: data.reference,
                   failureReason: JSON.stringify(fulfillResult.results),
                 });
@@ -215,7 +215,7 @@ async function processWebhookEvent(event: any) {
               await storage.updateTransaction(transaction.id, {
                 status: TransactionStatus.COMPLETED,
                 deliveryStatus: "failed",
-                completedAt: new Date().toISOString(),
+                completedAt: new Date(),
                 paymentReference: data.reference,
                 failureReason: fulfillResult?.error || "Provider fulfillment failed",
               });
@@ -225,7 +225,7 @@ async function processWebhookEvent(event: any) {
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.COMPLETED,
               deliveryStatus: "failed",
-              completedAt: new Date().toISOString(),
+              completedAt: new Date(),
               paymentReference: data.reference,
               failureReason: String(err?.message || err),
             });
@@ -235,14 +235,14 @@ async function processWebhookEvent(event: any) {
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
             deliveryStatus: "pending",
-            completedAt: new Date().toISOString(),
+            completedAt: new Date(),
             paymentReference: data.reference,
           });
         }
       } else {
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
-          completedAt: new Date().toISOString(),
+          completedAt: new Date(),
           deliveredPin,
           deliveredSerial,
           paymentReference: data.reference,
@@ -312,9 +312,9 @@ declare global {
         name: string;
         key: string;
         permissions: any;
-        isActive: number;
-        lastUsed: string | null;
-        createdAt: string;
+        isActive: boolean;
+        lastUsed: Date | null;
+        createdAt: Date;
       };
     }
   }
@@ -443,7 +443,7 @@ const requireApiKey = async (req: Request, res: Response, next: NextFunction) =>
       return res.status(401).json({ error: "Invalid API key" });
     }
     // Update last used timestamp
-    await storage.updateApiKey(apiKey.id, { lastUsed: new Date().toISOString() });
+    await storage.updateApiKey(apiKey.id, { lastUsed: new Date() });
     req.apiKey = apiKey;
     next();
   } catch (error) {
@@ -1057,8 +1057,10 @@ export async function registerRoutes(
   app.get("/api/products/data-bundles", async (req, res) => {
     const network = req.query.network as string | undefined;
     const agentSlug = req.query.agent as string | undefined;
+    console.log("[API] /api/products/data-bundles called with network:", network, "agent:", agentSlug);
     try {
       let bundles = await storage.getDataBundles({ network, isActive: true });
+      console.log(`[API] Fetched ${bundles.length} bundles for network: ${network}`);
       // If no bundles exist for the requested network, create default ones
       if (network && bundles.length === 0) {
         console.log(`No bundles found for network: ${network}, creating default bundles...`);
@@ -1088,6 +1090,7 @@ export async function registerRoutes(
             const profit = Math.max(0, sellingPrice - basePrice);
             return {
               ...bundle,
+              basePrice: basePrice.toFixed(2),
               effective_price: sellingPrice.toFixed(2),
               profit_margin: profit.toFixed(2),
             };
@@ -1096,6 +1099,7 @@ export async function registerRoutes(
           // Invalid agent, use admin price
           pricedBundles = bundles.map(bundle => ({
             ...bundle,
+            basePrice: parseFloat(bundle.adminPrice || bundle.basePrice || '0').toFixed(2),
             effective_price: parseFloat(bundle.adminPrice || bundle.basePrice || '0').toFixed(2),
             profit_margin: '0.00',
           }));
@@ -1128,6 +1132,7 @@ export async function registerRoutes(
         pricedBundles = await Promise.all(bundles.map(async (bundle) => {
           let effectivePrice = parseFloat(bundle.basePrice || '0');
           let profitMargin = '0.00';
+          let adminBasePriceValue = parseFloat(bundle.basePrice || '0');
           if (userRole !== 'guest' && userId) {
             // Get resolved price (custom selling price or admin base price fallback)
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, userId, userRole);
@@ -1136,28 +1141,38 @@ export async function registerRoutes(
               // Calculate profit margin (selling price - admin base price)
               const adminBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
               if (adminBasePrice) {
-                const basePriceNum = parseFloat(adminBasePrice);
-                profitMargin = (effectivePrice - basePriceNum).toFixed(2);
+                adminBasePriceValue = parseFloat(adminBasePrice);
+                profitMargin = (effectivePrice - adminBasePriceValue).toFixed(2);
               }
             }
           } else {
-            // Guest users see admin base price
-            const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-            if (adminBasePrice) {
-              effectivePrice = parseFloat(adminBasePrice);
-            }
+            // Guest users see base price
+            effectivePrice = parseFloat(bundle.basePrice || '0');
+            adminBasePriceValue = effectivePrice;
           }
           return {
             ...bundle,
+            basePrice: adminBasePriceValue.toFixed(2),
             effective_price: effectivePrice.toFixed(2),
             profit_margin: profitMargin,
           };
         }));
       }
+      console.log(`[API] Returning ${pricedBundles.length} priced bundles`);
       res.json(pricedBundles);
     } catch (error: any) {
       console.error("Database error:", error);
       res.status(500).json({ error: "Failed to fetch data bundles" });
+    }
+  });
+  // Get available networks with base prices for homepage dropdown
+  app.get("/api/products/networks", async (req, res) => {
+    try {
+      const networks = await storage.getNetworksWithBasePrices();
+      res.json(networks);
+    } catch (error: any) {
+      console.error("Database error:", error);
+      res.status(500).json({ error: "Failed to fetch networks" });
     }
   });
   // Check storefront slug availability
@@ -1647,7 +1662,7 @@ export async function registerRoutes(
       // Mark transaction as completed immediately for wallet payments
       await storage.updateTransaction(transaction.id, {
         status: "completed",
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(),
         paymentReference: "wallet",
       });
       // Financial integrity: credit agent only their profit, and record admin revenue separately
@@ -2122,7 +2137,7 @@ export async function registerRoutes(
         // Mark transaction as completed
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
-          completedAt: new Date().toISOString(),
+          completedAt: new Date(),
           deliveredPin,
           deliveredSerial,
         });
@@ -2309,7 +2324,7 @@ export async function registerRoutes(
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
         paymentStatus: "paid",
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(),
         deliveredPin,
         deliveredSerial,
         paymentReference: paystackVerification.data.reference,
@@ -2660,7 +2675,7 @@ export async function registerRoutes(
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date().toISOString(),
+              completedAt: new Date(),
               paymentReference: paymentData.reference,
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
@@ -2817,7 +2832,7 @@ export async function registerRoutes(
           if (metadata.transaction_id) {
             await storage.updateTransaction(metadata.transaction_id, {
               status: TransactionStatus.COMPLETED,
-              completedAt: new Date().toISOString(),
+              completedAt: new Date(),
               paymentReference: reference,
             });
             console.log("Activation transaction marked as completed:", metadata.transaction_id);
@@ -2879,7 +2894,7 @@ export async function registerRoutes(
       }
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(),
         deliveredPin,
         deliveredSerial,
         paymentReference: data.reference,
@@ -4167,7 +4182,7 @@ export async function registerRoutes(
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
         message: message.trim(),
-        isActive: 1,
+        isActive: true,
         createdBy: dbUser.name || dbUser.email,
       });
       res.json(announcement);
@@ -4859,7 +4874,7 @@ export async function registerRoutes(
         await storage.updateWithdrawal(id, {
           status: WithdrawalStatus.APPROVED,
           approvedBy: req.user!.id,
-          approvedAt: new Date().toISOString(),
+          approvedAt: new Date(),
           adminNote,
         });
         res.json({
@@ -4917,7 +4932,7 @@ export async function registerRoutes(
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.APPROVED,
         approvedBy: req.user!.id,
-        approvedAt: new Date().toISOString(),
+        approvedAt: new Date(),
         adminNote,
       });
       res.json({
@@ -4967,7 +4982,7 @@ export async function registerRoutes(
       // Update withdrawal status to paid
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.PAID,
-        paidAt: new Date().toISOString(),
+        paidAt: new Date(),
       });
       res.json({
         message: "Withdrawal marked as paid",
@@ -5398,7 +5413,7 @@ export async function registerRoutes(
       // Update transaction
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(),
         paymentReference: paystackVerification.data.reference,
       });
       res.json({
@@ -5560,7 +5575,7 @@ export async function registerRoutes(
         }
         await storage.updateTransaction(transaction.id, {
           status: TransactionStatus.COMPLETED,
-          completedAt: new Date().toISOString(),
+          completedAt: new Date(),
           deliveredPin,
           deliveredSerial,
         });
@@ -5572,14 +5587,14 @@ export async function registerRoutes(
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
-            completedAt: new Date().toISOString(),
+            completedAt: new Date(),
           });
         } else {
           console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
           // Still mark as completed but log the error - in production you might want to handle this differently
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
-            completedAt: new Date().toISOString(),
+            completedAt: new Date(),
             failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
           });
         }
@@ -6005,7 +6020,7 @@ export async function registerRoutes(
         name: name.trim(),
         key,
         permissions: "{}",
-        isActive: 1,
+        isActive: true,
       });
       // Return the key (this is the only time it will be shown)
       res.json({

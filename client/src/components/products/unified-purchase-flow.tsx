@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -70,7 +70,7 @@ interface UserStats {
 }
 
 interface UnifiedPurchaseFlowProps {
-  network: string;
+  network?: string;
   agentSlug?: string | null;
 }
 
@@ -83,30 +83,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   const [orderType, setOrderType] = useState<"single" | "bulk" | "excel">("single");
   const [isStep1Open, setIsStep1Open] = useState(true);
   const [isStep2Open, setIsStep2Open] = useState(false);
-  const [excelFile, setExcelFile] = useState<File | null>(null);
-
-  // Calculate total for bulk orders
-  useEffect(() => {
-    if (orderType === "bulk" && bulkForm.watch("phoneNumbers")) {
-      const lines = bulkForm.watch("phoneNumbers").split('\n').map(l => l.trim()).filter(l => l);
-      let total = 0;
-      for (const line of lines) {
-        const parts = line.split(/\s+/);
-        if (parts.length < 2) continue;
-        let dataAmount = parts.slice(1).join(' ').toLowerCase();
-        if (!dataAmount.includes('mb') && !dataAmount.includes('gb')) {
-          dataAmount += 'gb';
-        }
-        const bundle = filteredBundles?.find(b => b.dataAmount.toLowerCase() === dataAmount);
-        if (bundle) {
-          total += parseFloat(bundle.customPrice || '0');
-        }
-      }
-      setTotalAmount(total);
-    } else {
-      setTotalAmount(price);
-    }
-  }, [orderType, bulkForm.watch("phoneNumbers"), filteredBundles, price]);
+  const [totalAmount, setTotalAmount] = useState(0);
 
   const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -148,19 +125,40 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
 
   // Fetch public data bundles and agent-scoped bundles when agentSlug provided
   const { data: publicBundles, isLoading: publicBundlesLoading } = useQuery<DataBundle[]>({
-    queryKey: ["/api/products/data-bundles"],
+    queryKey: ["/api/products/data-bundles", network || "all"],
+    queryFn: () => {
+      const url = network 
+        ? `/api/products/data-bundles?network=${network}`
+        : "/api/products/data-bundles";
+      console.log("[UnifiedPurchaseFlow] Fetching bundles from:", url);
+      return apiRequest("GET", url);
+    },
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
 
+  console.log("[UnifiedPurchaseFlow] Network prop:", network);
+  console.log("[UnifiedPurchaseFlow] Network prop:", network);
+  console.log("[UnifiedPurchaseFlow] Public bundles loading:", publicBundlesLoading);
+  console.log("[UnifiedPurchaseFlow] Public bundles data:", publicBundles);
+  console.log("[UnifiedPurchaseFlow] Public bundles length:", publicBundles?.length);
+
   const { data: agentStore, isLoading: agentStoreLoading } = useQuery<any>({
-    queryKey: agentSlug ? [`/api/store/agent/${agentSlug}`] : [],
+    queryKey: agentSlug ? [`/api/store/agent/${agentSlug}`, network || "all"] : [],
     enabled: !!agentSlug,
     refetchInterval: 30000,
   });
 
   const dataBundles = agentSlug ? (agentStore?.dataBundles || []) : (publicBundles || []);
   const bundlesLoading = agentSlug ? agentStoreLoading : publicBundlesLoading;
+
+  console.log("[UnifiedPurchaseFlow] Agent slug:", agentSlug);
+  console.log("[UnifiedPurchaseFlow] Data bundles:", dataBundles);
+  console.log("[UnifiedPurchaseFlow] Data bundles length:", dataBundles?.length);
+  console.log("[UnifiedPurchaseFlow] Agent store loading:", agentStoreLoading);
+  console.log("[UnifiedPurchaseFlow] Agent store data:", agentStore);
+  console.log("[UnifiedPurchaseFlow] Data bundles:", dataBundles);
+  console.log("[UnifiedPurchaseFlow] Data bundles length:", dataBundles?.length);
 
   // Fetch user stats to get wallet balance
   const { data: userStats, isLoading: statsLoading } = useQuery<UserStats>({
@@ -170,16 +168,22 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   });
 
   const filteredBundles = dataBundles?.filter(
-    (bundle) => bundle.network === network && bundle.isActive
+    (bundle: DataBundle) => network ? bundle.network === network && bundle.isActive : bundle.isActive
   );
 
-  const sortedBundles = filteredBundles?.sort((a, b) => {
+  console.log("[UnifiedPurchaseFlow] Filtered bundles:", filteredBundles);
+  console.log("[UnifiedPurchaseFlow] Filtered bundles length:", filteredBundles?.length);
+
+  const sortedBundles = filteredBundles?.sort((a: DataBundle, b: DataBundle) => {
     // If agentSlug, bundles include `price` (agent price). Use that directly.
-    if (agentSlug) return parseFloat(a.price) - parseFloat(b.price);
+    if (agentSlug) return parseFloat((a as any).price) - parseFloat((b as any).price);
     return getBundlePrice(a) - getBundlePrice(b);
   });
 
-  const selectedBundle = sortedBundles?.find(bundle => bundle.id === selectedBundleId);
+  console.log("[UnifiedPurchaseFlow] Sorted bundles:", sortedBundles);
+  console.log("[UnifiedPurchaseFlow] Sorted bundles length:", sortedBundles?.length);
+
+  const selectedBundle = sortedBundles?.find((bundle: DataBundle) => bundle.id === selectedBundleId);
   const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
 
   // Get price based on user role
@@ -226,22 +230,79 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     },
   });
 
-  const initializePaymentMutation = useMutation({
-    mutationFn: async (data: SingleOrderFormData | BulkOrderFormData) => {
+  // Calculate total for bulk orders
+  useEffect(() => {
+    if (orderType === "bulk" && bulkForm.watch("phoneNumbers")) {
+      const lines = bulkForm.watch("phoneNumbers").split('\n').map(l => l.trim()).filter(l => l);
+      let total = 0;
+      for (const line of lines) {
+        const parts = line.split(/\s+/);
+        if (parts.length < 2) continue;
+        let dataAmount = parts.slice(1).join(' ').toLowerCase();
+        if (!dataAmount.includes('mb') && !dataAmount.includes('gb')) {
+          dataAmount += 'gb';
+        }
+        const bundle = filteredBundles?.find((b: any) => b.dataAmount.toLowerCase() === dataAmount);
+        if (bundle) {
+          total += parseFloat(bundle.customPrice || '0');
+        }
+      }
+      setTotalAmount(total);
+    } else {
+      setTotalAmount(price);
+    }
+  }, [orderType, bulkForm.watch("phoneNumbers"), filteredBundles, price]);
+
+  // Define the expected response type for the mutation
+  interface PaymentResponse {
+    paymentUrl?: string;
+    newBalance?: string;
+  }
+
+  const initializePaymentMutation = useMutation<PaymentResponse, Error, SingleOrderFormData | BulkOrderFormData>({
+    mutationFn: async (data: SingleOrderFormData | BulkOrderFormData): Promise<PaymentResponse> => {
       if (!selectedBundle) throw new Error("No bundle selected");
 
       const isBulk = 'phoneNumbers' in data;
-      const phoneNumbers = isBulk 
-        ? (data as BulkOrderFormData).phoneNumbers.split(/[\n,]/).map(n => n.trim()).filter(n => n)
-        : [(data as SingleOrderFormData).customerPhone];
+      let phoneNumbers: string[] = [];
+      let totalAmount = 0;
+      let orderItems: any[] = [];
 
-      // Check for duplicate phone numbers in bulk orders
       if (isBulk) {
-        const phoneNumbersOnly = phoneNumbers.map(line => line.split(/\s+/)[0]);
+        const lines = (data as BulkOrderFormData).phoneNumbers.split('\n').map(l => l.trim()).filter(l => l);
+        for (const line of lines) {
+          const parts = line.split(/\s+/);
+          if (parts.length < 2) continue;
+          const phone = normalizePhoneNumber(parts[0]);
+          const dataAmount = parts.slice(1).join(' ').toLowerCase();
+          phoneNumbers.push(phone);
+
+          // Find bundle by dataAmount
+          const bundle = filteredBundles?.find((b: DataBundle) => b.dataAmount.toLowerCase() === dataAmount);
+          if (!bundle) {
+            throw new Error(`No bundle found for ${dataAmount} in ${network}`);
+          }
+
+          const itemPrice = parseFloat(bundle.customPrice || '0');
+          totalAmount += itemPrice;
+          orderItems.push({
+            phone,
+            bundleName: `${bundle.dataAmount} ${bundle.validity}`,
+            dataAmount: bundle.dataAmount,
+            price: itemPrice.toFixed(2),
+          });
+        }
+
+        // Check for duplicate phone numbers
+        const phoneNumbersOnly = phoneNumbers;
         const uniquePhones = new Set(phoneNumbersOnly);
         if (phoneNumbersOnly.length !== uniquePhones.size) {
           throw new Error("Duplicate phone numbers found. Please remove duplicates before proceeding.");
         }
+      } else {
+        const phone = normalizePhoneNumber((data as SingleOrderFormData).customerPhone);
+        phoneNumbers = [phone];
+        totalAmount = price;
       }
 
       console.log("[Frontend] ========== PAYMENT INITIALIZATION ==========");
@@ -252,8 +313,6 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
       console.log("[Frontend] numberOfRecipients:", phoneNumbers.length);
       console.log("[Frontend] ================================================");
 
-      const totalAmount = price * phoneNumbers.length;
-
       if (data.paymentMethod === "wallet") {
         const payload = {
           productType: "data_bundle",
@@ -263,20 +322,22 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
           amount: totalAmount.toFixed(2),
           customerPhone: phoneNumbers[0],
           phoneNumbers: isBulk ? phoneNumbers : undefined,
+          orderItems: isBulk ? orderItems : undefined,
           isBulkOrder: isBulk,
           agentSlug: agentSlug || undefined,
         };
 
         console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
 
-        const response = await apiRequest("POST", "/api/wallet/pay", payload);
-        return response.json();
+        const response = await apiRequest("POST", "/api/wallet/pay", payload) as PaymentResponse;
+        return response as PaymentResponse;
       } else {
         const payload = {
           productType: "data_bundle",
           productId: selectedBundle.id,
           customerPhone: phoneNumbers[0],
           phoneNumbers: isBulk ? phoneNumbers : undefined,
+          orderItems: isBulk ? orderItems : undefined,
           isBulkOrder: isBulk,
           customerEmail: data.customerEmail || undefined,
           agentSlug: agentSlug || undefined,
@@ -287,17 +348,16 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
         console.log("[Frontend] Is bulk:", isBulk);
         console.log("[Frontend] Number of recipients:", phoneNumbers.length);
 
-        const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-        const result = await response.json();
-        
+        const response = await apiRequest("POST", "/api/checkout/initialize", payload) as PaymentResponse;
+
         console.log("[Frontend] ===== SERVER RESPONSE DEBUG =====");
-        console.log("[Frontend] Debug info from server:", result.debug);
+        console.log("[Frontend] Payment URL:", response.paymentUrl);
         console.log("[Frontend] ========================================");
-        
-        return result;
+
+        return response as PaymentResponse;
       }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data: PaymentResponse, variables: SingleOrderFormData | BulkOrderFormData) => {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
@@ -308,16 +368,16 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
           setLocation("/user/dashboard");
         }, 1000);
       } else {
-        window.location.href = data.paymentUrl;
+        window.location.href = data.paymentUrl!;
       }
     },
     onError: (error: any) => {
       const errorMessage = error.message || "Unable to process payment";
       const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
-      
+
       toast({
         title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
-        description: isInsufficientBalance 
+        description: isInsufficientBalance
           ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
           : `${errorMessage}. Please try again or contact support if the problem persists.`,
         variant: "destructive",
@@ -344,7 +404,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
         phoneNumbers.push(phone);
         
         // Find bundle by dataAmount
-        const bundle = filteredBundles.find(b => b.dataAmount.toLowerCase() === dataAmount);
+        const bundle = filteredBundles.find((b: DataBundle) => b.dataAmount.toLowerCase() === dataAmount);
         if (!bundle) {
           toast({
             title: "Bundle Not Found",
@@ -353,7 +413,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
           });
           return;
         }
-        
+
         const price = parseFloat(bundle.customPrice || '0');
         totalAmount += price;
         orderItems.push({
@@ -362,7 +422,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
           dataAmount: bundle.dataAmount,
           price: price.toFixed(2),
         });
-        
+
         // Validate network but don't deny
         const validation = validatePhoneNetwork(phone, bundle.network);
         if (!validation.isValid) {
@@ -378,7 +438,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
       const phone = normalizePhoneNumber((data as SingleOrderFormData).customerPhone);
       phoneNumbers = [phone];
       totalAmount = price;
-      
+
       // Validate network but don't deny
       const validation = validatePhoneNetwork(phone, selectedBundle.network);
       if (!validation.isValid) {
@@ -412,7 +472,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     }
 
     setIsProcessing(true);
-    initializePaymentMutation.mutate({ ...data, orderItems, totalAmount });
+    initializePaymentMutation.mutate(data);
   };
 
   if (bundlesLoading) {
@@ -424,6 +484,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   }
 
   if (!sortedBundles || sortedBundles.length === 0) {
+    console.log("[UnifiedPurchaseFlow] No bundles available. sortedBundles:", sortedBundles);
     return (
       <Card className="p-6">
         <div className="text-center">
@@ -439,7 +500,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
     setIsStep2Open(true);
   };
 
-  const totalAmount = orderType === "bulk" && bulkForm.watch("phoneNumbers")
+  const displayTotalAmount = orderType === "bulk" && bulkForm.watch("phoneNumbers")
     ? price * bulkForm.watch("phoneNumbers").split(/[\n,]/).map(n => n.trim()).filter(n => n).length
     : price;
 
@@ -472,7 +533,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                   <SelectValue placeholder="Choose a data bundle..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedBundles.map((bundle) => (
+                  {(sortedBundles as DataBundle[]).map((bundle) => (
                     <SelectItem key={bundle.id} value={bundle.id}>
                       <div className="flex items-center justify-between w-full gap-4">
                         <span className="font-medium">
@@ -761,12 +822,12 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                             {singleForm.watch("paymentMethod") === "wallet" ? (
                               <>
                                 <Wallet className="h-4 w-4" />
-                                Pay from Wallet - {formatCurrency(totalAmount)}
+                                Pay from Wallet - {formatCurrency(displayTotalAmount)}
                               </>
                             ) : (
                               <>
                                 <CreditCard className="h-4 w-4" />
-                                Pay with Card - {formatCurrency(totalAmount)}
+                                Pay with Card - {formatCurrency(displayTotalAmount)}
                               </>
                             )}
                           </>
@@ -777,7 +838,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                 )}
 
                 {/* Bulk Order Form */}
-                {orderType === "bulk" && (
+                {(orderType === "bulk" || orderType === "excel") && (
                   <Form {...bulkForm}>
                     <form onSubmit={bulkForm.handleSubmit(onSubmit)} className="space-y-6">
                       {/* Payment Method */}
@@ -965,7 +1026,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                             {field.value && (
                               <div className="text-sm text-muted-foreground mt-2">
                                 <strong>{field.value.split(/[\n,]/).map(n => n.trim()).filter(n => n).length}</strong> phone number(s) entered
-                                <span className="ml-2">• Total: <strong>{formatCurrency(totalAmount)}</strong></span>
+                                <span className="ml-2">• Total: <strong>{formatCurrency(displayTotalAmount)}</strong></span>
                               </div>
                             )}
                           </FormItem>
@@ -1027,12 +1088,12 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                             {bulkForm.watch("paymentMethod") === "wallet" ? (
                               <>
                                 <Wallet className="h-4 w-4" />
-                                Pay from Wallet - {formatCurrency(totalAmount)}
+                                Pay from Wallet - {formatCurrency(displayTotalAmount)}
                               </>
                             ) : (
                               <>
                                 <ShoppingCart className="h-4 w-4" />
-                                Complete Purchase - {formatCurrency(totalAmount)}
+                                Complete Purchase - {formatCurrency(displayTotalAmount)}
                               </>
                             )}
                           </>

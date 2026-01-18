@@ -54,7 +54,6 @@ import AdminBreakSettings from "@/pages/admin/break-settings";
 import AdminApiConfiguration from "@/pages/admin/api-configuration";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import PublicRankings from "@/pages/public-rankings";
-import AgentPublicStorefront from "@/pages/agent/public-storefront";
 import { getAgentId } from "@/lib/store-context";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
 import NetworkProductsPage from "@/pages/products/network";
@@ -124,6 +123,7 @@ function Router() {
       <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/data-bundles" component={DataBundlesPage} />
+      <Route path="/products" component={DataBundlesPage} />
       <Route path="/products/result-checkers" component={ResultCheckersPage} />
       <Route path="/products/:network" component={NetworkProductsPage} />
       <Route path="/login" component={LoginPage} />

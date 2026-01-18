@@ -11,10 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Loader2, Smartphone, Wifi, Upload, Menu, ShoppingCart, Package, AlertCircle, Wallet, CreditCard, CheckCircle } from "lucide-react";
+import { Loader2, Smartphone, Upload, Menu, Package, AlertCircle, Wallet, CreditCard, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
@@ -23,15 +23,28 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
+import type { DataBundle } from "@shared/schema";
 
-interface DataBundle {
-  id: string;
-  name: string;
-  network: string;
-  validity: string;
-  basePrice: string;
+type BundleWithPrice = DataBundle & {
   effective_price: string;
   description?: string;
+};
+
+interface AgentProfile {
+  markupPercentage: number;
+}
+
+interface AgentData {
+  profile: AgentProfile;
+}
+
+interface WalletData {
+  balance: string;
+}
+
+interface MutationResponse {
+  newBalance: string;
+  paymentUrl: string;
 }
 
 const NetworkInfo = {
@@ -65,7 +78,7 @@ export default function AgentBundlesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Single purchase state
-  const [selectedBundle, setSelectedBundle] = useState<DataBundle | null>(null);
+  const [selectedBundle, setSelectedBundle] = useState<BundleWithPrice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
   
@@ -79,42 +92,25 @@ export default function AgentBundlesPage() {
     queryFn: async () => {
       // Convert hyphens to underscores for API call
       const apiNetwork = network?.replace(/-/g, '_');
-      const response = await apiRequest("GET", `/api/products/data-bundles?network=${apiNetwork}`);
-      return await response.json() as DataBundle[];
+      const response = await apiRequest<BundleWithPrice[]>("GET", `/api/products/data-bundles?network=${apiNetwork}`);
+      return response;
     },
     enabled: !!network,
   });
 
   // Fetch agent data for pricing
-  const { data: agentData } = useQuery({
+  const { data: agentData } = useQuery<AgentData>({
     queryKey: ["/api/profile"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/profile");
-      return response.json();
-    },
+    queryFn: async () => apiRequest("GET", "/api/profile") as Promise<AgentData>,
   });
 
   // Fetch wallet balance
-  const { data: walletData } = useQuery({
+  const { data: walletData } = useQuery<WalletData>({
     queryKey: ["/api/agent/wallet"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/agent/wallet");
-      return response.json();
-    },
+    queryFn: async () => apiRequest("GET", "/api/agent/wallet") as Promise<WalletData>,
   });
 
   const walletBalance = walletData?.balance ? parseFloat(walletData.balance) : 0;
-
-  // Calculate agent price for selected bundle
-  const agentPrice = useMemo(() => {
-    if (!selectedBundle) return 0;
-    // Use custom agent price if set, otherwise calculate with markup
-    return selectedBundle.agentPrice ? parseFloat(selectedBundle.agentPrice) : 
-      parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100);
-  }, [selectedBundle, agentData]);
-
-  // Calculate total for single purchase
-  const singleTotal = agentPrice * 1;
 
   // Calculate bulk purchase total
   const bulkTotal = useMemo(() => {
@@ -183,7 +179,7 @@ export default function AgentBundlesPage() {
         console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
         
         const response = await apiRequest("POST", "/api/wallet/pay", payload);
-        return response.json();
+        return response as MutationResponse;
       } else {
         const payload = {
           productType: "data_bundle",
@@ -197,11 +193,10 @@ export default function AgentBundlesPage() {
         console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
         
         const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-        const result = await response.json();
-        return result;
+        return response as MutationResponse;
       }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data: MutationResponse, variables) => {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
@@ -233,15 +228,15 @@ export default function AgentBundlesPage() {
 
   // Bulk purchase mutation
   const bulkPurchaseMutation = useMutation({
-    mutationFn: async (data: { 
-      bundleId: string; 
-      phoneNumbers: string[]; 
+    mutationFn: async (data: {
+      bundleId: string;
+      phoneNumbers: string[];
       paymentMethod: "wallet" | "paystack";
       orderItems?: Array<{ phone: string; bundleId: string; bundleName: string; price: number }>;
       totalAmount?: number;
     }) => {
       const isBulk = true;
-      
+
       // Use new orderItems format if available
       if (data.orderItems && data.totalAmount !== undefined) {
         const phoneNumbers = data.orderItems.map(item => item.phone);
@@ -251,7 +246,7 @@ export default function AgentBundlesPage() {
         console.log("[Frontend] Order items:", data.orderItems);
         console.log("[Frontend] Total amount:", totalAmount);
         console.log("[Frontend] ================================================");
-        
+
         if (data.paymentMethod === "wallet") {
           const payload = {
             productType: "data_bundle",
@@ -262,11 +257,11 @@ export default function AgentBundlesPage() {
             isBulkOrder: isBulk,
             orderItems: data.orderItems,
           };
-          
+
           console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
-          
+
           const response = await apiRequest("POST", "/api/wallet/pay", payload);
-          return response.json();
+          return response as MutationResponse;
         } else {
           const payload = {
             productType: "data_bundle",
@@ -277,23 +272,22 @@ export default function AgentBundlesPage() {
             totalAmount: totalAmount,
             customerEmail: user?.email || undefined,
           };
-          
+
           console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
-          
+
           const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-          const result = await response.json();
-          
+
           console.log("[Frontend] ===== SERVER RESPONSE =====");
-          console.log("[Frontend] Result:", result);
+          console.log("[Frontend] Result:", response);
           console.log("[Frontend] ================================");
-          
-          return result;
+
+          return response as MutationResponse;
         }
       } else {
         // Fallback to old format for backward compatibility
         const bundle = bundles?.find(b => b.id === data.bundleId);
         if (!bundle) throw new Error("Bundle not found");
-        
+
         const phoneNumbers = data.phoneNumbers;
         const basePrice = parseFloat(bundle.basePrice);
         const markup = agentData?.profile?.markupPercentage || 0;
@@ -304,7 +298,7 @@ export default function AgentBundlesPage() {
         console.log("[Frontend] Phone numbers:", phoneNumbers);
         console.log("[Frontend] Total amount:", totalAmount);
         console.log("[Frontend] ================================================");
-        
+
         if (data.paymentMethod === "wallet") {
           const payload = {
             productType: "data_bundle",
@@ -316,9 +310,9 @@ export default function AgentBundlesPage() {
             phoneNumbers: phoneNumbers,
             isBulkOrder: isBulk,
           };
-          
+
           const response = await apiRequest("POST", "/api/wallet/pay", payload);
-          return response.json();
+          return response as MutationResponse;
         } else {
           const payload = {
             productType: "data_bundle",
@@ -328,14 +322,13 @@ export default function AgentBundlesPage() {
             isBulkOrder: isBulk,
             customerEmail: user?.email || undefined,
           };
-          
+
           const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-          const result = await response.json();
-          return result;
+          return response as MutationResponse;
         }
       }
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data: MutationResponse, variables) => {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Loader2, ShoppingCart, CreditCard, Wallet, Menu, Package, Code } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { apiRequest } from "@/lib/api";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -17,8 +17,8 @@ import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 
 export default function UserDashboard() {
-  const { user, agent } = useAuth();
-  const { toast } = useToast();
+  const { user } = useAuth();
+  useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showApiModal, setShowApiModal] = useState(false);
 

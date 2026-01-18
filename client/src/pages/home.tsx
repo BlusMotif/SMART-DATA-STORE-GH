@@ -1,9 +1,7 @@
-import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Hero } from "@/components/ui/hero";
 import { Stats } from "@/components/ui/stats";
@@ -33,16 +31,7 @@ import { OrderTracker } from "@/components/order-tracker";
 const bannerImages = [banner1, banner2, banner3];
 
 export default function HomePage() {
-  const [currentBanner, setCurrentBanner] = useState(0);
   const { user, isAuthenticated } = useAuth();
-
-  // Auto-rotate banners
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Product categories for homepage
   const productCategories = [
@@ -165,14 +154,6 @@ export default function HomePage() {
     return "Become an Agent";
   };
 
-  const nextBanner = () => {
-    setCurrentBanner((prev) => (prev + 1) % bannerImages.length);
-  };
-
-  const prevBanner = () => {
-    setCurrentBanner((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -238,7 +219,6 @@ export default function HomePage() {
             {/* Stats Section - moved here */}
             <Stats
               stats={stats}
-              background="muted"
             />
           </div>
         </section>

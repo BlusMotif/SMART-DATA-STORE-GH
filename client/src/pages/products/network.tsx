@@ -152,8 +152,13 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const { data: bundles, isLoading } = useQuery({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
-      const res = await apiRequest('GET', `/api/products/data-bundles?network=${network}${agentSlug ? `&agent=${agentSlug}` : ''}`);
-      return res.json();
+      const url = `/api/products/data-bundles?network=${network}${agentSlug ? `&agent=${agentSlug}` : ''}`;
+      console.log("[PublicPurchaseFlow] Fetching bundles from:", url);
+      const res = await apiRequest('GET', url);
+      const data = await res.json();
+      console.log("[PublicPurchaseFlow] Fetched bundles:", data);
+      console.log("[PublicPurchaseFlow] Fetched bundles length:", data?.length);
+      return data;
     },
     refetchOnMount: true,
     staleTime: 0, // Always consider data stale for agent storefronts
@@ -175,6 +180,12 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       const priceB = parseFloat(b.effective_price);
       return priceA - priceB;
     });
+
+  console.log("[PublicPurchaseFlow] Network prop:", network);
+  console.log("[PublicPurchaseFlow] Bundles data:", bundles);
+  console.log("[PublicPurchaseFlow] Bundles length:", bundles?.length);
+  console.log("[PublicPurchaseFlow] Sorted bundles:", sortedBundles);
+  console.log("[PublicPurchaseFlow] Sorted bundles length:", sortedBundles?.length);
 
   const selectedBundle = sortedBundles?.find((b: any) => b.id === selectedBundleId) || null;
 

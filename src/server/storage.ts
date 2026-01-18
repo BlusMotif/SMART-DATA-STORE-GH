@@ -41,6 +41,7 @@ export interface IStorage {
   // Data Bundles
   getDataBundle(id: string): Promise<DataBundle | undefined>;
   getDataBundles(filters?: { network?: string; isActive?: boolean }): Promise<DataBundle[]>;
+  getNetworksWithBasePrices(): Promise<{ network: string; basePrice: string; name: string }[]>;
   createDataBundle(bundle: InsertDataBundle): Promise<DataBundle>;
   updateDataBundle(id: string, data: Partial<InsertDataBundle>): Promise<DataBundle | undefined>;
   deleteDataBundle(id: string): Promise<boolean>;
@@ -228,11 +229,10 @@ export class DatabaseStorage implements IStorage {
     }
     
     const result = await db.insert(users).values({
-      id: randomUUID(),
+      id: insertUser.id || randomUUID(),
       ...insertUser,
       email: normalizedEmail,
       password: insertUser.password || '', // Default to empty string if not provided
-      createdAt: new Date().toISOString(),
     }).returning();
     return result[0];
   }
@@ -273,7 +273,6 @@ export class DatabaseStorage implements IStorage {
       id: randomUUID(),
       ...insertAgent,
       storefrontSlug: insertAgent.storefrontSlug.toLowerCase(),
-      createdAt: new Date().toISOString(),
     }).returning();
     return agent;
   }
@@ -331,11 +330,32 @@ export class DatabaseStorage implements IStorage {
     return query.orderBy(dataBundles.network, dataBundles.basePrice);
   }
 
+  async getNetworksWithBasePrices(): Promise<{ network: string; basePrice: string; name: string }[]> {
+    // Get distinct networks with their minimum base price and a display name
+    const result = await db
+      .select({
+        network: dataBundles.network,
+        basePrice: sql<string>`min(${dataBundles.basePrice})`,
+        name: sql<string>`CASE 
+          WHEN ${dataBundles.network} = 'mtn' THEN 'MTN'
+          WHEN ${dataBundles.network} = 'telecel' THEN 'Telecel'
+          WHEN ${dataBundles.network} = 'at_bigtime' THEN 'AT BIG TIME'
+          WHEN ${dataBundles.network} = 'at_ishare' THEN 'AT iShare'
+          ELSE ${dataBundles.network}
+        END`
+      })
+      .from(dataBundles)
+      .where(eq(dataBundles.isActive, true))
+      .groupBy(dataBundles.network)
+      .orderBy(dataBundles.network);
+
+    return result;
+  }
+
   async createDataBundle(bundle: InsertDataBundle): Promise<DataBundle> {
     const [created] = await db.insert(dataBundles).values({
       id: randomUUID(),
       ...bundle,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -395,9 +415,8 @@ export class DatabaseStorage implements IStorage {
 
   async createResultChecker(checker: InsertResultChecker): Promise<ResultChecker> {
     const [created] = await db.insert(resultCheckers).values({
-      id: randomUUID(),
+      
       ...checker,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -405,7 +424,7 @@ export class DatabaseStorage implements IStorage {
   async createResultCheckersBulk(checkers: InsertResultChecker[]): Promise<ResultChecker[]> {
     if (checkers.length === 0) return [];
     const checkersWithIds = checkers.map(checker => ({
-      id: randomUUID(),
+      
       ...checker
     }));
     return db.insert(resultCheckers).values(checkersWithIds).returning();
@@ -529,9 +548,8 @@ export class DatabaseStorage implements IStorage {
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const [created] = await db.insert(transactions).values({
-      id: randomUUID(),
+      
       ...transaction,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -594,9 +612,8 @@ export class DatabaseStorage implements IStorage {
 
   async createWithdrawal(withdrawal: InsertWithdrawal): Promise<Withdrawal> {
     const [created] = await db.insert(withdrawals).values({
-      id: randomUUID(),
+      
       ...withdrawal,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -616,21 +633,20 @@ export class DatabaseStorage implements IStorage {
 
   async createProfitWallet(wallet: InsertProfitWallet): Promise<ProfitWallet> {
     const [created] = await db.insert(profitWallets).values({
-      id: randomUUID(),
+      
       ...wallet,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
 
   async updateProfitWallet(userId: string, data: Partial<ProfitWallet>): Promise<ProfitWallet | undefined> {
-    const [wallet] = await db.update(profitWallets).set({ ...data, updatedAt: new Date().toISOString() }).where(eq(profitWallets.userId, userId)).returning();
+    const [wallet] = await db.update(profitWallets).set({ ...data, updatedAt: new Date() }).where(eq(profitWallets.userId, userId)).returning();
     return wallet;
   }
 
   async addProfit(userId: string, amount: number, orderId?: string, productId?: string, sellingPrice?: number, basePrice?: number): Promise<void> {
     // Start transaction for atomicity
-    await db.transaction(async (tx: typeof db) => {
+    await db.transaction(async (tx) => {
       // Get or create profit wallet
       let wallet = await tx.select().from(profitWallets).where(eq(profitWallets.userId, userId)).limit(1).then((rows: ProfitWallet[]) => rows[0]);
       if (!wallet) {
@@ -662,7 +678,7 @@ export class DatabaseStorage implements IStorage {
       await tx.update(profitWallets).set({
         totalEarned: newTotalEarned,
         availableBalance: newAvailableBalance,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       }).where(eq(profitWallets.userId, userId));
     });
   }
@@ -683,9 +699,8 @@ export class DatabaseStorage implements IStorage {
 
   async createProfitTransaction(transaction: InsertProfitTransaction): Promise<ProfitTransaction> {
     const [created] = await db.insert(profitTransactions).values({
-      id: randomUUID(),
+      
       ...transaction,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -700,9 +715,8 @@ export class DatabaseStorage implements IStorage {
   // ============================================
   async createSmsLog(log: InsertSmsLog): Promise<SmsLog> {
     const [created] = await db.insert(smsLogs).values({
-      id: randomUUID(),
+      
       ...log,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -726,9 +740,8 @@ export class DatabaseStorage implements IStorage {
   // ============================================
   async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
     const [created] = await db.insert(auditLogs).values({
-      id: randomUUID(),
+      
       ...log,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }
@@ -801,7 +814,7 @@ export class DatabaseStorage implements IStorage {
     const [todayStats] = await db.select({
       revenue: sql`coalesce(sum(case when status = 'completed' then cast(amount as numeric) else 0 end), 0)`,
       transactions: sql`count(*)`,
-    }).from(transactions).where(and(gte(transactions.createdAt, today.toISOString()), lt(transactions.createdAt, tomorrow.toISOString())));
+    }).from(transactions).where(and(gte(transactions.createdAt, today), lt(transactions.createdAt, tomorrow)));
 
     const [bundleStats] = await db.select({
       count: sql`count(*)`,
@@ -829,13 +842,12 @@ export class DatabaseStorage implements IStorage {
   // Support Chat Methods
   async createSupportChat(userId: string, userEmail: string, userName: string): Promise<string> {
     const [chat] = await db.insert(supportChats).values({
-      id: randomUUID(),
+      
       userId,
       userEmail,
       userName,
       status: 'open',
       lastMessageAt: new Date(),
-      createdAt: new Date().toISOString(),
     }).returning();
     return chat.id;
   }
@@ -880,13 +892,12 @@ export class DatabaseStorage implements IStorage {
 
   async createChatMessage(chatId: string, senderId: string, senderType: string, message: string): Promise<string> {
     const [msg] = await db.insert(chatMessages).values({
-      id: randomUUID(),
+      
       chatId,
       senderId,
       senderType: senderType as any,
       message,
       isRead: false,
-      createdAt: new Date().toISOString(),
     }).returning();
 
     // Update last message timestamp on chat
@@ -927,7 +938,7 @@ export class DatabaseStorage implements IStorage {
         and(
           chatIds.length > 0 ? inArray(chatMessages.chatId, chatIds) : eq(chatMessages.chatId, ''),
           eq(chatMessages.senderType, 'admin'),
-          eq(chatMessages.isRead, 0)
+          eq(chatMessages.isRead, false)
         )
       );
     
@@ -941,7 +952,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(chatMessages.senderType, 'user'),
-          eq(chatMessages.isRead, 0)
+          eq(chatMessages.isRead, false)
         )
       );
     
@@ -998,7 +1009,7 @@ export class DatabaseStorage implements IStorage {
         await db.update(customPricing)
           .set({
             sellingPrice: sellingPrice,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date()
           })
           .where(
             and(
@@ -1010,13 +1021,13 @@ export class DatabaseStorage implements IStorage {
       } else {
         // Insert new
         await db.insert(customPricing).values({
-          id: randomUUID(),
+          
           productId,
           roleOwnerId,
           role,
           sellingPrice: sellingPrice,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
         });
       }
     } catch (error) {
@@ -1098,17 +1109,17 @@ export class DatabaseStorage implements IStorage {
         await db.update(adminBasePrices)
           .set({
             basePrice: basePrice,
-            updatedAt: new Date().toISOString()
+            updatedAt: new Date()
           })
           .where(eq(adminBasePrices.productId, productId));
       } else {
         // Insert new
         await db.insert(adminBasePrices).values({
-          id: randomUUID(),
+          
           productId,
           basePrice: basePrice,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
         });
       }
     } catch (error) {
@@ -1324,22 +1335,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveAnnouncements(): Promise<Announcement[]> {
-    return await db.select().from(announcements).where(eq(announcements.isActive, 1)).orderBy(desc(announcements.createdAt));
+    return await db.select().from(announcements).where(eq(announcements.isActive, true)).orderBy(desc(announcements.createdAt));
   }
 
   async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
     const result = await db.insert(announcements).values({
-      id: randomUUID(),
+      
       ...announcement,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     }).returning();
     return result[0];
   }
 
   async updateAnnouncement(id: string, data: Partial<InsertAnnouncement>): Promise<Announcement | undefined> {
     const result = await db.update(announcements)
-      .set({ ...data, updatedAt: new Date().toISOString() })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(announcements.id, id))
       .returning();
     return result[0];
@@ -1364,9 +1373,8 @@ export class DatabaseStorage implements IStorage {
 
   async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
     const result = await db.insert(apiKeys).values({
-      id: randomUUID(),
+      
       ...apiKey,
-      createdAt: new Date().toISOString(),
     }).returning();
     return result[0];
   }
@@ -1394,7 +1402,7 @@ export class DatabaseStorage implements IStorage {
     
     if (existing[0]) {
       await db.update(settings)
-        .set({ value, description, updatedAt: new Date().toISOString() })
+        .set({ value, description, updatedAt: new Date() })
         .where(eq(settings.key, key));
     } else {
       await db.insert(settings).values({ key, value, description });
@@ -1417,7 +1425,6 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(walletTopupTransactions).values({
       id: randomUUID(),
       ...topup,
-      createdAt: new Date().toISOString(),
     }).returning();
     return created;
   }

@@ -186,7 +186,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 font-normal relative",
+                    "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative",
                     isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                   )}
                   onClick={onClose}
@@ -209,7 +209,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
       <div className="border-t p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => logout()}
           disabled={isLoggingOut}
           data-testid="button-admin-logout"

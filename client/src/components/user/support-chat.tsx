@@ -52,8 +52,17 @@ export function SupportChat() {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log('Chat created successfully:', data);
       setChatId(data.chatId);
       queryClient.invalidateQueries({ queryKey: ["/api/support/chats"] });
+    },
+    onError: (error) => {
+      console.error('Failed to create chat:', error);
+      toast({
+        title: "Failed to create chat",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -70,20 +79,25 @@ export function SupportChat() {
 
   // Set chatId from existing chats or create new one
   useEffect(() => {
-    if (chats && chats.length > 0 && !chatId) {
+    console.log('useEffect triggered - chats:', chats, 'chatId:', chatId, 'createChatMutation.isPending:', createChatMutation.isPending);
+    if (chats && !chatId && !createChatMutation.isPending) {
       // Use the most recent open chat
       const openChat = chats.find(c => c.status === "open");
+      console.log('Found open chat:', openChat);
       if (openChat) {
+        console.log('Setting chatId to existing chat:', openChat.id);
         setChatId(openChat.id);
       } else {
-        // Create new chat if no open chats
+        // There are chats but none are open, create new one
+        console.log('Chats exist but none open, creating new chat');
         createChatMutation.mutate();
       }
-    } else if (chats && chats.length === 0 && !chatId) {
+    } else if (chats && chats.length === 0 && !chatId && !createChatMutation.isPending) {
       // No chats exist, create one
+      console.log('No chats exist, creating new chat');
       createChatMutation.mutate();
     }
-  }, [chats, chatId]);
+  }, [chats, chatId, createChatMutation.isPending]); // Added back chatId but now it should work
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -179,6 +193,15 @@ export function SupportChat() {
           <CardTitle className="flex items-center gap-2 text-base md:text-lg">
             <MessageCircle className="h-4 w-4 md:h-5 md:w-5" />
             Live Chat
+            {chatId ? (
+              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                Connected
+              </span>
+            ) : (
+              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                {createChatMutation.isPending ? "Connecting..." : "Initializing..."}
+              </span>
+            )}
           </CardTitle>
           <CardDescription className="text-xs md:text-sm">
             Send us a message and we'll respond as soon as possible
@@ -232,6 +255,7 @@ export function SupportChat() {
           </ScrollArea>
 
           <form onSubmit={handleSendMessage} className="p-4 border-t">
+            {console.log('Send button state - isPending:', sendMessageMutation.isPending, 'message.trim():', message.trim(), 'chatId:', chatId)}
             <div className="flex gap-2">
               <Input
                 value={message}
@@ -243,8 +267,15 @@ export function SupportChat() {
                 type="submit"
                 size="sm"
                 disabled={sendMessageMutation.isPending || !message.trim() || !chatId}
+                title={
+                  !chatId ? "Chat not initialized" :
+                  !message.trim() ? "Message cannot be empty" :
+                  sendMessageMutation.isPending ? "Sending message..." :
+                  "Send message"
+                }
               >
                 <Send className="h-4 w-4" />
+                {sendMessageMutation.isPending && "Sending..."}
               </Button>
             </div>
           </form>

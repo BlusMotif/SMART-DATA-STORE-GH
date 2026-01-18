@@ -77,14 +77,15 @@ export default function UserBundlesPage() {
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
   const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
 
-  const networkKey = network as keyof typeof NetworkInfo;
+  const networkKey = network?.replace(/-/g, '_') as keyof typeof NetworkInfo;
   const networkInfo = NetworkInfo[networkKey];
 
   // Fetch bundles
   const { data: bundles, isLoading } = useQuery<BundleWithPrice[]>({
     queryKey: ["/api/products/data-bundles", network],
     queryFn: async () => {
-      const response = await apiRequest<BundleWithPrice[]>("GET", `/api/products/data-bundles?network=${network}`);
+      const apiNetwork = network?.replace(/-/g, '_');
+      const response = await apiRequest<BundleWithPrice[]>("GET", `/api/products/data-bundles?network=${apiNetwork}`);
       return response;
     },
   });
@@ -815,7 +816,7 @@ export default function UserBundlesPage() {
                           <strong className="text-green-600">✓ No limit - add 100+ numbers!</strong>
                           <br />
                           All numbers must be for <strong>{networkInfo?.name}</strong> network.
-                          Valid prefixes: <strong>{network ? getNetworkPrefixes(network).join(", ") : ""}</strong>
+                          Valid prefixes: <strong>{networkKey ? getNetworkPrefixes(networkKey).join(", ") : ""}</strong>
                         </p>
                       </div>
 

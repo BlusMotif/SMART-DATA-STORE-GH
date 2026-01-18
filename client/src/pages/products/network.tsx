@@ -28,7 +28,10 @@ const networkInfo: Record<string, { name: string; logo: string }> = {
 
 export default function NetworkProductsPage() {
   const { network } = useParams<{ network: string }>();
-  const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
+  // Handle legacy URLs where "bigtime" should be "at_bigtime" and "ishare" should be "at_ishare"
+  const normalizedNetwork = network === 'bigtime' ? 'at_bigtime' : network === 'ishare' ? 'at_ishare' : network;
+  const transformedNetwork = normalizedNetwork?.replace(/-/g, '_');
+  const info = networkInfo[transformedNetwork || ""] || { name: "Unknown", logo: "" };
   
   // Get agent slug from URL query param or localStorage
   const agentSlugFromQuery = new URLSearchParams(window.location.search).get("agent");
@@ -69,7 +72,7 @@ export default function NetworkProductsPage() {
           </div>
 
           {/* Public Purchase Flow (Single / Bulk) - guest users */}
-          <PublicPurchaseFlow network={network || ""} agentSlug={agentSlug} />
+          <PublicPurchaseFlow network={transformedNetwork || ""} agentSlug={agentSlug} />
 
           {/* Data Delivery Information */}
           <div className="mt-12 space-y-6">
@@ -152,7 +155,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const { data: bundles, isLoading } = useQuery({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
-      const url = `/api/products/data-bundles?network=${network}${agentSlug ? `&agent=${agentSlug}` : ''}`;
+      const apiNetwork = network?.replace(/-/g, '_');
+      const url = `/api/products/data-bundles?network=${apiNetwork}${agentSlug ? `&agent=${agentSlug}` : ''}`;
       console.log("[PublicPurchaseFlow] Fetching bundles from:", url);
       const res = await apiRequest('GET', url);
       const data = await res.json();
@@ -174,7 +178,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     enabled: !!agentSlug
   });
 
-  const sortedBundles = bundles?.filter((b: any) => b.network === network && b.isActive)
+  const sortedBundles = bundles?.filter((b: any) => b.network === network?.replace(/-/g, '_') && b.isActive)
     .sort((a: any, b: any) => {
       const priceA = parseFloat(a.effective_price);
       const priceB = parseFloat(b.effective_price);

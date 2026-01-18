@@ -152,10 +152,10 @@ export default function AgentDashboard() {
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">
+                    <h2 className="text-base sm:text-2xl font-bold text-white">
                       Welcome back, {agent?.user?.name?.split(' ')[0] || 'Agent'}! 👋
                     </h2>
-                    <p className="text-white/90 mt-1">
+                    <p className="text-xs sm:text-base text-white/90 mt-1">
                       Here's what's happening with your business today
                     </p>
                   </div>

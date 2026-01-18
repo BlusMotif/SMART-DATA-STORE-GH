@@ -14,13 +14,11 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 // Using plain inputs for the small upgrade dialog (avoid react-hook-form Controller requirements)
 import { OrderTracker } from "@/components/order-tracker";
-import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 
 export default function UserDashboard() {
   const { user } = useAuth();
   useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showApiModal, setShowApiModal] = useState(false);
 
   // (upgrade UI removed)
 
@@ -51,19 +49,8 @@ export default function UserDashboard() {
     <div className="flex h-screen overflow-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden md:block">
-        <UserSidebar onApiIntegrationsClick={() => setShowApiModal(true)} />
+        <UserSidebar />
       </aside>
-
-      {/* Mobile Sidebar */}
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64 bg-white dark:bg-black">
-          <VisuallyHidden>
-            <SheetTitle>Navigation Menu</SheetTitle>
-            <SheetDescription>Main navigation for your dashboard</SheetDescription>
-          </VisuallyHidden>
-          <UserSidebar onClose={() => setSidebarOpen(false)} onApiIntegrationsClick={() => setShowApiModal(true)} />
-        </SheetContent>
-      </Sheet>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -80,12 +67,12 @@ export default function UserDashboard() {
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for your dashboard</SheetDescription>
                 </VisuallyHidden>
-                <UserSidebar onClose={() => setSidebarOpen(false)} onApiIntegrationsClick={() => setShowApiModal(true)} />
+                <UserSidebar onClose={() => setSidebarOpen(false)} />
               </SheetContent>
             </Sheet>
             <div>
-              <h1 className="text-xl font-bold">Welcome back, {user.name}!</h1>
-              <p className="text-sm text-muted-foreground">Here's your account overview</p>
+              <h1 className="text-sm sm:text-xl font-bold">Welcome back, {user.name}!</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">Here's your account overview</p>
             </div>
           </div>
           <ThemeToggle />
@@ -268,7 +255,6 @@ export default function UserDashboard() {
           </div>
         </main>
       </div>
-      <ApiIntegrationsModal open={showApiModal} onOpenChange={setShowApiModal} />
     </div>
   );
 }

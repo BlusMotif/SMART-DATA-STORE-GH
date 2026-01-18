@@ -122,34 +122,14 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
             {sidebarNavItems.map((item) => {
               const isActive = location === item.href || (item.href !== "/agent/dashboard" && location.startsWith(item.href));
               const isSupport = item.href === "/agent/support";
-              const isApiIntegration = item.href === "/dashboard/api-integrations";
-
-              if (isApiIntegration) {
-                return (
-                  <Button
-                    key={item.href}
-                    variant={isActive ? "default" : "ghost"}
-                    className={cn(
-                      "w-full justify-start gap-3 font-normal relative",
-                      isActive && "bg-yellow-500 text-white font-medium shadow-sm"
-                    )}
-                    onClick={() => {
-                      setShowApiModal(true);
-                      onClose && onClose();
-                    }}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1 text-left">{item.title}</span>
-                  </Button>
-                );
-              }
 
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
+                    size="sm"
                     variant={isActive ? "default" : "ghost"}
                     className={cn(
-                      "w-full justify-start gap-3 font-normal relative",
+                      "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative",
                       isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                     )}
                     onClick={() => onClose && onClose()}
@@ -168,8 +148,9 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
         <div className="border-t p-3">
           <Button
+            size="sm"
             variant="ghost"
-            className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={() => { onClose && onClose(); logout(); }}
             disabled={isLoggingOut}
           >
@@ -270,6 +251,21 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
           <LogOut className="h-4 w-4" />
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
+        
+        {/* Developer Credit */}
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <p className="text-xs text-muted-foreground text-center">
+            Developed by{' '}
+            <a
+              href="https://bm-portfolio-up2x.onrender.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              BlusMotif
+            </a>
+          </p>
+        </div>
       </div>
 
       <ApiIntegrationsModal open={showApiModal} onOpenChange={setShowApiModal} />

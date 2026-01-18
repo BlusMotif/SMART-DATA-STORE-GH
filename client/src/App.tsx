@@ -155,7 +155,7 @@ function Router() {
       <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/pricing" component={AgentPricingPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/rankings" component={AgentRankings} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
-      <ProtectedRoute path="/dashboard/api-integrations" component={ApiIntegrationsPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/dashboard/api-integrations" component={ApiIntegrationsPage} requiredRoles={["user", "agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/dealer/pricing" component={DealerPricingPage} requiredRole="dealer" />
       <ProtectedRoute path="/super-dealer/pricing" component={SuperDealerPricingPage} requiredRole="super_dealer" />
       <ProtectedRoute path="/master/pricing" component={MasterPricingPage} requiredRole="master" />

@@ -123,7 +123,7 @@ export default function StorefrontPage() {
       <header className="border-b sticky top-0 z-50 bg-background">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
-            <h1 className="font-semibold text-lg">Digital Store</h1>
+            <h1 className="font-semibold text-lg">{store.businessName}</h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -284,6 +284,9 @@ export default function StorefrontPage() {
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} {store.businessName}. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Developed by BlusMotif
             </p>
             <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
               <Shield className="h-3 w-3" />

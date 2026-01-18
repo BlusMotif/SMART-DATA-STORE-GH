@@ -191,7 +191,7 @@ const Features = React.forwardRef<HTMLElement, FeaturesProps>(
               {features.map((feature) => {
                 const Icon = feature.icon;
                 return (
-                  <Card key={feature.id} className="text-center hover:shadow-lg transition-shadow border-0 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 dark:border-orange-800 backdrop-blur-sm">
+                  <Card key={feature.id} className="text-center hover:shadow-lg transition-shadow border-0 dark:border-white bg-white dark:bg-black backdrop-blur-sm">
                     <CardContent className="p-8">
                       {Icon && (
                         <div className={cn(

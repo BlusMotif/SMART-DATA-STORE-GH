@@ -60,7 +60,7 @@ const Stats = React.forwardRef<HTMLElement, StatsProps>(
                 return (
                   <div
                     key={index}
-                    className="bg-gradient-to-br from-cyan-50 to-teal-50 dark:from-cyan-900/20 dark:to-teal-900/20 rounded-xl p-6 text-center shadow-sm border border-cyan-200 dark:border-cyan-800 hover:shadow-md transition-shadow"
+                    className="bg-white dark:bg-black rounded-xl p-6 text-center shadow-sm border hover:shadow-md transition-shadow"
                   >
                     {Icon && (
                       <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">

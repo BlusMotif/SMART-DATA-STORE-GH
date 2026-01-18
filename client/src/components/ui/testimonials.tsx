@@ -154,7 +154,7 @@ const Testimonials = React.forwardRef<HTMLElement, TestimonialsProps>(
 
             <div className={cn("grid gap-8", gridCols[columns])}>
               {testimonials.map((testimonial) => (
-                <Card key={testimonial.id} className="hover:shadow-lg transition-shadow border-0 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 backdrop-blur-sm border-purple-100 dark:border-purple-800">
+                <Card key={testimonial.id} className="hover:shadow-lg transition-shadow border-0 bg-white dark:bg-black/50 backdrop-blur-sm">
                   <CardContent className="p-8">
                     {showRating && testimonial.rating && (
                       <div className="flex mb-4">

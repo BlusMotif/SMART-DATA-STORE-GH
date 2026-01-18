@@ -31,18 +31,18 @@ export default function AdminWithdrawals() {
     refetchOnWindowFocus: true,
   });
 
-  const filteredWithdrawals = withdrawals?.filter((w) => {
+  const filteredWithdrawals = Array.isArray(withdrawals) ? withdrawals.filter((w) => {
     if (statusFilter === "all") return true;
     return w.status === statusFilter;
-  });
+  }) : [];
 
   const stats = {
-    total: withdrawals?.length || 0,
-    pending: withdrawals?.filter((w) => w.status === "pending").length || 0,
-    approved: withdrawals?.filter((w) => w.status === "approved").length || 0,
-    rejected: withdrawals?.filter((w) => w.status === "rejected").length || 0,
-    paid: withdrawals?.filter((w) => w.status === "paid").length || 0,
-    totalAmount: withdrawals?.reduce((sum, w) => sum + parseFloat(w.amount), 0) || 0,
+    total: Array.isArray(withdrawals) ? withdrawals.length : 0,
+    pending: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "pending").length : 0,
+    approved: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "approved").length : 0,
+    rejected: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "rejected").length : 0,
+    paid: Array.isArray(withdrawals) ? withdrawals.filter((w) => w.status === "paid").length : 0,
+    totalAmount: Array.isArray(withdrawals) ? withdrawals.reduce((sum, w) => sum + parseFloat(w.amount), 0) : 0,
   };
 
   const getStatusBadge = (status: string) => {

@@ -51,7 +51,7 @@ export default function UserDashboard() {
     <div className="flex h-screen overflow-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden md:block">
-        <UserSidebar />
+        <UserSidebar onApiIntegrationsClick={() => setShowApiModal(true)} />
       </aside>
 
       {/* Mobile Sidebar */}
@@ -61,7 +61,7 @@ export default function UserDashboard() {
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for your dashboard</SheetDescription>
           </VisuallyHidden>
-          <UserSidebar onClose={() => setSidebarOpen(false)} />
+          <UserSidebar onClose={() => setSidebarOpen(false)} onApiIntegrationsClick={() => setShowApiModal(true)} />
         </SheetContent>
       </Sheet>
 
@@ -80,7 +80,7 @@ export default function UserDashboard() {
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for your dashboard</SheetDescription>
                 </VisuallyHidden>
-                <UserSidebar onClose={() => setSidebarOpen(false)} />
+                <UserSidebar onClose={() => setSidebarOpen(false)} onApiIntegrationsClick={() => setShowApiModal(true)} />
               </SheetContent>
             </Sheet>
             <div>

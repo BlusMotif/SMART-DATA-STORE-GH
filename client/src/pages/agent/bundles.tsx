@@ -625,12 +625,12 @@ export default function AgentBundlesPage() {
 
             <Tabs defaultValue="single" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="single">
+                <TabsTrigger value="single" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
                   <Smartphone className="h-4 w-4 mr-2" />
                   Single Purchase
                 </TabsTrigger>
                 {network !== "at_ishare" && (
-                  <TabsTrigger value="bulk">
+                  <TabsTrigger value="bulk" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
                     <Package className="h-4 w-4 mr-2" />
                     Bulk Purchase
                   </TabsTrigger>

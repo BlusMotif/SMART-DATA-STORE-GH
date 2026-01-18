@@ -148,19 +148,19 @@ export default function AgentDashboard() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Welcome Section */}
-            <Card className="bg-white dark:bg-black border-primary/20">
+            <Card className="bg-yellow-500 dark:bg-yellow-600 border-yellow-600 text-white">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-primary">
+                    <h2 className="text-2xl font-bold text-white">
                       Welcome back, {agent?.user?.name?.split(' ')[0] || 'Agent'}! 👋
                     </h2>
-                    <p className="text-muted-foreground mt-1">
+                    <p className="text-white/90 mt-1">
                       Here's what's happening with your business today
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Badge variant="secondary" className="gap-1">
+                    <Badge variant="secondary" className="gap-1 bg-white text-yellow-600 border-yellow-700">
                       <Award className="h-3 w-3" />
                       {agent?.isApproved ? 'Verified Agent' : 'Pending Approval'}
                     </Badge>
@@ -354,15 +354,15 @@ export default function AgentDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <div className="p-4 bg-white dark:bg-black rounded-lg border">
+                      <div className="p-4 bg-green-500 text-white rounded-lg border border-green-600">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">{agent.businessName}</span>
-                          <Badge variant="outline">Live</Badge>
+                          <span className="text-sm font-medium text-white">{agent.businessName}</span>
+                          <Badge variant="outline" className="bg-white text-green-600 border-green-700">Live</Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-3">
+                        <p className="text-xs text-white/90 mb-3">
                           Share this link with your customers:
                         </p>
-                        <code className="text-sm bg-background px-2 py-1 rounded mt-2 inline-block">
+                        <code className="text-sm bg-white text-green-600 px-2 py-1 rounded mt-2 inline-block border border-green-700">
                           {window.location.origin}/store/agent/{agent.storefrontSlug}
                         </code>
                       </div>
@@ -431,51 +431,6 @@ export default function AgentDashboard() {
               </CardHeader>
               <CardContent>
                 <OrderTracker />
-              </CardContent>
-            </Card>
-
-            {/* Withdrawal Section */}
-            <Card className="bg-white dark:bg-black border-green-200 dark:border-green-800">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-800 dark:text-green-200">
-                  <Wallet className="h-5 w-5" />
-                  Ready to Withdraw?
-                </CardTitle>
-                <CardDescription className="text-green-700 dark:text-green-300">
-                  Your profits are waiting for you
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-center sm:text-left">
-                    <p className="text-3xl font-bold text-green-900 dark:text-green-100 tabular-nums">
-                      {formatCurrency(stats?.balance || 0)}
-                    </p>
-                    <p className="text-sm text-green-700 dark:text-green-300">
-                      Available for withdrawal
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Link href="/agent/withdrawals">
-                      <Button
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        disabled={(stats?.balance || 0) <= 0}
-                      >
-                        Request Withdrawal
-                      </Button>
-                    </Link>
-                    <Link href="/agent/transactions">
-                      <Button variant="outline">
-                        View History
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-                <div className="mt-4 p-3 bg-white dark:bg-black rounded-lg">
-                  <p className="text-xs text-green-800 dark:text-green-200 text-center">
-                    💡 Withdrawals require admin approval and are processed within 24-48 hours
-                  </p>
-                </div>
               </CardContent>
             </Card>
           </div>

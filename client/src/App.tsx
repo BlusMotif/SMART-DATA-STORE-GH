@@ -34,6 +34,7 @@ import AgentSupportPage from "@/pages/agent/support";
 import AgentBundlesPage from "@/pages/agent/bundles";
 import AgentWalletPage from "@/pages/agent/wallet";
 import AgentPricingPage from "@/pages/agent/pricing";
+import AgentRankings from "@/pages/agent/rankings";
 import DealerPricingPage from "@/pages/dealer/pricing";
 import SuperDealerPricingPage from "@/pages/super-dealer/pricing";
 import MasterPricingPage from "@/pages/master/pricing";
@@ -153,6 +154,7 @@ function Router() {
       <ProtectedRoute path="/agent/bundles/:network" component={AgentBundlesPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/wallet" component={AgentWalletPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/agent/pricing" component={AgentPricingPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
+      <ProtectedRoute path="/agent/rankings" component={AgentRankings} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/dashboard/api-integrations" component={ApiIntegrationsPage} requiredRoles={["agent", "dealer", "super_dealer", "master"]} />
       <ProtectedRoute path="/dealer/pricing" component={DealerPricingPage} requiredRole="dealer" />
       <ProtectedRoute path="/super-dealer/pricing" component={SuperDealerPricingPage} requiredRole="super_dealer" />

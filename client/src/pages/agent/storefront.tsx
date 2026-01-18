@@ -19,6 +19,8 @@ import type { Agent } from "../../../../src/shared/schema";
 const storefrontSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters"),
   businessDescription: z.string().optional(),
+  whatsappSupportLink: z.string().url("Please enter a valid WhatsApp link").optional().or(z.literal("")),
+  whatsappChannelLink: z.string().url("Please enter a valid WhatsApp Channel link").optional().or(z.literal("")),
 });
 
 type StorefrontFormData = z.infer<typeof storefrontSchema>;
@@ -55,6 +57,8 @@ export default function AgentStorefront() {
     defaultValues: {
       businessName: "",
       businessDescription: "",
+      whatsappSupportLink: "",
+      whatsappChannelLink: "",
     },
   });
 
@@ -63,6 +67,8 @@ export default function AgentStorefront() {
       form.reset({
         businessName: agent.businessName || "",
         businessDescription: agent.businessDescription || "",
+        whatsappSupportLink: agent.whatsappSupportLink || "",
+        whatsappChannelLink: agent.whatsappChannelLink || "",
       });
     }
   }, [agent, form]);
@@ -248,13 +254,57 @@ export default function AgentStorefront() {
                       )}
                     />
 
+                    <FormField
+                      control={form.control}
+                      name="whatsappSupportLink"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp Support Link</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://wa.me/1234567890"
+                              disabled={profileLoading}
+                              data-testid="input-whatsapp-support"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Link to your WhatsApp for customer support. Leave empty to hide from storefront.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="whatsappChannelLink"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp Channel Link</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://whatsapp.com/channel/..."
+                              disabled={profileLoading}
+                              data-testid="input-whatsapp-channel"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Link to your WhatsApp Channel. Leave empty to hide from storefront.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <Button
                       type="submit"
                       disabled={updateStoreMutation.isPending || profileLoading}
                       data-testid="button-save-details"
                     >
                       <Save className="h-4 w-4 mr-2" />
-                      {updateStoreMutation.isPending ? "Saving..." : profileLoading ? "Loading..." : "Save Details"}
+                      {updateStoreMutation.isPending ? "Saving..." : profileLoading ? "Loading..." : "Save Changes to my storefront page"}
                     </Button>
                   </form>
                 </Form>

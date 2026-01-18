@@ -3377,10 +3377,12 @@ export async function registerRoutes(
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-      const { businessName, businessDescription } = req.body;
+      const { businessName, businessDescription, whatsappSupportLink, whatsappChannelLink } = req.body;
       const updatedAgent = await storage.updateAgent(agent.id, {
         businessName,
         businessDescription,
+        whatsappSupportLink,
+        whatsappChannelLink,
       });
       res.json(updatedAgent);
     } catch (error: any) {

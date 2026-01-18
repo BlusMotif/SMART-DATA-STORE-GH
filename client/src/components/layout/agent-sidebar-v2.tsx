@@ -57,6 +57,7 @@ const getRankingBadge = (role: string) => {
 const sidebarNavItems = [
   { title: "Dashboard", href: "/agent/dashboard", icon: LayoutDashboard },
   { title: "My Storefront", href: "/agent/storefront", icon: Store },
+  { title: "Users Ranking", href: "/agent/rankings", icon: Trophy },
   { title: "Pricing", href: "/agent/pricing", icon: DollarSign },
   { title: "Transactions", href: "/agent/transactions", icon: BarChart3 },
   { title: "MTN Bundles", href: "/agent/bundles/mtn", icon: Smartphone },

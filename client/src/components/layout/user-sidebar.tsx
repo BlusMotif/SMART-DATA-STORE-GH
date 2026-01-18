@@ -90,7 +90,7 @@ const sidebarNavItems = [
   },
 ];
 
-export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
+export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () => void; onApiIntegrationsClick?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user, agent } = useAuth();
   const { theme } = useTheme();
@@ -116,13 +116,13 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
       <div className="border-b px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-sm font-semibold text-primary">
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
+            <span className="text-xs font-semibold text-primary text-center leading-tight">
+              VIVIAN OTOO
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <p className="text-sm font-medium truncate">VIVIAN OTOO</p>
+            <p className="text-xs text-muted-foreground truncate">vivian@gmail.com</p>
             <div className="flex items-center gap-1.5 mt-1">
               <div className="flex items-center gap-1.5 rounded-full bg-green-500 px-2.5 py-1 text-xs font-medium text-white border border-green-600">
                 <Trophy className="h-3 w-3" />
@@ -140,6 +140,27 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
           {sidebarNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
+            const isApiIntegrations = item.title === "API & Integrations";
+            
+            if (isApiIntegrations && onApiIntegrationsClick) {
+              return (
+                <div key={item.href}>
+                  <div
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+                      "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                    onClick={() => {
+                      onApiIntegrationsClick();
+                      onClose?.();
+                    }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{item.title}</span>
+                  </div>
+                </div>
+              );
+            }
             
             return (
               <Link key={item.href} href={item.href}>

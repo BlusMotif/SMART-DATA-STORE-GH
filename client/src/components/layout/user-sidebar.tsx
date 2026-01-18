@@ -95,7 +95,7 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   const { logout, isLoggingOut, user, agent } = useAuth();
   const { theme } = useTheme();
 
-  const { data: rankData } = useQuery({
+  const { data: rankData, error: rankError } = useQuery({
     queryKey: ["user-rank"],
     queryFn: () => apiRequest("/api/user/rank"),
     enabled: !!user,
@@ -123,16 +123,14 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
             <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-            {rankData && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
-                  <Trophy className="h-3 w-3" />
-                  <span>
-                    {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
-                  </span>
-                </div>
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 rounded-full bg-green-500 px-2.5 py-1 text-xs font-medium text-white border border-green-600">
+                <Trophy className="h-3 w-3" />
+                <span>
+                  {rankError ? 'Error loading rank' : rankData ? `Rank #${rankData.rank || 'N/A'}` : 'Rank #1'}
+                </span>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

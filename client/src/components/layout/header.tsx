@@ -113,7 +113,11 @@ export function Header() {
                     <Menu className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-80">
+                <SheetContent 
+                  side="right" 
+                  className="w-80"
+                  style={{ backgroundColor: theme === 'dark' ? '#000000' : '#ffffff' }}
+                >
                   <div className="flex flex-col gap-6 mt-6">
                     <div className="flex items-center gap-3">
                       <span className="text-lg font-bold text-primary">{APP_NAME}</span>

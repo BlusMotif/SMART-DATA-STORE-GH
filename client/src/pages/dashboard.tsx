@@ -65,7 +65,7 @@ export default function MainDashboard() {
                       className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
                         isCurrentUser(customer.customerPhone)
                           ? "bg-primary/20 border-primary shadow-md"
-                          : "bg-white dark:bg-black hover:bg-accent/80"
+                          : "bg-white hover:bg-accent/80"
                       }`}
                     >
                       <div className="flex items-center gap-4 flex-1">

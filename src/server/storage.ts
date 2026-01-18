@@ -646,7 +646,7 @@ export class DatabaseStorage implements IStorage {
 
   async addProfit(userId: string, amount: number, orderId?: string, productId?: string, sellingPrice?: number, basePrice?: number): Promise<void> {
     // Start transaction for atomicity
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: typeof db) => {
       // Get or create profit wallet
       let wallet = await tx.select().from(profitWallets).where(eq(profitWallets.userId, userId)).limit(1).then((rows: ProfitWallet[]) => rows[0]);
       if (!wallet) {

@@ -303,21 +303,21 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
                                 disabled={hasInsufficientBalance}
                               />
                               <Label
-                                className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-primary peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/10 cursor-pointer transition-all ${
+                                className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all ${
                                   hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                 }`}
                               >
                                 <div className="flex items-center gap-3">
-                                  <Wallet className="h-5 w-5" />
+                                  <Wallet className="h-5 w-5 text-green-600" />
                                   <div>
-                                    <div className="font-medium">Wallet Balance</div>
-                                    <div className="text-sm text-muted-foreground">
+                                    <div className="font-medium text-green-700">Wallet Balance</div>
+                                    <div className="text-sm text-green-600">
                                       Available: GH₵{walletBalance.toFixed(2)}
                                     </div>
                                   </div>
                                 </div>
                                 {field.value === "wallet" && (
-                                  <CheckCircle className="h-5 w-5 text-primary" />
+                                  <CheckCircle className="h-5 w-5 text-green-600" />
                                 )}
                               </Label>
                               {hasInsufficientBalance && (

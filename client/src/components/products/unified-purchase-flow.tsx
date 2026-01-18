@@ -611,21 +611,21 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                       disabled={hasInsufficientBalance}
                                     />
                                     <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
+                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white p-4 hover:border-green-500 hover:shadow-md peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
                                         hasInsufficientBalance ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
                                     >
                                       <div className="flex items-center gap-3">
-                                        <Wallet className="h-5 w-5" />
+                                        <Wallet className="h-5 w-5 text-green-600" />
                                         <div>
-                                          <div className="font-medium">Wallet Balance</div>
-                                          <div className="text-sm text-muted-foreground">
+                                          <div className="font-medium text-green-700">Wallet Balance</div>
+                                          <div className="text-sm text-green-600">
                                             Available: GH₵{walletBalance.toFixed(2)}
                                           </div>
                                         </div>
                                       </div>
                                       {field.value === "wallet" && (
-                                        <CheckCircle className="h-5 w-5 text-primary" />
+                                        <CheckCircle className="h-5 w-5 text-green-600" />
                                       )}
                                     </Label>
                                     {hasInsufficientBalance && (
@@ -802,21 +802,21 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                                       disabled={walletBalance < totalAmount}
                                     />
                                     <Label
-                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white p-4 hover:border-primary hover:shadow-md peer-data-[state=checked]:border-black peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
+                                      className={`flex items-center justify-between rounded-lg border-2 border-black bg-white p-4 hover:border-green-500 hover:shadow-md peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 peer-data-[state=checked]:shadow-md cursor-pointer transition-all ${
                                         walletBalance < totalAmount ? "opacity-50 cursor-not-allowed" : ""
                                       }`}
                                     >
                                       <div className="flex items-center gap-3">
-                                        <Wallet className="h-5 w-5" />
+                                        <Wallet className="h-5 w-5 text-green-600" />
                                         <div>
-                                          <div className="font-medium">Wallet Balance</div>
-                                          <div className="text-sm text-muted-foreground">
+                                          <div className="font-medium text-green-700">Wallet Balance</div>
+                                          <div className="text-sm text-green-600">
                                             Available: GH₵{walletBalance.toFixed(2)}
                                           </div>
                                         </div>
                                       </div>
                                       {field.value === "wallet" && (
-                                        <CheckCircle className="h-5 w-5 text-primary" />
+                                        <CheckCircle className="h-5 w-5 text-green-600" />
                                       )}
                                     </Label>
                                     {walletBalance < totalAmount && (

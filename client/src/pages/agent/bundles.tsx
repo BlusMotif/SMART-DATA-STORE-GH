@@ -740,23 +740,23 @@ export default function AgentBundlesPage() {
                             disabled={selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance ? true : false}
                           />
                           <Label
-                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all ${
+                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all ${
                               selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Wallet className="h-5 w-5" />
+                              <Wallet className="h-5 w-5 text-green-600" />
                               <div>
-                                <div className="font-medium">Wallet Balance</div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="font-medium text-green-700">Wallet Balance</div>
+                                <div className="text-sm text-green-600">
                                   Available: GH₵{walletBalance.toFixed(2)}
                                 </div>
                               </div>
                             </div>
                             {paymentMethod === "wallet" && (
-                              <CheckCircle className="h-5 w-5 text-primary" />
+                              <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
                           {selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance && (
@@ -779,19 +779,19 @@ export default function AgentBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all"
+                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5" />
+                              <CreditCard className="h-5 w-5 text-green-600" />
                               <div>
-                                <div className="font-medium">Pay with MoMo</div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="font-medium text-green-700">Pay with MoMo</div>
+                                <div className="text-sm text-green-600">
                                   Secure payment via Paystack
                                 </div>
                               </div>
                             </div>
                             {paymentMethod === "paystack" && (
-                              <CheckCircle className="h-5 w-5 text-primary" />
+                              <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
                         </div>
@@ -914,19 +914,19 @@ export default function AgentBundlesPage() {
                             className="peer sr-only"
                           />
                           <Label
-                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all"
+                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5" />
+                              <CreditCard className="h-5 w-5 text-green-600" />
                               <div>
-                                <div className="font-medium">Pay with MoMo</div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="font-medium text-green-700">Pay with MoMo</div>
+                                <div className="text-sm text-green-600">
                                   Secure payment via Paystack
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "paystack" && (
-                              <CheckCircle className="h-5 w-5 text-primary" />
+                              <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
                         </div>

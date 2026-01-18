@@ -178,8 +178,10 @@ export function Header() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-medium text-sm">{user.name || "User"}</span>
-                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{user.name || "User"}</span>
+                        <span className="text-xs text-muted-foreground">({user.email})</span>
+                      </div>
                       <span className="text-xs text-primary capitalize">{user.role}</span>
                     </div>
                   </div>

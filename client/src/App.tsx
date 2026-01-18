@@ -183,6 +183,13 @@ function Router() {
 }
 
 function SessionTimeoutManager() {
+  const [location] = useLocation();
+
+  // Skip session timeout for agent storefront
+  if (location.startsWith('/agent/storefront')) {
+    return null;
+  }
+
   useSessionTimeout();
   return null;
 }

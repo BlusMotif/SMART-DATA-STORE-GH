@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "../../../src/shared/schema";
 import { supabase } from "@/lib/supabaseClient";
@@ -13,6 +13,15 @@ export function useAuth() {
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
+
+  // Stable session setter that only updates if session actually changed
+  const stableSetSession = useCallback((newSession: any) => {
+    setSession((prevSession: any) => {
+      if (!prevSession && !newSession) return prevSession;
+      if (prevSession?.access_token === newSession?.access_token) return prevSession;
+      return newSession;
+    });
+  }, []);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   /**
@@ -32,7 +41,7 @@ export function useAuth() {
           supabase.auth.signOut();
           setSession(null);
         } else {
-          setSession(data.session);
+          stableSetSession(data.session);
         }
         setAuthLoading(false);
       }
@@ -53,11 +62,11 @@ export function useAuth() {
         }
 
         if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-          setSession(session);
+          stableSetSession(session);
         }
 
         if (event === "SIGNED_OUT") {
-          setSession(null);
+          stableSetSession(null);
           queryClient.setQueryData(["/api/auth/me"], { user: null });
           queryClient.clear();
         }
@@ -66,7 +75,7 @@ export function useAuth() {
         if (event === "TOKEN_REFRESHED" && !session) {
           console.warn('Token refresh failed, signing out');
           await supabase.auth.signOut();
-          setSession(null);
+          stableSetSession(null);
           queryClient.clear();
         }
       });
@@ -90,8 +99,12 @@ export function useAuth() {
     enabled: !!session?.access_token,
     retry: false,
     refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    staleTime: 10 * 60 * 1000, // Increased to 10 minutes
+    cacheTime: 15 * 60 * 1000, // Keep in cache for 15 minutes
     queryFn: async () => {
+      console.log('🔄 Running /api/auth/me query');
       // In development, use the full backend URL
       const baseUrl = import.meta.env.DEV ? 'http://localhost:10000' : '';
       const res = await fetch(`${baseUrl}/api/auth/me`, {
@@ -101,10 +114,13 @@ export function useAuth() {
       });
 
       if (!res.ok) {
+        console.log('❌ /api/auth/me query failed:', res.status);
         return { user: null };
       }
 
-      return res.json();
+      const result = await res.json();
+      console.log('✅ /api/auth/me query success:', { user: result.user?.email, agent: !!result.agent });
+      return result;
     },
   });
 

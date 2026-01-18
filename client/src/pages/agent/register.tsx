@@ -161,7 +161,7 @@ export default function AgentRegisterPage() {
       <Dialog open={showInfoDialog} onOpenChange={handleInfoDialogChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-black">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
+            <DialogTitle className="flex items-center gap-2 text-xl text-white">
               <Info className="h-6 w-6 text-blue-600" />
               Important Information for Agents
             </DialogTitle>

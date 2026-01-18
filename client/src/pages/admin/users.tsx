@@ -265,7 +265,7 @@ export default function AdminUsers() {
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Role" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 text-black dark:text-white">
                       <SelectItem value="all">All Users</SelectItem>
                       <SelectItem value="guest">Guests</SelectItem>
                       <SelectItem value="user">Users</SelectItem>
@@ -320,7 +320,7 @@ export default function AdminUsers() {
                                 <SelectTrigger className="w-32">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 text-black dark:text-white">
                                   <SelectItem value="guest">Guest</SelectItem>
                                   <SelectItem value="user">User</SelectItem>
                                   <SelectItem value="agent">Agent</SelectItem>

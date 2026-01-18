@@ -18,8 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { APP_NAME } from "@/lib/constants";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useTheme } from "@/components/theme-provider";
 
 // Function to get ranking badge based on user role
 const getRankingBadge = (role: string) => {
@@ -97,6 +96,7 @@ const sidebarNavItems = [
 export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user, agent } = useAuth();
+  const { theme } = useTheme();
 
   const { data: rankData } = useQuery({
     queryKey: ["user-rank"],
@@ -105,7 +105,10 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   });
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
+    <div 
+      className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
+      style={{ backgroundColor: theme === 'dark' ? '#000000' : '#ffffff' }}
+    >
       <div className="flex h-16 items-center gap-2 border-b px-6">
         <div className="flex flex-col">
           <span className="font-semibold text-sm">My Account</span>

@@ -25,6 +25,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
+import { useTheme } from "@/components/theme-provider";
 
 // Function to get ranking badge based on user role
 const getRankingBadge = (role: string) => {
@@ -122,6 +123,7 @@ const sidebarNavItems = [
 export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
+  const { theme } = useTheme();
 
   // Get user rank
   const { data: rankData } = useQuery({
@@ -146,7 +148,10 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   });
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
+    <div 
+      className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
+      style={{ backgroundColor: theme === 'dark' ? '#000000' : '#ffffff' }}
+    >
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">
           <Button variant="ghost" size="icon" onClick={onClose}>

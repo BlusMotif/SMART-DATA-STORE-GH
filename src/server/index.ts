@@ -374,10 +374,12 @@ app.use((req, res, next) => {
   // Use the provided PORT when available (Render sets this). Fall back to 10000
   // for local development so the app still runs without additional env config.
   const PORT = Number(process.env.PORT) || 10000;
+  const HOST = process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost";
+  console.log(`Starting server on ${HOST}:${PORT}, NODE_ENV: ${process.env.NODE_ENV}`);
   httpServer.listen(
     {
       port: PORT,
-      host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost",
+      host: HOST,
     },
     () => {
       log(`serving on port ${PORT}`);

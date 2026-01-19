@@ -73,9 +73,7 @@ export default function AdminWithdrawals() {
 
   const actionMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" | "mark_paid" }) => {
-      const response = await apiRequest(`/api/admin/withdrawals/${id}/${action}`, {
-        method: "POST",
-      });
+      const response = await apiRequest("POST", `/api/admin/withdrawals/${id}/${action}`);
       return response;
     },
     onSuccess: () => {

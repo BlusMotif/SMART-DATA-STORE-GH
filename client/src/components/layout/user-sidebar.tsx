@@ -1,3 +1,4 @@
+import React from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
@@ -6,36 +7,17 @@ import {
   History,
   MessageCircle,
   LogOut,
-  X,
-  Menu,
   Settings,
   Trophy,
   Code,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { APP_NAME } from "@/lib/constants";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/components/theme-provider";
-
-// Function to get ranking badge based on user role
-const getRankingBadge = (role: string) => {
-  const rankings = {
-    admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
-    master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
-    super_dealer: { label: "Super Dealer", variant: "secondary" as const, icon: "⭐" },
-    dealer: { label: "Dealer", variant: "outline" as const, icon: "💎" },
-    agent: { label: "Agent", variant: "outline" as const, icon: "🔹" },
-    user: { label: "User", variant: "outline" as const, icon: "👤" },
-    guest: { label: "Guest", variant: "outline" as const, icon: "👋" },
-  };
-
-  return rankings[role as keyof typeof rankings] || rankings.user;
-};
 
 const sidebarNavItems = [
   {
@@ -95,19 +77,26 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
   const { logout, isLoggingOut, user, agent } = useAuth();
   const { theme } = useTheme();
 
-  const { data: rankData, error: rankError, isLoading: rankLoading } = useQuery({
+  const { data: rankData, error: rankError, isLoading: rankLoading } = useQuery<{ rank: number }>({
     queryKey: ["user-rank"],
-    queryFn: () => apiRequest("/api/user/rank"),
+    queryFn: () => apiRequest("/api/user/rank", "GET"),
     enabled: !!user,
     refetchInterval: 15000, // Refetch every 15 seconds for more real-time updates
     refetchOnWindowFocus: true, // Update when user comes back to the tab
-    onSuccess: (data) => {
-      console.log('Real-time rank data:', data);
-    },
-    onError: (error) => {
-      console.error('Rank API error:', error);
-    },
   });
+
+  // Handle success and error logging
+  React.useEffect(() => {
+    if (rankData) {
+      console.log('Real-time rank data:', rankData);
+    }
+  }, [rankData]);
+
+  React.useEffect(() => {
+    if (rankError) {
+      console.error('Rank API error:', rankError);
+    }
+  }, [rankError]);
 
   return (
     <div 
@@ -150,7 +139,7 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
           {sidebarNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
-            
+
             return (
               <Link key={item.href} href={item.href}>
                 <div
@@ -161,7 +150,7 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
                       ? "bg-yellow-500 text-white"
                       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
-                  onClick={onClose}
+                  onClick={item.title === "API & Integrations" ? onApiIntegrationsClick || onClose : onClose}
                 >
                   <Icon className="h-4 w-4 shrink-0 md:h-4 md:w-4 sm:h-6 sm:w-6" />
                   <span>{item.title}</span>

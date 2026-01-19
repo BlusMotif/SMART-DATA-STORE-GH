@@ -24,7 +24,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { APP_NAME } from "@/lib/constants";
 import { useTheme } from "@/components/theme-provider";
 
 // Function to get ranking badge based on user role
@@ -126,9 +125,9 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   const { theme } = useTheme();
 
   // Get user rank
-  const { data: rankData } = useQuery({
+  const { data: rankData } = useQuery<{ rank?: number }>({
     queryKey: ["user-rank"],
-    queryFn: () => apiRequest("/api/user/rank"),
+    queryFn: () => apiRequest("GET", "/api/user/rank"),
     enabled: !!user,
   });
 
@@ -137,8 +136,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
     queryKey: ["/api/support/admin/unread-count"],
     queryFn: async () => {
       try {
-        const response = await apiRequest("GET", "/api/support/admin/unread-count");
-        const data = await response.json();
+        const data = await apiRequest<{ count: number }>("GET", "/api/support/admin/unread-count");
         return data.count || 0;
       } catch (error) {
         return 0;
@@ -162,12 +160,12 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
       <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
         <div className="flex flex-col">
           <span className="font-semibold text-sm">{user?.name || 'Admin'}</span>
-          {rankData && (
+          {rankData && rankData.rank !== undefined && (
             <div className="flex items-center gap-1.5 mt-1">
               <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
                 <Trophy className="h-3 w-3" />
                 <span>
-                  {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
+                  {typeof rankData.rank === 'number' && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
                 </span>
               </div>
             </div>

@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, WITHDRAWAL_STATUSES } from "@/lib/constants";
-import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu, Smartphone } from "lucide-react";
+import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu, Smartphone, Building2 } from "lucide-react";
 import type { Withdrawal, Agent } from "@shared/schema";
 
 const withdrawalSchema = z.object({
@@ -68,8 +68,6 @@ export default function AgentWithdrawals() {
     },
   });
 
-  const watchedPaymentMethod = form.watch("paymentMethod");
-
   const paymentMethods = [
     { value: "mtn_momo", label: "MTN Mobile Money", icon: Smartphone, description: "Send to MTN MoMo number" },
     { value: "telecel_cash", label: "Telecel Cash", icon: Smartphone, description: "Send to Telecel Cash number" },
@@ -97,22 +95,22 @@ export default function AgentWithdrawals() {
 
   const onSubmit = (data: WithdrawalFormData) => {
     const amount = parseFloat(data.amount);
-    const balance = parseFloat(agent?.profitBalance || "0");
-    
+    const balance = agent?.profitBalance || 0;
+
     if (amount < 10) {
-      toast({ 
-        title: "Amount too low", 
+      toast({
+        title: "Amount too low",
         description: "Minimum withdrawal amount is GH₵10",
-        variant: "destructive" 
+        variant: "destructive"
       });
       return;
     }
-    
+
     if (amount > balance) {
-      toast({ 
-        title: "Insufficient balance", 
+      toast({
+        title: "Insufficient balance",
         description: `Available balance: ${formatCurrency(balance)}`,
-        variant: "destructive" 
+        variant: "destructive"
       });
       return;
     }
@@ -379,7 +377,7 @@ export default function AgentWithdrawals() {
                             {formatDate(withdrawal.createdAt)}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
-                            {withdrawal.processedAt ? formatDate(withdrawal.processedAt) : "-"}
+                            {withdrawal.paidAt ? formatDate(withdrawal.paidAt) : "-"}
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">
                             {withdrawal.adminNote || "-"}

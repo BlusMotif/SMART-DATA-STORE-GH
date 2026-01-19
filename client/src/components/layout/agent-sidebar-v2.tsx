@@ -9,7 +9,6 @@ import {
   MessageCircle,
   LogOut,
   ExternalLink,
-  X,
   Smartphone,
   CreditCard,
   Code,
@@ -24,7 +23,7 @@ import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { APP_NAME, formatCurrency } from "@/lib/constants";
+import { formatCurrency } from "@/lib/constants";
 import type { Agent, User } from "@shared/schema";
 import { useTheme } from "@/components/theme-provider";
 
@@ -78,9 +77,9 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   const [showApiModal, setShowApiModal] = useState(false);
 
   // Get user rank
-  const { data: rankData } = useQuery({
+ const { data: rankData } = useQuery<{ rank: number }>({
     queryKey: ["user-rank"],
-    queryFn: () => apiRequest("/api/user/rank"),
+    queryFn: () => apiRequest("GET", "/api/user/rank"),
     enabled: !!user,
   });
 
@@ -93,7 +92,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
     enabled: user?.role === 'admin',
     queryFn: async () => {
       try {
-        const res = await apiRequest("GET", "/api/support/admin/unread-count");
+        const res = await apiRequest("GET", "/api/support/admin/unread-count") as Response;
         const data = await res.json();
         return data.count || 0;
       } catch (error) {
@@ -179,7 +178,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
             <p className="text-xs text-muted-foreground mb-1">Profit Balance</p>
             <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-profit-balance">{formatCurrency(agent.profitBalance)}</p>
             <p className="text-xs text-muted-foreground mt-2">Wallet Balance: {formatCurrency(agent.walletBalance)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Total Profit: {formatCurrency(agent.totalProfit)}</p>
+            <p className="text-xs text-muted-foreground mt-1">Total Withdrawals: {formatCurrency(agent.totalWithdrawals)}</p>
           </div>
         </div>
       )}

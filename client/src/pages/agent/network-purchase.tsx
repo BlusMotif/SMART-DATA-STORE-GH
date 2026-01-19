@@ -900,7 +900,8 @@ export default function AgentNetworkPurchasePage() {
                   <div>
                     <h3 className="font-semibold text-lg mb-2">Data Delivery Time</h3>
                     <p className="text-muted-foreground">
-                      Data takes between 10 to 30 minutes — maximum 60 minutes (1 hour) — to be credited.
+                      All data orders are delivered within 5–45 minutes.
+                      Please note that delivery times may vary during network downtime
                     </p>
                   </div>
                 </div>

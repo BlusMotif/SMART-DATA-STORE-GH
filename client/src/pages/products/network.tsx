@@ -339,18 +339,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       total += price;
     }
 
-    // Check wallet balance if paying with wallet
-    if (paymentMethod === "wallet") {
-      if (!user) {
-        toast({ title: 'Login required', description: 'Please log in to pay with wallet', variant: 'destructive' });
-        return;
-      }
-      if (walletBalance < total) {
-        toast({ title: 'Insufficient balance', description: 'Your wallet balance is not enough', variant: 'destructive' });
-        return;
-      }
-    }
-
+    // Bulk orders always use Paystack for security and reliability
     const payload = {
       productType: 'data_bundle',
       network: network,
@@ -359,20 +348,12 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       orderItems,
       totalAmount: total,
       agentSlug: undefined,
-      paymentMethod,
+      paymentMethod: 'paystack',
     };
 
     checkoutMutation.mutate(payload, {
       onSuccess: (data) => {
-        if (paymentMethod === "wallet") {
-          toast({
-            title: "✅ Payment Successful!",
-            description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Processing your orders...`,
-            duration: 5000,
-          });
-        } else {
-          if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
-        }
+        if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
       },
       onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
     });
@@ -488,33 +469,25 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
               <div>
                 <Label>Payment Method</Label>
-                <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'paystack' | 'wallet')}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="paystack" id="bulk-paystack" />
-                    <Label htmlFor="bulk-paystack" className="flex items-center gap-2">
-                      <CreditCard className="h-4 w-4" />
-                      Paystack
-                    </Label>
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <div className="font-semibold text-blue-900 dark:text-blue-100">Bulk Orders Use Paystack</div>
+                      <div className="text-sm text-blue-700 dark:text-blue-300">
+                        For security and reliability, bulk purchases are processed through Paystack payment gateway.
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="wallet" id="bulk-wallet" disabled={!user} />
-                    <Label htmlFor="bulk-wallet" className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4" />
-                      Wallet {user ? `(Balance: GH₵${walletBalance.toFixed(2)})` : '(Login required)'}
-                    </Label>
-                  </div>
-                </RadioGroup>
+                </div>
               </div>
 
               <div className="flex justify-end">
                 <Button 
                   onClick={handleBulk}
-                  disabled={
-                    bulkTotal.count === 0 || 
-                    (paymentMethod === 'wallet' && (!user || walletBalance < bulkTotal.total))
-                  }
+                  disabled={bulkTotal.count === 0}
                 >
-                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'} {bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}
+                  Pay with Paystack {bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}
                 </Button>
               </div>
             </CardContent>

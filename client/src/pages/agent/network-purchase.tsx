@@ -555,19 +555,12 @@ export default function AgentNetworkPurchasePage() {
 
     setIsProcessing(true);
     
-    if (paymentMethod === 'wallet') {
-      walletPaymentMutation.mutate({
-        orderItems,
-        totalAmount: bulkTotalAmount,
-        customerEmail: bulkData.customerEmail,
-      });
-    } else {
-      initializePaymentMutation.mutate({
-        orderItems,
-        totalAmount: bulkTotalAmount,
-        customerEmail: bulkData.customerEmail,
-      });
-    }
+    // Bulk orders always use Paystack for security and reliability
+    initializePaymentMutation.mutate({
+      orderItems,
+      totalAmount: bulkTotalAmount,
+      customerEmail: bulkData.customerEmail,
+    });
   };
 
   if (agentLoading) {
@@ -858,26 +851,39 @@ export default function AgentNetworkPurchasePage() {
                                 {formatCurrency(bulkTotal.total)}
                               </span>
                             </div>
+
+                            {/* Payment Method Info for Bulk Orders */}
+                            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <CreditCard className="h-5 w-5 text-blue-600" />
+                                <div>
+                                  <div className="font-semibold text-blue-900 dark:text-blue-100">Bulk Orders Use Paystack</div>
+                                  <div className="text-sm text-blue-700 dark:text-blue-300">
+                                    For security and reliability, bulk purchases are processed through Paystack payment gateway.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
 
                         <Button
                           type="submit"
-                          className="w-full"
+                          className="w-full gap-2"
                           size="lg"
                           disabled={isProcessing || !bulkForm.watch("phoneNumbers")?.trim()}
                         >
                           {isProcessing ? (
                             <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              <Loader2 className="h-5 w-5 animate-spin" />
                               Processing...
                             </>
                           ) : (
                             <>
-                              <Smartphone className="mr-2 h-4 w-4" />
+                              <CreditCard className="h-5 w-5" />
                               {bulkTotal ? (
                                 <>
-                                  Purchase {bulkTotal.count} {bulkTotal.count === 1 ? 'Bundle' : 'Bundles'} - {formatCurrency(bulkTotal.total)}
+                                  Pay {formatCurrency(bulkTotal.total)} with Paystack
                                 </>
                               ) : (
                                 'Purchase Data Bundles'

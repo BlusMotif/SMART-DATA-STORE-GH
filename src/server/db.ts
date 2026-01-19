@@ -7,39 +7,48 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+console.log('DATABASE_URL in db.ts:', process.env.DATABASE_URL);
+console.log('SKIP_DB:', process.env.SKIP_DB);
+
 let db: any;
 let pool: Pool | undefined;
 
 // Use PostgreSQL for all environments
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required');
-}
+if (process.env.SKIP_DB === 'true') {
+  console.log('SKIP_DB=true — skipping database connection');
+  db = null;
+  pool = undefined;
+} else {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
 
-// Connection pool with optimized settings for high-traffic fintech app
-pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 20, // Maximum connections in pool
-  idleTimeoutMillis: 30000, // Close idle connections after 30s
-  connectionTimeoutMillis: 10000, // Wait max 10s for connection
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false, // Use SSL in production
-});
-
-// Add error handling for the pool
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-  // Don't exit the process, just log the error
-});
-
-// Test the connection on startup
-pool.connect()
-  .then(() => {
-    console.log('PostgreSQL database connection established successfully');
-  })
-  .catch((err) => {
-    console.error('Database connection failed:', err.message);
-    process.exit(1);
+  // Connection pool with optimized settings for high-traffic fintech app
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 20, // Maximum connections in pool
+    idleTimeoutMillis: 30000, // Close idle connections after 30s
+    connectionTimeoutMillis: 10000, // Wait max 10s for connection
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false, // Use SSL in production
   });
 
-db = drizzle(pool, { schema });
+  // Add error handling for the pool
+  pool.on('error', (err) => {
+    console.error('Unexpected error on idle client', err);
+    // Don't exit the process, just log the error
+  });
+
+  // Test the connection on startup
+  pool.connect()
+    .then(() => {
+      console.log('PostgreSQL database connection established successfully');
+    })
+    .catch((err) => {
+      console.error('Database connection failed:', err.message);
+      process.exit(1);
+    });
+
+  db = drizzle(pool, { schema });
+}
 
 export { db, pool };

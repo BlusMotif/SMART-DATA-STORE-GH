@@ -1,5 +1,4 @@
 import { useParams, Link } from "wouter";
-import { getAgentId } from "@/lib/store-context";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
@@ -27,17 +26,16 @@ const networkInfo: Record<string, { name: string; logo: string }> = {
 };
 
 export default function NetworkProductsPage() {
-  const { network } = useParams<{ network: string }>();
+  const { role, slug, network } = useParams<{ role: string; slug: string; network: string }>();
   // Handle legacy URLs where "bigtime" should be "at_bigtime" and "ishare" should be "at_ishare"
   const normalizedNetwork = network === 'bigtime' ? 'at_bigtime' : network === 'ishare' ? 'at_ishare' : network;
   const transformedNetwork = normalizedNetwork?.replace(/-/g, '_');
   const info = networkInfo[transformedNetwork || ""] || { name: "Unknown", logo: "" };
   
-  // Get agent slug from URL query param or localStorage
-  const agentSlugFromQuery = new URLSearchParams(window.location.search).get("agent");
-  const agentSlug = agentSlugFromQuery || getAgentId();
+  // Get agent slug from URL params
+  const agentSlug = slug;
 
-  const agentStore = typeof window !== "undefined" ? getAgentId() : null;
+  const agentStore = slug;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -45,7 +43,7 @@ export default function NetworkProductsPage() {
       
       <main className="flex-1 py-8 px-4 pt-16">
         <div className="container mx-auto max-w-4xl">
-          <Link href={agentStore ? `/store/${agentStore}` : "/"}>
+          <Link href={role && slug ? `/store/${role}/${slug}` : "/"}>
             <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back">
               <ArrowLeft className="h-4 w-4" />
               Back to Products

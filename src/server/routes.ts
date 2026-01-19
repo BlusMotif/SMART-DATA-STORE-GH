@@ -4354,9 +4354,11 @@ export async function registerRoutes(
   app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { status } = req.query;
-      const withdrawals = await storage.getWithdrawals({
-        status: status as string,
-      });
+      const filters: { status?: string } = {};
+      if (status && typeof status === 'string') {
+        filters.status = status;
+      }
+      const withdrawals = await storage.getWithdrawals(filters);
       // Get user details for each withdrawal
       const withdrawalsWithUsers = await Promise.all(
         withdrawals.map(async (withdrawal) => {

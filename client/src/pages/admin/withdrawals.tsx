@@ -62,7 +62,7 @@ export default function AdminWithdrawals() {
       return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-withdrawals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/withdrawals"] });
       toast({
         title: "Success",
         description: "Withdrawal request updated successfully",

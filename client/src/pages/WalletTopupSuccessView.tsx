@@ -9,13 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/header";
 import { Loader2, CheckCircle, XCircle, Wallet } from "lucide-react";
 
+interface WalletTopupVerifyResponse {
+  success: boolean;
+  message?: string;
+  amount?: number;
+  newBalance?: number;
+}
+
 interface WalletTopupSuccessViewProps {
   reference: string | null;
   agent: any;
   authLoading: boolean;
   attempts: number;
   query: {
-    data?: any;
+    data?: WalletTopupVerifyResponse;
     isLoading: boolean;
     isError: boolean;
   };

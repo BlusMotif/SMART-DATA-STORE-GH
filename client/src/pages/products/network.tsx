@@ -1,4 +1,5 @@
 import { useParams, Link } from "wouter";
+import { getAgentId } from "@/lib/store-context";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
-import { ShoppingCart, Package, Wallet, CreditCard, CheckCircle, ArrowLeft, Clock, AlertTriangle } from "lucide-react";
+import { ShoppingCart, Package, ArrowLeft, Clock, AlertTriangle, Wallet, CreditCard } from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
@@ -26,16 +29,17 @@ const networkInfo: Record<string, { name: string; logo: string }> = {
 };
 
 export default function NetworkProductsPage() {
-  const { role, slug, network } = useParams<{ role: string; slug: string; network: string }>();
+  const { network } = useParams<{ network: string }>();
   // Handle legacy URLs where "bigtime" should be "at_bigtime" and "ishare" should be "at_ishare"
   const normalizedNetwork = network === 'bigtime' ? 'at_bigtime' : network === 'ishare' ? 'at_ishare' : network;
   const transformedNetwork = normalizedNetwork?.replace(/-/g, '_');
   const info = networkInfo[transformedNetwork || ""] || { name: "Unknown", logo: "" };
   
-  // Get agent slug from URL params
-  const agentSlug = slug;
+  // Get agent slug from URL query param or localStorage
+  const agentSlugFromQuery = new URLSearchParams(window.location.search).get("agent");
+  const agentSlug = agentSlugFromQuery || getAgentId();
 
-  const agentStore = slug;
+  const agentStore = typeof window !== "undefined" ? getAgentId() : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -43,7 +47,7 @@ export default function NetworkProductsPage() {
       
       <main className="flex-1 py-8 px-4 pt-16">
         <div className="container mx-auto max-w-4xl">
-          <Link href={role && slug ? `/store/${role}/${slug}` : "/"}>
+          <Link href={agentStore ? `/store/${agentStore}` : "/"}>
             <Button variant="ghost" className="gap-2 mb-6" data-testid="button-back">
               <ArrowLeft className="h-4 w-4" />
               Back to Products
@@ -138,10 +142,15 @@ export default function NetworkProductsPage() {
 
 function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug?: string | null }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [orderType, setOrderType] = useState<'single' | 'bulk'>('single');
   const [phone, setPhone] = useState('');
   const [bulkPhones, setBulkPhones] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
+
+  console.log("[PublicPurchaseFlow] Received network prop:", network);
+  console.log("[PublicPurchaseFlow] Received agentSlug prop:", agentSlug);
 
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
@@ -150,28 +159,32 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     }
   }, [network, orderType]);
 
-  const { data: bundles, isLoading } = useQuery({
+  // Fetch user stats for wallet balance
+  const { data: userStats } = useQuery<{ walletBalance?: string }>({
+    queryKey: ["/api/user/stats"],
+    enabled: !!user,
+  });
+
+  const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
+
+  const { data: bundles, isLoading } = useQuery<any[]>({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
       const apiNetwork = network?.replace(/-/g, '_');
-      const url = `/api/products/data-bundles?network=${apiNetwork}${agentSlug ? `&agent=${agentSlug}` : ''}`;
+      const url = `/api/products/data-bundles?network=${apiNetwork}`;
       console.log("[PublicPurchaseFlow] Fetching bundles from:", url);
-      const res = await apiRequest('GET', url);
-      const data = await res.json();
-      console.log("[PublicPurchaseFlow] Fetched bundles:", data);
-      console.log("[PublicPurchaseFlow] Fetched bundles length:", data?.length);
-      return data;
+      return await apiRequest('GET', url);
     },
     refetchOnMount: true,
     staleTime: 0, // Always consider data stale for agent storefronts
   });
 
-  const { data: agent } = useQuery({
+  useQuery({
     queryKey: ['/api/store/agent', agentSlug],
     queryFn: async () => {
       if (!agentSlug) return null;
       const res = await apiRequest('GET', `/api/store/agent/${agentSlug}`);
-      return res.json();
+      return (res as Response).json();
     },
     enabled: !!agentSlug
   });
@@ -192,7 +205,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const selectedBundle = sortedBundles?.find((b: any) => b.id === selectedBundleId) || null;
 
   const bulkTotal = useMemo(() => {
-    if (!bulkPhones?.trim() || !sortedBundles) return null;
+    if (!bulkPhones?.trim() || !sortedBundles) return { total: 0, count: 0 };
     const lines = bulkPhones.split('\n').filter(l => l.trim());
     let total = 0; let count = 0;
     for (const line of lines) {
@@ -212,13 +225,16 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         }
       }
     }
-    return count > 0 ? { total, count } : null;
+    return { total, count };
   }, [bulkPhones, sortedBundles]);
 
-  const checkoutMutation = useMutation({
+  const checkoutMutation = useMutation<any, Error, any>({
     mutationFn: async (payload: any) => {
-      const res = await apiRequest('POST', '/api/checkout/initialize', payload);
-      return res.json();
+      if (payload.paymentMethod === "wallet") {
+        return await apiRequest('POST', '/api/wallet/pay', payload);
+      } else {
+        return await apiRequest('POST', '/api/checkout/initialize', payload);
+      }
     }
   });
 
@@ -229,21 +245,24 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     const validation = validatePhoneNetwork(normalized, selectedBundle.network);
     if (!validation.isValid) { toast({ title: 'Phone mismatch', description: validation.error || 'Network mismatch', variant: 'destructive' }); return; }
 
-    // Re-fetch bundle to validate price
-    try {
-      const res = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`);
-      const currentBundle = await res.json();
-      
-      console.log("[Frontend] Price validation:");
-      console.log("[Frontend] UI effective_price:", selectedBundle.effective_price);
-      console.log("[Frontend] Backend effective_price:", currentBundle.effective_price);
-      
-      if (Math.abs(parseFloat(selectedBundle.effective_price) - parseFloat(currentBundle.effective_price)) > 0.01) {
-        toast({ title: 'Price changed', description: 'Please refresh and try again', variant: 'destructive' });
+    // Check wallet balance if paying with wallet
+    if (paymentMethod === "wallet") {
+      if (!user) {
+        toast({ title: 'Login required', description: 'Please log in to pay with wallet', variant: 'destructive' });
         return;
       }
+      const price = parseFloat(selectedBundle.effective_price);
+      if (walletBalance < price) {
+        toast({ title: 'Insufficient balance', description: 'Your wallet balance is not enough', variant: 'destructive' });
+        return;
+      }
+    }
+
+    // Fetch bundle to get current price
+    try {
+      const currentBundleData = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`) as any;
       
-      const amount = parseFloat(currentBundle.effective_price);
+      const amount = parseFloat(currentBundleData.effective_price);
       
       const payload = {
         productType: 'data_bundle',
@@ -251,18 +270,31 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         customerPhone: normalized,
         amount: amount.toFixed(2),
         isBulkOrder: false,
-        agentSlug: agentSlug || undefined,
+        agentSlug: undefined,
+        paymentMethod,
+        productName: selectedBundle.name,
+        network: selectedBundle.network,
       };
 
       console.log("[Frontend] Single purchase payload:");
       console.log("[Frontend] amount:", amount);
 
       checkoutMutation.mutate(payload, {
-        onSuccess: (data) => { if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' }); },
+        onSuccess: (data) => {
+          if (paymentMethod === "wallet") {
+            toast({
+              title: "✅ Payment Successful!",
+              description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Processing your order...`,
+              duration: 5000,
+            });
+          } else {
+            if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
+          }
+        },
         onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
       });
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to validate price', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to fetch bundle details', variant: 'destructive' });
     }
   };
 
@@ -287,6 +319,13 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       parsed.push({ phone: normalized, gb });
     }
 
+    // Check for duplicate phone numbers
+    const phoneSet = new Set(parsed.map(p => p.phone));
+    if (phoneSet.size !== parsed.length) {
+      toast({ title: 'Duplicate Numbers', description: 'Phone numbers must be unique', variant: 'destructive' });
+      return;
+    }
+
     // build orderItems
     const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
     let total = 0;
@@ -300,6 +339,18 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       total += price;
     }
 
+    // Check wallet balance if paying with wallet
+    if (paymentMethod === "wallet") {
+      if (!user) {
+        toast({ title: 'Login required', description: 'Please log in to pay with wallet', variant: 'destructive' });
+        return;
+      }
+      if (walletBalance < total) {
+        toast({ title: 'Insufficient balance', description: 'Your wallet balance is not enough', variant: 'destructive' });
+        return;
+      }
+    }
+
     const payload = {
       productType: 'data_bundle',
       network: network,
@@ -307,11 +358,22 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       isBulkOrder: true,
       orderItems,
       totalAmount: total,
-      agentSlug: agentSlug || undefined,
+      agentSlug: undefined,
+      paymentMethod,
     };
 
     checkoutMutation.mutate(payload, {
-      onSuccess: (data) => { if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' }); },
+      onSuccess: (data) => {
+        if (paymentMethod === "wallet") {
+          toast({
+            title: "✅ Payment Successful!",
+            description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Processing your orders...`,
+            duration: 5000,
+          });
+        } else {
+          if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
+        }
+      },
       onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
     });
   };
@@ -354,7 +416,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                     <SelectTrigger className="w-full"><SelectValue placeholder="Choose a data bundle" /></SelectTrigger>
                     <SelectContent>
                       {sortedBundles?.map((b: any) => {
-                        const price = b.customPrice ? parseFloat(b.customPrice) : parseFloat(b.basePrice);
+                        const price = parseFloat(b.effective_price);
                         return (
                           <SelectItem key={b.id} value={b.id}>{b.network.toUpperCase()} {b.dataAmount} - {b.validity} - GH₵{price.toFixed(2)}</SelectItem>
                         );
@@ -367,8 +429,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               {selectedBundle && (
                 <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{(selectedBundle.customPrice ? parseFloat(selectedBundle.customPrice) : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
-                  <p className="text-2xl font-bold text-primary mt-2">GH₵{(selectedBundle.customPrice ? parseFloat(selectedBundle.customPrice) : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
+                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-primary mt-2">GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
                 </div>
               )}
 
@@ -378,8 +440,36 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                 <p className="text-xs text-muted-foreground">Enter one number. Supports 0241234567 or 233241234567 (no +). Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
               </div>
 
+              <div>
+                <Label>Payment Method</Label>
+                <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'paystack' | 'wallet')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="paystack" id="paystack" />
+                    <Label htmlFor="paystack" className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Paystack
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="wallet" id="wallet" disabled={!user} />
+                    <Label htmlFor="wallet" className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      Wallet {user ? `(Balance: GH₵${walletBalance.toFixed(2)})` : '(Login required)'}
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="flex justify-end">
-                <Button onClick={handleSingle} disabled={!selectedBundle}>Pay with Paystack</Button>
+                <Button 
+                  onClick={handleSingle} 
+                  disabled={
+                    !selectedBundle || 
+                    (paymentMethod === 'wallet' && (!user || walletBalance < parseFloat(selectedBundle?.effective_price || '0')))
+                  }
+                >
+                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -395,8 +485,37 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               <Textarea placeholder={`0546591622 1\n0247064874 3\n233547897522 10`} value={bulkPhones} onChange={(e) => setBulkPhones(e.target.value)} rows={8} />
               <p className="text-sm text-muted-foreground">Enter one number per line with GB amount (e.g., "0241234567 2"). Supports 0241234567 or 233241234567 (no +). No limit - add 100+ numbers! All numbers must be for {network.toUpperCase()}. Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
               {bulkTotal && <p className="font-medium">{bulkTotal.count} items • GH₵{bulkTotal.total.toFixed(2)}</p>}
+
+              <div>
+                <Label>Payment Method</Label>
+                <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'paystack' | 'wallet')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="paystack" id="bulk-paystack" />
+                    <Label htmlFor="bulk-paystack" className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Paystack
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="wallet" id="bulk-wallet" disabled={!user} />
+                    <Label htmlFor="bulk-wallet" className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      Wallet {user ? `(Balance: GH₵${walletBalance.toFixed(2)})` : '(Login required)'}
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="flex justify-end">
-                <Button onClick={handleBulk}>Purchase {bulkTotal ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}</Button>
+                <Button 
+                  onClick={handleBulk}
+                  disabled={
+                    bulkTotal.count === 0 || 
+                    (paymentMethod === 'wallet' && (!user || walletBalance < bulkTotal.total))
+                  }
+                >
+                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'} {bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}
+                </Button>
               </div>
             </CardContent>
           </Card>

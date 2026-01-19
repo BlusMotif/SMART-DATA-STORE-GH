@@ -19,6 +19,7 @@ export default function UserDashboard() {
   const { user } = useAuth();
   useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, setShowApiModal] = useState(false);
 
   // (upgrade UI removed)
 

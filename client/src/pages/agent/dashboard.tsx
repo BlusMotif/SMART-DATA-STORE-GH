@@ -6,7 +6,7 @@ import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sideba
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
+import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
-import { Agent, Transaction } from "../../../shared/schema.js";
+import { Agent, Transaction } from "@shared/schema";
 
 interface AgentStats {
   balance: number;

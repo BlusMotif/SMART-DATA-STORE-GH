@@ -767,7 +767,7 @@ export const purchaseSchema = z.object({
     bundleName: z.string(),
     dataAmount: z.string(),
   })).optional(),
-  isBulkOrder: z.number().optional(),
+  isBulkOrder: z.boolean().optional(),
   network: z.string().optional(),
   orderItems: z.array(z.object({
     phone: z.string(),

@@ -23,7 +23,7 @@ import { validatePhoneNetwork, detectNetwork, getNetworkPrefixes, normalizePhone
 import { 
   Store, Phone, Mail, Upload, 
   CheckCircle, XCircle, Download, 
-  Loader2, CreditCard, Smartphone, ChevronDown, ChevronUp 
+  Loader2, CreditCard, Smartphone, ChevronDown, ChevronUp, Shield 
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { Agent } from "@shared/schema";
@@ -276,7 +276,7 @@ export default function AgentPublicStorefront() {
         agentSlug: slug,
       };
 
-      const response = await apiRequest("POST", "/api/checkout/initialize", payload);
+      const response = await apiRequest("POST", "/api/checkout/initialize", payload) as Response;
       return await response.json();
     },
     onSuccess: (data) => {

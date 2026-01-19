@@ -558,7 +558,7 @@ export class DatabaseStorage implements IStorage {
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const [created] = await db.insert(transactions).values({
-      
+      id: randomUUID(),
       ...transaction,
     }).returning();
     return created;

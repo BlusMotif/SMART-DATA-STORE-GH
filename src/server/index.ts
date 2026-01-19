@@ -163,6 +163,8 @@ app.use((req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Referrer policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Content Security Policy
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://api.paystack.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.paystack.co https://js.paystack.co; frame-src https://js.paystack.co;");
   // Disable all caching
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -254,10 +256,37 @@ global.upload = upload;
 const FRONTEND_URL = process.env.APP_URL
   || (process.env.NODE_ENV === "production"
     ? "https://resellershubprogh.com"
-    : [`http://localhost:5173`, `http://localhost:${process.env.PORT || 10000}`]);
+    : process.env.NODE_ENV === "development"
+      ? "http://localhost:5173"
+      : `http://localhost:${process.env.PORT || 10000}`);
+
+// Allow multiple origins for flexibility
+const allowedOrigins = [
+  FRONTEND_URL,
+  "https://resellershubprogh.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000"
+].filter(Boolean);
 
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Allow localhost origins in development
+    if (origin?.startsWith('http://localhost:') || origin?.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+    
+    console.log(`CORS blocked origin: ${origin}`);
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires'],
@@ -348,7 +377,7 @@ app.use((req, res, next) => {
   httpServer.listen(
     {
       port: PORT,
-      host: "0.0.0.0",
+      host: "localhost",
     },
     () => {
       log(`serving on port ${PORT}`);

@@ -375,6 +375,15 @@ export default function UserBundlesPage() {
       return;
     }
 
+    if (!paymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
+      });
+      return;
+    }
+
     purchaseMutation.mutate({
       bundleId: selectedBundle.id,
       phoneNumber: normalizedPhone,
@@ -505,6 +514,15 @@ export default function UserBundlesPage() {
         description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${parsedData.length} order(s). Please top up or use Paystack.`,
         variant: "destructive",
         duration: 7000,
+      });
+      return;
+    }
+
+    if (!bulkPaymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
       });
       return;
     }
@@ -690,7 +708,7 @@ export default function UserBundlesPage() {
                           <button
                             type="button"
                             onClick={() => setPaymentMethod(paymentMethod === "wallet" ? null : "wallet")}
-                            disabled={selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)}
+                            disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
                               paymentMethod === "wallet"
                                 ? "border-green-500 bg-green-50 shadow-md"
@@ -828,7 +846,7 @@ export default function UserBundlesPage() {
                           <button
                             type="button"
                             onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "wallet" ? null : "wallet")}
-                            disabled={selectedBundle && parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)}
+                            disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
                               bulkPaymentMethod === "wallet"
                                 ? "border-green-500 bg-green-50 shadow-md"

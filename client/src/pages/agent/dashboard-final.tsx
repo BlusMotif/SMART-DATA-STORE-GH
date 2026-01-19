@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
-import { Agent, Transaction } from "../../../shared/schema";
+import { Agent, Transaction } from "../../../../src/shared/schema";
 
 interface AgentStats {
   balance: number;

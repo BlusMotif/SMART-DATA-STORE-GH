@@ -377,7 +377,7 @@ app.use((req, res, next) => {
   httpServer.listen(
     {
       port: PORT,
-      host: "localhost",
+      host: process.env.NODE_ENV === "production" ? "0.0.0.0" : "localhost",
     },
     () => {
       log(`serving on port ${PORT}`);

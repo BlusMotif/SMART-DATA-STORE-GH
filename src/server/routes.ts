@@ -3058,7 +3058,7 @@ export async function registerRoutes(
           });
 
           const withdrawnTotal = withdrawals
-            .filter(w => w?.status === "approved" || w?.status === "paid")
+            .filter(w => w?.status === "paid")
             .reduce((sum, w) => sum + Number(w?.amount || 0), 0);
 
           const totalProfit = Number(agent.totalProfit || 0);
@@ -3420,8 +3420,8 @@ export async function registerRoutes(
         amount: data.amount.toFixed(2),
         status: WithdrawalStatus.PENDING,
         paymentMethod: data.paymentMethod,
-        bankName: data.paymentMethod === "bank" ? data.bankName || "" : "",
-        bankCode: data.paymentMethod === "bank" ? data.bankCode || "" : "",
+        bankName: "",
+        bankCode: "",
         accountNumber: data.accountNumber,
         accountName: data.accountName,
       });
@@ -3559,10 +3559,10 @@ export async function registerRoutes(
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )[0];
       // For agents, the "balance" refers to their profit balance (withdrawable profit)
-      // Compute withdrawals sum (only include approved and paid withdrawals)
+      // Compute withdrawals sum (only include paid withdrawals)
       const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
       const withdrawnTotal = withdrawals
-        .filter(w => w.status === 'approved' || w.status === 'paid')
+        .filter(w => w.status === 'paid')
         .reduce((s, w) => s + parseFloat((w.amount as any) || 0), 0);
       // Profit balance = totalProfit - totalWithdrawals (safety: never negative)
       const totalProfit = parseFloat(agent.totalProfit || '0');
@@ -4900,20 +4900,8 @@ export async function registerRoutes(
         if (withdrawal.status !== "pending") {
           return res.status(400).json({ error: "Withdrawal is not in pending status" });
         }
-        // Deduct amount from profit wallet
-        const wallet = await storage.getProfitWallet(withdrawal.userId);
-        if (!wallet) {
-          return res.status(400).json({ error: "Profit wallet not found" });
-        }
-        const withdrawalAmount = parseFloat(withdrawal.amount);
-        const currentBalance = parseFloat(wallet.availableBalance);
-        if (currentBalance < withdrawalAmount) {
-          return res.status(400).json({ error: "Insufficient balance in profit wallet" });
-        }
-        const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
-        await storage.updateProfitWallet(withdrawal.userId, {
-          availableBalance: newBalance,
-        });
+        // DO NOT deduct amount from profit wallet on approval
+        // Balance will be deducted only when marked as paid
         // Update withdrawal status to approved
         await storage.updateWithdrawal(id, {
           status: WithdrawalStatus.APPROVED,
@@ -4922,7 +4910,7 @@ export async function registerRoutes(
           adminNote,
         });
         res.json({
-          message: "Withdrawal approved. Admin will manually send the money.",
+          message: "Withdrawal approved. Admin will manually send the money and mark as paid.",
           withdrawal: await storage.getWithdrawal(id),
         });
       } else if (action === "reject") {
@@ -4958,20 +4946,8 @@ export async function registerRoutes(
       if (withdrawal.status !== "pending") {
         return res.status(400).json({ error: "Withdrawal is not in pending status" });
       }
-      // Deduct amount from profit wallet
-      const wallet = await storage.getProfitWallet(withdrawal.userId);
-      if (!wallet) {
-        return res.status(400).json({ error: "Profit wallet not found" });
-      }
-      const withdrawalAmount = parseFloat(withdrawal.amount);
-      const currentBalance = parseFloat(wallet.availableBalance);
-      if (currentBalance < withdrawalAmount) {
-        return res.status(400).json({ error: "Insufficient balance in profit wallet" });
-      }
-      const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
-      await storage.updateProfitWallet(withdrawal.userId, {
-        availableBalance: newBalance,
-      });
+      // DO NOT deduct amount from profit wallet on approval
+      // Balance will be deducted only when marked as paid
       // Update withdrawal status to approved
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.APPROVED,
@@ -4980,7 +4956,7 @@ export async function registerRoutes(
         adminNote,
       });
       res.json({
-        message: "Withdrawal approved. Admin will manually send the money.",
+        message: "Withdrawal approved. Admin will manually send the money and mark as paid.",
         withdrawal: await storage.getWithdrawal(id),
       });
     } catch (error: any) {
@@ -5023,13 +4999,27 @@ export async function registerRoutes(
       if (withdrawal.status !== "approved") {
         return res.status(400).json({ error: "Withdrawal is not in approved status" });
       }
+      // Deduct amount from profit wallet when marking as paid
+      const wallet = await storage.getProfitWallet(withdrawal.userId);
+      if (!wallet) {
+        return res.status(400).json({ error: "Profit wallet not found" });
+      }
+      const withdrawalAmount = parseFloat(withdrawal.amount);
+      const currentBalance = parseFloat(wallet.availableBalance);
+      if (currentBalance < withdrawalAmount) {
+        return res.status(400).json({ error: "Insufficient balance in profit wallet" });
+      }
+      const newBalance = (currentBalance - withdrawalAmount).toFixed(2);
+      await storage.updateProfitWallet(withdrawal.userId, {
+        availableBalance: newBalance,
+      });
       // Update withdrawal status to paid
       await storage.updateWithdrawal(id, {
         status: WithdrawalStatus.PAID,
         paidAt: new Date(),
       });
       res.json({
-        message: "Withdrawal marked as paid",
+        message: "Withdrawal marked as paid. Funds have been deducted from profit wallet.",
         withdrawal: await storage.getWithdrawal(id),
       });
     } catch (error: any) {

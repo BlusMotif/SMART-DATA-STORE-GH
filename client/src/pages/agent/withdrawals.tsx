@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, WITHDRAWAL_STATUSES } from "@/lib/constants";
-import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu, Smartphone, Building2 } from "lucide-react";
+import { Wallet, Plus, DollarSign, Clock, CheckCircle, Menu, Smartphone } from "lucide-react";
 import type { Withdrawal, Agent } from "@shared/schema";
 
 const withdrawalSchema = z.object({
@@ -26,22 +26,11 @@ const withdrawalSchema = z.object({
     .min(1, "Amount is required")
     .refine((val) => parseFloat(val) >= 10, "Minimum withdrawal amount is GH₵10")
     .refine((val) => parseFloat(val) <= 100000, "Maximum withdrawal amount is GH₵100,000"),
-  paymentMethod: z.enum(["bank", "mtn_momo", "telecel_cash", "airtel_tigo_cash", "vodafone_cash"], {
+  paymentMethod: z.enum(["mtn_momo", "telecel_cash", "airtel_tigo_cash", "vodafone_cash"], {
     required_error: "Please select a payment method"
   }),
-  bankName: z.string().optional(),
-  bankCode: z.string().optional(),
-  accountNumber: z.string().min(5, "Account/Phone number is required"),
+  accountNumber: z.string().min(5, "Phone number is required"),
   accountName: z.string().min(2, "Account name is required"),
-}).refine((data) => {
-  // For bank transfers, bank name and code are required
-  if (data.paymentMethod === "bank") {
-    return data.bankName && data.bankCode;
-  }
-  return true;
-}, {
-  message: "Bank name and code are required for bank transfers",
-  path: ["bankName"],
 });
 
 type WithdrawalFormData = z.infer<typeof withdrawalSchema>;
@@ -73,9 +62,7 @@ export default function AgentWithdrawals() {
     resolver: zodResolver(withdrawalSchema),
     defaultValues: {
       amount: "",
-      paymentMethod: "bank",
-      bankName: "",
-      bankCode: "",
+      paymentMethod: "mtn_momo",
       accountNumber: "",
       accountName: "",
     },
@@ -84,7 +71,6 @@ export default function AgentWithdrawals() {
   const watchedPaymentMethod = form.watch("paymentMethod");
 
   const paymentMethods = [
-    { value: "bank", label: "Bank Transfer", icon: Building2, description: "Transfer to bank account" },
     { value: "mtn_momo", label: "MTN Mobile Money", icon: Smartphone, description: "Send to MTN MoMo number" },
     { value: "telecel_cash", label: "Telecel Cash", icon: Smartphone, description: "Send to Telecel Cash number" },
     { value: "airtel_tigo_cash", label: "AirtelTigo Cash", icon: Smartphone, description: "Send to AirtelTigo Cash number" },
@@ -188,7 +174,7 @@ export default function AgentWithdrawals() {
                   Request Withdrawal
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="bg-white">
                 <DialogHeader>
                   <DialogTitle>Request Profit Withdrawal</DialogTitle>
                   <DialogDescription>
@@ -254,61 +240,15 @@ export default function AgentWithdrawals() {
                       )}
                     />
 
-                    {watchedPaymentMethod === "bank" && (
-                      <>
-                        <FormField
-                          control={form.control}
-                          name="bankName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Bank Name</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="e.g., Access Bank, GTBank"
-                                  data-testid="input-bank-name"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="bankCode"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Bank Code</FormLabel>
-                              <FormControl>
-                                <Input
-                                  placeholder="e.g., 030100 (Access Bank)"
-                                  data-testid="input-bank-code"
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </>
-                    )}
-
                     <FormField
                       control={form.control}
                       name="accountNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>
-                            {watchedPaymentMethod === "bank" ? "Account Number" : "Phone Number"}
-                          </FormLabel>
+                          <FormLabel>Phone Number</FormLabel>
                           <FormControl>
                             <Input
-                              placeholder={
-                                watchedPaymentMethod === "bank"
-                                  ? "Enter account number"
-                                  : "Enter phone number (e.g., 0241234567)"
-                              }
+                              placeholder="Enter phone number (e.g., 0241234567)"
                               data-testid="input-account-number"
                               {...field}
                             />

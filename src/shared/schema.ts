@@ -797,20 +797,11 @@ export const purchaseSchema = z.object({
 
 export const withdrawalRequestSchema = z.object({
   amount: z.number().min(10, "Minimum withdrawal amount is GH₵10").positive("Amount must be positive"),
-  paymentMethod: z.enum(["bank", "mtn_momo", "telecel_cash", "airtel_tigo_cash", "at_bigtime", "at_ishare", "vodafone_cash"], {
+  paymentMethod: z.enum(["mtn_momo", "telecel_cash", "airtel_tigo_cash", "at_bigtime", "at_ishare", "vodafone_cash"], {
     required_error: "Please select a payment method"
   }),
   bankName: z.string().optional(),
   bankCode: z.string().optional(),
   accountNumber: z.string().min(5, "Account/Phone number is required"),
   accountName: z.string().min(2, "Account name is required"),
-}).refine((data) => {
-  // For bank transfers, bank name and code are required
-  if (data.paymentMethod === "bank") {
-    return data.bankName && data.bankCode;
-  }
-  return true;
-}, {
-  message: "Bank name and code are required for bank transfers",
-  path: ["bankName"],
 });

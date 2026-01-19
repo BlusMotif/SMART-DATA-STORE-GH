@@ -19,7 +19,7 @@ import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { 
   Phone, Mail, Loader2, Clock, CreditCard, AlertTriangle, 
-  ArrowLeft, Package, ShoppingCart, Smartphone, Wallet
+  ArrowLeft, Package, ShoppingCart, Smartphone
 } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
@@ -81,7 +81,8 @@ export default function AgentNetworkPurchasePage() {
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderType, setOrderType] = useState<"single" | "bulk">("single");
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  // Force Paystack for single purchases on agent storefronts
+  const [paymentMethod, setPaymentMethod] = useState<"paystack">("paystack");
 
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
@@ -362,18 +363,8 @@ export default function AgentNetworkPurchasePage() {
     const isBulk = 'phoneNumbers' in data;
     const totalAmount = isBulk ? bulkTotal.total : price;
     
-    // Check payment method and wallet balance
-    if (paymentMethod === 'wallet') {
-      if (walletBalance < totalAmount) {
-        toast({
-          title: "❌ Insufficient Wallet Balance",
-          description: `You need GHS ${totalAmount.toFixed(2)} but only have GHS ${walletBalance.toFixed(2)} in your wallet.`,
-          variant: "destructive",
-          duration: 6000,
-        });
-        return;
-      }
-    }
+    // For single purchases, wallet balance check is not needed (always Paystack)
+    // For bulk purchases, they always use Paystack
     
     // Handle single purchase
     if (!isBulk) {
@@ -411,17 +402,11 @@ export default function AgentNetworkPurchasePage() {
 
       setIsProcessing(true);
       
-      if (paymentMethod === 'wallet') {
-        walletPaymentMutation.mutate({
-          customerPhone: normalizedPhone,
-          customerEmail: (data as SingleOrderFormData).customerEmail,
-        } as SingleOrderFormData);
-      } else {
-        initializePaymentMutation.mutate({
-          customerPhone: normalizedPhone,
-          customerEmail: (data as SingleOrderFormData).customerEmail,
-        } as SingleOrderFormData);
-      }
+      // Single purchases on agent storefronts always use Paystack
+      initializePaymentMutation.mutate({
+        customerPhone: normalizedPhone,
+        customerEmail: (data as SingleOrderFormData).customerEmail,
+      } as SingleOrderFormData);
       return;
     }
 
@@ -715,53 +700,28 @@ export default function AgentNetworkPurchasePage() {
                           </span>
                         </div>
 
-                        {/* Payment Method Selection */}
+                        {/* Payment Method - Only Paystack for single purchases */}
                         <div className="space-y-3 mb-4">
                           <Label className="text-base font-semibold">Payment Method</Label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setPaymentMethod('wallet')}
-                              className={`p-4 border-2 rounded-lg text-center transition-all ${
-                                paymentMethod === 'wallet'
-                                  ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300'
-                              }`}
-                            >
-                              <Wallet className="h-6 w-6 mx-auto mb-2 text-yellow-600" />
-                              <div className="font-semibold">Wallet</div>
-                              <div className="text-sm text-muted-foreground">
-                                Balance: {formatCurrency(walletBalance)}
-                              </div>
-                              {walletBalance < price && (
-                                <div className="text-xs text-red-600 mt-1">
-                                  Insufficient balance
-                                </div>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPaymentMethod('paystack')}
-                              className={`p-4 border-2 rounded-lg text-center transition-all ${
-                                paymentMethod === 'paystack'
-                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
-                              }`}
-                            >
+                          <div className="grid grid-cols-1 gap-3">
+                            <div className="p-4 border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
                               <CreditCard className="h-6 w-6 mx-auto mb-2 text-blue-600" />
                               <div className="font-semibold">Paystack</div>
                               <div className="text-sm text-muted-foreground">
                                 Pay with card/mobile money
                               </div>
-                            </button>
+                            </div>
                           </div>
+                          <p className="text-sm text-muted-foreground">
+                            Storefront purchases must be made through Paystack for proper agent accounting.
+                          </p>
                         </div>
 
                         <Button
                           type="submit"
                           className="w-full gap-2"
                           size="lg"
-                          disabled={isProcessing || !selectedBundleId || (paymentMethod === 'wallet' && walletBalance < price)}
+                          disabled={isProcessing || !selectedBundleId}
                         >
                           {isProcessing ? (
                             <>
@@ -770,12 +730,8 @@ export default function AgentNetworkPurchasePage() {
                             </>
                           ) : (
                             <>
-                              {paymentMethod === 'wallet' ? (
-                                <Wallet className="h-5 w-5" />
-                              ) : (
-                                <CreditCard className="h-5 w-5" />
-                              )}
-                              {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Proceed to Payment'}
+                              <CreditCard className="h-5 w-5" />
+                              Proceed to Payment
                             </>
                           )}
                         </Button>

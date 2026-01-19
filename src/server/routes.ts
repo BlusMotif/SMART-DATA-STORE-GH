@@ -251,6 +251,26 @@ async function processWebhookEvent(event: any) {
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+        // Also credit agent's profit wallet for withdrawals
+        const agent = await storage.getAgent(transaction.agentId);
+        if (agent) {
+          let profitWallet = await storage.getProfitWallet(agent.userId);
+          if (!profitWallet) {
+            profitWallet = await storage.createProfitWallet({
+              userId: agent.userId,
+              availableBalance: "0.00",
+              pendingBalance: "0.00",
+              totalEarned: "0.00",
+            });
+          }
+          const agentProfitValue = parseFloat(transaction.agentProfit || "0");
+          const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + agentProfitValue).toFixed(2);
+          const newTotalEarned = (parseFloat(profitWallet.totalEarned) + agentProfitValue).toFixed(2);
+          await storage.updateProfitWallet(agent.userId, {
+            availableBalance: newAvailableBalance,
+            totalEarned: newTotalEarned,
+          });
+        }
       }
       console.log("Payment processed via webhook:", reference);
     } catch (transactionError: any) {
@@ -2087,6 +2107,13 @@ export async function registerRoutes(
       });
       // Handle wallet payments immediately
       if (data.paymentMethod === 'wallet') {
+        // BLOCK WALLET PAYMENTS FOR STOREFRONT PURCHASES
+        if (data.agentSlug) {
+          console.log("[Checkout] Blocking storefront purchase via wallet - agentSlug:", data.agentSlug);
+          return res.status(400).json({
+            error: "Storefront purchases must be made through Paystack for proper agent accounting"
+          });
+        }
         console.log("[Checkout] Processing wallet payment for reference:", reference);
         // Get authenticated user
         let dbUser: any = null;
@@ -2162,6 +2189,25 @@ export async function registerRoutes(
         if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
           const agentProfitValue = parseFloat(transaction.agentProfit || "0");
           await storage.updateAgentBalance(transaction.agentId, agentProfitValue, true);
+          // Also credit agent's profit wallet for withdrawals
+          const agent = await storage.getAgent(transaction.agentId);
+          if (agent) {
+            let profitWallet = await storage.getProfitWallet(agent.userId);
+            if (!profitWallet) {
+              profitWallet = await storage.createProfitWallet({
+                userId: agent.userId,
+                availableBalance: "0.00",
+                pendingBalance: "0.00",
+                totalEarned: "0.00",
+              });
+            }
+            const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + agentProfitValue).toFixed(2);
+            const newTotalEarned = (parseFloat(profitWallet.totalEarned) + agentProfitValue).toFixed(2);
+            await storage.updateProfitWallet(agent.userId, {
+              availableBalance: newAvailableBalance,
+              totalEarned: newTotalEarned,
+            });
+          }
         }
         return res.json({
           success: true,
@@ -2359,6 +2405,25 @@ export async function registerRoutes(
         }
         await storage.updateAgentBalance(transaction.agentId, agentProfitValue, true);
         console.log("[Verify] Agent credited");
+        // Also credit agent's profit wallet for withdrawals
+        const agent = await storage.getAgent(transaction.agentId);
+        if (agent) {
+          let profitWallet = await storage.getProfitWallet(agent.userId);
+          if (!profitWallet) {
+            profitWallet = await storage.createProfitWallet({
+              userId: agent.userId,
+              availableBalance: "0.00",
+              pendingBalance: "0.00",
+              totalEarned: "0.00",
+            });
+          }
+          const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + agentProfitValue).toFixed(2);
+          const newTotalEarned = (parseFloat(profitWallet.totalEarned) + agentProfitValue).toFixed(2);
+          await storage.updateProfitWallet(agent.userId, {
+            availableBalance: newAvailableBalance,
+            totalEarned: newTotalEarned,
+          });
+        }
         // Record admin revenue transaction
         const adminRef = `ADMINREV-${transaction.reference}`;
         await storage.createTransaction({
@@ -2919,6 +2984,26 @@ export async function registerRoutes(
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
+        // Also credit agent's profit wallet for withdrawals
+        const agent = await storage.getAgent(transaction.agentId);
+        if (agent) {
+          let profitWallet = await storage.getProfitWallet(agent.userId);
+          if (!profitWallet) {
+            profitWallet = await storage.createProfitWallet({
+              userId: agent.userId,
+              availableBalance: "0.00",
+              pendingBalance: "0.00",
+              totalEarned: "0.00",
+            });
+          }
+          const agentProfitValue = parseFloat(transaction.agentProfit || "0");
+          const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + agentProfitValue).toFixed(2);
+          const newTotalEarned = (parseFloat(profitWallet.totalEarned) + agentProfitValue).toFixed(2);
+          await storage.updateProfitWallet(agent.userId, {
+            availableBalance: newAvailableBalance,
+            totalEarned: newTotalEarned,
+          });
+        }
       }
       console.log("Payment processed via webhook:", reference);
     }
@@ -5668,6 +5753,25 @@ export async function registerRoutes(
         }
         // Credit agent with profit only
         await storage.updateAgentBalance(agentId, agentProfitValue, true);
+        // Also credit agent's profit wallet for withdrawals
+        const agent = await storage.getAgent(agentId);
+        if (agent) {
+          let profitWallet = await storage.getProfitWallet(agent.userId);
+          if (!profitWallet) {
+            profitWallet = await storage.createProfitWallet({
+              userId: agent.userId,
+              availableBalance: "0.00",
+              pendingBalance: "0.00",
+              totalEarned: "0.00",
+            });
+          }
+          const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + agentProfitValue).toFixed(2);
+          const newTotalEarned = (parseFloat(profitWallet.totalEarned) + agentProfitValue).toFixed(2);
+          await storage.updateProfitWallet(agent.userId, {
+            availableBalance: newAvailableBalance,
+            totalEarned: newTotalEarned,
+          });
+        }
         // Record admin revenue as a separate transaction for accounting
         const adminRef = `ADMINREV-${transaction.reference}`;
         await storage.createTransaction({

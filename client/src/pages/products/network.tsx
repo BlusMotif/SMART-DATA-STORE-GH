@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
-import { ShoppingCart, Package, Wallet, CreditCard, CheckCircle, ArrowLeft, Clock, AlertTriangle } from "lucide-react";
+import { ShoppingCart, Package, ArrowLeft, Clock, AlertTriangle } from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
@@ -142,6 +142,9 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const [phone, setPhone] = useState('');
   const [bulkPhones, setBulkPhones] = useState('');
 
+  console.log("[PublicPurchaseFlow] Received network prop:", network);
+  console.log("[PublicPurchaseFlow] Received agentSlug prop:", agentSlug);
+
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
     if (network === "at_ishare" && orderType === "bulk") {
@@ -149,32 +152,21 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     }
   }, [network, orderType]);
 
-  const { data: bundles, isLoading } = useQuery({
+  const { data: bundles, isLoading } = useQuery<any[]>({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
-      const url = `/api/products/data-bundles?network=${network}${agentSlug ? `&agent=${agentSlug}` : ''}`;
+      const params = new URLSearchParams();
+      if (network) params.append('network', network);
+      if (agentSlug) params.append('agent', agentSlug);
+      const url = `/api/products/data-bundles${params.toString() ? '?' + params.toString() : ''}`;
       console.log("[PublicPurchaseFlow] Fetching bundles from:", url);
-      const res = await apiRequest('GET', url);
-      const data = await res.json();
-      console.log("[PublicPurchaseFlow] Fetched bundles:", data);
-      console.log("[PublicPurchaseFlow] Fetched bundles length:", data?.length);
-      return data;
+      return await apiRequest('GET', url);
     },
     refetchOnMount: true,
     staleTime: 0, // Always consider data stale for agent storefronts
   });
 
-  const { data: agent } = useQuery({
-    queryKey: ['/api/store/agent', agentSlug],
-    queryFn: async () => {
-      if (!agentSlug) return null;
-      const res = await apiRequest('GET', `/api/store/agent/${agentSlug}`);
-      return res.json();
-    },
-    enabled: !!agentSlug
-  });
-
-  const sortedBundles = bundles?.filter((b: any) => b.network === network && b.isActive)
+  const sortedBundles = bundles?.filter((b: any) => (!network || b.network === network) && b.isActive)
     .sort((a: any, b: any) => {
       const priceA = parseFloat(a.effective_price);
       const priceB = parseFloat(b.effective_price);
@@ -190,7 +182,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const selectedBundle = sortedBundles?.find((b: any) => b.id === selectedBundleId) || null;
 
   const bulkTotal = useMemo(() => {
-    if (!bulkPhones?.trim() || !sortedBundles) return null;
+    if (!bulkPhones?.trim() || !sortedBundles) return { total: 0, count: 0 };
     const lines = bulkPhones.split('\n').filter(l => l.trim());
     let total = 0; let count = 0;
     for (const line of lines) {
@@ -210,13 +202,12 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         }
       }
     }
-    return count > 0 ? { total, count } : null;
+    return { total, count };
   }, [bulkPhones, sortedBundles]);
 
-  const checkoutMutation = useMutation({
+  const checkoutMutation = useMutation<any, Error, any>({
     mutationFn: async (payload: any) => {
-      const res = await apiRequest('POST', '/api/checkout/initialize', payload);
-      return res.json();
+      return await apiRequest('POST', '/api/checkout/initialize', payload);
     }
   });
 
@@ -229,19 +220,18 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
     // Re-fetch bundle to validate price
     try {
-      const res = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`);
-      const currentBundle = await res.json();
+      const currentBundleData = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`) as any;
       
       console.log("[Frontend] Price validation:");
       console.log("[Frontend] UI effective_price:", selectedBundle.effective_price);
-      console.log("[Frontend] Backend effective_price:", currentBundle.effective_price);
+      console.log("[Frontend] Backend effective_price:", currentBundleData.effective_price);
       
-      if (Math.abs(parseFloat(selectedBundle.effective_price) - parseFloat(currentBundle.effective_price)) > 0.01) {
+      if (Math.abs(parseFloat(selectedBundle.effective_price) - parseFloat(currentBundleData.effective_price)) > 0.01) {
         toast({ title: 'Price changed', description: 'Please refresh and try again', variant: 'destructive' });
         return;
       }
       
-      const amount = parseFloat(currentBundle.effective_price);
+      const amount = parseFloat(currentBundleData.effective_price);
       
       const payload = {
         productType: 'data_bundle',
@@ -283,6 +273,13 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       const validation = validatePhoneNetwork(normalized, network);
       if (!validation.isValid) { toast({ title: 'Phone mismatch', description: `${p}: ${validation.error}`, variant: 'destructive' }); return; }
       parsed.push({ phone: normalized, gb });
+    }
+
+    // Check for duplicate phone numbers
+    const phoneSet = new Set(parsed.map(p => p.phone));
+    if (phoneSet.size !== parsed.length) {
+      toast({ title: 'Duplicate Numbers', description: 'Phone numbers must be unique', variant: 'destructive' });
+      return;
     }
 
     // build orderItems
@@ -352,7 +349,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                     <SelectTrigger className="w-full"><SelectValue placeholder="Choose a data bundle" /></SelectTrigger>
                     <SelectContent>
                       {sortedBundles?.map((b: any) => {
-                        const price = b.customPrice ? parseFloat(b.customPrice) : parseFloat(b.basePrice);
+                        const price = parseFloat(b.effective_price);
                         return (
                           <SelectItem key={b.id} value={b.id}>{b.network.toUpperCase()} {b.dataAmount} - {b.validity} - GH₵{price.toFixed(2)}</SelectItem>
                         );
@@ -365,8 +362,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               {selectedBundle && (
                 <div className="p-4 bg-primary/20 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{(selectedBundle.customPrice ? parseFloat(selectedBundle.customPrice) : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
-                  <p className="text-2xl font-bold text-primary mt-2">GH₵{(selectedBundle.customPrice ? parseFloat(selectedBundle.customPrice) : parseFloat(selectedBundle.basePrice)).toFixed(2)}</p>
+                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-primary mt-2">GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
                 </div>
               )}
 

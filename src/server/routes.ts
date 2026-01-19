@@ -734,9 +734,10 @@ export async function registerRoutes(
       let role = user.email === 'eleblununana@gmail.com' ? 'admin' :
                  (user.user_metadata?.role || user.app_metadata?.role || 'user');
       let agent = null;
+      let dbUser = null;
       // Try to get additional data from database if connection is available
       try {
-        const dbUser = await storage.getUserByEmail(user.email!);
+        dbUser = await storage.getUserByEmail(user.email!);
         if (dbUser) {
           role = dbUser.role; // Database role takes precedence
           if (dbUser.role === UserRole.AGENT) {
@@ -755,6 +756,7 @@ export async function registerRoutes(
               role: 'user', // Default role for new users
               isActive: true,
             });
+            dbUser = newUser;
             role = newUser.role;
             console.log("User created in database with role:", role);
           } catch (createError) {
@@ -774,7 +776,8 @@ export async function registerRoutes(
           email: user.email!,
           name: user.user_metadata?.name || user.email!.split('@')[0],
           role: role,
-          phone: user.phone || null
+          phone: user.phone || null,
+          walletBalance: dbUser?.walletBalance || '0.00'
         },
         agent: agent ? {
           id: agent.id,
@@ -845,7 +848,7 @@ export async function registerRoutes(
       const activationFee = 60.00; // GHC 60.00
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
       console.log("Initializing payment without creating account");
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
@@ -987,7 +990,7 @@ export async function registerRoutes(
         console.log("Initializing Paystack payment...");
         // Initialize Paystack payment
         console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",
           headers: {
@@ -2163,7 +2166,7 @@ export async function registerRoutes(
       // Initialize Paystack payment
       const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
       // Use frontend URL for callback instead of backend URL
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
       const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
       console.log("[Checkout] Paystack initialization:", {
         totalAmount,
@@ -5351,7 +5354,7 @@ export async function registerRoutes(
         status: TransactionStatus.PENDING,
       });
       // Initialize Paystack payment
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
       const callbackUrl = `${frontendUrl}/wallet/topup/success`;
       const paystackResponse = await initializePayment({
         email: dbUser.email,

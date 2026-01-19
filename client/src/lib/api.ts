@@ -49,6 +49,14 @@ export const api = {
     initialize: () => api.buildUrl('/api/checkout/initialize'),
   },
 
+  wallet: {
+    topup: {
+      initialize: () => api.buildUrl('/api/wallet/topup/initialize'),
+      verify: (reference: string) => api.buildUrl(`/api/wallet/topup/verify/${reference}`),
+    },
+    pay: () => api.buildUrl('/api/wallet/pay'),
+  },
+
   transactions: {
     verify: (reference: string) => api.buildUrl(`/api/transactions/verify/${reference}`),
   },

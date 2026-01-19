@@ -38,10 +38,6 @@ interface AgentData {
   profile: AgentProfile;
 }
 
-interface WalletData {
-  balance: string;
-}
-
 interface MutationResponse {
   newBalance: string;
   paymentUrl: string;
@@ -105,12 +101,12 @@ export default function AgentBundlesPage() {
   });
 
   // Fetch wallet balance
-  const { data: walletData } = useQuery<WalletData>({
-    queryKey: ["/api/agent/wallet"],
-    queryFn: async () => apiRequest("GET", "/api/agent/wallet") as Promise<WalletData>,
+  const { data: walletData } = useQuery<{ user: { walletBalance: string } }>({
+    queryKey: ["/api/auth/me"],
+    enabled: true,
   });
 
-  const walletBalance = walletData?.balance ? parseFloat(walletData.balance) : 0;
+  const walletBalance = walletData?.user?.walletBalance ? parseFloat(walletData.user.walletBalance) : 0;
 
   // Calculate bulk purchase total
   const bulkTotal = useMemo(() => {
@@ -205,7 +201,7 @@ export default function AgentBundlesPage() {
         });
         setSelectedBundle(null);
         setPhoneNumber("");
-        queryClient.invalidateQueries({ queryKey: ["/api/agent/wallet"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       } else {
         window.location.href = data.paymentUrl;
@@ -336,7 +332,7 @@ export default function AgentBundlesPage() {
           duration: 5000,
         });
         setBulkPhoneNumbers("");
-        queryClient.invalidateQueries({ queryKey: ["/api/agent/wallet"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       } else {
         window.location.href = data.paymentUrl;

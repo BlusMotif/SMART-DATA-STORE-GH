@@ -159,25 +159,38 @@ export default function AgentWalletPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Wallet Balance</CardTitle>
+                  <CardTitle className="text-sm font-medium">User Wallet Balance</CardTitle>
                   <Wallet className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-primary">
+                    GH₵{user?.walletBalance || '0.00'}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Available for purchases</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Agent Profit Balance</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       `GH₵${stats?.balance || '0.00'}`
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Available balance</p>
+                  <p className="text-xs text-muted-foreground mt-2">Withdrawable earnings</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Top-ups</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <CreditCard className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
@@ -187,7 +200,7 @@ export default function AgentWalletPage() {
                       stats?.totalTopups || 0
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Total top-up transactions</p>
+                  <p className="text-xs text-muted-foreground mt-2">Wallet top-up transactions</p>
                 </CardContent>
               </Card>
 
@@ -207,34 +220,13 @@ export default function AgentWalletPage() {
                   <p className="text-xs text-muted-foreground mt-2">Total amount spent</p>
                 </CardContent>
               </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Last Top-up</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {statsLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : stats?.lastTopupAmount ? (
-                      `GH₵${stats.lastTopupAmount}`
-                    ) : (
-                      'N/A'
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {stats?.lastTopupDate ? new Date(stats.lastTopupDate).toLocaleDateString() : 'No top-ups yet'}
-                  </p>
-                </CardContent>
-              </Card>
             </div>
 
             {/* Top-up Section */}
             <Card>
               <CardHeader>
-                <CardTitle>Top Up Wallet</CardTitle>
-                <CardDescription>Add funds to your wallet to purchase data bundles</CardDescription>
+                <CardTitle>Top Up User Wallet</CardTitle>
+                <CardDescription>Add funds to your user wallet to purchase data bundles and make instant payments</CardDescription>
               </CardHeader>
               <CardContent>
                 <WalletTopup />

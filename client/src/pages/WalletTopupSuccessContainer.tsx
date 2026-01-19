@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { WalletTopupSuccessView } from "./WalletTopupSuccessView";
+
+interface WalletTopupVerifyResponse {
+  success: boolean;
+  message?: string;
+  amount?: number;
+  newBalance?: number;
+}
 
 export function WalletTopupSuccessContainer() {
   const [, setLocation] = useLocation();
@@ -15,16 +22,17 @@ export function WalletTopupSuccessContainer() {
 
   const [attempts, setAttempts] = useState(0);
 
-  const query = useQuery({
+  const query = useQuery<WalletTopupVerifyResponse>({
     queryKey: reference
       ? ["wallet-topup-verify", reference]
       : ["wallet-topup-missing-ref"],
-    queryFn: () =>
-      apiRequest(`/api/wallet/topup/verify/${reference}`, {
+    queryFn: async (): Promise<WalletTopupVerifyResponse> => {
+      return apiRequest(`/api/wallet/topup/verify/${reference}`, {
         disableAutoLogout: true,
-      }),
+      });
+    },
     enabled: Boolean(reference) && !authLoading && attempts < 10,
-    refetchInterval: (data) => (data?.success ? false : 3000),
+    refetchInterval: (query) => (query.state.data?.success ? false : 3000),
   });
 
   useEffect(() => {
@@ -36,6 +44,9 @@ export function WalletTopupSuccessContainer() {
     if (query.data?.success) {
       queryClient.invalidateQueries({
         queryKey: ["/api/user/stats"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/auth/me"],
       });
     }
   }, [query.data, queryClient]);

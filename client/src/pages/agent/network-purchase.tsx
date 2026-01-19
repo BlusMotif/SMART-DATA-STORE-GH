@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -9,11 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,13 +19,14 @@ import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { 
   Phone, Mail, Loader2, Clock, CreditCard, AlertTriangle, 
-  ArrowLeft, Package, ShoppingCart, Smartphone 
+  ArrowLeft, Package, ShoppingCart, Smartphone, Wallet, CheckCircle
 } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
-import * as XLSX from "xlsx";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
+
+type AgentDataBundle = DataBundle & { price: string };
 
 const networkInfo: Record<string, { name: string; logo: string }> = {
   mtn: { name: "MTN", logo: mtnLogo },
@@ -74,25 +73,20 @@ const bulkOrderSchema = z.object({
 type SingleOrderFormData = z.infer<typeof singleOrderSchema>;
 type BulkOrderFormData = z.infer<typeof bulkOrderSchema>;
 
-interface ValidationResult {
-  valid: string[];
-  invalid: { phone: string; reason: string }[];
-}
-
 export default function AgentNetworkPurchasePage() {
   const { role, slug, network } = useParams<{ role: string; slug: string; network: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderType, setOrderType] = useState<"single" | "bulk">("single");
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
 
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
     if (network === "at_ishare" && orderType === "bulk") {
       setOrderType("single");
-      setValidationResult(null);
     }
   }, [network, orderType]);
 
@@ -110,11 +104,18 @@ export default function AgentNetworkPurchasePage() {
   const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
 
   // Fetch agent data
-  const { data: storeData, isLoading: agentLoading } = useQuery<{ store: { businessName: string; businessDescription: string; slug: string; whatsappSupportLink?: string; whatsappChannelLink?: string; role: string }; dataBundles: DataBundle[] }>({
+  const { data: storeData, isLoading: agentLoading } = useQuery<{ store: { businessName: string; businessDescription: string; slug: string; whatsappSupportLink?: string; whatsappChannelLink?: string; role: string }; dataBundles: AgentDataBundle[] }>({
     queryKey: [`/api/store/${role}/${slug}`],
     enabled: !!role && !!slug,
   });
-  // Agent-scoped products are provided via `/api/store/:slug` as `dataBundles` with `price`.
+
+  // Fetch user wallet balance
+  const { data: userData } = useQuery<{ user: { walletBalance: string } }>({
+    queryKey: ["/api/auth/me"],
+    enabled: true,
+  });
+
+  const walletBalance = parseFloat(userData?.user?.walletBalance || "0");
   const dataBundles = storeData?.dataBundles || [];
 
   const filteredBundles = dataBundles?.filter(
@@ -147,7 +148,7 @@ export default function AgentNetworkPurchasePage() {
   // Calculate bulk purchase total with agent markup
   const bulkTotal = useMemo(() => {
     const phoneNumbers = bulkForm.watch("phoneNumbers");
-    if (!phoneNumbers?.trim() || !sortedBundles || !storeData?.store) return null;
+    if (!phoneNumbers?.trim() || !sortedBundles || !storeData?.store) return { total: 0, count: 0 };
     
     const lines = phoneNumbers.split('\n').filter(line => line.trim());
     // Pricing is already resolved on the server side, no additional markup needed
@@ -178,7 +179,7 @@ export default function AgentNetworkPurchasePage() {
       }
     }
     
-    return count > 0 ? { total, count } : null;
+    return { total, count };
   }, [bulkForm.watch("phoneNumbers"), sortedBundles, storeData?.store]);
 
   const initializePaymentMutation = useMutation({
@@ -214,8 +215,7 @@ export default function AgentNetworkPurchasePage() {
         
         console.log("[Agent Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
         
-        const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-        const result = await response.json();
+        const result = await apiRequest("POST", "/api/checkout/initialize", payload);
         
         console.log("[Agent Frontend] ===== SERVER RESPONSE =====");
         console.log("[Agent Frontend] Result:", result);
@@ -249,10 +249,9 @@ export default function AgentNetworkPurchasePage() {
 
       console.log("[Agent Frontend] Single/Legacy payload:", JSON.stringify(payload, null, 2));
 
-      const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-      return response.json();
+      return await apiRequest("POST", "/api/checkout/initialize", payload);
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       window.location.href = data.paymentUrl;
     },
     onError: (error: any) => {
@@ -265,31 +264,116 @@ export default function AgentNetworkPurchasePage() {
     },
   });
 
-  const validateBulkNumbers = (numbers: string[]) => {
-    if (!selectedBundle) return;
-
-    const valid: string[] = [];
-    const invalid: { phone: string; reason: string }[] = [];
-
-    numbers.forEach((phone) => {
-      const normalized = normalizePhoneNumber(phone);
-      const validation = validatePhoneNetwork(normalized, selectedBundle.network);
+  const walletPaymentMutation = useMutation({
+    mutationFn: async (data: SingleOrderFormData | BulkOrderFormData | {
+      orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }>;
+      totalAmount: number;
+      customerEmail?: string;
+    }) => {
+      console.log("[Agent Frontend] Wallet payment mutation called with:", data);
       
-      if (validation.isValid) {
-        valid.push(normalized);
-      } else {
-        invalid.push({
-          phone: normalized,
-          reason: validation.error || "Invalid network",
-        });
-      }
-    });
+      const isBulk = 'phoneNumbers' in data;
+      
+      // Handle new orderItems format (GB-based bulk orders)
+      if ('orderItems' in data && data.orderItems) {
+        const phoneNumbers = data.orderItems.map(item => item.phone);
+        const totalAmount = data.totalAmount;
 
-    setValidationResult({ valid, invalid });
-  };
+        console.log("[Agent Frontend] ========== WALLET BULK FORMAT PAYMENT ==========");
+        console.log("[Agent Frontend] Order items:", data.orderItems);
+        console.log("[Agent Frontend] Total amount:", totalAmount);
+        console.log("[Agent Frontend] ================================================");
+        
+        const payload = {
+          productType: "data_bundle",
+          network: network,
+          amount: totalAmount.toFixed(2),
+          customerPhone: phoneNumbers[0],
+          phoneNumbers: phoneNumbers,
+          isBulkOrder: true,
+          orderItems: data.orderItems,
+          customerEmail: data.customerEmail || undefined,
+          agentSlug: slug || undefined,
+        };
+        
+        console.log("[Agent Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
+        
+        const result = await apiRequest("POST", "/api/wallet/pay", payload);
+        
+        console.log("[Agent Frontend] ===== WALLET SERVER RESPONSE =====");
+        console.log("[Agent Frontend] Result:", result);
+        console.log("[Agent Frontend] ================================");
+        
+        return result;
+      }
+      
+      // Handle single purchase or legacy bulk format
+      if (!selectedBundle) throw new Error("No bundle selected");
+
+      console.log("[Agent Frontend] Is bulk:", isBulk);
+      console.log("[Agent Frontend] Data:", data);
+
+      const phoneNumbers = isBulk 
+        ? (data as BulkOrderFormData).phoneNumbers.split(/[\n,]/).map(n => n.trim()).filter(n => n)
+        : [(data as SingleOrderFormData).customerPhone];
+
+      console.log("[Agent Frontend] Phone numbers array:", phoneNumbers);
+      console.log("[Agent Frontend] First phone:", phoneNumbers[0]);
+
+      const payload = {
+        productType: "data_bundle",
+        productId: selectedBundle.id,
+        amount: price.toFixed(2),
+        customerPhone: phoneNumbers[0],
+        phoneNumbers: isBulk ? phoneNumbers : undefined,
+        isBulkOrder: isBulk,
+        customerEmail: data.customerEmail || undefined,
+        agentSlug: slug || undefined,
+      };
+
+      console.log("[Agent Frontend] Wallet single/legacy payload:", JSON.stringify(payload, null, 2));
+
+      return await apiRequest("POST", "/api/wallet/pay", payload);
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ Payment Successful",
+        description: `Data bundle purchased successfully. New balance: GHS ${data.newBalance}`,
+        variant: "default",
+        duration: 5000,
+      });
+      setIsProcessing(false);
+      // Refresh user data to update wallet balance
+      queryClient.invalidateQueries({
+        queryKey: ["/api/auth/me"],
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Payment Failed",
+        description: error.message || "Unable to process wallet payment",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+    },
+  });
 
   const onSubmit = (data: SingleOrderFormData | BulkOrderFormData) => {
     const isBulk = 'phoneNumbers' in data;
+    const totalAmount = isBulk ? bulkTotal.total : price;
+    
+    // Check payment method and wallet balance
+    if (paymentMethod === 'wallet') {
+      if (walletBalance < totalAmount) {
+        toast({
+          title: "❌ Insufficient Wallet Balance",
+          description: `You need GHS ${totalAmount.toFixed(2)} but only have GHS ${walletBalance.toFixed(2)} in your wallet.`,
+          variant: "destructive",
+          duration: 6000,
+        });
+        return;
+      }
+    }
     
     // Handle single purchase
     if (!isBulk) {
@@ -326,10 +410,18 @@ export default function AgentNetworkPurchasePage() {
       }
 
       setIsProcessing(true);
-      initializePaymentMutation.mutate({
-        customerPhone: normalizedPhone,
-        customerEmail: (data as SingleOrderFormData).customerEmail,
-      } as SingleOrderFormData);
+      
+      if (paymentMethod === 'wallet') {
+        walletPaymentMutation.mutate({
+          customerPhone: normalizedPhone,
+          customerEmail: (data as SingleOrderFormData).customerEmail,
+        } as SingleOrderFormData);
+      } else {
+        initializePaymentMutation.mutate({
+          customerPhone: normalizedPhone,
+          customerEmail: (data as SingleOrderFormData).customerEmail,
+        } as SingleOrderFormData);
+      }
       return;
     }
 
@@ -409,9 +501,20 @@ export default function AgentNetworkPurchasePage() {
       return;
     }
 
+    // Check for duplicate phone numbers
+    const phoneSet = new Set(parsedData.map(p => p.phone));
+    if (phoneSet.size !== parsedData.length) {
+      toast({
+        title: 'Duplicate Numbers',
+        description: 'Phone numbers must be unique',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Find matching bundles for each GB amount
     const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
-    let totalAmount = 0;
+    let bulkTotalAmount = 0;
 
     for (const item of parsedData) {
       // Find a bundle that matches the GB amount
@@ -444,19 +547,27 @@ export default function AgentNetworkPurchasePage() {
         price: agentPrice,
       });
 
-      totalAmount += agentPrice;
+      bulkTotalAmount += agentPrice;
     }
 
-    console.log("[Agent Frontend] Agent markup:", markup + "%");
     console.log("[Agent Frontend] Prepared order items:", orderItems);
-    console.log("[Agent Frontend] Total amount:", totalAmount);
+    console.log("[Agent Frontend] Total amount:", bulkTotalAmount);
 
     setIsProcessing(true);
-    initializePaymentMutation.mutate({
-      orderItems,
-      totalAmount,
-      customerEmail: bulkData.customerEmail,
-    });
+    
+    if (paymentMethod === 'wallet') {
+      walletPaymentMutation.mutate({
+        orderItems,
+        totalAmount: bulkTotalAmount,
+        customerEmail: bulkData.customerEmail,
+      });
+    } else {
+      initializePaymentMutation.mutate({
+        orderItems,
+        totalAmount: bulkTotalAmount,
+        customerEmail: bulkData.customerEmail,
+      });
+    }
   };
 
   if (agentLoading) {
@@ -522,7 +633,6 @@ export default function AgentNetworkPurchasePage() {
               {/* Order Type Selection */}
               <Tabs value={orderType} onValueChange={(v) => {
                   setOrderType(v as "single" | "bulk");
-                  setValidationResult(null);
                 }} className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="single" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
@@ -552,7 +662,6 @@ export default function AgentNetworkPurchasePage() {
                         <Label>Select Data Bundle</Label>
                         <Select value={selectedBundleId} onValueChange={(value) => {
                           setSelectedBundleId(value);
-                          setValidationResult(null);
                         }}>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Choose a data bundle..." />
@@ -613,11 +722,53 @@ export default function AgentNetworkPurchasePage() {
                           </span>
                         </div>
 
+                        {/* Payment Method Selection */}
+                        <div className="space-y-3 mb-4">
+                          <Label className="text-base font-semibold">Payment Method</Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setPaymentMethod('wallet')}
+                              className={`p-4 border-2 rounded-lg text-center transition-all ${
+                                paymentMethod === 'wallet'
+                                  ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300'
+                              }`}
+                            >
+                              <Wallet className="h-6 w-6 mx-auto mb-2 text-yellow-600" />
+                              <div className="font-semibold">Wallet</div>
+                              <div className="text-sm text-muted-foreground">
+                                Balance: {formatCurrency(walletBalance)}
+                              </div>
+                              {walletBalance < price && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  Insufficient balance
+                                </div>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPaymentMethod('paystack')}
+                              className={`p-4 border-2 rounded-lg text-center transition-all ${
+                                paymentMethod === 'paystack'
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                              }`}
+                            >
+                              <CreditCard className="h-6 w-6 mx-auto mb-2 text-blue-600" />
+                              <div className="font-semibold">Paystack</div>
+                              <div className="text-sm text-muted-foreground">
+                                Pay with card/mobile money
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+
                         <Button
                           type="submit"
                           className="w-full gap-2"
                           size="lg"
-                          disabled={isProcessing || !selectedBundleId}
+                          disabled={isProcessing || !selectedBundleId || (paymentMethod === 'wallet' && walletBalance < price)}
                         >
                           {isProcessing ? (
                             <>
@@ -626,8 +777,12 @@ export default function AgentNetworkPurchasePage() {
                             </>
                           ) : (
                             <>
-                              <CreditCard className="h-5 w-5" />
-                              Proceed to Payment
+                              {paymentMethod === 'wallet' ? (
+                                <Wallet className="h-5 w-5" />
+                              ) : (
+                                <CreditCard className="h-5 w-5" />
+                              )}
+                              {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Proceed to Payment'}
                             </>
                           )}
                         </Button>
@@ -694,6 +849,17 @@ export default function AgentNetworkPurchasePage() {
                             </FormItem>
                           )}
                         />
+
+                        {bulkTotal && bulkTotal.count > 0 && (
+                          <div className="pt-4">
+                            <div className="flex items-center justify-between mb-4 p-4 bg-muted rounded-lg">
+                              <span className="text-lg font-semibold">Total Amount:</span>
+                              <span className="text-2xl font-bold text-primary">
+                                {formatCurrency(bulkTotal.total)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
 
                         <Button
                           type="submit"

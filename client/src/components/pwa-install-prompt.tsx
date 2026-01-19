@@ -32,7 +32,8 @@ export function PWAInstallPrompt() {
     const dismissed = localStorage.getItem("pwa-install-dismissed");
     if (dismissed) {
       const dismissedTime = parseInt(dismissed, 10);
-      if (Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
+      // Show again after 1 hour for testing (was 7 days)
+      if (Date.now() - dismissedTime < 1 * 60 * 60 * 1000) {
         setDismissed(true);
         return;
       }
@@ -52,23 +53,42 @@ export function PWAInstallPrompt() {
       setDeferredPrompt(null);
     });
 
+    // For development/testing: show install button after 3 seconds if not installed
+    // and no beforeinstallprompt event has fired
+    const devTimer = setTimeout(() => {
+      if (!isInstalled && !dismissed && !showInstallButton) {
+        console.log("PWA: Showing install prompt for development/testing");
+        setShowInstallButton(true);
+      }
+    }, 3000);
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
+      clearTimeout(devTimer);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    if (deferredPrompt) {
+      // Use the native install prompt
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
 
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setIsInstalled(true);
+      }
 
-    if (outcome === "accepted") {
-      setIsInstalled(true);
+      setDeferredPrompt(null);
+      setShowInstallButton(false);
+    } else {
+      // Fallback for development/testing - try to trigger manual install
+      console.log("PWA: No deferred prompt available, attempting manual install");
+      // On some browsers, we can try to show instructions
+      alert("To install this app:\n\n1. Click the menu button (⋮) in your browser\n2. Select 'Add to Home screen' or 'Install app'\n3. Follow the prompts to install");
+      setShowInstallButton(false);
+      setDismissed(true);
+      localStorage.setItem("pwa-install-dismissed", Date.now().toString());
     }
-
-    setDeferredPrompt(null);
-    setShowInstallButton(false);
   };
 
   const handleDismiss = () => {

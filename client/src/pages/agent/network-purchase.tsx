@@ -19,7 +19,7 @@ import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { 
   Phone, Mail, Loader2, Clock, CreditCard, AlertTriangle, 
-  ArrowLeft, Package, ShoppingCart, Smartphone, Wallet, CheckCircle
+  ArrowLeft, Package, ShoppingCart, Smartphone, Wallet
 } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";

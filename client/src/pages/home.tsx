@@ -17,7 +17,8 @@ import {
   Users,
   Smartphone,
   CheckCircle,
-  Award
+  Award,
+  Package
 } from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -172,7 +173,14 @@ export default function HomePage() {
             text: "Browse Products",
             href: "/data-bundles",
             icon: ArrowRight,
+            size: "md",
             className: "bg-yellow-500 hover:bg-yellow-600 dark:text-white text-black"
+          }}
+          secondaryButton={{
+            text: "Track Order",
+            href: "#track-orders",
+            icon: Package,
+            size: "md"
           }}
           images={bannerImages}
           showNavigation={false}
@@ -195,7 +203,7 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
               {productCategories.map((cat) => (
-                <Link key={cat.id} href={`/products/${cat.id.replace('at_', '')}`}>
+                <Link key={cat.id} href={`/products/${cat.id}`}>
                   <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 dark:border-white shadow-md bg-card">
                     <CardContent className="p-2 text-center">
                       <div className="w-full h-32 mx-auto mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -236,7 +244,7 @@ export default function HomePage() {
         />
 
         {/* Order Tracking Section */}
-        <section className="py-20">
+        <section id="track-orders" className="py-20">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto text-center">
               <Badge variant="outline" className="mb-4">Track Orders</Badge>

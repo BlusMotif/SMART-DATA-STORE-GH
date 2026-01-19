@@ -180,23 +180,25 @@ export default function AgentStorefront() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <Input
                     value={agent ? `${window.location.origin}/store/agent/${agent.storefrontSlug}` : ""}
                     readOnly
-                    className="font-mono text-sm"
+                    className="font-mono text-sm flex-1 min-w-0"
                     data-testid="input-store-url"
                   />
-                  <Button variant="outline" size="icon" onClick={copyStoreLink} data-testid="button-copy-link">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  {agent && (
-                    <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" aria-label="Open storefront in new tab">
-                      <Button variant="outline" size="icon" data-testid="button-open-store">
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </a>
-                  )}
+                  <div className="flex items-center gap-2 sm:shrink-0">
+                    <Button variant="outline" size="icon" onClick={copyStoreLink} data-testid="button-copy-link">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    {agent && (
+                      <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" aria-label="Open storefront in new tab">
+                        <Button variant="outline" size="icon" data-testid="button-open-store">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </a>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

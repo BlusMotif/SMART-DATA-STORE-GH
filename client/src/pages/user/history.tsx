@@ -94,17 +94,6 @@ export default function UserHistoryPage() {
         <UserSidebar />
       </aside>
 
-      {/* Mobile Sidebar */}
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
-          <VisuallyHidden>
-            <SheetTitle>Navigation Menu</SheetTitle>
-            <SheetDescription>Main navigation for order history</SheetDescription>
-          </VisuallyHidden>
-          <UserSidebar onClose={() => setSidebarOpen(false)} />
-        </SheetContent>
-      </Sheet>
-
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b px-6 h-16 shrink-0">

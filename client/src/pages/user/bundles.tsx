@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup } from "@/components/ui/radio-group";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Loader2, Smartphone, Upload, Menu, ShoppingCart, Package, AlertCircle, Wallet, CreditCard, CheckCircle } from "lucide-react";
@@ -72,20 +71,21 @@ export default function UserBundlesPage() {
   // Single purchase state
   const [selectedBundle, setSelectedBundle] = useState<BundleWithPrice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
   
   // Bulk purchase state
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
-  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
 
-  const networkKey = network as keyof typeof NetworkInfo;
+  const networkKey = network?.replace(/-/g, '_') as keyof typeof NetworkInfo;
   const networkInfo = NetworkInfo[networkKey];
 
   // Fetch bundles
   const { data: bundles, isLoading } = useQuery<BundleWithPrice[]>({
     queryKey: ["/api/products/data-bundles", network],
     queryFn: async () => {
-      const response = await apiRequest<BundleWithPrice[]>("GET", `/api/products/data-bundles?network=${network}`);
+      const apiNetwork = network?.replace(/-/g, '_');
+      const response = await apiRequest<BundleWithPrice[]>("GET", `/api/products/data-bundles?network=${apiNetwork}`);
       return response;
     },
   });
@@ -166,7 +166,7 @@ export default function UserBundlesPage() {
           productId: bundle.id,
           customerPhone: phoneNumbers[0],
           phoneNumbers: undefined,
-          isBulkOrder: isBulk,
+          isBulkOrder: isBulk ? 1 : 0,
           customerEmail: user?.email || undefined,
         };
         
@@ -247,7 +247,7 @@ export default function UserBundlesPage() {
             productType: "data_bundle",
             network: network,
             customerPhone: phoneNumbers[0],
-            isBulkOrder: isBulk,
+            isBulkOrder: isBulk ? 1 : 0,
             orderItems: data.orderItems,
             totalAmount: totalAmount,
             customerEmail: user?.email || undefined,
@@ -371,6 +371,15 @@ export default function UserBundlesPage() {
         description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${price.toFixed(2)}. Please top up or use Paystack.`,
         variant: "destructive",
         duration: 7000,
+      });
+      return;
+    }
+
+    if (!paymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
       });
       return;
     }
@@ -505,6 +514,15 @@ export default function UserBundlesPage() {
         description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${parsedData.length} order(s). Please top up or use Paystack.`,
         variant: "destructive",
         duration: 7000,
+      });
+      return;
+    }
+
+    if (!bulkPaymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
       });
       return;
     }
@@ -657,7 +675,7 @@ export default function UserBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-4 bg-white dark:bg-black rounded-lg border border-primary/20">
+                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
                         <p className="text-sm text-muted-foreground">Selected Bundle</p>
                         <p className="font-medium text-lg">{selectedBundle.name}</p>
                         <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
@@ -684,24 +702,18 @@ export default function UserBundlesPage() {
 
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
-                      <RadioGroup 
-                        value={paymentMethod} 
-                        onValueChange={(value: "wallet" | "paystack") => setPaymentMethod(value)}
-                        className="grid gap-3"
-                      >
+                      <div className="grid gap-3">
                         {/* Wallet Payment Option */}
                         <div className="relative">
-                          <input
-                            type="radio"
-                            value="wallet"
-                            id="wallet-single"
-                            checked={paymentMethod === "wallet"}
-                            onChange={() => setPaymentMethod("wallet")}
-                            className="peer sr-only"
-                            disabled={selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) ? true : false}
-                          />
-                          <Label
-                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all ${
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod(paymentMethod === "wallet" ? null : "wallet")}
+                            disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
+                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
+                              paymentMethod === "wallet"
+                                ? "border-green-500 bg-green-50 shadow-md"
+                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                            } ${
                               selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""
@@ -719,7 +731,7 @@ export default function UserBundlesPage() {
                             {paymentMethod === "wallet" && (
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
-                          </Label>
+                          </button>
                           {selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
                             <div className="absolute top-2 right-2">
                               <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
@@ -731,16 +743,14 @@ export default function UserBundlesPage() {
 
                         {/* Paystack Payment Option */}
                         <div>
-                          <input
-                            type="radio"
-                            value="paystack"
-                            id="paystack-single"
-                            checked={paymentMethod === "paystack"}
-                            onChange={() => setPaymentMethod("paystack")}
-                            className="peer sr-only"
-                          />
-                          <Label
-                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all"
+                          <button
+                            type="button"
+                            onClick={() => setPaymentMethod(paymentMethod === "paystack" ? null : "paystack")}
+                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
+                              paymentMethod === "paystack"
+                                ? "border-green-500 bg-green-50 shadow-md"
+                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                            }`}
                           >
                             <div className="flex items-center gap-3">
                               <CreditCard className="h-5 w-5 text-green-600" />
@@ -754,14 +764,14 @@ export default function UserBundlesPage() {
                             {paymentMethod === "paystack" && (
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
-                          </Label>
+                          </button>
                         </div>
-                      </RadioGroup>
+                      </div>
                     </div>
 
                     {/* Insufficient Balance Alert */}
                     {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
-                      <Alert variant="destructive" className="border-destructive bg-white dark:bg-black">
+                      <Alert variant="default" className="border-destructive bg-white text-destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
                           <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBundle.basePrice) - (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)).toFixed(2)} more.
@@ -774,7 +784,7 @@ export default function UserBundlesPage() {
                       className="w-full"
                       size="lg"
                       onClick={handleSinglePurchase}
-                      disabled={!selectedBundle || !phoneNumber || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0))}
+                      disabled={!selectedBundle || !phoneNumber || !paymentMethod || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0))}
                     >
                       {purchaseMutation.isPending ? (
                         <>
@@ -824,57 +834,54 @@ export default function UserBundlesPage() {
                           <strong className="text-green-600">✓ No limit - add 100+ numbers!</strong>
                           <br />
                           All numbers must be for <strong>{networkInfo?.name}</strong> network.
-                          Valid prefixes: <strong>{network ? getNetworkPrefixes(network).join(", ") : ""}</strong>
+                          Valid prefixes: <strong>{networkKey ? getNetworkPrefixes(networkKey).join(", ") : ""}</strong>
                         </p>
                       </div>
 
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
-                      <RadioGroup 
-                        value={bulkPaymentMethod} 
-                        onValueChange={(value: "wallet" | "paystack") => setBulkPaymentMethod(value)}
-                        className="grid gap-3"
-                      >
+                      <div className="grid gap-3">
                         {/* Wallet Payment Option */}
                         <div className="relative">
-                          <input
-                            type="radio"
-                            value="wallet"
-                            id="wallet-bulk"
-                            checked={bulkPaymentMethod === "wallet"}
-                            onChange={() => setBulkPaymentMethod("wallet")}
-                            className="peer sr-only"
-                          />
-                          <Label
-                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all"
+                          <button
+                            type="button"
+                            onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "wallet" ? null : "wallet")}
+                            disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
+                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
+                              bulkPaymentMethod === "wallet"
+                                ? "border-green-500 bg-green-50 shadow-md"
+                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                            } ${
+                              selectedBundle && parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Wallet className="h-5 w-5" />
+                              <Wallet className="h-5 w-5 text-green-600" />
                               <div>
-                                <div className="font-medium">Wallet Balance</div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="font-medium text-green-700">Wallet Balance</div>
+                                <div className="text-sm text-green-600">
                                   Available: GH₵{stats?.walletBalance || '0.00'}
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "wallet" && (
-                              <CheckCircle className="h-5 w-5 text-primary" />
+                              <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
-                          </Label>
+                          </button>
                         </div>
 
                         {/* Paystack Payment Option */}
                         <div>
-                          <input
-                            type="radio"
-                            value="paystack"
-                            id="paystack-bulk"
-                            checked={bulkPaymentMethod === "paystack"}
-                            onChange={() => setBulkPaymentMethod("paystack")}
-                            className="peer sr-only"
-                          />
-                          <Label
-                            className="flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all"
+                          <button
+                            type="button"
+                            onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "paystack" ? null : "paystack")}
+                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
+                              bulkPaymentMethod === "paystack"
+                                ? "border-green-500 bg-green-50 shadow-md"
+                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                            }`}
                           >
                             <div className="flex items-center gap-3">
                               <CreditCard className="h-5 w-5 text-green-600" />
@@ -888,9 +895,9 @@ export default function UserBundlesPage() {
                             {bulkPaymentMethod === "paystack" && (
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
-                          </Label>
+                          </button>
                         </div>
-                      </RadioGroup>
+                      </div>
                     </div>
 
                       <Button
@@ -899,6 +906,7 @@ export default function UserBundlesPage() {
                         onClick={handleBulkPurchase}
                         disabled={
                           !bulkPhoneNumbers.trim() || 
+                          !bulkPaymentMethod ||
                           bulkPurchaseMutation.isPending
                         }
                       >

@@ -111,7 +111,7 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
 
   return (
     <div 
-      className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
+      className="flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
       style={{ backgroundColor: theme === 'dark' ? '#000000' : '#ffffff' }}
     >
       <div className="flex h-16 items-center gap-2 border-b px-6">
@@ -150,40 +150,20 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
           {sidebarNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
-            const isApiIntegrations = item.title === "API & Integrations";
-            
-            if (isApiIntegrations && onApiIntegrationsClick) {
-              return (
-                <div key={item.href}>
-                  <div
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
-                      "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    )}
-                    onClick={() => {
-                      onApiIntegrationsClick();
-                      onClose?.();
-                    }}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    <span>{item.title}</span>
-                  </div>
-                </div>
-              );
-            }
             
             return (
               <Link key={item.href} href={item.href}>
                 <div
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+                    "flex items-center gap-3 rounded-lg px-4 py-4 text-sm font-medium transition-colors cursor-pointer md:px-2 md:py-1.5 md:text-xs md:gap-2",
+                    "sm:px-6 sm:py-5 sm:text-base sm:gap-4",
                     isActive
                       ? "bg-yellow-500 text-white"
                       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                   onClick={onClose}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className="h-4 w-4 shrink-0 md:h-4 md:w-4 sm:h-6 sm:w-6" />
                   <span>{item.title}</span>
                 </div>
               </Link>
@@ -196,8 +176,9 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
         {!agent && (
           <Link href="/agent/register">
             <Button
+              size="sm"
               variant="default"
-              className="w-full justify-start gap-3 mb-3 bg-yellow-500 text-white hover:bg-yellow-600"
+              className="w-full justify-start gap-4 mb-4 bg-yellow-500 text-white hover:bg-yellow-600 md:gap-3 md:text-sm md:mb-3 md:py-2 sm:gap-5 sm:text-lg sm:py-4"
               onClick={onClose}
             >
               <Smartphone className="h-4 w-4" />
@@ -206,8 +187,9 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
           </Link>
         )}
         <Button
+          size="sm"
           variant="outline"
-          className="w-full justify-start gap-3"
+          className="w-full justify-start gap-4 md:gap-3 md:text-sm sm:gap-5 sm:text-lg sm:py-4"
           onClick={() => {
             logout();
             onClose?.();
@@ -217,6 +199,21 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
           <LogOut className="h-4 w-4" />
           {isLoggingOut ? "Logging out..." : "Logout"}
         </Button>
+        
+        {/* Developer Credit */}
+        <div className="mt-4 pt-4 border-t border-border/50">
+          <p className="text-xs text-muted-foreground text-center">
+            Developed by{' '}
+            <a
+              href="https://bm-portfolio-up2x.onrender.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              BlusMotif
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

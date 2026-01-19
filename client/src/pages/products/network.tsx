@@ -11,10 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
-import { ShoppingCart, Package, ArrowLeft, Clock, AlertTriangle } from "lucide-react";
+import { ShoppingCart, Package, ArrowLeft, Clock, AlertTriangle, Wallet, CreditCard } from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
@@ -28,7 +30,10 @@ const networkInfo: Record<string, { name: string; logo: string }> = {
 
 export default function NetworkProductsPage() {
   const { network } = useParams<{ network: string }>();
-  const info = networkInfo[network || ""] || { name: "Unknown", logo: "" };
+  // Handle legacy URLs where "bigtime" should be "at_bigtime" and "ishare" should be "at_ishare"
+  const normalizedNetwork = network === 'bigtime' ? 'at_bigtime' : network === 'ishare' ? 'at_ishare' : network;
+  const transformedNetwork = normalizedNetwork?.replace(/-/g, '_');
+  const info = networkInfo[transformedNetwork || ""] || { name: "Unknown", logo: "" };
   
   // Get agent slug from URL query param or localStorage
   const agentSlugFromQuery = new URLSearchParams(window.location.search).get("agent");
@@ -69,7 +74,7 @@ export default function NetworkProductsPage() {
           </div>
 
           {/* Public Purchase Flow (Single / Bulk) - guest users */}
-          <PublicPurchaseFlow network={network || ""} agentSlug={agentSlug} />
+          <PublicPurchaseFlow network={transformedNetwork || ""} agentSlug={agentSlug} />
 
           {/* Data Delivery Information */}
           <div className="mt-12 space-y-6">
@@ -137,10 +142,12 @@ export default function NetworkProductsPage() {
 
 function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug?: string | null }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [orderType, setOrderType] = useState<'single' | 'bulk'>('single');
   const [phone, setPhone] = useState('');
   const [bulkPhones, setBulkPhones] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
 
   console.log("[PublicPurchaseFlow] Received network prop:", network);
   console.log("[PublicPurchaseFlow] Received agentSlug prop:", agentSlug);
@@ -152,13 +159,19 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     }
   }, [network, orderType]);
 
+  // Fetch user stats for wallet balance
+  const { data: userStats } = useQuery<{ walletBalance?: string }>({
+    queryKey: ["/api/user/stats"],
+    enabled: !!user,
+  });
+
+  const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
+
   const { data: bundles, isLoading } = useQuery<any[]>({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (network) params.append('network', network);
-      if (agentSlug) params.append('agent', agentSlug);
-      const url = `/api/products/data-bundles${params.toString() ? '?' + params.toString() : ''}`;
+      const apiNetwork = network?.replace(/-/g, '_');
+      const url = `/api/products/data-bundles?network=${apiNetwork}`;
       console.log("[PublicPurchaseFlow] Fetching bundles from:", url);
       return await apiRequest('GET', url);
     },
@@ -166,7 +179,17 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     staleTime: 0, // Always consider data stale for agent storefronts
   });
 
-  const sortedBundles = bundles?.filter((b: any) => (!network || b.network === network) && b.isActive)
+  useQuery({
+    queryKey: ['/api/store/agent', agentSlug],
+    queryFn: async () => {
+      if (!agentSlug) return null;
+      const res = await apiRequest('GET', `/api/store/agent/${agentSlug}`);
+      return (res as Response).json();
+    },
+    enabled: !!agentSlug
+  });
+
+  const sortedBundles = bundles?.filter((b: any) => b.network === network?.replace(/-/g, '_') && b.isActive)
     .sort((a: any, b: any) => {
       const priceA = parseFloat(a.effective_price);
       const priceB = parseFloat(b.effective_price);
@@ -207,7 +230,11 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
   const checkoutMutation = useMutation<any, Error, any>({
     mutationFn: async (payload: any) => {
-      return await apiRequest('POST', '/api/checkout/initialize', payload);
+      if (payload.paymentMethod === "wallet") {
+        return await apiRequest('POST', '/api/wallet/pay', payload);
+      } else {
+        return await apiRequest('POST', '/api/checkout/initialize', payload);
+      }
     }
   });
 
@@ -218,18 +245,22 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     const validation = validatePhoneNetwork(normalized, selectedBundle.network);
     if (!validation.isValid) { toast({ title: 'Phone mismatch', description: validation.error || 'Network mismatch', variant: 'destructive' }); return; }
 
-    // Re-fetch bundle to validate price
-    try {
-      const currentBundleData = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`) as any;
-      
-      console.log("[Frontend] Price validation:");
-      console.log("[Frontend] UI effective_price:", selectedBundle.effective_price);
-      console.log("[Frontend] Backend effective_price:", currentBundleData.effective_price);
-      
-      if (Math.abs(parseFloat(selectedBundle.effective_price) - parseFloat(currentBundleData.effective_price)) > 0.01) {
-        toast({ title: 'Price changed', description: 'Please refresh and try again', variant: 'destructive' });
+    // Check wallet balance if paying with wallet
+    if (paymentMethod === "wallet") {
+      if (!user) {
+        toast({ title: 'Login required', description: 'Please log in to pay with wallet', variant: 'destructive' });
         return;
       }
+      const price = parseFloat(selectedBundle.effective_price);
+      if (walletBalance < price) {
+        toast({ title: 'Insufficient balance', description: 'Your wallet balance is not enough', variant: 'destructive' });
+        return;
+      }
+    }
+
+    // Fetch bundle to get current price
+    try {
+      const currentBundleData = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`) as any;
       
       const amount = parseFloat(currentBundleData.effective_price);
       
@@ -239,18 +270,31 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         customerPhone: normalized,
         amount: amount.toFixed(2),
         isBulkOrder: false,
-        agentSlug: agentSlug || undefined,
+        agentSlug: undefined,
+        paymentMethod,
+        productName: selectedBundle.name,
+        network: selectedBundle.network,
       };
 
       console.log("[Frontend] Single purchase payload:");
       console.log("[Frontend] amount:", amount);
 
       checkoutMutation.mutate(payload, {
-        onSuccess: (data) => { if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' }); },
+        onSuccess: (data) => {
+          if (paymentMethod === "wallet") {
+            toast({
+              title: "✅ Payment Successful!",
+              description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Processing your order...`,
+              duration: 5000,
+            });
+          } else {
+            if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
+          }
+        },
         onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
       });
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to validate price', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to fetch bundle details', variant: 'destructive' });
     }
   };
 
@@ -295,6 +339,18 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       total += price;
     }
 
+    // Check wallet balance if paying with wallet
+    if (paymentMethod === "wallet") {
+      if (!user) {
+        toast({ title: 'Login required', description: 'Please log in to pay with wallet', variant: 'destructive' });
+        return;
+      }
+      if (walletBalance < total) {
+        toast({ title: 'Insufficient balance', description: 'Your wallet balance is not enough', variant: 'destructive' });
+        return;
+      }
+    }
+
     const payload = {
       productType: 'data_bundle',
       network: network,
@@ -302,11 +358,22 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       isBulkOrder: true,
       orderItems,
       totalAmount: total,
-      agentSlug: agentSlug || undefined,
+      agentSlug: undefined,
+      paymentMethod,
     };
 
     checkoutMutation.mutate(payload, {
-      onSuccess: (data) => { if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' }); },
+      onSuccess: (data) => {
+        if (paymentMethod === "wallet") {
+          toast({
+            title: "✅ Payment Successful!",
+            description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Processing your orders...`,
+            duration: 5000,
+          });
+        } else {
+          if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
+        }
+      },
       onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
     });
   };
@@ -360,7 +427,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               </div>
 
               {selectedBundle && (
-                <div className="p-4 bg-primary/20 rounded-lg border border-primary/20">
+                <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
                   <p className="text-sm text-muted-foreground">Selected Bundle</p>
                   <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
                   <p className="text-2xl font-bold text-primary mt-2">GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
@@ -373,8 +440,36 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                 <p className="text-xs text-muted-foreground">Enter one number. Supports 0241234567 or 233241234567 (no +). Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
               </div>
 
+              <div>
+                <Label>Payment Method</Label>
+                <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'paystack' | 'wallet')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="paystack" id="paystack" />
+                    <Label htmlFor="paystack" className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Paystack
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="wallet" id="wallet" disabled={!user} />
+                    <Label htmlFor="wallet" className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      Wallet {user ? `(Balance: GH₵${walletBalance.toFixed(2)})` : '(Login required)'}
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="flex justify-end">
-                <Button onClick={handleSingle} disabled={!selectedBundle}>Pay with Paystack</Button>
+                <Button 
+                  onClick={handleSingle} 
+                  disabled={
+                    !selectedBundle || 
+                    (paymentMethod === 'wallet' && (!user || walletBalance < parseFloat(selectedBundle?.effective_price || '0')))
+                  }
+                >
+                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -390,8 +485,37 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               <Textarea placeholder={`0546591622 1\n0247064874 3\n233547897522 10`} value={bulkPhones} onChange={(e) => setBulkPhones(e.target.value)} rows={8} />
               <p className="text-sm text-muted-foreground">Enter one number per line with GB amount (e.g., "0241234567 2"). Supports 0241234567 or 233241234567 (no +). No limit - add 100+ numbers! All numbers must be for {network.toUpperCase()}. Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
               {bulkTotal && <p className="font-medium">{bulkTotal.count} items • GH₵{bulkTotal.total.toFixed(2)}</p>}
+
+              <div>
+                <Label>Payment Method</Label>
+                <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'paystack' | 'wallet')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="paystack" id="bulk-paystack" />
+                    <Label htmlFor="bulk-paystack" className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Paystack
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="wallet" id="bulk-wallet" disabled={!user} />
+                    <Label htmlFor="bulk-wallet" className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      Wallet {user ? `(Balance: GH₵${walletBalance.toFixed(2)})` : '(Login required)'}
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="flex justify-end">
-                <Button onClick={handleBulk}>Purchase {bulkTotal ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}</Button>
+                <Button 
+                  onClick={handleBulk}
+                  disabled={
+                    bulkTotal.count === 0 || 
+                    (paymentMethod === 'wallet' && (!user || walletBalance < bulkTotal.total))
+                  }
+                >
+                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'} {bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}
+                </Button>
               </div>
             </CardContent>
           </Card>

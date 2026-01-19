@@ -6,7 +6,7 @@ import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sideba
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
+import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
-import { Agent, Transaction } from "../../../shared/schema.js";
+import { Agent, Transaction } from "@shared/schema";
 
 interface AgentStats {
   balance: number;
@@ -152,10 +152,10 @@ export default function AgentDashboard() {
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">
+                    <h2 className="text-base sm:text-2xl font-bold text-white">
                       Welcome back, {agent?.user?.name?.split(' ')[0] || 'Agent'}! 👋
                     </h2>
-                    <p className="text-white/90 mt-1">
+                    <p className="text-xs sm:text-base text-white/90 mt-1">
                       Here's what's happening with your business today
                     </p>
                   </div>
@@ -362,20 +362,21 @@ export default function AgentDashboard() {
                         <p className="text-xs text-white/90 mb-3">
                           Share this link with your customers:
                         </p>
-                        <code className="text-sm bg-white text-green-600 px-2 py-1 rounded mt-2 inline-block border border-green-700">
+                        <code className="text-xs sm:text-sm bg-white text-green-600 px-2 py-1 rounded mt-2 block sm:inline-block border border-green-700 break-all sm:break-normal">
                           {window.location.origin}/store/agent/{agent.storefrontSlug}
                         </code>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => navigator.clipboard.writeText(`${window.location.origin}/store/agent/${agent.storefrontSlug}`)}
+                          className="w-full sm:w-auto"
                         >
                           Copy Link
                         </Button>
-                        <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm">
+                        <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+                          <Button size="sm" className="w-full">
                             <ExternalLink className="h-4 w-4 mr-1" />
                             Visit
                           </Button>

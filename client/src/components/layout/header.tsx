@@ -170,7 +170,7 @@ export function Header() {
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuContent align="end" className="w-64 bg-white">
                   <div className="flex items-center gap-3 p-3 border-b">
                     <Avatar className="h-10 w-10">
                       <AvatarFallback className="bg-primary text-primary-foreground">
@@ -178,8 +178,10 @@ export function Header() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-medium text-sm">{user.name || "User"}</span>
-                      <span className="text-xs text-muted-foreground">{user.email}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{user.name || "User"}</span>
+                        <span className="text-xs text-muted-foreground">({user.email})</span>
+                      </div>
                       <span className="text-xs text-primary capitalize">{user.role}</span>
                     </div>
                   </div>

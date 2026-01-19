@@ -152,6 +152,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
             return (
               <Link key={item.href} href={item.href}>
                 <Button
+                  size="sm"
                   variant={isActive ? "secondary" : "ghost"}
                   className={cn(
                     "w-full justify-start gap-3 font-normal relative",
@@ -172,7 +173,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
 
           {agent && (
             <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="mt-2">
-              <Button variant="outline" className="w-full justify-start gap-3" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
+              <Button size="sm" variant="outline" className="w-full justify-start gap-3" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
                 <ExternalLink className="h-4 w-4" />
                 View Public Store
               </Button>
@@ -183,6 +184,7 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
 
       <div className="border-t p-3">
         <Button
+          size="sm"
           variant="ghost"
           className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => { onClose && onClose(); logout(); }}
@@ -442,6 +444,21 @@ export function AgentSidebar({ onClose }: { onClose?: () => void } = {}) {
           <LogOut className="h-4 w-4" />
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
+        
+        {/* Developer Credit */}
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <p className="text-xs text-muted-foreground text-center">
+            Developed by{' '}
+            <a
+              href="https://bm-portfolio-up2x.onrender.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              BlusMotif
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

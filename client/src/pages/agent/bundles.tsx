@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup } from "@/components/ui/radio-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Loader2, Smartphone, Upload, Menu, Package, AlertCircle, Wallet, CreditCard, CheckCircle } from "lucide-react";
@@ -76,11 +76,11 @@ export default function AgentBundlesPage() {
   // Single purchase state
   const [selectedBundle, setSelectedBundle] = useState<BundleWithPrice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack" | undefined>('paystack');
   
   // Bulk purchase state
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
-  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack">("wallet");
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack" | undefined>('paystack');
 
   // Fetch bundles for the selected network
   const { data: bundles, isLoading: bundlesLoading } = useQuery({
@@ -132,8 +132,7 @@ export default function AgentBundlesPage() {
           });
           
           if (matchingBundle) {
-            const agentPrice = matchingBundle.agentPrice ? parseFloat(matchingBundle.agentPrice) : 
-              parseFloat(matchingBundle.basePrice) + (parseFloat(matchingBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100);
+            const agentPrice = parseFloat(matchingBundle.effective_price);
             total += agentPrice;
             count++;
           }
@@ -142,7 +141,7 @@ export default function AgentBundlesPage() {
     }
     
     return count > 0 ? { total, count } : null;
-  }, [bulkPhoneNumbers, bundles, agentData]);
+  }, [bulkPhoneNumbers, bundles]);
 
   // Single purchase mutation
   const purchaseMutation = useMutation({
@@ -151,9 +150,7 @@ export default function AgentBundlesPage() {
       if (!bundle) throw new Error("Bundle not found");
       
       const phoneNumbers = [data.phoneNumber];
-      const basePrice = parseFloat(bundle.basePrice);
-      const markup = agentData?.profile?.markupPercentage || 0;
-      const agentPrice = basePrice + (basePrice * markup / 100);
+      const agentPrice = parseFloat(bundle.effective_price);
       const isBulk = false;
 
       console.log("[Frontend] Single order payment initialization");
@@ -356,9 +353,7 @@ export default function AgentBundlesPage() {
   const handleSinglePurchase = () => {
     if (!selectedBundle || !phoneNumber) return;
     
-    const basePrice = parseFloat(selectedBundle.basePrice);
-    const markup = agentData?.profile?.markupPercentage || 0;
-    const agentPrice = basePrice + (basePrice * markup / 100);
+    const agentPrice = parseFloat(selectedBundle.effective_price);
     
     if (paymentMethod === "wallet" && agentPrice > walletBalance) {
       toast({
@@ -366,6 +361,15 @@ export default function AgentBundlesPage() {
         description: `You need GH₵${(agentPrice - walletBalance).toFixed(2)} more. Please top up your wallet or use Paystack.`,
         variant: "destructive",
         duration: 6000,
+      });
+      return;
+    }
+
+    if (!paymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
       });
       return;
     }
@@ -514,6 +518,15 @@ export default function AgentBundlesPage() {
       return;
     }
 
+    if (!bulkPaymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
+      });
+      return;
+    }
+
     bulkPurchaseMutation.mutate({
       bundleId: "", // Not used in new format
       phoneNumbers: [], // Not used in new format
@@ -655,12 +668,10 @@ export default function AgentBundlesPage() {
                           <SelectContent>
                             {bundles && bundles.length > 0 ? (
                               bundles.map((bundle) => {
-                                const basePrice = parseFloat(bundle.basePrice);
-                                const markup = agentData?.profile?.markupPercentage || 0;
-                                const agentPrice = basePrice + (basePrice * markup / 100);
+                                const effectivePrice = parseFloat(bundle.effective_price);
                                 return (
                                   <SelectItem key={bundle.id} value={bundle.id}>
-                                    {bundle.name} - {bundle.validity} - GH₵{agentPrice.toFixed(2)}
+                                    {bundle.name} - {bundle.validity} - GH₵{effectivePrice.toFixed(2)}
                                   </SelectItem>
                                 );
                               })
@@ -676,7 +687,7 @@ export default function AgentBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-4 bg-white dark:bg-black rounded-lg border border-primary/20">
+                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
                         <p className="text-sm text-muted-foreground">Selected Bundle</p>
                         <p className="font-medium text-lg">{selectedBundle.name}</p>
                         <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
@@ -685,13 +696,8 @@ export default function AgentBundlesPage() {
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <span className="text-2xl font-bold text-primary">
-                            GH₵{(parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)).toFixed(2)}
+                            GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}
                           </span>
-                          {(agentData?.profile?.markupPercentage || 0) > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{(agentData?.profile?.markupPercentage || 0)}% markup
-                            </Badge>
-                          )}
                         </div>
                       </div>
                     )}
@@ -713,24 +719,22 @@ export default function AgentBundlesPage() {
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
                       <RadioGroup 
-                        value={paymentMethod} 
+                        value={paymentMethod || ""} 
                         onValueChange={(value: "wallet" | "paystack") => setPaymentMethod(value)}
                         className="grid gap-3"
                       >
                         {/* Wallet Payment Option */}
                         <div className="relative">
-                          <input
-                            type="radio"
+                          <RadioGroupItem
                             value="wallet"
                             id="wallet-single"
-                            checked={paymentMethod === "wallet"}
-                            onChange={() => setPaymentMethod("wallet")}
+                            disabled={selectedBundle ? parseFloat(selectedBundle.effective_price) > walletBalance : false}
                             className="peer sr-only"
-                            disabled={selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance ? true : false}
                           />
                           <Label
+                            htmlFor="wallet-single"
                             className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all ${
-                              selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance
+                              selectedBundle ? parseFloat(selectedBundle.effective_price) > walletBalance : false
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""
                             }`}
@@ -748,7 +752,7 @@ export default function AgentBundlesPage() {
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
-                          {selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance && (
+                          {selectedBundle ? parseFloat(selectedBundle.effective_price) > walletBalance : false && (
                             <div className="absolute top-2 right-2">
                               <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
                                 Insufficient
@@ -759,15 +763,13 @@ export default function AgentBundlesPage() {
 
                         {/* Paystack Payment Option */}
                         <div>
-                          <input
-                            type="radio"
+                          <RadioGroupItem
                             value="paystack"
                             id="paystack-single"
-                            checked={paymentMethod === "paystack"}
-                            onChange={() => setPaymentMethod("paystack")}
                             className="peer sr-only"
                           />
                           <Label
+                            htmlFor="paystack-single"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
@@ -787,12 +789,11 @@ export default function AgentBundlesPage() {
                       </RadioGroup>
                     </div>
 
-                    {/* Insufficient Balance Alert */}
-                    {selectedBundle && paymentMethod === "wallet" && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance && (
-                      <Alert variant="destructive" className="border-destructive bg-white dark:bg-black">
+                    {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.effective_price) > walletBalance && (
+                      <Alert variant="default" className="border-destructive bg-white text-destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
-                          <strong>Insufficient Balance:</strong> You need GH₵{((parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) - walletBalance).toFixed(2)} more.
+                          <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBundle.effective_price) - walletBalance).toFixed(2)} more.
                           <a href="/agent/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack.
                         </AlertDescription>
                       </Alert>
@@ -802,7 +803,7 @@ export default function AgentBundlesPage() {
                       className="w-full"
                       size="lg"
                       onClick={handleSinglePurchase}
-                      disabled={!selectedBundle || !phoneNumber || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && (parseFloat(selectedBundle.basePrice) + (parseFloat(selectedBundle.basePrice) * (agentData?.profile?.markupPercentage || 0) / 100)) > walletBalance)}
+                      disabled={!selectedBundle || !phoneNumber || !paymentMethod || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && parseFloat(selectedBundle.effective_price) > walletBalance)}
                     >
                       {purchaseMutation.isPending ? (
                         <>
@@ -860,49 +861,55 @@ export default function AgentBundlesPage() {
                     <div className="space-y-3">
                       <Label>Payment Method</Label>
                       <RadioGroup 
-                        value={bulkPaymentMethod} 
+                        value={bulkPaymentMethod || ""} 
                         onValueChange={(value: "wallet" | "paystack") => setBulkPaymentMethod(value)}
                         className="grid gap-3"
                       >
                         {/* Wallet Payment Option */}
                         <div className="relative">
-                          <input
-                            type="radio"
+                          <RadioGroupItem
                             value="wallet"
                             id="wallet-bulk"
-                            checked={bulkPaymentMethod === "wallet"}
-                            onChange={() => setBulkPaymentMethod("wallet")}
+                            disabled={bulkTotal ? walletBalance < bulkTotal.total : false}
                             className="peer sr-only"
                           />
                           <Label
-                            className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white dark:bg-black p-4 hover:border-primary hover:shadow-md peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:shadow-md cursor-pointer transition-all`}
+                            htmlFor="wallet-bulk"
+                            className={`flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all ${
+                              bulkTotal ? walletBalance < bulkTotal.total : false ? "opacity-50 cursor-not-allowed" : ""
+                            }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Wallet className="h-5 w-5" />
+                              <Wallet className="h-5 w-5 text-green-600" />
                               <div>
-                                <div className="font-medium">Wallet Balance</div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="font-medium text-green-700">Wallet Balance</div>
+                                <div className="text-sm text-green-600">
                                   Available: GH₵{walletBalance.toFixed(2)}
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "wallet" && (
-                              <CheckCircle className="h-5 w-5 text-primary" />
+                              <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
+                          {bulkTotal ? walletBalance < bulkTotal.total : false && (
+                            <div className="absolute top-2 right-2">
+                              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                                Insufficient
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Paystack Payment Option */}
                         <div>
-                          <input
-                            type="radio"
+                          <RadioGroupItem
                             value="paystack"
                             id="paystack-bulk"
-                            checked={bulkPaymentMethod === "paystack"}
-                            onChange={() => setBulkPaymentMethod("paystack")}
                             className="peer sr-only"
                           />
                           <Label
+                            htmlFor="paystack-bulk"
                             className="flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all"
                           >
                             <div className="flex items-center gap-3">
@@ -922,13 +929,26 @@ export default function AgentBundlesPage() {
                       </RadioGroup>
                     </div>
 
+                    {/* Insufficient Balance Alert for Bulk */}
+                    {bulkTotal && bulkPaymentMethod === "wallet" && walletBalance < bulkTotal.total && (
+                      <Alert variant="default" className="border-destructive bg-white text-destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                          <strong>Insufficient Balance:</strong> You need GH₵{(bulkTotal.total - walletBalance).toFixed(2)} more.
+                          <a href="/agent/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
                       <Button
                         className="w-full"
                         size="lg"
                         onClick={handleBulkPurchase}
                         disabled={
-                          !bulkPhoneNumbers.trim() || 
-                          bulkPurchaseMutation.isPending
+                          !bulkPhoneNumbers.trim() ||
+                          !bulkPaymentMethod ||
+                          bulkPurchaseMutation.isPending ||
+                          (bulkPaymentMethod === "wallet" && bulkTotal !== null && walletBalance < bulkTotal.total)
                         }
                       >
                         {bulkPurchaseMutation.isPending ? (
@@ -939,7 +959,7 @@ export default function AgentBundlesPage() {
                         ) : (
                           <>
                             <Upload className="mr-2 h-4 w-4" />
-                            {bulkTotal 
+                            {bulkTotal
                               ? `Purchase for GH₵${bulkTotal.total.toFixed(2)} (${bulkTotal.count} items)`
                               : "Purchase Data Bundles"
                             }

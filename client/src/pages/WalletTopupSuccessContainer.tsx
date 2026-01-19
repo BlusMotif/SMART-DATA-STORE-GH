@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useQuery, useQueryClient, UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { WalletTopupSuccessView } from "./WalletTopupSuccessView";

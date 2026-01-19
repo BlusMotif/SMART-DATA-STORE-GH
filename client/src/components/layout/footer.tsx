@@ -70,6 +70,17 @@ export function Footer() {
 
         <div className="mt-8 pt-8 border-t text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.</p>
+          <p className="mt-2">
+            Developed by{' '}
+            <a
+              href="https://bm-portfolio-up2x.onrender.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              BlusMotif
+            </a>
+          </p>
         </div>
       </div>
     </footer>

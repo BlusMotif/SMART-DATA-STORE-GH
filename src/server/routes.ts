@@ -1064,21 +1064,6 @@ export async function registerRoutes(
     try {
       let bundles = await storage.getDataBundles({ network, isActive: true });
       console.log(`[API] Fetched ${bundles.length} bundles for network: ${network}`);
-      // If no bundles exist for the requested network, create default ones
-      if (network && bundles.length === 0) {
-        console.log(`No bundles found for network: ${network}, creating default bundles...`);
-        const defaultBundles = getDefaultBundlesForNetwork(network);
-        for (const bundleData of defaultBundles) {
-          try {
-            await storage.createDataBundle(bundleData);
-            console.log(`Created default bundle: ${bundleData.name} for ${network}`);
-          } catch (createError) {
-            console.error(`Failed to create bundle ${bundleData.name}:`, createError);
-          }
-        }
-        // Re-fetch bundles after creation
-        bundles = await storage.getDataBundles({ network, isActive: true });
-      }
       let pricedBundles;
       if (agentSlug) {
         // Handle agent storefront pricing - use resolved prices
@@ -1137,16 +1122,21 @@ export async function registerRoutes(
           let profitMargin = '0.00';
           let adminBasePriceValue = parseFloat(bundle.basePrice || '0');
           if (userRole !== 'guest' && userId) {
-            // Get resolved price (custom selling price or admin base price fallback)
+            // Get resolved price (custom selling price or role base price fallback)
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, userId, userRole);
+            const roleBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
+            
             if (resolvedPrice) {
               effectivePrice = parseFloat(resolvedPrice);
-              // Calculate profit margin (selling price - admin base price)
-              const adminBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
-              if (adminBasePrice) {
-                adminBasePriceValue = parseFloat(adminBasePrice);
+              // Calculate profit margin (selling price - role base price)
+              if (roleBasePrice) {
+                adminBasePriceValue = parseFloat(roleBasePrice);
                 profitMargin = (effectivePrice - adminBasePriceValue).toFixed(2);
               }
+            } else if (roleBasePrice) {
+              // Use role base price if no resolved price
+              effectivePrice = parseFloat(roleBasePrice);
+              adminBasePriceValue = effectivePrice;
             }
           } else {
             // Guest users see base price
@@ -1197,41 +1187,8 @@ export async function registerRoutes(
       if (!bundle || !bundle.isActive) {
         return res.status(404).json({ error: "Data bundle not found" });
       }
-      // Apply role-based pricing
-      let userRole = 'guest';
-      try {
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          const token = authHeader.substring(7);
-          const supabaseServer = getSupabase();
-          if (supabaseServer) {
-            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-            if (!error && user && user.email) {
-              const dbUser = await storage.getUserByEmail(user.email);
-              if (dbUser) {
-                userRole = dbUser.role;
-              }
-            }
-          }
-        }
-      } catch (authError) {
-        // Ignore auth errors, treat as guest
-        console.log('Auth check failed, treating as guest');
-      }
-      let price = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
-      // Apply role-based pricing
-      if (userRole === 'agent') {
-        price = parseFloat(bundle.agentPrice || bundle.adminPrice || bundle.basePrice || '0');
-      } else if (userRole === 'dealer' && bundle.dealerPrice) {
-        price = parseFloat(bundle.dealerPrice);
-      } else if (userRole === 'super_dealer' && bundle.superDealerPrice) {
-        price = parseFloat(bundle.superDealerPrice);
-      } else if (userRole === 'master' && bundle.masterPrice) {
-        price = parseFloat(bundle.masterPrice);
-      } else if (userRole === 'admin' && bundle.adminPrice) {
-        price = parseFloat(bundle.adminPrice);
-      }
-      if (isNaN(price)) price = 0;
+      // For public purchase, always use base price
+      const price = parseFloat(bundle.basePrice || '0');
       res.json({
         ...bundle,
         effective_price: price.toFixed(2),
@@ -1918,7 +1875,7 @@ export async function registerRoutes(
               amount = parseFloat(product.adminPrice || product.basePrice || '0');
             }
           } else {
-            amount = parseFloat(product.adminPrice || product.basePrice || '0');
+            amount = parseFloat(product.basePrice || '0');
           }
         }
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
@@ -5155,6 +5112,14 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Order not found. Please check your transaction ID or beneficiary phone number." });
       }
       // Return limited transaction info for tracking
+      let phoneNumbers = transaction.phoneNumbers;
+      if (typeof phoneNumbers === 'string') {
+        try {
+          phoneNumbers = JSON.parse(phoneNumbers);
+        } catch (e) {
+          phoneNumbers = null;
+        }
+      }
       res.json({
         id: transaction.id,
         reference: transaction.reference,
@@ -5165,7 +5130,7 @@ export async function registerRoutes(
         deliveryStatus: transaction.deliveryStatus,
         createdAt: transaction.createdAt,
         completedAt: transaction.completedAt,
-        phoneNumbers: transaction.phoneNumbers, // For bulk orders
+        phoneNumbers: phoneNumbers, // For bulk orders
         isBulkOrder: transaction.isBulkOrder,
       });
     } catch (error: any) {
@@ -5332,10 +5297,16 @@ export async function registerRoutes(
   // Initialize wallet topup
   app.post("/api/wallet/topup/initialize", requireAuth, async (req, res) => {
     try {
-      const { amount } = req.body;
+      const { amount, paymentMethod = "paystack" } = req.body;
       if (!amount || parseFloat(amount) < 1) {
         return res.status(400).json({ error: "Invalid amount. Minimum topup is GHS 1" });
       }
+
+      // For wallet topup, only Paystack is supported
+      if (paymentMethod === "wallet") {
+        return res.status(400).json({ error: "Wallet balance cannot be used to top up wallet. Please use Paystack." });
+      }
+
       const dbUser = await storage.getUserByEmail(req.user!.email);
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
@@ -5350,7 +5321,7 @@ export async function registerRoutes(
         profit: "0.00",
         customerPhone: dbUser.phone || "",
         customerEmail: dbUser.email,
-        paymentMethod: "paystack",
+        paymentMethod: paymentMethod,
         status: TransactionStatus.PENDING,
       });
       // Initialize Paystack payment

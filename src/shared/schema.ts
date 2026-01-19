@@ -263,7 +263,7 @@ export const smsLogs = sqliteTable("sms_logs", {
   status: text("status").notNull().default("pending"),
   provider: text("provider"),
   providerMessageId: text("provider_message_id"),
-  retryCount: integer("retry_count", { mode: 'timestamp_ms' }).notNull().default(0),
+  retryCount: integer("retry_count").notNull().default(0),
   lastRetryAt: integer("last_retry_at", { mode: 'timestamp_ms' }),
   sentAt: integer("sent_at", { mode: 'timestamp_ms' }),
   errorMessage: text("error_message"),

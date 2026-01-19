@@ -327,7 +327,17 @@ export class DatabaseStorage implements IStorage {
     if (conditions.length > 0) {
       query = query.where(and(...conditions)) as typeof query;
     }
-    return query.orderBy(dataBundles.network, dataBundles.basePrice);
+    
+    // Order by network, then by data amount in MB (GB converted to MB), then by base price
+    const dataAmountInMB = sql<number>`
+      CASE 
+        WHEN ${dataBundles.dataAmount} LIKE '%GB' THEN CAST(SUBSTRING(${dataBundles.dataAmount} FROM 1 FOR LENGTH(${dataBundles.dataAmount})-2) AS FLOAT) * 1024
+        WHEN ${dataBundles.dataAmount} LIKE '%MB' THEN CAST(SUBSTRING(${dataBundles.dataAmount} FROM 1 FOR LENGTH(${dataBundles.dataAmount})-2) AS FLOAT)
+        ELSE 0
+      END
+    `;
+    
+    return query.orderBy(dataBundles.network, dataAmountInMB, dataBundles.basePrice);
   }
 
   async getNetworksWithBasePrices(): Promise<{ network: string; basePrice: string; name: string }[]> {

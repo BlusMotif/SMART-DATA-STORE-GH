@@ -81,7 +81,16 @@ self.addEventListener('fetch', (event) => {
               if (cachedResponse) {
                 return cachedResponse;
               }
-              return caches.match('/');
+              return caches.match('/')
+                .then((fallbackResponse) => {
+                  if (fallbackResponse) {
+                    return fallbackResponse;
+                  }
+                  return new Response('Offline - Please check your connection', {
+                    status: 503,
+                    headers: { 'Content-Type': 'text/html' }
+                  });
+                });
             });
         })
     );
@@ -131,7 +140,16 @@ self.addEventListener('fetch', (event) => {
             if (cachedResponse) {
               return cachedResponse;
             }
-            return caches.match('/index.html');
+            return caches.match('/index.html')
+              .then((htmlResponse) => {
+                if (htmlResponse) {
+                  return htmlResponse;
+                }
+                return new Response('Offline - Please check your connection', {
+                  status: 503,
+                  headers: { 'Content-Type': 'text/html' }
+                });
+              });
           });
       })
   );

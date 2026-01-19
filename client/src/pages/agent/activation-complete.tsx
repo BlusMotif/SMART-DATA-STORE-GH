@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CheckCircle2, Loader2, XCircle, AlertCircle } from "lucide-react";
-import { APP_NAME } from "@/lib/constants";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
@@ -18,7 +17,7 @@ export default function AgentActivationCompletePage() {
   const [agentEmail, setAgentEmail] = useState<string>("");
   const [, setLocation] = useLocation();
   const [redirectCountdown, setRedirectCountdown] = useState<number>(6);
-  const { user, isLoading: authLoading } = useAuth();
+  useAuth();
   const { theme } = useTheme();
 
   useEffect(() => {

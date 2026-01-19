@@ -581,7 +581,7 @@ export class DatabaseStorage implements IStorage {
     const completedSql = sql`sum(case when status = 'completed' then 1 else 0 end)`;
     const pendingSql = sql`sum(case when status = 'pending' then 1 else 0 end)`;
     const revenueSql = sql`coalesce(sum(case when status = 'completed' then cast(amount as numeric) else 0 end), 0)`;
-    const profitSql = sql`coalesce(sum(case when status = 'completed' then cast(profit as numeric) else 0 end), 0)`;
+    const profitSql = sql`coalesce(sum(case when status = 'completed' then cast(agent_profit as numeric) else 0 end), 0)`;
     
     const stats = await db.select({
       total: totalSql,

@@ -7,12 +7,11 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { LogIn, UserPlus, Store } from "lucide-react";
+import { LogIn, Store } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -40,7 +39,7 @@ interface StorefrontAuthDialogProps {
 
 export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDialogProps) {
   const [open, setOpen] = useState(false);
-  const [, navigate] = useLocation();
+  const [] = useLocation();
   const { toast } = useToast();
 
   const loginForm = useForm<LoginFormData>({
@@ -56,7 +55,7 @@ export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDia
   const loginMutation = useMutation({
     mutationFn: (data: LoginFormData) =>
       apiRequest("POST", "/api/auth/login", data),
-    onSuccess: (data) => {
+    onSuccess: () => {
       localStorage.setItem("agentStore", agentSlug);
       toast({ title: "✅ Welcome back!", description: "You've been logged in successfully." });
       setOpen(false);

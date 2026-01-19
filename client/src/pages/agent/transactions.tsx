@@ -1,12 +1,13 @@
+"use client"
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
@@ -14,6 +15,8 @@ import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
 import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, Layers, ChevronDown } from "lucide-react";
 import type { Transaction } from "@shared/schema";
+import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 
 // Status display utility
 
@@ -121,14 +124,14 @@ export default function AgentTransactions() {
               />
             </div>
 
-            <Card className="bg-green-600 text-white border-green-600">
+            <Card className="bg-white text-black border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="flex items-center gap-2 text-white">
+                  <CardTitle className="flex items-center gap-2 text-black">
                     <BarChart3 className="h-5 w-5" />
                     Transaction History
                   </CardTitle>
-                  <CardDescription className="text-green-100">
+                  <CardDescription className="text-gray-600">
                     View all your customer orders and earnings
                   </CardDescription>
                 </div>
@@ -194,7 +197,8 @@ export default function AgentTransactions() {
                         {filteredTransactions.map((tx) => {
                           const network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
-                          const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
+                          const phoneNumbersRaw = (tx as any).phoneNumbers;
+                          const phoneNumbers = phoneNumbersRaw ? (typeof phoneNumbersRaw === 'string' ? JSON.parse(phoneNumbersRaw) : phoneNumbersRaw) as Array<{phone: string, bundleName: string, dataAmount: string}> : undefined;
                           const isWalletTopup = tx.type === "wallet_topup";
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>

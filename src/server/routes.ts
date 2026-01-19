@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
+import { db } from "./db.js";
+import { sql, and, eq } from "drizzle-orm";
 import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
@@ -8,7 +10,7 @@ import multer from "multer";
 import {
   loginSchema, registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema,
   UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker,
-  users, walletTopupTransactions, auditLogs
+  users, walletTopupTransactions, auditLogs, transactions
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
 import { fulfillDataBundleTransaction } from "./providers.js";
@@ -3139,7 +3141,14 @@ export async function registerRoutes(
             .filter(w => w?.status === "paid")
             .reduce((sum, w) => sum + Number(w?.amount || 0), 0);
 
-          const totalProfit = Number(agent.totalProfit || 0);
+          // Calculate total profit from completed transactions' agent_profit
+          const totalProfitResult = await db.select({
+            total: sql`coalesce(sum(cast(agent_profit as numeric)), 0)`
+          }).from(transactions).where(and(
+            eq(transactions.agentId, agent.id),
+            eq(transactions.status, 'completed')
+          ));
+          const totalProfit = Number(totalProfitResult[0]?.total || 0);
           const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
 
           return res.json({
@@ -3309,16 +3318,26 @@ export async function registerRoutes(
         const agent = await storage.getAgentByUserId(dbUser.id);
         if (agent) {
           // Full agent stats
-          const transactions = await storage.getTransactions({ agentId: agent.id });
+          const agentTransactions = await storage.getTransactions({ agentId: agent.id });
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
+          const todayTransactions = agentTransactions.filter(t => new Date(t.createdAt) >= today);
           const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+
+          // Calculate total profit from completed transactions' agent_profit
+          const totalProfitResult = await db.select({
+            total: sql`coalesce(sum(cast(agent_profit as numeric)), 0)`
+          }).from(transactions).where(and(
+            eq(transactions.agentId, agent.id),
+            eq(transactions.status, 'completed')
+          ));
+          const totalProfit = Number(totalProfitResult[0]?.total || 0);
+
           stats = {
             balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
-            totalProfit: Number(agent.totalProfit) || 0,
+            totalProfit: totalProfit,
             totalSales: Number(agent.totalSales) || 0,
-            totalTransactions: transactions.length,
+            totalTransactions: agentTransactions.length,
             todayProfit: Number(todayProfit.toFixed(2)),
             todayTransactions: todayTransactions.length,
           };
@@ -3482,12 +3501,25 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Agent not approved" });
       }
 
-      const profitWallet = await storage.getProfitWallet(dbUser.id);
-      const availableBalance = profitWallet ? parseFloat(profitWallet.availableBalance || "0") : 0;
+      // Calculate available profit balance (same as profile API)
+      const totalProfitResult = await db.select({
+        total: sql`coalesce(sum(cast(agent_profit as numeric)), 0)`
+      }).from(transactions).where(and(
+        eq(transactions.agentId, agent.id),
+        eq(transactions.status, 'completed')
+      ));
+      const totalProfit = Number(totalProfitResult[0]?.total || 0);
+
+      const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
+      const withdrawnTotal = withdrawals
+        .filter(w => w?.status === "paid")
+        .reduce((sum, w) => sum + Number(w?.amount || 0), 0);
+
+      const availableBalance = Math.max(0, totalProfit - withdrawnTotal);
 
       if (availableBalance < data.amount) {
         return res.status(400).json({
-          error: "Insufficient profit wallet balance",
+          error: "Insufficient profit balance",
           balance: availableBalance.toFixed(2),
           requested: data.amount.toFixed(2),
         });
@@ -4395,6 +4427,57 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Admin withdrawals error:", error);
       res.status(500).json({ error: "Failed to load withdrawals" });
+    }
+  });
+  app.patch("/api/admin/withdrawals/:id/status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!status || !['pending', 'paid', 'cancelled'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be 'pending', 'paid', or 'cancelled'" });
+      }
+
+      const withdrawal = await storage.getWithdrawal(req.params.id);
+      if (!withdrawal) {
+        return res.status(404).json({ error: "Withdrawal not found" });
+      }
+
+      const oldStatus = withdrawal.status;
+
+      // Update withdrawal status
+      const updatedWithdrawal = await storage.updateWithdrawal(req.params.id, { status });
+
+      // If status changed to 'paid' and was not 'paid' before, deduct from profit wallet
+      if (status === 'paid' && oldStatus !== 'paid') {
+        const profitWallet = await storage.getProfitWallet(withdrawal.userId);
+        if (profitWallet) {
+          const amount = parseFloat(withdrawal.amount);
+          const currentAvailable = parseFloat(profitWallet.availableBalance);
+          const newAvailableBalance = Math.max(0, currentAvailable - amount).toFixed(2);
+          await storage.updateProfitWallet(withdrawal.userId, {
+            availableBalance: newAvailableBalance,
+          });
+          console.log(`Deducted ${amount} from profit wallet for user ${withdrawal.userId}, new balance: ${newAvailableBalance}`);
+        }
+      }
+
+      // If status changed from 'paid' to something else, add back to profit wallet
+      if (oldStatus === 'paid' && status !== 'paid') {
+        const profitWallet = await storage.getProfitWallet(withdrawal.userId);
+        if (profitWallet) {
+          const amount = parseFloat(withdrawal.amount);
+          const currentAvailable = parseFloat(profitWallet.availableBalance);
+          const newAvailableBalance = (currentAvailable + amount).toFixed(2);
+          await storage.updateProfitWallet(withdrawal.userId, {
+            availableBalance: newAvailableBalance,
+          });
+          console.log(`Added back ${amount} to profit wallet for user ${withdrawal.userId}, new balance: ${newAvailableBalance}`);
+        }
+      }
+
+      res.json(updatedWithdrawal);
+    } catch (error: any) {
+      console.error("Admin update withdrawal status error:", error);
+      res.status(500).json({ error: "Failed to update withdrawal status" });
     }
   });
   // Admin - Data Bundles CRUD

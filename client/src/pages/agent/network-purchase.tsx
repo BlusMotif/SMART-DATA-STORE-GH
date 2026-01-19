@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -77,12 +77,10 @@ export default function AgentNetworkPurchasePage() {
   const { role, slug, network } = useParams<{ role: string; slug: string; network: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderType, setOrderType] = useState<"single" | "bulk">("single");
   // Force Paystack for single purchases on agent storefronts
-  const [paymentMethod, setPaymentMethod] = useState<"paystack">("paystack");
 
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
@@ -110,13 +108,6 @@ export default function AgentNetworkPurchasePage() {
     enabled: !!role && !!slug,
   });
 
-  // Fetch user wallet balance
-  const { data: userData } = useQuery<{ user: { walletBalance: string } }>({
-    queryKey: ["/api/auth/me"],
-    enabled: true,
-  });
-
-  const walletBalance = parseFloat(userData?.user?.walletBalance || "0");
   const dataBundles = storeData?.dataBundles || [];
 
   const filteredBundles = dataBundles?.filter(
@@ -265,103 +256,8 @@ export default function AgentNetworkPurchasePage() {
     },
   });
 
-  const walletPaymentMutation = useMutation({
-    mutationFn: async (data: SingleOrderFormData | BulkOrderFormData | {
-      orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }>;
-      totalAmount: number;
-      customerEmail?: string;
-    }) => {
-      console.log("[Agent Frontend] Wallet payment mutation called with:", data);
-      
-      const isBulk = 'phoneNumbers' in data;
-      
-      // Handle new orderItems format (GB-based bulk orders)
-      if ('orderItems' in data && data.orderItems) {
-        const phoneNumbers = data.orderItems.map(item => item.phone);
-        const totalAmount = data.totalAmount;
-
-        console.log("[Agent Frontend] ========== WALLET BULK FORMAT PAYMENT ==========");
-        console.log("[Agent Frontend] Order items:", data.orderItems);
-        console.log("[Agent Frontend] Total amount:", totalAmount);
-        console.log("[Agent Frontend] ================================================");
-        
-        const payload = {
-          productType: "data_bundle",
-          network: network,
-          amount: totalAmount.toFixed(2),
-          customerPhone: phoneNumbers[0],
-          phoneNumbers: phoneNumbers,
-          isBulkOrder: true,
-          orderItems: data.orderItems,
-          customerEmail: data.customerEmail || undefined,
-          agentSlug: slug || undefined,
-        };
-        
-        console.log("[Agent Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
-        
-        const result = await apiRequest("POST", "/api/wallet/pay", payload);
-        
-        console.log("[Agent Frontend] ===== WALLET SERVER RESPONSE =====");
-        console.log("[Agent Frontend] Result:", result);
-        console.log("[Agent Frontend] ================================");
-        
-        return result;
-      }
-      
-      // Handle single purchase or legacy bulk format
-      if (!selectedBundle) throw new Error("No bundle selected");
-
-      console.log("[Agent Frontend] Is bulk:", isBulk);
-      console.log("[Agent Frontend] Data:", data);
-
-      const phoneNumbers = isBulk 
-        ? (data as BulkOrderFormData).phoneNumbers.split(/[\n,]/).map(n => n.trim()).filter(n => n)
-        : [(data as SingleOrderFormData).customerPhone];
-
-      console.log("[Agent Frontend] Phone numbers array:", phoneNumbers);
-      console.log("[Agent Frontend] First phone:", phoneNumbers[0]);
-
-      const payload = {
-        productType: "data_bundle",
-        productId: selectedBundle.id,
-        amount: price.toFixed(2),
-        customerPhone: phoneNumbers[0],
-        phoneNumbers: isBulk ? phoneNumbers : undefined,
-        isBulkOrder: isBulk,
-        customerEmail: data.customerEmail || undefined,
-        agentSlug: slug || undefined,
-      };
-
-      console.log("[Agent Frontend] Wallet single/legacy payload:", JSON.stringify(payload, null, 2));
-
-      return await apiRequest("POST", "/api/wallet/pay", payload);
-    },
-    onSuccess: (data: any) => {
-      toast({
-        title: "✅ Payment Successful",
-        description: `Data bundle purchased successfully. New balance: GHS ${data.newBalance}`,
-        variant: "default",
-        duration: 5000,
-      });
-      setIsProcessing(false);
-      // Refresh user data to update wallet balance
-      queryClient.invalidateQueries({
-        queryKey: ["/api/auth/me"],
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "❌ Payment Failed",
-        description: error.message || "Unable to process wallet payment",
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-    },
-  });
-
   const onSubmit = (data: SingleOrderFormData | BulkOrderFormData) => {
     const isBulk = 'phoneNumbers' in data;
-    const totalAmount = isBulk ? bulkTotal.total : price;
     
     // For single purchases, wallet balance check is not needed (always Paystack)
     // For bulk purchases, they always use Paystack

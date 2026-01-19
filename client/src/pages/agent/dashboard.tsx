@@ -200,10 +200,10 @@ export default function AgentDashboard() {
                   trendLabel="vs yesterday"
                 />
                 <StatCard
-                  title="Total Sales"
+                  title="Total Profit"
                   value={formatCurrency(stats?.totalSales || 0)}
                   icon={DollarSign}
-                  description="All-time revenue"
+                  description="All-time earnings"
                   trend="+24%"
                   trendLabel="vs last month"
                 />

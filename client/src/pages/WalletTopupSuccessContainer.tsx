@@ -48,6 +48,12 @@ export function WalletTopupSuccessContainer() {
       queryClient.invalidateQueries({
         queryKey: ["/api/auth/me"],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/agent/transactions"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/agent/wallet"],
+      });
     }
   }, [query.data, queryClient]);
 

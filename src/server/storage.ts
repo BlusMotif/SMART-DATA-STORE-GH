@@ -1146,8 +1146,8 @@ export class DatabaseStorage implements IStorage {
       return customPrice;
     }
 
-    // Fall back to admin base price
-    return await this.getAdminBasePrice(productId);
+    // Fall back to role base price
+    return await this.getRoleBasePrice(productId, role);
   }
   async getRoleBasePrices(): Promise<Array<{ bundleId: string; role: string; basePrice: string }>> {
     try {

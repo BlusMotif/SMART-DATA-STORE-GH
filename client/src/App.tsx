@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Router, Switch, Route, useLocation } from "wouter";
 import { useEffect, useRef } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -118,10 +118,12 @@ function StorefrontGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function Router() {
+function AppRouter() {
   return (
-    <StorefrontGuard>
-      <Switch>
+    <Router>
+      <SessionTimeoutManager />
+      <StorefrontGuard>
+        <Switch>
       <Route path="/" component={HomePage} />
       <Route path="/data-bundles" component={DataBundlesPage} />
       <Route path="/products" component={DataBundlesPage} />
@@ -179,18 +181,16 @@ function Router() {
       <Route component={NotFound} />
     </Switch>
     </StorefrontGuard>
+    </Router>
   );
 }
 
 function SessionTimeoutManager() {
-  const [location] = useLocation();
+  const [] = useLocation();
 
-  // Skip session timeout for agent storefront
-  if (location.startsWith('/agent/storefront')) {
-    return null;
-  }
-
+  // Always call useSessionTimeout, but it will handle its own logic internally
   useSessionTimeout();
+
   return null;
 }
 
@@ -200,11 +200,10 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <TooltipProvider>
-            <SessionTimeoutManager />
             <ConnectionStatus />
             <PWAInstallPrompt />
             <BreakModeGuard>
-              <Router />
+              <AppRouter />
             </BreakModeGuard>
             <AnnouncementPopup />
             <Toaster />

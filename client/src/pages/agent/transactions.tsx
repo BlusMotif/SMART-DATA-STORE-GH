@@ -12,40 +12,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, CheckCircle, Clock, XCircle, AlertCircle, Layers } from "lucide-react";
+import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, Layers } from "lucide-react";
 import type { Transaction } from "@shared/schema";
 
 // Status display utility
-const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-  switch (status.toLowerCase()) {
-    case 'completed':
-    case 'delivered':
-      return 'default';
-    case 'confirmed':
-    case 'pending':
-      return 'secondary';
-    case 'cancelled':
-    case 'failed':
-      return 'destructive';
-    case 'refunded':
-      return 'outline';
-    default:
-      return 'secondary';
-  }
-};
 
-const getStatusLabel = (status: string): string => {
-  switch (status.toLowerCase()) {
-    case 'completed': return 'Completed';
-    case 'delivered': return 'Delivered';
-    case 'confirmed': return 'Confirmed';
-    case 'pending': return 'Pending';
-    case 'cancelled': return 'Cancelled';
-    case 'failed': return 'Failed';
-    case 'refunded': return 'Refunded';
-    default: return status;
-  }
-};
 
 interface AgentTransactionStats {
   totalTransactions: number;
@@ -80,7 +51,7 @@ export default function AgentTransactions() {
       if (
         !tx.reference.toLowerCase().includes(term) &&
         !tx.productName.toLowerCase().includes(term) &&
-        !tx.customerPhone.includes(term)
+        !(tx.customerPhone && tx.customerPhone.toLowerCase().includes(term))
       ) {
         return false;
       }
@@ -195,6 +166,7 @@ export default function AgentTransactions() {
                       <SelectItem value="all">All Types</SelectItem>
                       <SelectItem value="data_bundle">Data Bundles</SelectItem>
                       <SelectItem value="result_checker">Result Checkers</SelectItem>
+                      <SelectItem value="wallet_topup">Wallet Top-up</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -223,6 +195,7 @@ export default function AgentTransactions() {
                           const network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
+                          const isWalletTopup = tx.type === "wallet_topup";
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
@@ -231,7 +204,9 @@ export default function AgentTransactions() {
                                   <div className="font-medium truncate">{tx.productName}</div>
                                   <div className="flex gap-1 mt-1 flex-wrap">
                                     <Badge variant="outline" className="text-xs">
-                                      {tx.type === "data_bundle" ? "Data Bundle" : "Result Checker"}
+                                      {tx.type === "data_bundle" ? "Data Bundle" : 
+                                       tx.type === "result_checker" ? "Result Checker" :
+                                       tx.type === "wallet_topup" ? "Wallet Top-up" : tx.type}
                                     </Badge>
                                     {isBulkOrder && (
                                       <Badge variant="secondary" className="text-xs flex items-center gap-1">
@@ -243,7 +218,9 @@ export default function AgentTransactions() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                {network ? (
+                                {isWalletTopup ? (
+                                  <span className="text-muted-foreground">-</span>
+                                ) : network ? (
                                   <Badge
                                     style={{
                                       backgroundColor: network.color,
@@ -265,15 +242,21 @@ export default function AgentTransactions() {
                                 )}
                               </TableCell>
                               <TableCell className="text-green-600 tabular-nums font-medium">
-                                <div>+{formatCurrency(tx.agentProfit || 0)}</div>
-                                {isBulkOrder && phoneNumbers && (
+                                {isWalletTopup ? (
+                                  <span className="text-muted-foreground">-</span>
+                                ) : (
+                                  <div>+{formatCurrency(tx.agentProfit || 0)}</div>
+                                )}
+                                {isBulkOrder && phoneNumbers && !isWalletTopup && (
                                   <div className="text-xs text-muted-foreground">
                                     {formatCurrency(parseFloat(tx.agentProfit || "0") / phoneNumbers.length)} each
                                   </div>
                                 )}
                               </TableCell>
                               <TableCell className="text-muted-foreground">
-                                {isBulkOrder && phoneNumbers ? (
+                                {isWalletTopup ? (
+                                  <span className="text-muted-foreground">Self</span>
+                                ) : isBulkOrder && phoneNumbers ? (
                                   <div className="text-xs">
                                     <div className="font-semibold">{phoneNumbers.length} numbers</div>
                                     <div className="text-muted-foreground truncate max-w-[120px]">

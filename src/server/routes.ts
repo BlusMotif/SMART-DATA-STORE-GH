@@ -1187,11 +1187,60 @@ export async function registerRoutes(
       if (!bundle || !bundle.isActive) {
         return res.status(404).json({ error: "Data bundle not found" });
       }
-      // For public purchase, always use base price
-      const price = parseFloat(bundle.basePrice || '0');
+
+      // Check if user is authenticated to apply role-based pricing
+      let userRole = 'guest';
+      let userId: string | undefined;
+      try {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7);
+          const supabaseServer = getSupabase();
+          if (supabaseServer) {
+            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+            if (!error && user && user.email) {
+              const dbUser = await storage.getUserByEmail(user.email);
+              if (dbUser) {
+                userRole = dbUser.role;
+                userId = dbUser.id;
+              }
+            }
+          }
+        }
+      } catch (authError) {
+        // Ignore auth errors, treat as guest
+        console.log('Auth check failed, treating as guest');
+      }
+
+      // Apply role-based pricing using the resolved price system
+      let effectivePrice = parseFloat(bundle.basePrice || '0');
+      let profitMargin = '0.00';
+      let adminBasePriceValue = parseFloat(bundle.basePrice || '0');
+
+      if (userRole !== 'guest' && userId) {
+        // Get resolved price (custom selling price or role base price fallback)
+        const resolvedPrice = await storage.getResolvedPrice(bundle.id, userId, userRole);
+        const roleBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
+
+        if (resolvedPrice) {
+          effectivePrice = parseFloat(resolvedPrice);
+          // Calculate profit margin (selling price - role base price)
+          if (roleBasePrice) {
+            adminBasePriceValue = parseFloat(roleBasePrice);
+            profitMargin = (effectivePrice - adminBasePriceValue).toFixed(2);
+          }
+        } else if (roleBasePrice) {
+          // Use role base price if no resolved price
+          effectivePrice = parseFloat(roleBasePrice);
+          adminBasePriceValue = effectivePrice;
+        }
+      }
+
       res.json({
         ...bundle,
-        effective_price: price.toFixed(2),
+        basePrice: adminBasePriceValue.toFixed(2),
+        effective_price: effectivePrice.toFixed(2),
+        profit_margin: profitMargin,
       });
     } catch (error: any) {
       console.error("Database error:", error);
@@ -1696,6 +1745,14 @@ export async function registerRoutes(
       if (!req.body || typeof req.body !== 'object') {
         return res.status(400).json({ error: "Invalid request body" });
       }
+
+      // ENFORCE PAYSTACK-ONLY FOR STOREFRONT PURCHASES
+      if (req.body.agentSlug) {
+        console.log("[Checkout] Storefront purchase detected - enforcing Paystack-only payment");
+        // Storefront purchases must go through Paystack for proper agent accounting
+        // No wallet payments allowed for agent storefronts
+      }
+
       console.log("[Checkout] ========== REQUEST PARSING ==========");
       console.log("[Checkout] Raw request body:", JSON.stringify(req.body, null, 2));
       console.log("[Checkout] req.body.phoneNumbers type:", typeof req.body.phoneNumbers);
@@ -3136,11 +3193,26 @@ export async function registerRoutes(
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-      const transactions = await storage.getTransactions({
+
+      // Get agent transactions
+      const agentTransactions = await storage.getTransactions({
         agentId: agent.id,
         limit: 100,
       });
-      res.json(transactions);
+
+      // Get wallet topup transactions for this user
+      const walletTopups = await storage.getTransactions({
+        customerEmail: dbUser.email,
+        type: "wallet_topup",
+        limit: 50,
+      });
+
+      // Combine and sort by createdAt descending
+      const allTransactions = [...agentTransactions, ...walletTopups]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 100); // Limit to 100 total
+
+      res.json(allTransactions);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load transactions" });
     }
@@ -3213,17 +3285,33 @@ export async function registerRoutes(
       if (!agent) {
         return res.status(404).json({ error: "Agent not found" });
       }
-      const transactions = await storage.getTransactions({ agentId: agent.id });
+
+      // Get agent transactions (for profit/revenue stats)
+      const agentTransactions = await storage.getTransactions({ agentId: agent.id });
+
+      // Get wallet topup transactions for this user
+      const walletTopups = await storage.getTransactions({
+        customerEmail: dbUser.email,
+        type: "wallet_topup",
+      });
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayTransactions = transactions.filter(t => new Date(t.createdAt) >= today);
-      const totalRevenue = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      const totalProfit = transactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+
+      // Calculate stats from agent transactions only (wallet topups don't generate agent profit)
+      const todayAgentTransactions = agentTransactions.filter(t => new Date(t.createdAt) >= today);
+      const totalRevenue = agentTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      const totalProfit = agentTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+
+      // Include wallet topups in total transaction count
+      const totalTransactions = agentTransactions.length + walletTopups.length;
+      const todayTransactions = todayAgentTransactions.length + walletTopups.filter(t => new Date(t.createdAt) >= today).length;
+
       const stats = {
-        totalTransactions: transactions.length,
+        totalTransactions,
         totalRevenue: Number(totalRevenue.toFixed(2)),
         totalProfit: Number(totalProfit.toFixed(2)),
-        todayTransactions: todayTransactions.length,
+        todayTransactions,
       };
       res.json(stats);
     } catch (error: any) {
@@ -5411,6 +5499,15 @@ export async function registerRoutes(
         agentSlug,
         orderItems,
       } = req.body;
+
+      // BLOCK WALLET PAYMENTS FOR STOREFRONT PURCHASES
+      if (agentSlug) {
+        console.log("[Wallet] Blocking storefront purchase via wallet - agentSlug:", agentSlug);
+        return res.status(400).json({
+          error: "Storefront purchases must be made through Paystack for proper agent accounting"
+        });
+      }
+
       // For new bulk format, productName might be generated
       const effectiveProductName = productName || (orderItems ? `Bulk Order - ${orderItems.length} items` : null);
       if (!productType || !effectiveProductName || !amount || !customerPhone) {

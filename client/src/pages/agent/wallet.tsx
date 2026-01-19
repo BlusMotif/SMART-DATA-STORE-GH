@@ -292,7 +292,7 @@ export default function AgentWalletPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {new Date(transaction.createdAt).toLocaleDateString()}
+                              {new Date(transaction.createdAt).toLocaleString()}
                             </TableCell>
                           </TableRow>
                         );

@@ -33,8 +33,7 @@ export default function AdminApiConfiguration() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiRequest("GET", "/api/admin/api-config");
-        const data = await res.json();
+        const data = await apiRequest("GET", "/api/admin/api-config");
         setForm({
           mtnApiKey: data["api.mtn.key"] || "",
           mtnEndpoint: data["api.mtn.endpoint"] || "",

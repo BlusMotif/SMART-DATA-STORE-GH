@@ -712,9 +712,6 @@ export default function AgentNetworkPurchasePage() {
                               </div>
                             </div>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            Storefront purchases must be made through Paystack for proper agent accounting.
-                          </p>
                         </div>
 
                         <Button
@@ -808,18 +805,6 @@ export default function AgentNetworkPurchasePage() {
                               </span>
                             </div>
 
-                            {/* Payment Method Info for Bulk Orders */}
-                            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <CreditCard className="h-5 w-5 text-blue-600" />
-                                <div>
-                                  <div className="font-semibold text-blue-900 dark:text-blue-100">Bulk Orders Use Paystack</div>
-                                  <div className="text-sm text-blue-700 dark:text-blue-300">
-                                    For security and reliability, bulk purchases are processed through Paystack payment gateway.
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
                           </div>
                         )}
 

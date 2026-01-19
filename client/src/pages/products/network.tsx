@@ -467,21 +467,6 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               <p className="text-sm text-muted-foreground">Enter one number per line with GB amount (e.g., "0241234567 2"). Supports 0241234567 or 233241234567 (no +). No limit - add 100+ numbers! All numbers must be for {network.toUpperCase()}. Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
               {bulkTotal && <p className="font-medium">{bulkTotal.count} items • GH₵{bulkTotal.total.toFixed(2)}</p>}
 
-              <div>
-                <Label>Payment Method</Label>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="h-5 w-5 text-blue-600" />
-                    <div>
-                      <div className="font-semibold text-blue-900 dark:text-blue-100">Bulk Orders Use Paystack</div>
-                      <div className="text-sm text-blue-700 dark:text-blue-300">
-                        For security and reliability, bulk purchases are processed through Paystack payment gateway.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="flex justify-end">
                 <Button 
                   onClick={handleBulk}

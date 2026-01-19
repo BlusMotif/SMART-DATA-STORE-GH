@@ -2107,13 +2107,6 @@ export async function registerRoutes(
       });
       // Handle wallet payments immediately
       if (data.paymentMethod === 'wallet') {
-        // BLOCK WALLET PAYMENTS FOR STOREFRONT PURCHASES
-        if (data.agentSlug) {
-          console.log("[Checkout] Blocking storefront purchase via wallet - agentSlug:", data.agentSlug);
-          return res.status(400).json({
-            error: "Storefront purchases must be made through Paystack for proper agent accounting"
-          });
-        }
         console.log("[Checkout] Processing wallet payment for reference:", reference);
         // Get authenticated user
         let dbUser: any = null;
@@ -5574,14 +5567,6 @@ export async function registerRoutes(
         agentSlug,
         orderItems,
       } = req.body;
-
-      // BLOCK WALLET PAYMENTS FOR STOREFRONT PURCHASES
-      if (agentSlug) {
-        console.log("[Wallet] Blocking storefront purchase via wallet - agentSlug:", agentSlug);
-        return res.status(400).json({
-          error: "Storefront purchases must be made through Paystack for proper agent accounting"
-        });
-      }
 
       // For new bulk format, productName might be generated
       const effectiveProductName = productName || (orderItems ? `Bulk Order - ${orderItems.length} items` : null);

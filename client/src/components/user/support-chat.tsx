@@ -40,7 +40,7 @@ export function SupportChat() {
   const { data: chats } = useQuery<SupportChat[]>({
     queryKey: ["/api/support/chats"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/support/chats");
+      const response = await apiRequest("GET", "/api/support/chats") as Response;
       return response.json();
     },
   });
@@ -48,7 +48,7 @@ export function SupportChat() {
   // Create chat if none exists
   const createChatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/support/chat/create", {});
+      const response = await apiRequest("POST", "/api/support/chat/create", {}) as Response;
       return response.json();
     },
     onSuccess: (data) => {
@@ -70,7 +70,7 @@ export function SupportChat() {
   const { data: chatData, isLoading } = useQuery<ChatDetails>({
     queryKey: ["/api/support/chat", chatId],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/support/chat/${chatId}`);
+      const response = await apiRequest("GET", `/api/support/chat/${chatId}`) as Response;
       return response.json();
     },
     enabled: !!chatId,
@@ -101,7 +101,7 @@ export function SupportChat() {
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      const response = await apiRequest("POST", `/api/support/chat/${chatId}/message`, { message });
+      const response = await apiRequest("POST", `/api/support/chat/${chatId}/message`, { message }) as Response;
       return response.json();
     },
     onSuccess: () => {
@@ -145,7 +145,7 @@ export function SupportChat() {
       // Mark each unread admin message as read
       unreadAdminMessages.forEach(async (msg) => {
         try {
-          await apiRequest("PUT", `/api/support/message/${msg.id}/read`, {});
+          await apiRequest("PUT", `/api/support/message/${msg.id}/read`, {}) as Response;
         } catch (error) {
           console.error('Failed to mark message as read:', error);
         }
@@ -255,7 +255,6 @@ export function SupportChat() {
           </ScrollArea>
 
           <form onSubmit={handleSendMessage} className="p-4 border-t">
-            {console.log('Send button state - isPending:', sendMessageMutation.isPending, 'message.trim():', message.trim(), 'chatId:', chatId)}
             <div className="flex gap-2">
               <Input
                 value={message}

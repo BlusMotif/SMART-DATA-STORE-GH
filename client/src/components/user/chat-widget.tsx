@@ -23,14 +23,14 @@ export function ChatWidget() {
 
   // Get user's chats
   const { data: chats } = useQuery<SupportChat[]>({
-    queryKey: ["/api", "support", "chats"],
+    queryKey: ["/api/support/chats"],
     enabled: isOpen && !!user,
     refetchInterval: 10000, // Poll every 10 seconds
   });
 
   // Get current chat messages
   const { data: chatData } = useQuery<{ chat: SupportChat; messages: ChatMessage[] }>({
-    queryKey: ["/api", "support", "chat", currentChatId],
+    queryKey: [`/api/support/chat/${currentChatId}`],
     enabled: !!currentChatId,
     refetchInterval: 5000, // Poll every 5 seconds for new messages
   });
@@ -38,12 +38,12 @@ export function ChatWidget() {
   // Create new chat
   const createChatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/support/chat/create", {});
-      return await response.json();
+      const response = await apiRequest("POST", "/api/support/chat/create", {}) as Response;
+      return await response.json() as { chatId: string };
     },
     onSuccess: (data: { chatId: string }) => {
       setCurrentChatId(data.chatId);
-      queryClient.invalidateQueries({ queryKey: ["/api", "support", "chats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/support/chats"] });
       toast({
         title: "✅ Chat Started",
         description: "You can now send messages. An admin will respond shortly.",
@@ -55,8 +55,8 @@ export function ChatWidget() {
         apiRequest("POST", `/api/support/chat/${data.chatId}/message`, { message: pendingMessage })
           .then(() => {
             setPendingMessage(null);
-            queryClient.invalidateQueries({ queryKey: ["/api", "support", "chat", data.chatId] });
-            queryClient.invalidateQueries({ queryKey: ["/api", "support", "chats"] });
+            queryClient.invalidateQueries({ queryKey: [`/api/support/chat/${data.chatId}`] });
+            queryClient.invalidateQueries({ queryKey: ["/api/support/chats"] });
           })
           .catch(() => {
             toast({
@@ -84,8 +84,8 @@ export function ChatWidget() {
       apiRequest("POST", `/api/support/chat/${chatId}/message`, { message: msg }),
     onSuccess: () => {
       setMessage("");
-      queryClient.invalidateQueries({ queryKey: ["/api", "support", "chat", currentChatId] });
-      queryClient.invalidateQueries({ queryKey: ["/api", "support", "chats"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/support/chat/${currentChatId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/support/chats"] });
     },
     onError: () => {
       toast({

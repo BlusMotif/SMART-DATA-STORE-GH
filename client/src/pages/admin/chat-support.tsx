@@ -38,13 +38,13 @@ export default function AdminChatSupport() {
 
   // Get all chats
   const { data: chats, isLoading } = useQuery<SupportChat[]>({
-    queryKey: ["/api", "admin", "support", "chats", `?status=${filter}`],
+    queryKey: [`/api/admin/support/chats?status=${filter}`],
     refetchInterval: 10000, // Poll every 10 seconds
   });
 
   // Get selected chat details
   const { data: chatData } = useQuery<{ chat: SupportChat; messages: ChatMessage[] }>({
-    queryKey: ["/api", "support", "chat", selectedChatId],
+    queryKey: [`/api/support/chat/${selectedChatId}`],
     enabled: !!selectedChatId,
     refetchInterval: 5000, // Poll every 5 seconds for new messages
   });
@@ -55,8 +55,8 @@ export default function AdminChatSupport() {
       apiRequest("POST", `/api/support/chat/${selectedChatId}/message`, { message: msg }),
     onSuccess: () => {
       setMessage("");
-      queryClient.invalidateQueries({ queryKey: ["/api", "support", "chat", selectedChatId] });
-      queryClient.invalidateQueries({ queryKey: ["/api", "admin", "support", "chats"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/support/chat/${selectedChatId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/chats"], exact: false });
     },
     onError: () => {
       toast({
@@ -73,8 +73,8 @@ export default function AdminChatSupport() {
     mutationFn: (chatId: string) =>
       apiRequest("PUT", `/api/admin/support/chat/${chatId}/assign`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api", "admin", "support", "chats"] });
-      queryClient.invalidateQueries({ queryKey: ["/api", "support", "chat", selectedChatId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/chats"], exact: false });
+      queryClient.invalidateQueries({ queryKey: [`/api/support/chat/${selectedChatId}`] });
       toast({
         title: "✅ Assigned",
         description: "Chat assigned to you",
@@ -88,7 +88,7 @@ export default function AdminChatSupport() {
     mutationFn: (chatId: string) =>
       apiRequest("PUT", `/api/support/chat/${chatId}/close`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api", "admin", "support", "chats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/support/chats"], exact: false });
       setSelectedChatId(null);
       toast({
         title: "✅ Chat Closed",

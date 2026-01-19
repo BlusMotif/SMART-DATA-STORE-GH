@@ -13,9 +13,9 @@ import {
   Bell,
   X,
   MessageCircle,
-  Trophy,
   AlertTriangle,
   Code,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,21 +25,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useTheme } from "@/components/theme-provider";
-
-// Function to get ranking badge based on user role
-const getRankingBadge = (role: string) => {
-  const rankings = {
-    admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
-    master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
-    super_dealer: { label: "Super Dealer", variant: "secondary" as const, icon: "⭐" },
-    dealer: { label: "Dealer", variant: "outline" as const, icon: "💎" },
-    agent: { label: "Agent", variant: "outline" as const, icon: "🔹" },
-    user: { label: "User", variant: "outline" as const, icon: "👤" },
-    guest: { label: "Guest", variant: "outline" as const, icon: "👋" },
-  };
-
-  return rankings[role as keyof typeof rankings] || rankings.user;
-};
 
 const sidebarNavItems = [
   {
@@ -124,13 +109,6 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   const { user, logout, isLoggingOut } = useAuth();
   const { theme } = useTheme();
 
-  // Get user rank
-  const { data: rankData } = useQuery<{ rank?: number }>({
-    queryKey: ["user-rank"],
-    queryFn: () => apiRequest("GET", "/api/user/rank"),
-    enabled: !!user,
-  });
-
   // Get unread message count for admin
   const { data: unreadCount = 0 } = useQuery<number>({
     queryKey: ["/api/support/admin/unread-count"],
@@ -160,16 +138,6 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
       <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
         <div className="flex flex-col">
           <span className="font-semibold text-sm">{user?.name || 'Admin'}</span>
-          {rankData && rankData.rank !== undefined && (
-            <div className="flex items-center gap-1.5 mt-1">
-              <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
-                <Trophy className="h-3 w-3" />
-                <span>
-                  {typeof rankData.rank === 'number' && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
-                </span>
-              </div>
-            </div>
-          )}
           <span className="text-xs text-muted-foreground">Admin Panel</span>
         </div>
       </div>

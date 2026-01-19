@@ -4362,26 +4362,36 @@ export async function registerRoutes(
       // Get user details for each withdrawal
       const withdrawalsWithUsers = await Promise.all(
         withdrawals.map(async (withdrawal) => {
-          const user = await storage.getUser(withdrawal.userId);
-          // Try to get agent info, but don't fail if it doesn't exist
-          let agentInfo = null;
           try {
-            const agent = await storage.getAgentByUserId(withdrawal.userId);
-            if (agent) {
-              agentInfo = { businessName: agent.businessName, storefrontSlug: agent.storefrontSlug };
+            const user = await storage.getUser(withdrawal.userId);
+            // Try to get agent info, but don't fail if it doesn't exist
+            let agentInfo = null;
+            try {
+              const agent = await storage.getAgentByUserId(withdrawal.userId);
+              if (agent) {
+                agentInfo = { businessName: agent.businessName, storefrontSlug: agent.storefrontSlug };
+              }
+            } catch (agentError) {
+              // Agent not found, continue without agent info
+              console.log(`No agent record found for user ${withdrawal.userId}:`, agentError);
             }
+            return {
+              ...withdrawal,
+              user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
+              agent: agentInfo,
+            };
           } catch (error) {
-            // Agent not found, continue without agent info
-            console.log(`No agent record found for user ${withdrawal.userId}`);
+            console.error(`Error processing withdrawal ${withdrawal.id}:`, error);
+            // Return withdrawal with null user/agent info if there's an error
+            return {
+              ...withdrawal,
+              user: null,
+              agent: null,
+            };
           }
-          return {
-            ...withdrawal,
-            user: user ? { name: user.name, email: user.email, phone: user.phone } : null,
-            agent: agentInfo,
-          };
         })
       );
-      res.json({ withdrawals: withdrawalsWithUsers });
+      res.json(withdrawalsWithUsers);
     } catch (error: any) {
       console.error("Admin withdrawals error:", error);
       res.status(500).json({ error: "Failed to load withdrawals" });

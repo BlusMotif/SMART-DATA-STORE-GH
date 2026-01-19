@@ -25,11 +25,28 @@ export default function AdminWithdrawals() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { data: withdrawals, isLoading } = useQuery<WithdrawalWithAgent[]>({
+  const { data: withdrawals, isLoading, error } = useQuery<WithdrawalWithAgent[]>({
     queryKey: ["/api/admin/withdrawals"],
     refetchInterval: 20000, // Refetch every 20 seconds for withdrawals
     refetchOnWindowFocus: true,
   });
+
+  // Show error if there's an issue fetching withdrawals
+  if (error) {
+    console.error("Error fetching withdrawals:", error);
+    return (
+      <div className="flex h-screen bg-background">
+        <AdminSidebar />
+        <div className="flex-1 p-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Withdrawals</h1>
+            <p className="text-muted-foreground">Unable to fetch withdrawal requests. Please try again later.</p>
+            <p className="text-sm text-muted-foreground mt-2">Error: {error.message}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const filteredWithdrawals = Array.isArray(withdrawals) && withdrawals ? withdrawals.filter((w) => {
     if (statusFilter === "all") return true;

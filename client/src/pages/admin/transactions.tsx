@@ -11,10 +11,38 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, Menu, Layers, Download, Edit } from "lucide-react";
+import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
+
+interface SortableTableHeadProps {
+  field: string;
+  children: React.ReactNode;
+  sortField: string;
+  sortDirection: "asc" | "desc";
+  onSort: (field: string) => void;
+}
+
+function SortableTableHead({ field, children, sortField, sortDirection, onSort }: SortableTableHeadProps) {
+  return (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50 transition-colors"
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field && (
+          sortDirection === "asc" ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )
+        )}
+      </div>
+    </TableHead>
+  );
+}
 
 export default function AdminTransactions() {
   const { toast } = useToast();
@@ -26,6 +54,8 @@ export default function AdminTransactions() {
   const [editingDeliveryStatus, setEditingDeliveryStatus] = useState<string | null>(null);
   const [deliveryStatusValue, setDeliveryStatusValue] = useState<string>("");
   const [exportPaymentStatus, setExportPaymentStatus] = useState<string>("all");
+  const [sortField, setSortField] = useState<string>("createdAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
@@ -95,6 +125,41 @@ export default function AdminTransactions() {
     pending: transactions?.filter((t) => t.status === "pending").length || 0,
     failed: transactions?.filter((t) => t.status === "failed").length || 0,
   };
+
+  // Sort handler
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Sort transactions
+  const sortedTransactions = filteredTransactions?.sort((a, b) => {
+    let aValue: any = a[sortField as keyof Transaction];
+    let bValue: any = b[sortField as keyof Transaction];
+
+    // Handle special cases
+    if (sortField === "amount" || sortField === "profit") {
+      aValue = parseFloat(aValue);
+      bValue = parseFloat(bValue);
+    } else if (sortField === "createdAt") {
+      aValue = new Date(aValue).getTime();
+      bValue = new Date(bValue).getTime();
+    } else if (sortField === "productName") {
+      aValue = aValue.toLowerCase();
+      bValue = bValue.toLowerCase();
+    } else if (sortField === "customerPhone") {
+      aValue = aValue.toLowerCase();
+      bValue = bValue.toLowerCase();
+    }
+
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+    return 0;
+  });
 
   // Helper functions
   const convertToCSV = (data: any[]) => {
@@ -291,26 +356,34 @@ export default function AdminTransactions() {
               <CardContent>
                 {isLoading ? (
                   <TableSkeleton rows={10} />
-                ) : filteredTransactions && filteredTransactions.length > 0 ? (
+                ) : sortedTransactions && sortedTransactions.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Reference</TableHead>
-                          <TableHead>Product</TableHead>
+                          <SortableTableHead field="productName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                            Product
+                          </SortableTableHead>
                           <TableHead>Network</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Profit</TableHead>
+                          <SortableTableHead field="amount" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                            Amount
+                          </SortableTableHead>
+                          <SortableTableHead field="profit" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                            Profit
+                          </SortableTableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead>Payment Status</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Delivery</TableHead>
-                          <TableHead>Date</TableHead>
+                          <SortableTableHead field="createdAt" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                            Date
+                          </SortableTableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredTransactions.map((tx) => {
+                        {sortedTransactions.map((tx) => {
                           const network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;

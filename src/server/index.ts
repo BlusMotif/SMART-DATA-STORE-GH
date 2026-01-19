@@ -2,6 +2,12 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+if (process.env.NODE_ENV === 'development') {
+  dotenv.config({ path: '.env.development', override: true });
+}
+
+console.log('DATABASE_URL after loading:', process.env.DATABASE_URL);
+
 // Initialize Supabase immediately after loading environment variables
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 

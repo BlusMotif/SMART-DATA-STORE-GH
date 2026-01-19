@@ -5,14 +5,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, Layers } from "lucide-react";
+import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, Layers, ChevronDown } from "lucide-react";
 import type { Transaction } from "@shared/schema";
 
 // Status display utility
@@ -121,14 +121,14 @@ export default function AgentTransactions() {
               />
             </div>
 
-            <Card>
+            <Card className="bg-green-600 text-white border-green-600">
               <CardHeader className="flex flex-row items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-white">
                     <BarChart3 className="h-5 w-5" />
                     Transaction History
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-green-100">
                     View all your customer orders and earnings
                   </CardDescription>
                 </div>
@@ -257,12 +257,34 @@ export default function AgentTransactions() {
                                 {isWalletTopup ? (
                                   <span className="text-muted-foreground">Self</span>
                                 ) : isBulkOrder && phoneNumbers ? (
-                                  <div className="text-xs">
-                                    <div className="font-semibold">{phoneNumbers.length} numbers</div>
-                                    <div className="text-muted-foreground truncate max-w-[120px]">
-                                      {phoneNumbers[0]?.phone}
-                                    </div>
-                                  </div>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-auto p-1 text-left justify-start text-muted-foreground hover:text-foreground">
+                                        <div className="text-xs">
+                                          <div className="font-semibold">{phoneNumbers.length} numbers</div>
+                                          <div className="truncate max-w-[100px]">
+                                            {phoneNumbers[0]?.phone}
+                                          </div>
+                                        </div>
+                                        <ChevronDown className="h-3 w-3 ml-1" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80">
+                                      <div className="space-y-2">
+                                        <h4 className="font-medium">Bulk Order Numbers</h4>
+                                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                                          {phoneNumbers.map((item, index) => (
+                                            <div key={index} className="text-sm">
+                                              <div className="font-mono">{item.phone}</div>
+                                              <div className="text-muted-foreground text-xs">
+                                                {item.bundleName} - {item.dataAmount}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
                                 ) : (
                                   tx.customerPhone
                                 )}

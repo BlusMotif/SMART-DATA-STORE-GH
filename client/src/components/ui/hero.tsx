@@ -15,12 +15,14 @@ interface HeroProps extends React.HTMLAttributes<HTMLElement> {
     onClick?: () => void;
     icon?: React.ComponentType<{ className?: string }>;
     className?: string;
+    size?: "sm" | "md" | "lg";
   };
   secondaryButton?: {
     text: string;
     href?: string;
     onClick?: () => void;
     icon?: React.ComponentType<{ className?: string }>;
+    size?: "sm" | "md" | "lg";
   };
   images?: string[];
   showNavigation?: boolean;
@@ -190,7 +192,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
                 <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
                   {primaryButton && (
                     <Button
-                      size="lg"
+                      size={primaryButton.size || "lg"}
                       className={cn("px-8 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-shadow", primaryButton.className)}
                       asChild={!!primaryButton.href}
                       onClick={primaryButton.onClick}
@@ -211,7 +213,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
 
                   {secondaryButton && (
                     <Button
-                      size="lg"
+                      size={secondaryButton.size || "lg"}
                       variant="outline"
                       className="px-8 py-4 text-lg font-semibold bg-white/10 border-white/20 text-white hover:bg-white/20"
                       asChild={!!secondaryButton.href}

@@ -4215,13 +4215,9 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete announcement" });
     }
   });
-  // Get active announcements for users
-  app.get("/api/announcements/active", requireAuth, async (req, res) => {
+  // Get active announcements for all users (public)
+  app.get("/api/announcements/active", async (req, res) => {
     try {
-      // Show announcements to all authenticated users (not guests)
-      if (req.user?.role === 'guest') {
-        return res.json([]); // Don't show announcements to guests
-      }
       const announcements = await storage.getActiveAnnouncements();
       res.json(announcements);
     } catch (error: any) {

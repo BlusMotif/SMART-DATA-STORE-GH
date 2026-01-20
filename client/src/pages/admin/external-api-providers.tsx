@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Menu, Plus, Edit, Trash2, Star, StarOff, Eye, EyeOff, TestTube } from "lucide-react";
 
 interface ExternalApiProvider {
@@ -63,7 +63,7 @@ export default function AdminExternalApiProviders() {
 
   const loadProviders = async () => {
     try {
-      const data = await apiRequest("GET", "/api/admin/external-providers");
+      const data = await apiRequest("GET", "/api/admin/external-providers") as ExternalApiProvider[];
       setProviders(data);
     } catch (error) {
       console.error("Failed to load providers:", error);
@@ -206,7 +206,7 @@ export default function AdminExternalApiProviders() {
   const testProvider = async (provider: ExternalApiProvider) => {
     setTestingProvider(provider.id);
     try {
-      const result = await apiRequest("GET", `/api/admin/external-balance?providerId=${provider.id}`);
+      const result = await apiRequest("GET", `/api/admin/external-balance?providerId=${provider.id}`) as { success: boolean; error?: string; balance?: any; celebrate?: any };
       if (result.success) {
         toast({
           title: "Test Successful",

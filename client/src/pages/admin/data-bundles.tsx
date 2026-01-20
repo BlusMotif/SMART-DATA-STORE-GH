@@ -416,6 +416,7 @@ function BundleForm({
             checked={formData.isActive}
             onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
             data-testid="switch-bundle-active"
+            className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
           />
           <Label>Active</Label>
         </div>

@@ -290,7 +290,7 @@ export default function AdminExternalApiProviders() {
                     Add Provider
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>
                       {editingProvider ? "Edit" : "Add"} External API Provider
@@ -383,7 +383,7 @@ export default function AdminExternalApiProviders() {
                           id="isActive"
                           checked={form.isActive}
                           onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
-                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-yellow-500"
+                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                         />
                         <Label htmlFor="isActive">Active</Label>
                       </div>
@@ -392,7 +392,7 @@ export default function AdminExternalApiProviders() {
                           id="isDefault"
                           checked={form.isDefault}
                           onCheckedChange={(checked) => setForm({ ...form, isDefault: checked })}
-                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-yellow-500"
+                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                         />
                         <Label htmlFor="isDefault">Set as Default</Label>
                       </div>

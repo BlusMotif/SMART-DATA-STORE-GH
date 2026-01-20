@@ -153,7 +153,7 @@ export default function AdminBreakSettings() {
                       checked={isEnabled}
                       onCheckedChange={setIsEnabled}
                       disabled={updateMutation.isPending}
-                      className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-gray-300 [&>span]:data-[state=checked]:bg-white [&>span]:data-[state=unchecked]:bg-white [&>span]:shadow-md"
+                      className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                     />
                   </div>
                 </div>

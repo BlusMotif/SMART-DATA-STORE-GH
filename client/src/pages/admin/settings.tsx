@@ -400,6 +400,7 @@ export default function AdminSettings() {
                       handleSettingChange("data_bundle_auto_processing", checked ? "true" : "false");
                       handleSaveSetting("data_bundle_auto_processing", "Auto-process data bundle orders via API");
                     }}
+                    className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                   />
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -581,6 +582,7 @@ export default function AdminSettings() {
                             <Switch
                               checked={announcement.isActive}
                               onCheckedChange={() => handleToggleAnnouncement(announcement.id, announcement.isActive)}
+                              className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                             />
                             <Button
                               variant="ghost"

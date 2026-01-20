@@ -364,6 +364,7 @@ const ApiKeysPage: React.FC = () => {
                         <Switch
                           checked={apiKey.isActive}
                           onCheckedChange={() => toggleApiKey(apiKey.id)}
+                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                         />
                       </div>
                     </div>
@@ -518,7 +519,7 @@ const ApiKeysPage: React.FC = () => {
                   <div className="space-y-2 mt-2">
                     {['transaction.completed', 'transaction.failed', 'bundle.delivered'].map((event) => (
                       <div key={event} className="flex items-center space-x-2">
-                        <Switch id={event} />
+                        <Switch id={event} className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white" />
                         <Label htmlFor={event} className="text-sm">{event}</Label>
                       </div>
                     ))}
@@ -589,6 +590,7 @@ const PermissionsEditor: React.FC<{
             onCheckedChange={(checked) =>
               setLocalPermissions(prev => ({ ...prev, [option.key]: checked }))
             }
+            className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
           />
           <div className="flex-1">
             <Label htmlFor={option.key} className="font-medium">

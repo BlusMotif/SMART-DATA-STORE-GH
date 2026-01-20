@@ -88,7 +88,7 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         if (resp.ok && data.ref) {
           results.push({ 
             phone, 
-            status: "delivered", 
+            status: "pending", 
             ref: data.ref, 
             price: data.price,
             providerResponse: data 

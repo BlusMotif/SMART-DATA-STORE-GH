@@ -75,7 +75,7 @@ export default function AdminTransactions() {
       setDeliveryStatusValue("");
     },
     onError: (error: any) => {
-      toast({ title: "Failed to update delivery status", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to update delivery status", description: error?.message || 'Unknown error', variant: "destructive" });
     },
   });
 
@@ -99,7 +99,7 @@ export default function AdminTransactions() {
       }
     },
     onError: (error: any) => {
-      toast({ title: "Failed to export transactions", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to export transactions", description: error?.message || 'Unknown error', variant: "destructive" });
     },
   });
 
@@ -111,7 +111,7 @@ export default function AdminTransactions() {
       if (
         !tx.reference.toLowerCase().includes(term) &&
         !tx.productName.toLowerCase().includes(term) &&
-        !tx.customerPhone.includes(term)
+        (!tx.customerPhone || !tx.customerPhone.includes(term))
       ) {
         return false;
       }
@@ -386,7 +386,8 @@ export default function AdminTransactions() {
                         {sortedTransactions.map((tx) => {
                           let network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
-                          const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
+                          const phoneNumbersRaw = (tx as any).phoneNumbers;
+                          const phoneNumbers = phoneNumbersRaw ? (typeof phoneNumbersRaw === 'string' ? JSON.parse(phoneNumbersRaw) : phoneNumbersRaw) as Array<{phone: string, bundleName: string, dataAmount: string}> : undefined;
                           const deliveryStatus = (tx as any).deliveryStatus || "pending";
                           
                           // For bulk orders, if network is not found, try to extract from bundle name

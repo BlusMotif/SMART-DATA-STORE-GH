@@ -167,7 +167,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const { data: bundles, isLoading } = useQuery<any[]>({
     queryKey: ['/api/products/data-bundles', network, agentSlug],
     queryFn: async () => {
-      const apiNetwork = network?.replace(/-/g, '_');
+      const apiNetwork = network;
       const url = `/api/products/data-bundles?network=${apiNetwork}`;
       return await apiRequest('GET', url);
     },
@@ -185,7 +185,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     enabled: !!agentSlug
   });
 
-  const sortedBundles = bundles?.filter((b: any) => b.network === network?.replace(/-/g, '_') && b.isActive)
+  const sortedBundles = bundles?.filter((b: any) => b.network === network && b.isActive)
     .sort((a: any, b: any) => {
       const priceA = parseFloat(a.effective_price);
       const priceB = parseFloat(b.effective_price);
@@ -195,27 +195,29 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const selectedBundle = sortedBundles?.find((b: any) => b.id === selectedBundleId) || null;
 
   const bulkTotal = useMemo(() => {
-    if (!bulkPhones?.trim() || !sortedBundles) return { total: 0, count: 0 };
+    if (!bulkPhones?.trim() || !sortedBundles) return { total: 0, count: 0, invalidCount: 0 };
     const lines = bulkPhones.split('\n').filter(l => l.trim());
-    let total = 0; let count = 0;
+    let total = 0; let count = 0; let invalidCount = 0;
     for (const line of lines) {
       const parts = line.trim().split(/\s+/);
       if (parts.length === 2) {
         const gb = parseFloat(parts[1]);
         if (!isNaN(gb) && gb > 0) {
           const match = sortedBundles.find((b: any) => {
-            const m = b.name.match(/(\d+(?:\.\d+)?)\s*gb/i);
+            const m = b.dataAmount.match(/(\d+(?:\.\d+)?)\s*gb/i);
             return m ? parseFloat(m[1]) === gb : false;
           });
           if (match) { 
             const price = parseFloat(match.effective_price);
             total += price; 
             count++; 
+          } else {
+            invalidCount++;
           }
         }
       }
     }
-    return { total, count };
+    return { total, count, invalidCount };
   }, [bulkPhones, sortedBundles]);
 
   const checkoutMutation = useMutation<any, Error, any>({
@@ -317,7 +319,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     const orderItems: Array<{ phone: string; bundleId: string; bundleName: string; price: number }> = [];
     let total = 0;
     for (const it of parsed) {
-      const match = sortedBundles.find((b: any) => { const m = b.name.match(/(\d+(?:\.\d+)?)\s*gb/i); return m ? parseFloat(m[1]) === it.gb : false; });
+      const match = sortedBundles.find((b: any) => { const m = b.dataAmount.match(/(\d+(?:\.\d+)?)\s*gb/i); return m ? parseFloat(m[1]) === it.gb : false; });
       if (!match) { toast({ title: 'Bundle Not Found', description: `No ${it.gb}GB bundle for ${network}`, variant: 'destructive' }); return; }
       
       // Use effective_price for all bundles
@@ -452,12 +454,21 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
             <CardContent className="space-y-4">
               <Textarea placeholder={`0546591622 1\n0247064874 3\n233547897522 10`} value={bulkPhones} onChange={(e) => setBulkPhones(e.target.value)} rows={8} />
               <p className="text-sm text-muted-foreground">Enter one number per line with GB amount (e.g., "0241234567 2"). Supports 0241234567 or 233241234567 (no +). No limit - add 100+ numbers! All numbers must be for {network.toUpperCase()}. Valid prefixes: {getNetworkPrefixes(network).join(', ')}</p>
-              {bulkTotal && <p className="font-medium">{bulkTotal.count} items • GH₵{bulkTotal.total.toFixed(2)}</p>}
+              {bulkTotal && (
+                <div className="space-y-2">
+                  <p className="font-medium">{bulkTotal.count} items • GH₵{bulkTotal.total.toFixed(2)}</p>
+                  {bulkTotal.invalidCount > 0 && (
+                    <p className="text-sm text-red-600 dark:text-red-400">
+                      ⚠️ {bulkTotal.invalidCount} bundle(s) not found for this network. Please check the GB amounts.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end">
                 <Button 
                   onClick={handleBulk}
-                  disabled={bulkTotal.count === 0}
+                  disabled={bulkTotal.count === 0 || bulkTotal.invalidCount > 0}
                 >
                   Pay with Paystack {bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}
                 </Button>

@@ -28,6 +28,7 @@ import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
 import { OrderTracker } from "@/components/order-tracker";
+import { AnnouncementPopup } from "@/components/announcement-popup";
 
 const bannerImages = [banner1, banner2, banner3];
 
@@ -275,6 +276,9 @@ export default function HomePage() {
       </main>
 
       <Footer />
+
+      {/* Announcement Popup */}
+      <AnnouncementPopup />
     </div>
   );
 }

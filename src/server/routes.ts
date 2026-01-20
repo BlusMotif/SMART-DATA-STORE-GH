@@ -195,26 +195,18 @@ async function processWebhookEvent(event: any) {
           try {
             const fulfillResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
-            // If provider reports all recipients ok, mark delivered/completed
-            if (fulfillResult && fulfillResult.success && Array.isArray(fulfillResult.results)) {
-              const allOk = fulfillResult.results.every((r: any) => r.status === "ok");
-              if (allOk) {
-                await storage.updateTransaction(transaction.id, {
-                  status: TransactionStatus.DELIVERED,
-                  deliveryStatus: "delivered",
-                  completedAt: new Date(),
-                  paymentReference: data.reference,
-                });
-              } else {
-                await storage.updateTransaction(transaction.id, {
-                  status: TransactionStatus.COMPLETED,
-                  deliveryStatus: "processing",
-                  completedAt: new Date(),
-                  paymentReference: data.reference,
-                  failureReason: JSON.stringify(fulfillResult.results),
-                });
-              }
+
+            // Always set initial status to pending - admin will update later
+            if (fulfillResult && fulfillResult.success) {
+              // Order was placed successfully, set to pending for admin review
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.COMPLETED,
+                deliveryStatus: "pending",
+                completedAt: new Date(),
+                paymentReference: data.reference,
+              });
             } else {
+              // Order failed to place, mark as failed
               await storage.updateTransaction(transaction.id, {
                 status: TransactionStatus.COMPLETED,
                 deliveryStatus: "failed",
@@ -359,8 +351,7 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
     // Get user role - first from metadata, then try database
-    let role = user.email === 'eleblununana@gmail.com' ? 'admin' :
-               (user.user_metadata?.role || user.app_metadata?.role || 'user');
+    let role = user.user_metadata?.role || user.app_metadata?.role || 'user';
     try {
       const dbUser = await storage.getUserByEmail(user.email);
       if (dbUser) {
@@ -2167,10 +2158,18 @@ export async function registerRoutes(
           // Process data bundle through API
           console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
           const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
-          if (!fulfillmentResult.success) {
-            console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
-            // Still mark as completed but log the error
+          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+          if (fulfillmentResult.success) {
+            // Order was placed successfully, set to pending for admin review
             await storage.updateTransaction(transaction.id, {
+              deliveryStatus: "pending",
+            });
+          } else {
+            // Order failed to place, mark as failed
+            console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
+            await storage.updateTransaction(transaction.id, {
+              deliveryStatus: "failed",
               failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
             });
           }
@@ -2442,24 +2441,19 @@ export async function registerRoutes(
       if (transaction.type === ProductType.DATA_BUNDLE) {
         console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
         const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+        await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
         if (fulfillmentResult.success) {
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
-          
-          // Update transaction with fulfillment details
-          const deliveredRefs = (fulfillmentResult as any).results
-            .filter((r: any) => r.status === 'delivered' && r.ref)
-            .map((r: any) => ({ phone: r.phone, ref: r.ref, price: r.price }));
-          
-          if (deliveredRefs.length > 0) {
-            await storage.updateTransaction(transaction.id, {
-              deliveredPin: JSON.stringify(deliveredRefs),
-              status: TransactionStatus.COMPLETED,
-            });
-          }
+          // Order was placed successfully, set to pending for admin review
+          await storage.updateTransaction(transaction.id, {
+            deliveryStatus: "pending",
+          });
         } else {
           console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult.error);
-          // Update transaction with error note but keep as completed since payment was successful
+          // Order failed to place, mark as failed
           await storage.updateTransaction(transaction.id, {
+            deliveryStatus: "failed",
             failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
           });
         }
@@ -5814,17 +5808,22 @@ export async function registerRoutes(
         // For data bundles, process through API first
         console.log("[Wallet] Processing data bundle transaction via API:", transaction.reference);
         const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+        await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
         if (fulfillmentResult.success) {
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
+          // Order was placed successfully, set to pending for admin review
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
+            deliveryStatus: "pending",
             completedAt: new Date(),
           });
         } else {
           console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
-          // Still mark as completed but log the error - in production you might want to handle this differently
+          // Order failed to place, mark as failed
           await storage.updateTransaction(transaction.id, {
             status: TransactionStatus.COMPLETED,
+            deliveryStatus: "failed",
             completedAt: new Date(),
             failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
           });

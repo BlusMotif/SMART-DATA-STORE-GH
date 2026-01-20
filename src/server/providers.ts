@@ -62,7 +62,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
           phoneData = JSON.parse(transaction.phoneNumbers);
           console.log("[Fulfill] Successfully parsed phoneNumbers string");
         } catch (e) {
-          console.warn("Failed to parse phoneNumbers JSON string:", e.message);
+          const error = e as Error;
+          console.warn("Failed to parse phoneNumbers JSON string:", error.message);
           console.warn("Raw phoneNumbers string:", transaction.phoneNumbers);
           phoneData = [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
         }

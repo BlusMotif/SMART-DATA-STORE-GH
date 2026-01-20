@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { AlertTriangle, Lock, X, CheckCircle, Power, PowerOff, Menu, Settings, Save } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Lock, X, Menu, Settings, Save } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -29,7 +26,7 @@ export default function AdminBreakSettings() {
   const [message, setMessage] = useState("");
 
   // Fetch current break settings
-  const { data: breakSettings, isLoading } = useQuery<BreakSettings>({
+  const { data: breakSettings } = useQuery<BreakSettings>({
     queryKey: ["/api/admin/break-settings"],
     enabled: !!user,
   });
@@ -44,8 +41,7 @@ export default function AdminBreakSettings() {
   // Update break settings mutation
   const updateMutation = useMutation({
     mutationFn: async (settings: BreakSettings) => {
-      const response = await apiRequest("POST", "/api/admin/break-settings", settings);
-      return response.json();
+      return await apiRequest<BreakSettings>("POST", "/api/admin/break-settings", settings);
     },
     onSuccess: (data) => {
       // Invalidate and refetch the break settings query

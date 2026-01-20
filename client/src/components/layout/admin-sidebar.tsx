@@ -1,7 +1,6 @@
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
-  Package,
   Smartphone,
   FileCheck,
   Users,
@@ -15,7 +14,6 @@ import {
   MessageCircle,
   AlertTriangle,
   Code,
-  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,7 +22,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { useTheme } from "@/components/theme-provider";
 
 const sidebarNavItems = [
   {
@@ -56,11 +53,6 @@ const sidebarNavItems = [
     title: "Users",
     href: "/admin/users",
     icon: UserCircle,
-  },
-  {
-    title: "Users Ranking",
-    href: "/admin/rankings",
-    icon: Trophy,
   },
   {
     title: "Agents",
@@ -107,7 +99,6 @@ const sidebarNavItems = [
 export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { user, logout, isLoggingOut } = useAuth();
-  const { theme } = useTheme();
 
   // Get unread message count for admin
   const { data: unreadCount = 0 } = useQuery<number>({
@@ -126,7 +117,6 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
   return (
     <div 
       className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
-      style={{ backgroundColor: theme === 'dark' ? '#000000' : '#ffffff' }}
     >
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">

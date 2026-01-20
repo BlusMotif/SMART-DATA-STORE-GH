@@ -384,10 +384,27 @@ export default function AdminTransactions() {
                       </TableHeader>
                       <TableBody>
                         {sortedTransactions.map((tx) => {
-                          const network = NETWORKS.find((n) => n.id === tx.network);
+                          let network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbers = (tx as any).phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
                           const deliveryStatus = (tx as any).deliveryStatus || "pending";
+                          
+                          // For bulk orders, if network is not found, try to extract from bundle name
+                          if (!network && isBulkOrder && phoneNumbers && phoneNumbers.length > 0) {
+                            const bundleName = phoneNumbers[0].bundleName;
+                            if (bundleName) {
+                              const lower = bundleName.toLowerCase();
+                              if (lower.includes('mtn')) {
+                                network = NETWORKS.find(n => n.id === 'mtn');
+                              } else if (lower.includes('telecel')) {
+                                network = NETWORKS.find(n => n.id === 'telecel');
+                              } else if (lower.includes('bigtime')) {
+                                network = NETWORKS.find(n => n.id === 'at_bigtime');
+                              } else if (lower.includes('ishare')) {
+                                network = NETWORKS.find(n => n.id === 'at_ishare');
+                              }
+                            }
+                          }
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
@@ -435,7 +452,9 @@ export default function AdminTransactions() {
                               <TableCell className="text-muted-foreground">
                                 {isBulkOrder && phoneNumbers ? (
                                   <div className="text-xs">
-                                    <div className="font-semibold">{phoneNumbers.length} numbers</div>
+                                    <div className="font-semibold">
+                                      {phoneNumbers.length} items: {phoneNumbers.map(p => p.dataAmount).join(', ')}
+                                    </div>
                                     <div className="text-muted-foreground truncate max-w-[120px]">
                                       {phoneNumbers[0]?.phone || 'Unknown'}
                                     </div>

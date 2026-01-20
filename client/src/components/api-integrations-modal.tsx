@@ -43,9 +43,7 @@ export function ApiIntegrationsModal({ open, onOpenChange }: ApiIntegrationsModa
 
   const createKeyMutation = useMutation({
     mutationFn: async (name: string) => {
-      const res = await apiRequest("POST", "/api/user/api-keys", { name });
-      const json = await res.json();
-      return json as ApiKey;
+      return await apiRequest<ApiKey>("POST", "/api/user/api-keys", { name });
     },
     onSuccess: (newKey) => {
       setCreatedKey(newKey.key);

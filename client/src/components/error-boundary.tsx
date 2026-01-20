@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -79,7 +79,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </AlertDescription>
               </Alert>
 
-              {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
+              {import.meta.env.DEV && this.state.errorInfo && (
                 <div className="bg-gray-100 dark:bg-black p-4 rounded-lg overflow-auto max-h-64">
                   <p className="text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                     {this.state.errorInfo.componentStack}

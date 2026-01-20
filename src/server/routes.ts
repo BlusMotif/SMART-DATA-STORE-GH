@@ -13,7 +13,7 @@ import {
   users, walletTopupTransactions, auditLogs, transactions
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
-import { fulfillDataBundleTransaction } from "./providers.js";
+import { fulfillDataBundleTransaction, getExternalBalance, getExternalPrices, getExternalOrderStatus } from "./providers.js";
 // Role labels for storefront display
 const ROLE_LABELS = {
   admin: "Admin",
@@ -1823,6 +1823,7 @@ export async function registerRoutes(
         }
         // Get network from data or product
         network = data.network || product.network;
+        network = network?.toLowerCase() || null;
         // Validate all phone numbers match the network
         for (const item of data.orderItems) {
           const normalizedItemPhone = normalizePhoneNumber(item.phone);
@@ -1959,7 +1960,7 @@ export async function registerRoutes(
         }
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
         costPrice = 0; // Cost price removed from schema
-        network = product.network;
+        network = product.network?.toLowerCase();
         // Validate amount from frontend
         const expectedAmount = amount;
         if (data.amount) {
@@ -2444,7 +2445,7 @@ export async function registerRoutes(
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
           
           // Update transaction with fulfillment details
-          const deliveredRefs = fulfillmentResult.results
+          const deliveredRefs = (fulfillmentResult as any).results
             .filter((r: any) => r.status === 'delivered' && r.ref)
             .map((r: any) => ({ phone: r.phone, ref: r.ref, price: r.price }));
           
@@ -4597,15 +4598,11 @@ export async function registerRoutes(
       // Validate numeric fields
       const yearNum = parseInt(year);
       const basePriceNum = parseFloat(basePrice);
-      const costPriceNum = parseFloat(costPrice);
       if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
         return res.status(400).json({ error: "Invalid year" });
       }
       if (isNaN(basePriceNum) || basePriceNum <= 0 || basePriceNum > 10000) {
         return res.status(400).json({ error: "Invalid base price" });
-      }
-      if (isNaN(costPriceNum) || costPriceNum <= 0 || costPriceNum > basePriceNum) {
-        return res.status(400).json({ error: "Invalid cost price" });
       }
       const lines = checkersStr.split("\n").filter((line: string) => line.trim());
       const checkersData = lines.map((line: string) => {
@@ -4616,7 +4613,6 @@ export async function registerRoutes(
           serialNumber,
           pin,
           basePrice,
-          costPrice,
         };
       }).filter((c: any) => c.serialNumber && c.pin);
       if (checkersData.length === 0) {
@@ -6343,6 +6339,53 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to get transactions" });
+    }
+  });
+
+  // External API integration routes
+  app.get("/api/admin/external-balance", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const result = await getExternalBalance();
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get external balance" });
+    }
+  });
+
+  app.get("/api/admin/external-prices", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { network, min_capacity, max_capacity, effective } = req.query;
+      const result = await getExternalPrices(
+        network as string,
+        min_capacity ? parseInt(min_capacity as string) : undefined,
+        max_capacity ? parseInt(max_capacity as string) : undefined,
+        effective ? effective === '1' || effective === 'true' : undefined
+      );
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get external prices" });
+    }
+  });
+
+  app.get("/api/admin/external-order/:ref", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { ref } = req.params;
+      const result = await getExternalOrderStatus(ref);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get external order status" });
     }
   });
 

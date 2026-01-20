@@ -63,6 +63,18 @@ export default function AdminDataBundles() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("DELETE", `/api/admin/data-bundles/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/data-bundles"] });
+      toast({ title: "Data bundle deleted successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete bundle", description: error.message, variant: "destructive" });
+    },
+  });
+
   const getRoleBasePrice = (bundleId: string, role: string) => {
     const price = roleBasePrices?.find(p => p.bundleId === bundleId && p.role === role);
     return price ? formatCurrency(price.basePrice) : '-';
@@ -273,11 +285,11 @@ function BundleForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Convert empty strings to null for price fields
+    // Convert empty strings to undefined for price fields
     const processedData = {
       ...formData,
-      basePrice: formData.basePrice === "" ? null : formData.basePrice,
-      adminPrice: formData.adminPrice === "" ? null : formData.adminPrice,
+      basePrice: formData.basePrice === "" ? undefined : formData.basePrice,
+      adminPrice: formData.adminPrice === "" ? undefined : formData.adminPrice,
     };
     
     onSubmit(processedData);

@@ -17,7 +17,7 @@ import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, RESULT_CHECKER_TYPES } from "@/lib/constants";
-import { Plus, FileCheck, Package, AlertCircle, Menu, Edit, Trash2 } from "lucide-react";
+import { Plus, FileCheck, Package, AlertCircle, Menu } from "lucide-react";
 import type { ResultChecker } from "@shared/schema";
 
 interface StockSummary {
@@ -564,7 +564,6 @@ function EditForm({
     serialNumber: checker.serialNumber,
     pin: checker.pin,
     basePrice: checker.basePrice,
-    costPrice: checker.costPrice,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -575,7 +574,6 @@ function EditForm({
       serialNumber: formData.serialNumber,
       pin: formData.pin,
       basePrice: formData.basePrice,
-      costPrice: formData.costPrice,
     });
   };
 
@@ -646,17 +644,6 @@ function EditForm({
             step="0.01"
             value={formData.basePrice}
             onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="edit-cost-price">Cost Price</Label>
-          <Input
-            id="edit-cost-price"
-            type="number"
-            step="0.01"
-            value={formData.costPrice}
-            onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
             required
           />
         </div>

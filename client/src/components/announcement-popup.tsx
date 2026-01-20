@@ -26,9 +26,9 @@ export function AnnouncementPopup() {
     }
   }, []);
 
-  const { data: announcements = [] } = useQuery({
+  const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ['announcements'],
-    queryFn: () => apiRequest('/api/announcements/active'),
+    queryFn: () => apiRequest('GET', '/api/announcements/active'),
     enabled: true,
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
     refetchOnWindowFocus: false, // Don't refetch on tab focus
@@ -37,7 +37,7 @@ export function AnnouncementPopup() {
   // Check if there are any active announcements that haven't been dismissed
   useEffect(() => {
     if (announcements.length > 0) {
-      const hasUndismissed = announcements.some((announcement: Announcement) =>
+      const hasUndismissed = announcements.some((announcement) =>
         !dismissedAnnouncements.includes(announcement.id)
       );
       setIsOpen(hasUndismissed);
@@ -52,7 +52,7 @@ export function AnnouncementPopup() {
 
   const handleClose = () => {
     // Dismiss all current announcements
-    const newDismissed = [...dismissedAnnouncements, ...announcements.map((a: Announcement) => a.id)];
+    const newDismissed = [...dismissedAnnouncements, ...announcements.map((a) => a.id)];
     setDismissedAnnouncements(newDismissed);
     localStorage.setItem('dismissedAnnouncements', JSON.stringify(newDismissed));
     setIsOpen(false);
@@ -61,7 +61,7 @@ export function AnnouncementPopup() {
   if (!isOpen || announcements.length === 0) return null;
 
   // Show only undismissed announcements
-  const undismissedAnnouncements = announcements.filter((announcement: Announcement) =>
+  const undismissedAnnouncements = announcements.filter((announcement) =>
     !dismissedAnnouncements.includes(announcement.id)
   );
 
@@ -83,7 +83,7 @@ export function AnnouncementPopup() {
         </DialogHeader>
 
         <div className="space-y-4">
-          {undismissedAnnouncements.map((announcement: Announcement) => (
+          {undismissedAnnouncements.map((announcement) => (
             <Alert key={announcement.id} className="relative">
               <AlertDescription className="pr-8">
                 <div className="font-semibold mb-2">{announcement.title}</div>

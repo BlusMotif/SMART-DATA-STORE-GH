@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Bell, CreditCard, Shield, Smartphone, Save, X, Menu, Users, Key, Plus, Trash2 } from "lucide-react";
+import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2 } from "lucide-react";
 
 interface Setting {
   key: string;
@@ -60,19 +60,19 @@ export default function AdminSettings() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
   // Fetch settings from database
-  const { data: settingsData, isLoading: settingsLoading } = useQuery<Setting[]>({
+  const { data: settingsData } = useQuery<Setting[]>({
     queryKey: ["/api/admin/settings"],
     refetchInterval: 30000, // Real-time updates every 30 seconds
   });
 
   // Fetch users for credential management
-  const { data: usersData, isLoading: usersLoading } = useQuery<User[]>({
+  const { data: usersData } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
     refetchInterval: 30000,
   });
 
   // Fetch announcements
-  const { data: announcementsData, isLoading: announcementsLoading } = useQuery<Announcement[]>({
+  const { data: announcementsData } = useQuery<Announcement[]>({
     queryKey: ["/api/admin/announcements"],
     refetchInterval: 30000,
   });
@@ -103,7 +103,7 @@ export default function AdminSettings() {
       // Return a context object with the snapshotted value
       return { previousSettings };
     },
-    onError: (err, { key }, context) => {
+    onError: (err, _, context) => {
       // If the mutation fails, use the context returned from onMutate to roll back
       if (context?.previousSettings) {
         queryClient.setQueryData(["/api/admin/settings"], context.previousSettings);
@@ -422,15 +422,16 @@ export default function AdminSettings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Select User to Manage</Label>
-                  <select
-                    className="w-full p-2 border rounded-md"
-                    value={selectedUser?.id || ""}
-                    onChange={(e) => {
-                      const user = users.find(u => u.id === e.target.value);
-                      if (user) handleUserSelect(user);
-                    }}
-                  >
+                  <Label>
+                    Select User to Manage
+                    <select
+                      className="w-full p-2 border rounded-md mt-1"
+                      value={selectedUser?.id || ""}
+                      onChange={(e) => {
+                        const user = users.find(u => u.id === e.target.value);
+                        if (user) handleUserSelect(user);
+                      }}
+                    >
                     <option value="">Choose a user...</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
@@ -438,6 +439,7 @@ export default function AdminSettings() {
                       </option>
                     ))}
                   </select>
+                  </Label>
                 </div>
 
                 {selectedUser && (

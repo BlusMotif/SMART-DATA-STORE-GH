@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,7 +38,6 @@ interface StorefrontAuthDialogProps {
 
 export function StorefrontAuthDialog({ agentSlug, agentName }: StorefrontAuthDialogProps) {
   const [open, setOpen] = useState(false);
-  const [] = useLocation();
   const { toast } = useToast();
 
   const loginForm = useForm<LoginFormData>({

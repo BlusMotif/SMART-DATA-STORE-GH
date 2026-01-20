@@ -34,7 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { Users, CheckCircle, XCircle, Clock, Store, Menu, Trash2, Edit } from "lucide-react";
+import { Users, CheckCircle, Clock, Store, Menu, Trash2, Edit } from "lucide-react";
 import type { Agent } from "@shared/schema";
 
 const whatsappSchema = z.object({

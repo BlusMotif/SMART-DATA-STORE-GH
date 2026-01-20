@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageCircle, Send, UserCircle, Clock, CheckCircle, Menu } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
@@ -26,8 +26,7 @@ export default function AdminChatSupport() {
     queryKey: ["/api/support/admin/unread-count"],
     queryFn: async () => {
       try {
-        const response = await apiRequest("GET", "/api/support/admin/unread-count");
-        const data = await response.json();
+        const data = await apiRequest<{ count: number }>("GET", "/api/support/admin/unread-count");
         return data.count || 0;
       } catch (error) {
         return 0;
@@ -138,11 +137,6 @@ export default function AdminChatSupport() {
       e.preventDefault();
       handleSendMessage();
     }
-  };
-
-  const getUnreadCount = (chat: SupportChat) => {
-    // This would ideally come from the backend
-    return 0; // Placeholder
   };
 
   return (

@@ -1,0 +1,267 @@
+{
+  "info": {
+    "name": "SkyTech GH Data API",
+    "description": "API for data bundle purchases and management",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://skytechgh.com/api/v1"
+    },
+    {
+      "key": "api_key",
+      "value": "86ac47b90d4acbe5451e06df"
+    },
+    {
+      "key": "api_secret",
+      "value": "YOUR_API_SECRET"
+    },
+    {
+      "key": "network",
+      "value": "MTN"
+    },
+    {
+      "key": "recipient",
+      "value": "0541234567"
+    },
+    {
+      "key": "capacity",
+      "value": "1000"
+    },
+    {
+      "key": "order_ref",
+      "value": "MTN-5f2c7a9b3d2e1a45"
+    },
+    {
+      "key": "min_capacity",
+      "value": ""
+    },
+    {
+      "key": "max_capacity",
+      "value": ""
+    },
+    {
+      "key": "effective",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Get Balance",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/balance",
+          "host": ["{{base_url}}"],
+          "path": ["balance"]
+        },
+        "description": "Retrieve current wallet balance"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.globals.set('timestamp', Math.floor(Date.now() / 1000).toString());",
+              "const ts = pm.globals.get('timestamp');",
+              "const method = 'GET';",
+              "const path = '/api/v1/balance';",
+              "const body = '';",
+              "const message = `${ts}\\n${method}\\n${path}\\n${body}`;",
+              "const secret = pm.globals.get('api_secret');",
+              "const signature = CryptoJS.HmacSHA256(message, secret).toString();",
+              "pm.globals.set('signature', signature);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Prices",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/prices?network={{network}}&min_capacity={{min_capacity}}&max_capacity={{max_capacity}}&effective={{effective}}",
+          "host": ["{{base_url}}"],
+          "path": ["prices"],
+          "query": [
+            {
+              "key": "network",
+              "value": "{{network}}",
+              "description": "Network code (MTN, AT_ISHARE, AT_BIGTIME, TELECEL)"
+            },
+            {
+              "key": "min_capacity",
+              "value": "{{min_capacity}}",
+              "description": "Minimum capacity in MB"
+            },
+            {
+              "key": "max_capacity",
+              "value": "{{max_capacity}}",
+              "description": "Maximum capacity in MB"
+            },
+            {
+              "key": "effective",
+              "value": "{{effective}}",
+              "description": "Return prices adjusted for caller's role (1 or 0)"
+            }
+          ]
+        },
+        "description": "Retrieve available data bundles and prices with optional filters"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.globals.set('timestamp', Math.floor(Date.now() / 1000).toString());",
+              "const ts = pm.globals.get('timestamp');",
+              "const method = 'GET';",
+              "const path = '/api/v1/prices';",
+              "const body = '';",
+              "const message = `${ts}\\n${method}\\n${path}\\n${body}`;",
+              "const secret = pm.globals.get('api_secret');",
+              "const signature = CryptoJS.HmacSHA256(message, secret).toString();",
+              "pm.globals.set('signature', signature);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          },
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Idempotency-Key",
+            "value": "{{idempotency_key}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"network\": \"{{network}}\",\n  \"recipient\": \"{{recipient}}\",\n  \"capacity\": {{capacity}}\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/orders",
+          "host": ["{{base_url}}"],
+          "path": ["orders"]
+        },
+        "description": "Create a new data bundle order. Returns 201 for new orders, 200 for idempotent duplicates."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.globals.set('timestamp', Math.floor(Date.now() / 1000).toString());",
+              "pm.globals.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));",
+              "const ts = pm.globals.get('timestamp');",
+              "const method = 'POST';",
+              "const path = '/api/v1/orders';",
+              "const body = pm.request.body.raw;",
+              "const message = `${ts}\\n${method}\\n${path}\\n${body}`;",
+              "const secret = pm.globals.get('api_secret');",
+              "const signature = CryptoJS.HmacSHA256(message, secret).toString();",
+              "pm.globals.set('signature', signature);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get Order Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Timestamp",
+            "value": "{{timestamp}}",
+            "type": "text"
+          },
+          {
+            "key": "X-Signature",
+            "value": "{{signature}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/orders/{{order_ref}}",
+          "host": ["{{base_url}}"],
+          "path": ["orders", "{{order_ref}}"]
+        },
+        "description": "Retrieve order status by reference (path parameter)"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.globals.set('timestamp', Math.floor(Date.now() / 1000).toString());",
+              "const ts = pm.globals.get('timestamp');",
+              "const ref = pm.variables.get('order_ref');",
+              "const method = 'GET';",
+              "const path = `/api/v1/orders/${ref}`;",
+              "const body = '';",
+              "const message = `${ts}\\n${method}\\n${path}\\n${body}`;",
+              "const secret = pm.globals.get('api_secret');",
+              "const signature = CryptoJS.HmacSHA256(message, secret).toString();",
+              "pm.globals.set('signature', signature);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

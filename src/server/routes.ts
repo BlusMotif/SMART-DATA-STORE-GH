@@ -6346,13 +6346,22 @@ export async function registerRoutes(
   app.get("/api/admin/external-balance", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { providerId } = req.query;
-      const result = await getExternalBalance(providerId as string);
+      console.log("[External Balance] Testing provider:", providerId);
+
+      if (!providerId || typeof providerId !== 'string') {
+        return res.status(400).json({ error: "Provider ID is required" });
+      }
+
+      const result = await getExternalBalance(providerId);
+      console.log("[External Balance] Result:", result);
+
       if (result.success) {
         res.json(result);
       } else {
         res.status(500).json({ error: result.error });
       }
     } catch (error: any) {
+      console.error("[External Balance] Error:", error);
       res.status(500).json({ error: error.message || "Failed to get external balance" });
     }
   });

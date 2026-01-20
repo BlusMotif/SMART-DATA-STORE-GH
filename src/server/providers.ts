@@ -114,17 +114,31 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
 // Function to get balance from external API
 export async function getExternalBalance(providerId?: string) {
   try {
+    console.log("[getExternalBalance] Called with providerId:", providerId);
+
     // Get external API provider (use specified provider or default)
     let provider;
     if (providerId) {
+      console.log("[getExternalBalance] Looking up provider by ID:", providerId);
       provider = await storage.getExternalApiProvider(providerId);
+      console.log("[getExternalBalance] Found provider:", provider ? "YES" : "NO");
     } else {
+      console.log("[getExternalBalance] Looking up default provider");
       provider = await storage.getDefaultExternalApiProvider();
+      console.log("[getExternalBalance] Found default provider:", provider ? "YES" : "NO");
     }
 
-    if (!provider || !provider.isActive) {
-      return { success: false, error: "No active external API provider configured" };
+    if (!provider) {
+      console.log("[getExternalBalance] No provider found");
+      return { success: false, error: "No external API provider configured" };
     }
+
+    if (!provider.isActive) {
+      console.log("[getExternalBalance] Provider is not active");
+      return { success: false, error: "External API provider is not active" };
+    }
+
+    console.log("[getExternalBalance] Using provider:", provider.name, "endpoint:", provider.endpoint);
 
     const apiKey = provider.apiKey;
     const apiSecret = provider.apiSecret;

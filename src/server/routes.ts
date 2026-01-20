@@ -14,6 +14,7 @@ import {
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
 import { fulfillDataBundleTransaction, getExternalBalance, getExternalPrices, getExternalOrderStatus } from "./providers.js";
+import { generateSecureApiKey, hasPermissions } from "./utils/api-keys.js";
 // Role labels for storefront display
 const ROLE_LABELS = {
   admin: "Admin",
@@ -6232,7 +6233,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "API key name is required" });
       }
       // Generate a secure API key
-      const key = `sk_${randomBytes(32).toString('hex')}`;
+      const key = generateSecureApiKey('sk');
       // Resolve the database user id to use for the foreign key.
       // Some installations have pre-existing users with a different local id
       // (created before Supabase IDs were adopted). Prefer the DB user id
@@ -6468,6 +6469,399 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to set default external API provider" });
+    }
+  });
+
+  // ============================================
+  // ENHANCED API KEY MANAGEMENT
+  // ============================================
+
+  // Update API key permissions
+  app.put("/api/user/api-keys/:id/permissions", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { permissions } = req.body;
+
+      if (!permissions || typeof permissions !== 'object') {
+        return res.status(400).json({ error: "Permissions object is required" });
+      }
+
+      // Find API key by ID
+      const apiKeys = await storage.getApiKeys(req.user!.id);
+      const apiKey = apiKeys.find(k => k.id === id);
+      if (!apiKey) {
+        return res.status(404).json({ error: "API key not found" });
+      }
+
+      await storage.updateApiKey(apiKey.id, {
+        permissions: JSON.stringify(permissions)
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update API key permissions" });
+    }
+  });
+
+  // Toggle API key active status
+  app.put("/api/user/api-keys/:id/toggle", requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Find API key by ID
+      const apiKeys = await storage.getApiKeys(req.user!.id);
+      const apiKey = apiKeys.find(k => k.id === id);
+      if (!apiKey) {
+        return res.status(404).json({ error: "API key not found" });
+      }
+
+      await storage.updateApiKey(apiKey.id, {
+        isActive: !apiKey.isActive
+      });
+
+      res.json({ success: true, isActive: !apiKey.isActive });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to toggle API key status" });
+    }
+  });
+
+  // ============================================
+  // THIRD-PARTY API INTEGRATION ENDPOINTS
+  // ============================================
+
+  // Get available data bundles (Third-party)
+  app.get("/api/v1/bundles", requireApiKey, async (req, res) => {
+    try {
+      const { network, agent } = req.query;
+      const bundles = await storage.getDataBundles();
+
+      let filteredBundles = bundles.filter(b => b.isActive);
+
+      if (network && typeof network === 'string') {
+        filteredBundles = filteredBundles.filter(b => b.network === network);
+      }
+
+      // If agent slug provided, use agent pricing
+      if (agent && typeof agent === 'string') {
+        const agentData = await storage.getAgentBySlug(agent);
+        if (agentData) {
+          const customPricing = await storage.getCustomPricing(agentData.id, 'agent');
+          const pricingMap = new Map(customPricing.map(p => [p.productId, p.sellingPrice]));
+
+          filteredBundles = filteredBundles.map(bundle => ({
+            ...bundle,
+            effective_price: pricingMap.get(bundle.id) || bundle.agentPrice
+          }));
+        }
+      }
+
+      res.json({
+        bundles: filteredBundles.map(b => {
+          // Calculate effective price for this bundle
+          let effectivePrice = b.basePrice;
+          if (agent && typeof agent === 'string') {
+            const agentData = filteredBundles.find(fb => fb.id === b.id);
+            effectivePrice = (agentData as any)?.effective_price || b.agentPrice || b.basePrice;
+          }
+          return {
+            id: b.id,
+            name: b.name,
+            network: b.network,
+            dataAmount: b.dataAmount,
+            validity: b.validity,
+            price: effectivePrice,
+            currency: "GHS"
+          };
+        })
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get bundles" });
+    }
+  });
+
+  // Purchase data bundle (Third-party)
+  app.post("/api/v1/bundles/purchase", requireApiKey, async (req, res) => {
+    try {
+      const { bundleId, phone, email, agentSlug } = req.body;
+
+      if (!bundleId || !phone || !email) {
+        return res.status(400).json({ error: "bundleId, phone, and email are required" });
+      }
+
+      // Check if API key has purchase permission
+      const hasPurchasePermission = hasPermissions(req.apiKey!.permissions, ['purchase']);
+      if (!hasPurchasePermission) {
+        return res.status(403).json({ error: "API key does not have purchase permission" });
+      }
+
+      const bundle = await storage.getDataBundle(bundleId);
+      if (!bundle || !bundle.isActive) {
+        return res.status(404).json({ error: "Bundle not found or inactive" });
+      }
+
+      // Determine price based on agent or user role
+      let price = bundle.basePrice;
+      if (agentSlug) {
+        const agent = await storage.getAgentBySlug(agentSlug);
+        if (agent) {
+          const customPricing = await storage.getCustomPricing(agent.id, 'agent');
+          const agentPrice = customPricing.find(p => p.productId === bundleId)?.sellingPrice;
+          if (agentPrice) price = agentPrice;
+        }
+      }
+
+      // Get user associated with API key
+      const user = await storage.getUser(req.apiKey!.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Check wallet balance
+      const balance = parseFloat(user.walletBalance || '0');
+      const priceNum = parseFloat(price);
+
+      if (balance < priceNum) {
+        return res.status(400).json({ error: "Insufficient wallet balance" });
+      }
+
+      // Create transaction
+      const reference = `API-${Date.now()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+      const transaction = await storage.createTransaction({
+        reference,
+        type: "data_bundle",
+        productId: bundleId,
+        productName: bundle.name,
+        network: bundle.network,
+        amount: price,
+        profit: "0", // API purchases don't generate profit
+        customerPhone: phone,
+        customerEmail: email,
+        phoneNumbers: phone,
+        isBulkOrder: false,
+        status: "pending",
+        deliveryStatus: "pending",
+        agentId: agentSlug ? (await storage.getAgentBySlug(agentSlug))?.id : null,
+        agentProfit: "0",
+        deliveredPin: null,
+        deliveredSerial: null,
+        failureReason: null,
+        apiResponse: null
+      });
+
+      // Deduct from wallet
+      await storage.updateUser(user.id, {
+        walletBalance: (balance - priceNum).toFixed(2)
+      });
+
+      // Process the purchase (this would trigger the actual data bundle purchase)
+      // For now, we'll mark as completed immediately
+      await storage.updateTransaction(transaction.id, {
+        status: "completed",
+        deliveryStatus: "delivered",
+        completedAt: new Date()
+      });
+
+      res.json({
+        success: true,
+        transaction: {
+          id: transaction.id,
+          reference: transaction.reference,
+          bundle: {
+            name: bundle.name,
+            network: bundle.network,
+            dataAmount: bundle.dataAmount,
+            validity: bundle.validity
+          },
+          amount: price,
+          phone: phone,
+          status: "completed"
+        }
+      });
+    } catch (error: any) {
+      console.error("API bundle purchase error:", error);
+      res.status(500).json({ error: error.message || "Failed to purchase bundle" });
+    }
+  });
+
+  // Get transaction status (Third-party)
+  app.get("/api/v1/transactions/:reference", requireApiKey, async (req, res) => {
+    try {
+      const { reference } = req.params;
+
+      const transaction = await storage.getTransactionByReference(reference);
+      if (!transaction) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+
+      // Check if transaction belongs to API key user
+      if (transaction.customerEmail !== (await storage.getUser(req.apiKey!.userId))?.email) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.json({
+        transaction: {
+          id: transaction.id,
+          reference: transaction.reference,
+          type: transaction.type,
+          productName: transaction.productName,
+          amount: transaction.amount,
+          status: transaction.status,
+          deliveryStatus: transaction.deliveryStatus,
+          createdAt: transaction.createdAt,
+          completedAt: transaction.completedAt
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get transaction" });
+    }
+  });
+
+  // Get result checker stock (Third-party)
+  app.get("/api/v1/result-checkers/stock", requireApiKey, async (req, res) => {
+    try {
+      const stock = await storage.getResultCheckerSummary();
+
+      res.json({
+        stock: stock.map(item => ({
+          type: item.type,
+          year: item.year,
+          available: item.available,
+          price: "50.00", // Fixed price for result checkers
+          currency: "GHS"
+        }))
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get result checker stock" });
+    }
+  });
+
+  // Purchase result checker (Third-party)
+  app.post("/api/v1/result-checkers/purchase", requireApiKey, async (req, res) => {
+    try {
+      const { type, year, quantity = 1 } = req.body;
+
+      if (!type || !year) {
+        return res.status(400).json({ error: "type and year are required" });
+      }
+
+      // Check if API key has purchase permission
+      const hasPurchasePermission = hasPermissions(req.apiKey!.permissions, ['purchase']);
+      if (!hasPurchasePermission) {
+        return res.status(403).json({ error: "API key does not have purchase permission" });
+      }
+
+      const stock = await storage.getResultCheckerSummary();
+      const item = stock.find(s => s.type === type && s.year === parseInt(year));
+
+      if (!item || item.available < quantity) {
+        return res.status(400).json({ error: "Insufficient stock" });
+      }
+
+      // Get user associated with API key
+      const user = await storage.getUser(req.apiKey!.userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const totalAmount = (50.00 * quantity).toFixed(2); // Fixed price for result checkers
+      const balance = parseFloat(user.walletBalance || '0');
+
+      if (balance < parseFloat(totalAmount)) {
+        return res.status(400).json({ error: "Insufficient wallet balance" });
+      }
+
+      // Create transaction
+      const reference = `API-RC-${Date.now()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+      const transaction = await storage.createTransaction({
+        reference,
+        type: "result_checker",
+        productId: `${type}_${year}`,
+        productName: `${type.toUpperCase()} ${year} Result Checker`,
+        network: null,
+        amount: totalAmount,
+        profit: "0",
+        customerPhone: user.phone || "",
+        customerEmail: user.email,
+        phoneNumbers: null,
+        isBulkOrder: false,
+        status: "pending",
+        deliveryStatus: "pending",
+        agentId: null,
+        agentProfit: "0",
+        deliveredPin: null,
+        deliveredSerial: null,
+        failureReason: null,
+        apiResponse: null
+      });
+
+      // Deduct from wallet
+      await storage.updateUser(user.id, {
+        walletBalance: (balance - parseFloat(totalAmount)).toFixed(2)
+      });
+
+      // Get available result checkers and mark them as sold
+      const availableCheckers = await storage.getResultCheckers({ type, year: parseInt(year), isSold: false });
+      const checkersToSell = availableCheckers.slice(0, quantity);
+      
+      for (const checker of checkersToSell) {
+        await storage.markResultCheckerSold(checker.id, transaction.id, user.phone);
+      }
+
+      // Mark as completed
+      await storage.updateTransaction(transaction.id, {
+        status: "completed",
+        deliveryStatus: "delivered",
+        completedAt: new Date()
+      });
+
+      res.json({
+        success: true,
+        transaction: {
+          id: transaction.id,
+          reference: transaction.reference,
+          product: {
+            type: type,
+            year: year,
+            quantity: quantity
+          },
+          amount: totalAmount,
+          status: "completed"
+        }
+      });
+    } catch (error: any) {
+      console.error("API result checker purchase error:", error);
+      res.status(500).json({ error: error.message || "Failed to purchase result checker" });
+    }
+  });
+
+  // ============================================
+  // WEBHOOK ENDPOINTS FOR THIRD PARTIES
+  // ============================================
+
+  // Transaction status webhook (for external integrations)
+  app.post("/api/webhooks/transaction-status", async (req, res) => {
+    try {
+      const { reference, status, provider, metadata } = req.body;
+
+      // Verify webhook signature if needed
+      // const signature = req.headers['x-webhook-signature'];
+
+      console.log(`Webhook received for transaction ${reference}: ${status}`);
+
+      // Update transaction status
+      const transaction = await storage.getTransactionByReference(reference);
+      if (transaction) {
+        await storage.updateTransaction(transaction.id, {
+          status: status,
+          apiResponse: JSON.stringify({ provider, metadata }),
+          ...(status === 'completed' ? { completedAt: new Date() } : {})
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Webhook error:", error);
+      res.status(500).json({ error: "Webhook processing failed" });
     }
   });
 

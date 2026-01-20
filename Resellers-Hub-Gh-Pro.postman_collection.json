@@ -1,0 +1,802 @@
+{
+  "info": {
+    "name": "Resellers Hub Gh Pro API",
+    "description": "Complete API collection for Resellers Hub Gh Pro data bundle and result checker platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://your-domain.com/api",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_email",
+      "value": "test@example.com",
+      "type": "string"
+    },
+    {
+      "key": "user_password",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "agent_slug",
+      "value": "test-store",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\",\n  \"phone\": \"+233501234567\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', response.access_token);",
+                  "    console.log('Token saved:', response.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Authenticate user and get JWT token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', response.access_token);",
+                  "    console.log('Token saved:', response.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get current authenticated user information"
+          }
+        }
+      ]
+    },
+    {
+      "name": "API Key Management",
+      "item": [
+        {
+          "name": "Create API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Production API Key\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/user/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["user", "api-keys"]
+            },
+            "description": "Create a new API key for third-party integrations"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('api_key', response.key);",
+                  "    console.log('API Key saved:', response.key);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get API Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/user/api-keys",
+              "host": ["{{base_url}}"],
+              "path": ["user", "api-keys"]
+            },
+            "description": "Get all API keys for the authenticated user"
+          }
+        },
+        {
+          "name": "Update API Key Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": {\n    \"read\": true,\n    \"purchase\": true,\n    \"webhook\": false\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/user/api-keys/{{api_key_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["user", "api-keys", "{{api_key_id}}"]
+            },
+            "description": "Update permissions for an API key"
+          }
+        },
+        {
+          "name": "Toggle API Key Status",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/user/api-keys/{{api_key_id}}/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["user", "api-keys", "{{api_key_id}}", "toggle"]
+            },
+            "description": "Activate or deactivate an API key"
+          }
+        },
+        {
+          "name": "Delete API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/user/api-keys/{{api_key_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["user", "api-keys", "{{api_key_id}}"]
+            },
+            "description": "Delete an API key"
+          }
+        }
+      ]
+    },
+        {
+          "name": "Register as Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"{{user_email}}\",\n  \"password\": \"{{user_password}}\",\n  \"phone\": \"+233501234567\",\n  \"storefrontSlug\": \"{{agent_slug}}\",\n  \"businessName\": \"My Data Store\",\n  \"businessDescription\": \"Best data bundles in town\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/register",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "register"]
+            },
+            "description": "Register as an agent (requires payment)"
+          }
+        },
+        {
+          "name": "Upgrade to Agent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"My Data Store\",\n  \"businessDescription\": \"Best data bundles in town\",\n  \"storefrontSlug\": \"{{agent_slug}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/upgrade",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "upgrade"]
+            },
+            "description": "Upgrade existing user to agent"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Third-Party API (API Key Auth)",
+      "item": [
+        {
+          "name": "Get Data Bundles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/bundles?network=mtn",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "bundles"],
+              "query": [
+                {
+                  "key": "network",
+                  "value": "mtn",
+                  "description": "Filter by network (mtn, telecel, at_bigtime, at_ishare)"
+                },
+                {
+                  "key": "agent",
+                  "value": "{{agent_slug}}",
+                  "description": "Agent slug for storefront pricing",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get available data bundles using API key authentication"
+          }
+        },
+        {
+          "name": "Purchase Data Bundle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bundleId\": \"bundle-uuid\",\n  \"phone\": \"+233501234567\",\n  \"email\": \"customer@example.com\",\n  \"agentSlug\": \"{{agent_slug}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/bundles/purchase",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "bundles", "purchase"]
+            },
+            "description": "Purchase a data bundle using API key authentication"
+          }
+        },
+        {
+          "name": "Get Transaction Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/transactions/API-123456789-ABCDEF",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "transactions", "API-123456789-ABCDEF"]
+            },
+            "description": "Get transaction status using API key authentication"
+          }
+        },
+        {
+          "name": "Get Result Checker Stock",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/result-checkers/stock",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "result-checkers", "stock"]
+            },
+            "description": "Get result checker stock availability"
+          }
+        },
+        {
+          "name": "Purchase Result Checker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"bece\",\n  \"year\": 2024,\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/result-checkers/purchase",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "result-checkers", "purchase"]
+            },
+            "description": "Purchase result checker using API key authentication"
+          }
+        },
+        {
+          "name": "Get User Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/balance",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "user", "balance"]
+            },
+            "description": "Get user wallet balance using API key authentication"
+          }
+        },
+        {
+          "name": "Get User Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/user/transactions?limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "user", "transactions"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Get user transactions using API key authentication"
+          }
+        }
+      ]
+    },
+        {
+          "name": "Get Data Bundles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/data-bundles?network=mtn",
+              "host": ["{{base_url}}"],
+              "path": ["products", "data-bundles"],
+              "query": [
+                {
+                  "key": "network",
+                  "value": "mtn",
+                  "description": "Filter by network (mtn, telecel, at_bigtime, at_ishare)"
+                },
+                {
+                  "key": "agent",
+                  "value": "{{agent_slug}}",
+                  "description": "Agent slug for storefront pricing",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get available data bundles"
+          }
+        },
+        {
+          "name": "Get Networks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/networks",
+              "host": ["{{base_url}}"],
+              "path": ["products", "networks"]
+            },
+            "description": "Get available networks with pricing"
+          }
+        },
+        {
+          "name": "Get Result Checker Stock",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/result-checkers/stock",
+              "host": ["{{base_url}}"],
+              "path": ["products", "result-checkers", "stock"]
+            },
+            "description": "Get result checker stock availability"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Checkout & Transactions",
+      "item": [
+        {
+          "name": "Initialize Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"bundle-uuid\",\n  \"productType\": \"data_bundle\",\n  \"customerPhone\": \"+233501234567\",\n  \"customerEmail\": \"customer@example.com\",\n  \"amount\": \"5.00\",\n  \"agentSlug\": \"{{agent_slug}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/checkout/initialize",
+              "host": ["{{base_url}}"],
+              "path": ["checkout", "initialize"]
+            },
+            "description": "Initialize a purchase transaction"
+          }
+        },
+        {
+          "name": "Verify Transaction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/transactions/verify/CLEC-123456-ABCDEF",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", "verify", "CLEC-123456-ABCDEF"]
+            },
+            "description": "Verify payment and complete transaction"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Agent Dashboard",
+      "item": [
+        {
+          "name": "Get Agent Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/profile",
+              "host": ["{{base_url}}"],
+              "path": ["profile"]
+            },
+            "description": "Get agent profile and statistics"
+          }
+        },
+        {
+          "name": "Get Agent Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/agent/transactions",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "transactions"]
+            },
+            "description": "Get agent transactions"
+          }
+        },
+        {
+          "name": "Get Agent Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/agent/stats",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "stats"]
+            },
+            "description": "Get agent statistics"
+          }
+        },
+        {
+          "name": "Get Agent Pricing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/agent/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "pricing"]
+            },
+            "description": "Get agent custom pricing"
+          }
+        },
+        {
+          "name": "Update Agent Pricing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prices\": {\n    \"bundle-uuid-1\": { \"agentPrice\": \"2.00\" },\n    \"bundle-uuid-2\": { \"agentPrice\": \"3.50\" }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/pricing",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "pricing"]
+            },
+            "description": "Update agent custom pricing"
+          }
+        },
+        {
+          "name": "Request Withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100,\n  \"paymentMethod\": \"mtn_momo\",\n  \"accountNumber\": \"0501234567\",\n  \"accountName\": \"John Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/agent/withdrawals",
+              "host": ["{{base_url}}"],
+              "path": ["agent", "withdrawals"]
+            },
+            "description": "Request profit withdrawal"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Storefront",
+      "item": [
+        {
+          "name": "Get Storefront",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/store/agent/{{agent_slug}}",
+              "host": ["{{base_url}}"],
+              "path": ["store", "agent", "{{agent_slug}}"]
+            },
+            "description": "Get agent/dealer storefront"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin (Admin Only)",
+      "item": [
+        {
+          "name": "Get External Providers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/external-providers",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "external-providers"]
+            },
+            "description": "Get external API providers"
+          }
+        },
+        {
+          "name": "Create External Provider",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Provider\",\n  \"provider\": \"new_provider\",\n  \"apiKey\": \"api_key\",\n  \"apiSecret\": \"api_secret\",\n  \"endpoint\": \"https://api.example.com/v1\",\n  \"isActive\": true,\n  \"isDefault\": false,\n  \"networkMappings\": \"{\\\"mtn\\\": \\\"MTN\\\", \\\"telecel\\\": \\\"TELECEL\\\"}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/external-providers",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "external-providers"]
+            },
+            "description": "Create external API provider"
+          }
+        },
+        {
+          "name": "Top Up Wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user-uuid\",\n  \"amount\": 50,\n  \"reason\": \"Customer support\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/wallet/topup",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "wallet", "topup"]
+            },
+            "description": "Top up user wallet"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Transaction Status Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"API-123456789-ABCDEF\",\n  \"status\": \"completed\",\n  \"provider\": \"external_provider\",\n  \"metadata\": {\n    \"deliveredAt\": \"2024-01-15T10:31:00Z\",\n    \"pin\": \"ABC123\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/webhooks/transaction-status",
+              "host": ["{{base_url}}"],
+              "path": ["webhooks", "transaction-status"]
+            },
+            "description": "Receive transaction status updates via webhook"
+          }
+        }
+      ]
+    }
+        {
+          "name": "Get Paystack Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/paystack/config",
+              "host": ["{{base_url}}"],
+              "path": ["paystack", "config"]
+            },
+            "description": "Get Paystack configuration"
+          }
+        },
+        {
+          "name": "Verify Payment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/paystack/verify?reference=CLEC-123456-ABCDEF",
+              "host": ["{{base_url}}"],
+              "path": ["paystack", "verify"],
+              "query": [
+                {
+                  "key": "reference",
+                  "value": "CLEC-123456-ABCDEF"
+                }
+              ]
+            },
+            "description": "Verify Paystack payment"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Add any pre-request scripts here"
+        ]
+      }
+    }
+  ]
+}

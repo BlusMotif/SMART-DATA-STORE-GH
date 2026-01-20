@@ -1,6 +1,6 @@
-const CACHE_NAME = 'smart-data-store-v3';
-const STATIC_CACHE = 'smart-data-store-static-v2';
-const DYNAMIC_CACHE = 'smart-data-store-dynamic-v2';
+const CACHE_NAME = 'resellers-hub-gh-pro-v3';
+const STATIC_CACHE = 'resellers-hub-gh-pro-static-v2';
+const DYNAMIC_CACHE = 'resellers-hub-gh-pro-dynamic-v2';
 
 const STATIC_ASSETS = [
   '/favicon.png',

@@ -115,8 +115,8 @@ Smartdatastoregh/
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/BlusMotif/SMART-DATA-STORE-GH.git
-   cd Smartdatastoregh
+   git clone https://github.com/BlusMotif/Resellers-Hub-Gh-Pro.git
+   cd resellers-hub-gh-pro
    ```
 
 2. **Install dependencies:**
@@ -319,7 +319,7 @@ ALTER TABLE transactions ADD COLUMN payment_method TEXT DEFAULT 'paystack';
 
 1. **Connect Repository:**
    ```
-   Repository: https://github.com/BlusMotif/SMART-DATA-STORE-GH.git
+   Repository: https://github.com/BlusMotif/Resellers-Hub-Gh-Pro.git
    Branch: main
    ```
 
@@ -395,7 +395,7 @@ This project is licensed under the MIT License.
 ## 📞 Support
 
 For issues, questions, or contributions:
-- **GitHub Issues:** [Create an issue](https://github.com/BlusMotif/SMART-DATA-STORE-GH/issues)
+- **GitHub Issues:** [Create an issue](https://github.com/BlusMotif/Resellers-Hub-Gh-Pro/issues)
 - **Email:** support@smartdatastore.com
 
 ---

@@ -97,11 +97,6 @@ export default function AdminExternalApiProviders() {
     setEditingProvider(null);
   };
 
-  const openCreateDialog = () => {
-    resetForm();
-    setDialogOpen(true);
-  };
-
   const openEditDialog = (provider: ExternalApiProvider) => {
     setForm({
       name: provider.name,
@@ -489,7 +484,7 @@ export default function AdminExternalApiProviders() {
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Endpoint</Label>
-                      <p className="text-sm font-mono break-all text-xs">{provider.endpoint}</p>
+                      <p className="font-mono break-all text-xs">{provider.endpoint}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">API Key</Label>
@@ -497,7 +492,7 @@ export default function AdminExternalApiProviders() {
                         <Input
                           value={showSecrets[provider.id] ? provider.apiKey : "••••••••••••••••"}
                           readOnly
-                          className="text-sm font-mono h-8 text-xs"
+                          className="font-mono h-8 text-xs"
                         />
                         <Button
                           variant="ghost"

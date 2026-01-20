@@ -264,6 +264,7 @@ export default function AdminResultCheckers() {
                       </div>
                       <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
                         {/* eslint-disable-next-line react/forbid-dom-props */}
+                        {/* Dynamic width for progress bar - inline style required for calculated percentage */}
                         <div
                           className="h-full bg-primary transition-all"
                           style={{ width: `${Math.min((item.available / item.total) * 100, 100)}%` }}

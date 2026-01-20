@@ -1,0 +1,518 @@
+import { useEffect, useState } from "react";
+import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Menu, Plus, Edit, Trash2, Star, StarOff, Eye, EyeOff, TestTube } from "lucide-react";
+
+interface ExternalApiProvider {
+  id: string;
+  name: string;
+  provider: string;
+  apiKey: string;
+  apiSecret: string;
+  endpoint: string;
+  isActive: boolean;
+  isDefault: boolean;
+  networkMappings: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export default function AdminExternalApiProviders() {
+  const { toast } = useToast();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [providers, setProviders] = useState<ExternalApiProvider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<ExternalApiProvider | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+
+  const [form, setForm] = useState({
+    name: "",
+    provider: "",
+    apiKey: "",
+    apiSecret: "",
+    endpoint: "",
+    isActive: true,
+    isDefault: false,
+    networkMappings: JSON.stringify({
+      "mtn": "MTN",
+      "telecel": "TELECEL",
+      "at_bigtime": "AIRTELTIGO",
+      "at_ishare": "AIRTELTIGO",
+      "airteltigo": "AIRTELTIGO"
+    }, null, 2)
+  });
+
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    loadProviders();
+  }, []);
+
+  const loadProviders = async () => {
+    try {
+      const data = await apiRequest("GET", "/api/admin/external-providers");
+      setProviders(data);
+    } catch (error) {
+      console.error("Failed to load providers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load external API providers",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setForm({
+      name: "",
+      provider: "",
+      apiKey: "",
+      apiSecret: "",
+      endpoint: "",
+      isActive: true,
+      isDefault: false,
+      networkMappings: JSON.stringify({
+        "mtn": "MTN",
+        "telecel": "TELECEL",
+        "at_bigtime": "AIRTELTIGO",
+        "at_ishare": "AIRTELTIGO",
+        "airteltigo": "AIRTELTIGO"
+      }, null, 2)
+    });
+    setEditingProvider(null);
+  };
+
+  const openCreateDialog = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (provider: ExternalApiProvider) => {
+    setForm({
+      name: provider.name,
+      provider: provider.provider,
+      apiKey: provider.apiKey,
+      apiSecret: provider.apiSecret,
+      endpoint: provider.endpoint,
+      isActive: provider.isActive,
+      isDefault: provider.isDefault,
+      networkMappings: provider.networkMappings || JSON.stringify({
+        "mtn": "MTN",
+        "telecel": "TELECEL",
+        "at_bigtime": "AIRTELTIGO",
+        "at_ishare": "AIRTELTIGO",
+        "airteltigo": "AIRTELTIGO"
+      }, null, 2)
+    });
+    setEditingProvider(provider);
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    try {
+      // Validate JSON
+      JSON.parse(form.networkMappings);
+
+      const payload = {
+        ...form,
+        networkMappings: form.networkMappings
+      };
+
+      if (editingProvider) {
+        await apiRequest("PUT", `/api/admin/external-providers/${editingProvider.id}`, payload);
+        toast({
+          title: "Success",
+          description: "External API provider updated successfully",
+        });
+      } else {
+        await apiRequest("POST", "/api/admin/external-providers", payload);
+        toast({
+          title: "Success",
+          description: "External API provider created successfully",
+        });
+      }
+
+      setDialogOpen(false);
+      resetForm();
+      loadProviders();
+    } catch (error: any) {
+      console.error("Failed to save provider:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save external API provider",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this external API provider?")) return;
+
+    try {
+      await apiRequest("DELETE", `/api/admin/external-providers/${id}`);
+      toast({
+        title: "Success",
+        description: "External API provider deleted successfully",
+      });
+      loadProviders();
+    } catch (error) {
+      console.error("Failed to delete provider:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete external API provider",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSetDefault = async (id: string) => {
+    try {
+      await apiRequest("POST", `/api/admin/external-providers/${id}/set-default`);
+      toast({
+        title: "Success",
+        description: "Default external API provider updated successfully",
+      });
+      loadProviders();
+    } catch (error) {
+      console.error("Failed to set default provider:", error);
+      toast({
+        title: "Error",
+        description: "Failed to set default external API provider",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const testProvider = async (provider: ExternalApiProvider) => {
+    setTestingProvider(provider.id);
+    try {
+      const result = await apiRequest("GET", `/api/admin/external-balance?providerId=${provider.id}`);
+      if (result.success) {
+        toast({
+          title: "Test Successful",
+          description: `Balance check successful for ${provider.name}`,
+        });
+      } else {
+        toast({
+          title: "Test Failed",
+          description: result.error || "Balance check failed",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Test Failed",
+        description: error.message || "Balance check failed",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingProvider(null);
+    }
+  };
+
+  const toggleSecretVisibility = (providerId: string) => {
+    setShowSecrets(prev => ({
+      ...prev,
+      [providerId]: !prev[providerId]
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+        <AdminSidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-lg">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      <AdminSidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center space-x-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                External API Providers
+              </h1>
+            </div>
+            <ThemeToggle />
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-7xl mx-auto">
+            {/* Header Actions */}
+            <div className="flex justify-between items-center mb-6">
+              <p className="text-gray-600 dark:text-gray-400">
+                Manage external API providers for data bundle purchases
+              </p>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={openCreateDialog}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Provider
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingProvider ? "Edit" : "Add"} External API Provider
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="name">Provider Name</Label>
+                        <Input
+                          id="name"
+                          value={form.name}
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          placeholder="e.g., SkyTech GH"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="provider">Provider Type</Label>
+                        <Select value={form.provider} onValueChange={(value) => setForm({ ...form, provider: value })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select provider type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="skytech">SkyTech</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="endpoint">API Endpoint</Label>
+                      <Input
+                        id="endpoint"
+                        value={form.endpoint}
+                        onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
+                        placeholder="https://api.example.com/v1/orders"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="apiKey">API Key</Label>
+                        <Input
+                          id="apiKey"
+                          type="password"
+                          value={form.apiKey}
+                          onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="apiSecret">API Secret</Label>
+                        <Input
+                          id="apiSecret"
+                          type="password"
+                          value={form.apiSecret}
+                          onChange={(e) => setForm({ ...form, apiSecret: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="networkMappings">Network Mappings (JSON)</Label>
+                      <Textarea
+                        id="networkMappings"
+                        value={form.networkMappings}
+                        onChange={(e) => setForm({ ...form, networkMappings: e.target.value })}
+                        placeholder='{"mtn": "MTN", "telecel": "TELECEL"}'
+                        rows={6}
+                        required
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        JSON mapping of internal network names to external API network codes
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="isActive"
+                          checked={form.isActive}
+                          onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+                        />
+                        <Label htmlFor="isActive">Active</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="isDefault"
+                          checked={form.isDefault}
+                          onCheckedChange={(checked) => setForm({ ...form, isDefault: checked })}
+                        />
+                        <Label htmlFor="isDefault">Set as Default</Label>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-2 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSaving}>
+                        {isSaving ? "Saving..." : (editingProvider ? "Update" : "Create")}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Providers Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {providers.map((provider) => (
+                <Card key={provider.id} className="relative">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <span>{provider.name}</span>
+                        {provider.isDefault && (
+                          <Badge variant="default" className="text-xs">
+                            <Star className="h-3 w-3 mr-1" />
+                            Default
+                          </Badge>
+                        )}
+                        {!provider.isActive && (
+                          <Badge variant="secondary" className="text-xs">
+                            Inactive
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <div className="flex space-x-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => testProvider(provider)}
+                          disabled={testingProvider === provider.id}
+                          title="Test Provider"
+                        >
+                          <TestTube className={`h-4 w-4 ${testingProvider === provider.id ? 'animate-pulse' : ''}`} />
+                        </Button>
+                        {!provider.isDefault && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleSetDefault(provider.id)}
+                            title="Set as Default"
+                          >
+                            <StarOff className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(provider)}
+                          title="Edit Provider"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(provider.id)}
+                          title="Delete Provider"
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Provider Type</Label>
+                      <p className="text-sm">{provider.provider}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Endpoint</Label>
+                      <p className="text-sm font-mono break-all">{provider.endpoint}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">API Key</Label>
+                      <div className="flex items-center space-x-2">
+                        <Input
+                          value={showSecrets[provider.id] ? provider.apiKey : "••••••••••••••••"}
+                          readOnly
+                          className="text-sm font-mono"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleSecretVisibility(provider.id)}
+                          className="h-8 w-8"
+                        >
+                          {showSecrets[provider.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Network Mappings</Label>
+                      <div className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded max-h-20 overflow-y-auto">
+                        <pre>{provider.networkMappings || "{}"}</pre>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {providers.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-gray-500 dark:text-gray-400">
+                  <p className="text-lg mb-2">No external API providers configured</p>
+                  <p className="text-sm">Add your first provider to enable external data bundle purchases</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

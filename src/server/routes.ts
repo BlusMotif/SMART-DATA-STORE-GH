@@ -192,7 +192,7 @@ async function processWebhookEvent(event: any) {
         const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
         if (autoProcessingEnabled) {
           try {
-            const fulfillResult = await fulfillDataBundleTransaction(transaction);
+            const fulfillResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
             // If provider reports all recipients ok, mark delivered/completed
             if (fulfillResult && fulfillResult.success && Array.isArray(fulfillResult.results)) {
@@ -2165,7 +2165,7 @@ export async function registerRoutes(
         } else if (transaction.type === ProductType.DATA_BUNDLE) {
           // Process data bundle through API
           console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
-          const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
           if (!fulfillmentResult.success) {
             console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
             // Still mark as completed but log the error
@@ -2440,7 +2440,7 @@ export async function registerRoutes(
       // Process data bundle transactions through API
       if (transaction.type === ProductType.DATA_BUNDLE) {
         console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
-        const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
         if (fulfillmentResult.success) {
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
           
@@ -5812,7 +5812,7 @@ export async function registerRoutes(
       } else {
         // For data bundles, process through API first
         console.log("[Wallet] Processing data bundle transaction via API:", transaction.reference);
-        const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
         if (fulfillmentResult.success) {
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
           await storage.updateTransaction(transaction.id, {
@@ -6345,7 +6345,8 @@ export async function registerRoutes(
   // External API integration routes
   app.get("/api/admin/external-balance", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const result = await getExternalBalance();
+      const { providerId } = req.query;
+      const result = await getExternalBalance(providerId as string);
       if (result.success) {
         res.json(result);
       } else {
@@ -6358,12 +6359,13 @@ export async function registerRoutes(
 
   app.get("/api/admin/external-prices", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const { network, min_capacity, max_capacity, effective } = req.query;
+      const { network, min_capacity, max_capacity, effective, providerId } = req.query;
       const result = await getExternalPrices(
         network as string,
         min_capacity ? parseInt(min_capacity as string) : undefined,
         max_capacity ? parseInt(max_capacity as string) : undefined,
-        effective ? effective === '1' || effective === 'true' : undefined
+        effective ? effective === '1' || effective === 'true' : undefined,
+        providerId as string
       );
       if (result.success) {
         res.json(result);
@@ -6378,7 +6380,8 @@ export async function registerRoutes(
   app.get("/api/admin/external-order/:ref", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { ref } = req.params;
-      const result = await getExternalOrderStatus(ref);
+      const { providerId } = req.query;
+      const result = await getExternalOrderStatus(ref, providerId as string);
       if (result.success) {
         res.json(result);
       } else {
@@ -6386,6 +6389,76 @@ export async function registerRoutes(
       }
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to get external order status" });
+    }
+  });
+
+  // External API Providers management routes
+  app.get("/api/admin/external-providers", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const providers = await storage.getExternalApiProviders();
+      res.json(providers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get external API providers" });
+    }
+  });
+
+  app.get("/api/admin/external-providers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const provider = await storage.getExternalApiProvider(id);
+      if (!provider) {
+        return res.status(404).json({ error: "External API provider not found" });
+      }
+      res.json(provider);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to get external API provider" });
+    }
+  });
+
+  app.post("/api/admin/external-providers", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const providerData = req.body;
+      const provider = await storage.createExternalApiProvider(providerData);
+      res.status(201).json(provider);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to create external API provider" });
+    }
+  });
+
+  app.put("/api/admin/external-providers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const providerData = req.body;
+      const provider = await storage.updateExternalApiProvider(id, providerData);
+      if (!provider) {
+        return res.status(404).json({ error: "External API provider not found" });
+      }
+      res.json(provider);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to update external API provider" });
+    }
+  });
+
+  app.delete("/api/admin/external-providers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteExternalApiProvider(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "External API provider not found" });
+      }
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to delete external API provider" });
+    }
+  });
+
+  app.post("/api/admin/external-providers/:id/set-default", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.setDefaultExternalApiProvider(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to set default external API provider" });
     }
   });
 

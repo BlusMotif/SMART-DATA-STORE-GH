@@ -80,6 +80,11 @@ const sidebarNavItems = [
     icon: Settings,
   },
   {
+    title: "External API Providers",
+    href: "/admin/external-api-providers",
+    icon: Code,
+  },
+  {
     title: "API & Integrations",
     href: "/dashboard/api-integrations",
     icon: Code,

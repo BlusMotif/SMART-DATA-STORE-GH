@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
-  profitWallets, profitTransactions,
+  profitWallets, profitTransactions, externalApiProviders,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -15,7 +15,7 @@ import {
   type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction,
   type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction,
-  type Settings
+  type Settings, type ExternalApiProvider, type InsertExternalApiProvider, type UpdateExternalApiProvider
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -97,6 +97,16 @@ export interface IStorage {
   // Settings
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string, description?: string): Promise<void>;
+
+  // External API Providers
+  getExternalApiProviders(): Promise<ExternalApiProvider[]>;
+  getExternalApiProvider(id: string): Promise<ExternalApiProvider | undefined>;
+  getActiveExternalApiProviders(): Promise<ExternalApiProvider[]>;
+  getDefaultExternalApiProvider(): Promise<ExternalApiProvider | undefined>;
+  createExternalApiProvider(provider: InsertExternalApiProvider): Promise<ExternalApiProvider>;
+  updateExternalApiProvider(id: string, data: UpdateExternalApiProvider): Promise<ExternalApiProvider | undefined>;
+  deleteExternalApiProvider(id: string): Promise<boolean>;
+  setDefaultExternalApiProvider(id: string): Promise<void>;
 
   // Break Settings
   getBreakSettings(): Promise<{ isEnabled: boolean; message: string }>;
@@ -1426,6 +1436,76 @@ export class DatabaseStorage implements IStorage {
       value: setting.value,
       description: setting.description || undefined,
     }));
+  }
+
+  // ============================================
+  // EXTERNAL API PROVIDERS
+  // ============================================
+  async getExternalApiProviders(): Promise<ExternalApiProvider[]> {
+    return await db.select().from(externalApiProviders).orderBy(desc(externalApiProviders.createdAt));
+  }
+
+  async getExternalApiProvider(id: string): Promise<ExternalApiProvider | undefined> {
+    const result = await db.select().from(externalApiProviders).where(eq(externalApiProviders.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getActiveExternalApiProviders(): Promise<ExternalApiProvider[]> {
+    return await db.select().from(externalApiProviders).where(eq(externalApiProviders.isActive, true));
+  }
+
+  async getDefaultExternalApiProvider(): Promise<ExternalApiProvider | undefined> {
+    const result = await db.select().from(externalApiProviders)
+      .where(eq(externalApiProviders.isDefault, true))
+      .limit(1);
+    return result[0];
+  }
+
+  async createExternalApiProvider(provider: InsertExternalApiProvider): Promise<ExternalApiProvider> {
+    // If this is set as default, unset other defaults
+    if (provider.isDefault) {
+      await db.update(externalApiProviders)
+        .set({ isDefault: false })
+        .where(eq(externalApiProviders.isDefault, true));
+    }
+
+    const [created] = await db.insert(externalApiProviders).values({
+      id: randomUUID(),
+      ...provider,
+    }).returning();
+    return created;
+  }
+
+  async updateExternalApiProvider(id: string, data: UpdateExternalApiProvider): Promise<ExternalApiProvider | undefined> {
+    // If this is set as default, unset other defaults
+    if (data.isDefault) {
+      await db.update(externalApiProviders)
+        .set({ isDefault: false })
+        .where(eq(externalApiProviders.isDefault, true));
+    }
+
+    const result = await db.update(externalApiProviders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(externalApiProviders.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteExternalApiProvider(id: string): Promise<boolean> {
+    const result = await db.delete(externalApiProviders).where(eq(externalApiProviders.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async setDefaultExternalApiProvider(id: string): Promise<void> {
+    // First, unset all defaults
+    await db.update(externalApiProviders)
+      .set({ isDefault: false })
+      .where(eq(externalApiProviders.isDefault, true));
+
+    // Then set the new default
+    await db.update(externalApiProviders)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(eq(externalApiProviders.id, id));
   }
 
   // ============================================

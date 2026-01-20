@@ -213,6 +213,7 @@ export const transactions = pgTable("transactions", {
   paymentStatus: text("payment_status").notNull().default("pending"),
   agentId: text("agent_id"),
   agentProfit: text("agent_profit").default("0.00"),
+  providerId: text("provider_id"), // External API provider used for this transaction
   apiResponse: text("api_response"),
   deliveredPin: text("delivered_pin"),
   deliveredSerial: text("delivered_serial"),
@@ -435,6 +436,23 @@ export const settings = pgTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
   description: text("description"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ============================================
+// EXTERNAL API PROVIDERS TABLE
+// ============================================
+export const externalApiProviders = pgTable("external_api_providers", {
+  id: text("id").primaryKey().$defaultFn(() => randomUUID()),
+  name: text("name").notNull(),
+  provider: text("provider").notNull(), // e.g., "skytech", "another_provider"
+  apiKey: text("api_key").notNull(),
+  apiSecret: text("api_secret").notNull(),
+  endpoint: text("endpoint").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  networkMappings: text("network_mappings"), // JSON string for network mappings
+  createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -669,6 +687,17 @@ export const insertSettingsSchema = createInsertSchema(settings).omit({
   updatedAt: true,
 });
 
+export const insertExternalApiProviderSchema = createInsertSchema(externalApiProviders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateExternalApiProviderSchema = createInsertSchema(externalApiProviders).omit({
+  id: true,
+  createdAt: true,
+});
+
 // ============================================
 // TYPES
 // ============================================
@@ -725,6 +754,10 @@ export type Announcement = typeof announcements.$inferSelect;
 
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
+
+export type InsertExternalApiProvider = z.infer<typeof insertExternalApiProviderSchema>;
+export type UpdateExternalApiProvider = z.infer<typeof updateExternalApiProviderSchema>;
+export type ExternalApiProvider = typeof externalApiProviders.$inferSelect;
 
 export type InsertWalletTopupTransaction = z.infer<typeof insertWalletTopupTransactionSchema>;
 export type WalletTopupTransaction = typeof walletTopupTransactions.$inferSelect;

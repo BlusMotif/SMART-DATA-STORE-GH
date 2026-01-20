@@ -52,6 +52,7 @@ import AdminSettings from "@/pages/admin/settings";
 import AdminRankings from "@/pages/admin/rankings";
 import AdminBreakSettings from "@/pages/admin/break-settings";
 import AdminApiConfiguration from "@/pages/admin/api-configuration";
+import AdminExternalApiProviders from "@/pages/admin/external-api-providers";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import PublicRankings from "@/pages/public-rankings";
 import { getAgentId } from "@/lib/store-context";
@@ -175,6 +176,7 @@ function AppRouter() {
       <ProtectedRoute path="/admin/announcements" component={AdminAnnouncements} requiredRole="admin" />
       <ProtectedRoute path="/admin/break-settings" component={AdminBreakSettings} requiredRole="admin" />
       <ProtectedRoute path="/admin/api-configuration" component={AdminApiConfiguration} requiredRole="admin" />
+      <ProtectedRoute path="/admin/external-api-providers" component={AdminExternalApiProviders} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
       <Route path="/store/:role/:slug" component={StorefrontPage} />
       <Route path="/store/:role/:slug/:network" component={AgentNetworkPurchasePage} />

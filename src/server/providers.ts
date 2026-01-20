@@ -1,20 +1,35 @@
 import { storage } from "./storage.js";
 
 // Minimal generic provider caller - extend per provider as needed
-export async function fulfillDataBundleTransaction(transaction: any) {
+export async function fulfillDataBundleTransaction(transaction: any, providerId?: string) {
   try {
     const network = transaction.network;
     if (!network) {
       return { success: false, error: "No network set on transaction" };
     }
 
-    // Get external API settings
-    const apiKey = await storage.getSetting("external_api.key") || "5df3120e44b3cc29b8c61f63";
-    const apiSecret = await storage.getSetting("external_api.secret");
-    const apiEndpoint = await storage.getSetting("external_api.endpoint") || "https://skytechgh.com/api/v1/orders";
+    // Get external API provider (use specified provider or default)
+    let provider;
+    if (providerId) {
+      provider = await storage.getExternalApiProvider(providerId);
+    } else {
+      provider = await storage.getDefaultExternalApiProvider();
+    }
 
-    if (!apiSecret) {
-      return { success: false, error: "External API secret not configured" };
+    if (!provider || !provider.isActive) {
+      return { success: false, error: "No active external API provider configured" };
+    }
+
+    const apiKey = provider.apiKey;
+    const apiSecret = provider.apiSecret;
+    const apiEndpoint = provider.endpoint;
+
+    // Parse network mappings
+    let networkMappings = {};
+    try {
+      networkMappings = provider.networkMappings ? JSON.parse(provider.networkMappings) : {};
+    } catch (e) {
+      console.warn("Failed to parse network mappings, using defaults");
     }
 
     // Compose recipients
@@ -36,15 +51,8 @@ export async function fulfillDataBundleTransaction(transaction: any) {
         capacity = parseFloat(dataAmount); // Already MB
       }
 
-      // Map network to API format
-      const networkMap: Record<string, string> = {
-        'mtn': 'MTN',
-        'telecel': 'TELECEL',
-        'at_bigtime': 'AIRTELTIGO',
-        'at_ishare': 'AIRTELTIGO',
-        'airteltigo': 'AIRTELTIGO'
-      };
-      const apiNetwork = networkMap[network] || network.toUpperCase();
+      // Map network to API format using provider's network mappings
+      const apiNetwork = (networkMappings as Record<string, string>)[network] || network.toUpperCase();
 
       const body = JSON.stringify({
         network: apiNetwork,
@@ -104,15 +112,23 @@ export async function fulfillDataBundleTransaction(transaction: any) {
 }
 
 // Function to get balance from external API
-export async function getExternalBalance() {
+export async function getExternalBalance(providerId?: string) {
   try {
-    const apiKey = await storage.getSetting("external_api.key") || "5df3120e44b3cc29b8c61f63";
-    const apiSecret = await storage.getSetting("external_api.secret");
-    const baseUrl = "https://skytechgh.com/api/v1";
-
-    if (!apiSecret) {
-      return { success: false, error: "External API secret not configured" };
+    // Get external API provider (use specified provider or default)
+    let provider;
+    if (providerId) {
+      provider = await storage.getExternalApiProvider(providerId);
+    } else {
+      provider = await storage.getDefaultExternalApiProvider();
     }
+
+    if (!provider || !provider.isActive) {
+      return { success: false, error: "No active external API provider configured" };
+    }
+
+    const apiKey = provider.apiKey;
+    const apiSecret = provider.apiSecret;
+    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';
@@ -147,15 +163,23 @@ export async function getExternalBalance() {
 }
 
 // Function to get prices from external API
-export async function getExternalPrices(network?: string, minCapacity?: number, maxCapacity?: number, effective?: boolean) {
+export async function getExternalPrices(network?: string, minCapacity?: number, maxCapacity?: number, effective?: boolean, providerId?: string) {
   try {
-    const apiKey = await storage.getSetting("external_api.key") || "5df3120e44b3cc29b8c61f63";
-    const apiSecret = await storage.getSetting("external_api.secret");
-    const baseUrl = "https://skytechgh.com/api/v1";
-
-    if (!apiSecret) {
-      return { success: false, error: "External API secret not configured" };
+    // Get external API provider (use specified provider or default)
+    let provider;
+    if (providerId) {
+      provider = await storage.getExternalApiProvider(providerId);
+    } else {
+      provider = await storage.getDefaultExternalApiProvider();
     }
+
+    if (!provider || !provider.isActive) {
+      return { success: false, error: "No active external API provider configured" };
+    }
+
+    const apiKey = provider.apiKey;
+    const apiSecret = provider.apiSecret;
+    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';
@@ -198,15 +222,23 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
 }
 
 // Function to get order status from external API
-export async function getExternalOrderStatus(ref: string) {
+export async function getExternalOrderStatus(ref: string, providerId?: string) {
   try {
-    const apiKey = await storage.getSetting("external_api.key") || "5df3120e44b3cc29b8c61f63";
-    const apiSecret = await storage.getSetting("external_api.secret");
-    const baseUrl = "https://skytechgh.com/api/v1";
-
-    if (!apiSecret) {
-      return { success: false, error: "External API secret not configured" };
+    // Get external API provider (use specified provider or default)
+    let provider;
+    if (providerId) {
+      provider = await storage.getExternalApiProvider(providerId);
+    } else {
+      provider = await storage.getDefaultExternalApiProvider();
     }
+
+    if (!provider || !provider.isActive) {
+      return { success: false, error: "No active external API provider configured" };
+    }
+
+    const apiKey = provider.apiKey;
+    const apiSecret = provider.apiSecret;
+    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';

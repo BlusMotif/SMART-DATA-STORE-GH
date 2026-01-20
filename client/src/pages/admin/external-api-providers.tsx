@@ -239,7 +239,7 @@ export default function AdminExternalApiProviders() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex h-screen bg-background">
         <AdminSidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-lg">Loading...</div>
@@ -249,40 +249,48 @@ export default function AdminExternalApiProviders() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      <AdminSidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="md:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                External API Providers
-              </h1>
-            </div>
-            <ThemeToggle />
+    <div className="flex h-screen bg-background">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AdminSidebar onClose={() => setSidebarOpen(false)} />
           </div>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden md:block">
+        <AdminSidebar />
+      </div>
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">External API Providers</h1>
+          </div>
+          <ThemeToggle />
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
             {/* Header Actions */}
-            <div className="flex justify-between items-center mb-6">
-              <p className="text-gray-600 dark:text-gray-400">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <p className="text-muted-foreground">
                 Manage external API providers for data bundle purchases
               </p>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={openCreateDialog}>
+                  <Button>
                     <Plus className="h-4 w-4 mr-2" />
                     Add Provider
                   </Button>
@@ -294,7 +302,7 @@ export default function AdminExternalApiProviders() {
                     </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="name">Provider Name</Label>
                         <Input
@@ -330,7 +338,7 @@ export default function AdminExternalApiProviders() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="apiKey">API Key</Label>
                         <Input
@@ -363,12 +371,12 @@ export default function AdminExternalApiProviders() {
                         rows={6}
                         required
                       />
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         JSON mapping of internal network names to external API network codes
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                       <div className="flex items-center space-x-2">
                         <Switch
                           id="isActive"
@@ -387,15 +395,16 @@ export default function AdminExternalApiProviders() {
                       </div>
                     </div>
 
-                    <div className="flex justify-end space-x-2 pt-4">
+                    <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => setDialogOpen(false)}
+                        className="w-full sm:w-auto"
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={isSaving}>
+                      <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
                         {isSaving ? "Saving..." : (editingProvider ? "Update" : "Create")}
                       </Button>
                     </div>
@@ -405,32 +414,33 @@ export default function AdminExternalApiProviders() {
             </div>
 
             {/* Providers Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
               {providers.map((provider) => (
                 <Card key={provider.id} className="relative">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center space-x-2">
-                        <span>{provider.name}</span>
+                      <CardTitle className="text-lg flex items-center space-x-2 flex-wrap">
+                        <span className="truncate">{provider.name}</span>
                         {provider.isDefault && (
-                          <Badge variant="default" className="text-xs">
+                          <Badge variant="default" className="text-xs shrink-0">
                             <Star className="h-3 w-3 mr-1" />
                             Default
                           </Badge>
                         )}
                         {!provider.isActive && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs shrink-0">
                             Inactive
                           </Badge>
                         )}
                       </CardTitle>
-                      <div className="flex space-x-1">
+                      <div className="flex space-x-1 shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => testProvider(provider)}
                           disabled={testingProvider === provider.id}
                           title="Test Provider"
+                          className="h-8 w-8"
                         >
                           <TestTube className={`h-4 w-4 ${testingProvider === provider.id ? 'animate-pulse' : ''}`} />
                         </Button>
@@ -440,6 +450,7 @@ export default function AdminExternalApiProviders() {
                             size="icon"
                             onClick={() => handleSetDefault(provider.id)}
                             title="Set as Default"
+                            className="h-8 w-8"
                           >
                             <StarOff className="h-4 w-4" />
                           </Button>
@@ -449,6 +460,7 @@ export default function AdminExternalApiProviders() {
                           size="icon"
                           onClick={() => openEditDialog(provider)}
                           title="Edit Provider"
+                          className="h-8 w-8"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -457,7 +469,7 @@ export default function AdminExternalApiProviders() {
                           size="icon"
                           onClick={() => handleDelete(provider.id)}
                           title="Delete Provider"
-                          className="text-red-600 hover:text-red-700"
+                          className="text-destructive hover:text-destructive h-8 w-8"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -466,35 +478,35 @@ export default function AdminExternalApiProviders() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <Label className="text-sm font-medium text-gray-500">Provider Type</Label>
+                      <Label className="text-sm font-medium text-muted-foreground">Provider Type</Label>
                       <p className="text-sm">{provider.provider}</p>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-gray-500">Endpoint</Label>
-                      <p className="text-sm font-mono break-all">{provider.endpoint}</p>
+                      <Label className="text-sm font-medium text-muted-foreground">Endpoint</Label>
+                      <p className="text-sm font-mono break-all text-xs">{provider.endpoint}</p>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-gray-500">API Key</Label>
+                      <Label className="text-sm font-medium text-muted-foreground">API Key</Label>
                       <div className="flex items-center space-x-2">
                         <Input
                           value={showSecrets[provider.id] ? provider.apiKey : "••••••••••••••••"}
                           readOnly
-                          className="text-sm font-mono"
+                          className="text-sm font-mono h-8 text-xs"
                         />
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => toggleSecretVisibility(provider.id)}
-                          className="h-8 w-8"
+                          className="h-8 w-8 shrink-0"
                         >
                           {showSecrets[provider.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-gray-500">Network Mappings</Label>
-                      <div className="text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded max-h-20 overflow-y-auto">
-                        <pre>{provider.networkMappings || "{}"}</pre>
+                      <Label className="text-sm font-medium text-muted-foreground">Network Mappings</Label>
+                      <div className="text-xs bg-muted p-2 rounded max-h-20 overflow-y-auto">
+                        <pre className="whitespace-pre-wrap break-words">{provider.networkMappings || "{}"}</pre>
                       </div>
                     </div>
                   </CardContent>
@@ -504,7 +516,7 @@ export default function AdminExternalApiProviders() {
 
             {providers.length === 0 && (
               <div className="text-center py-12">
-                <div className="text-gray-500 dark:text-gray-400">
+                <div className="text-muted-foreground">
                   <p className="text-lg mb-2">No external API providers configured</p>
                   <p className="text-sm">Add your first provider to enable external data bundle purchases</p>
                 </div>

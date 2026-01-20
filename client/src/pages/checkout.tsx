@@ -16,6 +16,7 @@ import { NetworkBadge } from "@/components/products/network-badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
@@ -31,6 +32,7 @@ const checkoutSchema = z.object({
     .regex(/^0[0-9]{9}$/, "Phone number must start with 0 and be 10 digits (e.g., 0241234567)"),
   customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   paymentMethod: z.enum(["paystack"]).default("paystack"),
+  providerId: z.string().optional(),
 });
 
 type CheckoutFormData = z.infer<typeof checkoutSchema>;
@@ -336,6 +338,37 @@ export default function CheckoutPage() {
                           </FormItem>
                         )}
                       />
+
+                      {/* API Provider Selection - Only for admins on data bundle purchases */}
+                      {user?.role === "admin" && isDataBundle && providers && providers.length > 0 && (
+                        <FormField
+                          control={form.control}
+                          name="providerId"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>API Provider</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select API provider" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {providers.map((provider: any) => (
+                                    <SelectItem key={provider.id} value={provider.id}>
+                                      {provider.name} {provider.isDefault ? "(Default)" : ""}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                Choose which external API provider to use for this transaction
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       <FormField
                         control={form.control}

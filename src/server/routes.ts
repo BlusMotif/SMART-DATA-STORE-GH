@@ -192,7 +192,7 @@ async function processWebhookEvent(event: any) {
         const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
         if (autoProcessingEnabled) {
           try {
-            const fulfillResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
+            const fulfillResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
             // If provider reports all recipients ok, mark delivered/completed
             if (fulfillResult && fulfillResult.success && Array.isArray(fulfillResult.results)) {
@@ -2165,7 +2165,7 @@ export async function registerRoutes(
         } else if (transaction.type === ProductType.DATA_BUNDLE) {
           // Process data bundle through API
           console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
-          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
           if (!fulfillmentResult.success) {
             console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
             // Still mark as completed but log the error
@@ -2440,7 +2440,7 @@ export async function registerRoutes(
       // Process data bundle transactions through API
       if (transaction.type === ProductType.DATA_BUNDLE) {
         console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
-        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
         if (fulfillmentResult.success) {
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
           
@@ -5812,7 +5812,7 @@ export async function registerRoutes(
       } else {
         // For data bundles, process through API first
         console.log("[Wallet] Processing data bundle transaction via API:", transaction.reference);
-        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId);
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
         if (fulfillmentResult.success) {
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
           await storage.updateTransaction(transaction.id, {

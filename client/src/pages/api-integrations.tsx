@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Key, Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, XCircle, Settings, Code, Webhook } from 'lucide-react';
+import { Key, Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, XCircle, Settings, Code, Webhook, Menu } from 'lucide-react';
 
 interface ApiKey {
   id: string;
@@ -30,6 +32,7 @@ const ApiKeysPage: React.FC = () => {
   const [createdKey, setCreatedKey] = useState<string>('');
   const [showCreatedKey, setShowCreatedKey] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetchApiKeys();
@@ -173,22 +176,57 @@ const ApiKeysPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex h-screen bg-background">
+        <AdminSidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-lg">Loading...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">API Keys & Integrations</h1>
-          <p className="text-muted-foreground">
-            Manage your API keys and integrate with third-party services
-          </p>
+    <div className="flex h-screen bg-background">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+            <AdminSidebar onClose={() => setSidebarOpen(false)} />
+          </div>
         </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      )}
+
+      {/* Desktop sidebar */}
+      <div className="hidden md:block">
+        <AdminSidebar />
+      </div>
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg lg:text-xl font-semibold">API Keys & Integrations</h1>
+          </div>
+          <ThemeToggle />
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-muted-foreground">
+                  Manage your API keys and integrate with third-party services
+                </p>
+              </div>
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
@@ -409,7 +447,7 @@ const ApiKeysPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Use our REST API to programmatically access data bundles, result checkers, and transactions.
                     </p>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => toast.info("View API Docs - Coming Soon!")}>
                       View API Docs
                     </Button>
                   </CardContent>
@@ -426,7 +464,7 @@ const ApiKeysPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Receive real-time notifications about transaction status changes and other events.
                     </p>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => toast.info("Configure Webhooks - Coming Soon!")}>
                       Configure Webhooks
                     </Button>
                   </CardContent>
@@ -464,7 +502,7 @@ const ApiKeysPage: React.FC = () => {
                     ))}
                   </div>
                 </div>
-                <Button>Save Webhook Configuration</Button>
+                <Button onClick={() => toast.info("Save Webhook Configuration - Coming Soon!")}>Save Webhook Configuration</Button>
               </div>
             </CardContent>
           </Card>
@@ -480,19 +518,19 @@ const ApiKeysPage: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <Button variant="outline" className="justify-start">
+                <Button variant="outline" className="justify-start" onClick={() => toast.info("REST API Reference - Coming Soon!")}>
                   <Code className="w-4 h-4 mr-2" />
                   REST API Reference
                 </Button>
-                <Button variant="outline" className="justify-start">
+                <Button variant="outline" className="justify-start" onClick={() => toast.info("Webhook Documentation - Coming Soon!")}>
                   <Webhook className="w-4 h-4 mr-2" />
                   Webhook Documentation
                 </Button>
-                <Button variant="outline" className="justify-start">
+                <Button variant="outline" className="justify-start" onClick={() => toast.info("Authentication Guide - Coming Soon!")}>
                   <Key className="w-4 h-4 mr-2" />
                   Authentication Guide
                 </Button>
-                <Button variant="outline" className="justify-start">
+                <Button variant="outline" className="justify-start" onClick={() => toast.info("Download Postman Collection - Coming Soon!")}>
                   Download Postman Collection
                 </Button>
               </div>
@@ -500,6 +538,9 @@ const ApiKeysPage: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

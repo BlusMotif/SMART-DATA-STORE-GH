@@ -383,6 +383,7 @@ export default function AdminExternalApiProviders() {
                           id="isActive"
                           checked={form.isActive}
                           onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
+                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-yellow-500"
                         />
                         <Label htmlFor="isActive">Active</Label>
                       </div>
@@ -391,6 +392,7 @@ export default function AdminExternalApiProviders() {
                           id="isDefault"
                           checked={form.isDefault}
                           onCheckedChange={(checked) => setForm({ ...form, isDefault: checked })}
+                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-yellow-500"
                         />
                         <Label htmlFor="isDefault">Set as Default</Label>
                       </div>

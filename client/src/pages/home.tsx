@@ -180,8 +180,7 @@ export default function HomePage() {
             text: "Track Order",
             href: "#track-orders",
             icon: Package,
-            size: "md",
-            className: "bg-yellow-500 hover:bg-yellow-600 text-black"
+            size: "md"
           }}
           images={bannerImages}
           showNavigation={false}

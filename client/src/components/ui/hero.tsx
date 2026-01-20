@@ -215,7 +215,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
                     <Button
                       size={secondaryButton.size || "lg"}
                       variant="outline"
-                      className="px-8 py-4 text-lg font-semibold bg-white/10 border-white/20 text-white hover:bg-white/20"
+                      className="px-8 py-4 text-lg font-semibold bg-yellow-500 border-yellow-500 text-black hover:bg-yellow-600"
                       asChild={!!secondaryButton.href}
                       onClick={secondaryButton.onClick}
                     >

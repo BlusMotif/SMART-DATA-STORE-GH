@@ -105,7 +105,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   if (error) {
     return (
-      <div className="flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
+      <div className="flex h-full w-64 flex-col border-r bg-white dark:bg-black text-sidebar-foreground relative">
         <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
             {user?.name?.charAt(0).toUpperCase() || 'A'}
@@ -158,7 +158,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   }
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative">
+    <div className="flex h-full w-64 flex-col border-r bg-white dark:bg-black text-sidebar-foreground relative">
       <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
           {user?.name?.charAt(0).toUpperCase() || 'A'}

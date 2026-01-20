@@ -102,7 +102,7 @@ export default function AdminRoleBasePrices() {
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-black border-r transform transition-transform duration-200 ease-in-out">
             <AdminSidebar onClose={() => setSidebarOpen(false)} />
           </div>
         </div>

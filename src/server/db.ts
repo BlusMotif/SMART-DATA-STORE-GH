@@ -8,8 +8,12 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Load environment variables
+// Load environment variables with same logic as index.ts
 dotenv.config();
+
+if (process.env.NODE_ENV === 'development') {
+  dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env.development'), override: true });
+}
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);

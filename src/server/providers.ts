@@ -8,69 +8,96 @@ export async function fulfillDataBundleTransaction(transaction: any) {
       return { success: false, error: "No network set on transaction" };
     }
 
-    // Get stored API settings
-    const mtnKey = await storage.getSetting("api.mtn.key");
-    const mtnEndpoint = await storage.getSetting("api.mtn.endpoint");
-    const telecelKey = await storage.getSetting("api.telecel.key");
-    const atBigKey = await storage.getSetting("api.at_bigtime.key");
-    const atIshareKey = await storage.getSetting("api.at_ishare.key");
+    // Get external API settings
+    const apiKey = await storage.getSetting("external_api.key") || "5df3120e44b3cc29b8c61f63";
+    const apiSecret = await storage.getSetting("external_api.secret");
+    const apiEndpoint = await storage.getSetting("external_api.endpoint") || "https://skytechgh.com/api/v1/orders";
 
-    // Decide which provider to call based on transaction.network value
-    let providerConfig: { endpoint?: string; key?: string; name: string } = { name: "unknown" };
-
-    if (network === "mtn") {
-      providerConfig = { endpoint: mtnEndpoint || undefined, key: mtnKey || undefined, name: "mtn" };
-    } else if (network === "telecel") {
-      providerConfig = { endpoint: undefined, key: telecelKey || undefined, name: "telecel" };
-    } else if (network === "at_bigtime") {
-      providerConfig = { endpoint: undefined, key: atBigKey || undefined, name: "at_bigtime" };
-    } else if (network === "at_ishare") {
-      providerConfig = { endpoint: undefined, key: atIshareKey || undefined, name: "at_ishare" };
-    } else if (network === "airteltigo") {
-      // Default airteltigo mapping can use mtn or specific settings
-      providerConfig = { endpoint: mtnEndpoint || undefined, key: mtnKey || undefined, name: "airteltigo" };
+    if (!apiSecret) {
+      return { success: false, error: "External API secret not configured" };
     }
 
     // Compose recipients
-    const recipients = transaction.phoneNumbers && Array.isArray(transaction.phoneNumbers)
-      ? transaction.phoneNumbers.map((p: any) => p.phone)
-      : [transaction.customerPhone];
+    const phoneData = transaction.phoneNumbers && Array.isArray(transaction.phoneNumbers)
+      ? transaction.phoneNumbers
+      : [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
 
     const results: any[] = [];
 
-    for (const phone of recipients) {
-      // For now, perform a generic POST if endpoint is present, otherwise simulate success
-      if (providerConfig.endpoint) {
-        try {
-          const body = {
-            phone,
-            productId: transaction.productId,
-            productName: transaction.productName,
-            network: transaction.network,
-            reference: transaction.reference,
-          };
+    for (const item of phoneData) {
+      const phone = item.phone;
+      const dataAmount = item.dataAmount || item.bundleName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1';
 
-          const resp = await fetch(providerConfig.endpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(providerConfig.key ? { Authorization: `Bearer ${providerConfig.key}` } : {}),
-            },
-            body: JSON.stringify(body),
-          });
-
-          const data = await resp.json().catch(() => ({ status: resp.ok }));
-          results.push({ phone, status: resp.ok ? "ok" : "failed", providerResponse: data });
-        } catch (e: any) {
-          results.push({ phone, status: "failed", error: e.message });
-        }
+      // Convert data amount to MB for capacity
+      let capacity = 0;
+      if (dataAmount.toLowerCase().includes('gb')) {
+        capacity = parseFloat(dataAmount) * 1024; // GB to MB
       } else {
-        // No endpoint configured for this provider - fallback: mark as not delivered
-        results.push({ phone, status: "skipped", reason: "No provider endpoint configured for this network" });
+        capacity = parseFloat(dataAmount); // Already MB
+      }
+
+      // Map network to API format
+      const networkMap: Record<string, string> = {
+        'mtn': 'MTN',
+        'telecel': 'TELECEL',
+        'at_bigtime': 'AIRTELTIGO',
+        'at_ishare': 'AIRTELTIGO',
+        'airteltigo': 'AIRTELTIGO'
+      };
+      const apiNetwork = networkMap[network] || network.toUpperCase();
+
+      const body = JSON.stringify({
+        network: apiNetwork,
+        recipient: phone,
+        capacity: Math.round(capacity)
+      });
+
+      // Generate signature
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const method = 'POST';
+      const path = '/api/v1/orders';
+      const message = `${ts}\n${method}\n${path}\n${body}`;
+      
+      const crypto = await import('crypto');
+      const signature = crypto.createHmac('sha256', apiSecret)
+        .update(message)
+        .digest('hex');
+
+      try {
+        const resp = await fetch(apiEndpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`,
+            "X-Timestamp": ts,
+            "X-Signature": signature,
+          },
+          body: body,
+        });
+
+        const data = await resp.json().catch(() => ({ status: resp.ok ? 'success' : 'failed' }));
+        
+        if (resp.ok && data.ref) {
+          results.push({ 
+            phone, 
+            status: "delivered", 
+            ref: data.ref, 
+            price: data.price,
+            providerResponse: data 
+          });
+        } else {
+          results.push({ 
+            phone, 
+            status: "failed", 
+            providerResponse: data 
+          });
+        }
+      } catch (e: any) {
+        results.push({ phone, status: "failed", error: e.message });
       }
     }
 
-    return { success: true, provider: providerConfig.name, results };
+    return { success: true, provider: "skytechgh", results };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

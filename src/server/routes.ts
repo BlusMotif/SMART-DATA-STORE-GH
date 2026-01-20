@@ -2442,6 +2442,18 @@ export async function registerRoutes(
         const fulfillmentResult = await fulfillDataBundleTransaction(transaction);
         if (fulfillmentResult.success) {
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
+          
+          // Update transaction with fulfillment details
+          const deliveredRefs = fulfillmentResult.results
+            .filter((r: any) => r.status === 'delivered' && r.ref)
+            .map((r: any) => ({ phone: r.phone, ref: r.ref, price: r.price }));
+          
+          if (deliveredRefs.length > 0) {
+            await storage.updateTransaction(transaction.id, {
+              deliveredPin: JSON.stringify(deliveredRefs),
+              status: TransactionStatus.COMPLETED,
+            });
+          }
         } else {
           console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult.error);
           // Update transaction with error note but keep as completed since payment was successful

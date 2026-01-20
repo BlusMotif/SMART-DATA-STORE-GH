@@ -26,8 +26,8 @@
   }
 
   .glass-effect {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgb(0, 0, 0);
+    border: 1px solid rgb(0, 0, 0);
   }
 
   @supports (backdrop-filter: blur(12px)) {
@@ -217,7 +217,7 @@ html {
   --card: 0 0% 12%;
   --card-foreground: 0 0% 98%;
   --card-border: 0 0% 20%;
-  --sidebar: 0 0% 10%;
+  --sidebar: 0 0% 6%;
   --sidebar-foreground: 0 0% 98%;
   --sidebar-border: 0 0% 20%;
   --sidebar-primary: 217 91% 60%;
@@ -347,9 +347,6 @@ html {
   /* .no-default-hover-elevate/no-default-active-elevate is an escape hatch so consumers of
    * buttons/badges can remove the automatic brightness adjustment on interactions
    * and program their own. */
-  .no-default-hover-elevate {}
-
-  .no-default-active-elevate {}
 
 
   /**

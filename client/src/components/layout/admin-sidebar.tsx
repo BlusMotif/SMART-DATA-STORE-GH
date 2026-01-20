@@ -121,7 +121,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div 
-      className="flex h-screen w-64 flex-col border-r bg-white dark:bg-black text-sidebar-foreground relative"
+      className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
     >
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">

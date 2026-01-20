@@ -58,6 +58,5 @@ if (usePostgreSQL) {
   db = drizzleSqlite(sqlite, { schema });
   console.log('SQLite database connection established successfully');
 }
-}
 
 export { db, pool };

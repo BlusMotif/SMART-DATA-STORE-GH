@@ -392,7 +392,13 @@ export default function UserBundlesPage() {
   };
 
   const handleBulkPurchase = () => {
+    console.log("[DEBUG] handleBulkPurchase called");
+    console.log("[DEBUG] bulkPhoneNumbers:", bulkPhoneNumbers);
+    console.log("[DEBUG] bulkPaymentMethod:", bulkPaymentMethod);
+    console.log("[DEBUG] bundles:", bundles);
+    
     if (!bulkPhoneNumbers.trim()) {
+      console.log("[DEBUG] No phone numbers entered");
       toast({
         title: "Missing Information",
         description: "Please enter phone numbers with GB amounts",
@@ -404,11 +410,14 @@ export default function UserBundlesPage() {
     // Parse phone numbers with GB amounts
     // Format: "0546591622 1" or "233546591622 2"
     const lines = bulkPhoneNumbers.split('\n').filter(line => line.trim());
+    console.log("[DEBUG] Parsed lines:", lines);
+    
     const parsedData: Array<{ phone: string; gb: number }> = [];
     
     for (const line of lines) {
       const parts = line.trim().split(/\s+/);
       if (parts.length !== 2) {
+        console.log("[DEBUG] Invalid format for line:", line);
         toast({
           title: "❌ Invalid Format",
           description: `Line "${line}" must have format: phone_number GB_amount (e.g., "0241234567 2")`,
@@ -422,6 +431,7 @@ export default function UserBundlesPage() {
       const gbAmount = parseFloat(parts[1]);
 
       if (isNaN(gbAmount) || gbAmount <= 0) {
+        console.log("[DEBUG] Invalid GB amount:", parts[1]);
         toast({
           title: "❌ Invalid GB Amount",
           description: `GB amount "${parts[1]}" must be a positive number`,
@@ -441,10 +451,12 @@ export default function UserBundlesPage() {
 
       // Normalize the phone number
       const normalizedPhone = normalizePhoneNumber(phoneStr);
+      console.log("[DEBUG] Normalized phone:", normalizedPhone, "from:", phoneStr);
 
       // Validate phone number for the selected network
       const validation = validatePhoneNetwork(normalizedPhone, network);
       if (!validation.isValid) {
+        console.log("[DEBUG] Phone validation failed:", validation);
         const prefixes = getNetworkPrefixes(network);
         toast({
           title: "❌ Phone Number Mismatch",
@@ -458,7 +470,10 @@ export default function UserBundlesPage() {
       parsedData.push({ phone: normalizedPhone, gb: gbAmount });
     }
 
+    console.log("[DEBUG] Parsed data:", parsedData);
+
     if (parsedData.length === 0) {
+      console.log("[DEBUG] No valid data parsed");
       toast({
         title: "No Data",
         description: "Please enter at least one phone number with GB amount",
@@ -472,6 +487,7 @@ export default function UserBundlesPage() {
     let totalAmount = 0;
 
     for (const item of parsedData) {
+      console.log("[DEBUG] Finding bundle for GB:", item.gb);
       // Find a bundle that matches the GB amount (looking for bundles with the GB in the name)
       const matchingBundle = bundles?.find(b => {
         const bundleName = b.name.toLowerCase();
@@ -479,12 +495,14 @@ export default function UserBundlesPage() {
         const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
         if (gbMatch) {
           const bundleGB = parseFloat(gbMatch[1]);
+          console.log("[DEBUG] Bundle", bundleName, "has GB:", bundleGB);
           return bundleGB === item.gb;
         }
         return false;
       });
 
       if (!matchingBundle) {
+        console.log("[DEBUG] No matching bundle found for GB:", item.gb);
         toast({
           title: "❌ Bundle Not Found",
           description: `No ${item.gb}GB bundle available for ${networkInfo?.name}. Please check available bundles.`,
@@ -494,6 +512,7 @@ export default function UserBundlesPage() {
         return;
       }
 
+      console.log("[DEBUG] Found matching bundle:", matchingBundle.name);
       orderItems.push({
         phone: item.phone,
         bundleId: matchingBundle.id,
@@ -504,11 +523,15 @@ export default function UserBundlesPage() {
       totalAmount += parseFloat(matchingBundle.basePrice);
     }
 
+    console.log("[DEBUG] Order items:", orderItems);
+    console.log("[DEBUG] Total amount:", totalAmount);
+
     // Check wallet balance if paying with wallet
     const walletBalance = stats?.walletBalance ? parseFloat(stats.walletBalance) : 0;
     
     if (bulkPaymentMethod === "wallet" && walletBalance < totalAmount) {
       const shortfall = totalAmount - walletBalance;
+      console.log("[DEBUG] Insufficient wallet balance");
       toast({
         title: "⚠️ Insufficient Wallet Balance",
         description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${parsedData.length} order(s). Please top up or use Paystack.`,
@@ -519,6 +542,7 @@ export default function UserBundlesPage() {
     }
 
     if (!bulkPaymentMethod) {
+      console.log("[DEBUG] No payment method selected");
       toast({
         title: "❌ Payment Method Required",
         description: "Please select a payment method",
@@ -527,6 +551,7 @@ export default function UserBundlesPage() {
       return;
     }
 
+    console.log("[DEBUG] Calling bulkPurchaseMutation.mutate");
     // Send bulk purchase with order items
     // Note: This will need backend support for the new format
     bulkPurchaseMutation.mutate({
@@ -556,7 +581,7 @@ export default function UserBundlesPage() {
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64">
+        <SheetContent side="left" className="p-0 w-64 bg-sidebar">
           <VisuallyHidden>
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for bundles</SheetDescription>
@@ -575,7 +600,7 @@ export default function UserBundlesPage() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64">
+              <SheetContent side="left" className="p-0 w-64 bg-sidebar">
                 <VisuallyHidden>
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for bundles</SheetDescription>

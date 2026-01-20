@@ -46,7 +46,7 @@ export default function SuperDealerDashboard() {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-64 p-0 bg-sidebar">
           <div className="flex flex-col h-full">
             <div className="p-4 border-b">
               <SheetTitle>Super Dealer Dashboard</SheetTitle>

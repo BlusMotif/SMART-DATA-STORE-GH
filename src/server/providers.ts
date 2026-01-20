@@ -2,6 +2,8 @@ import { storage } from "./storage.js";
 
 // Minimal generic provider caller - extend per provider as needed
 export async function fulfillDataBundleTransaction(transaction: any, providerId?: string) {
+  console.log(`[Fulfill] STARTING fulfillment for transaction ${transaction.reference}, type: ${transaction.type}, isBulk: ${transaction.isBulkOrder}`);
+  
   try {
     const network = transaction.network;
     if (!network) {
@@ -12,13 +14,28 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
     let provider;
     if (providerId) {
       provider = await storage.getExternalApiProvider(providerId);
+      console.log(`[Fulfill] Using specified provider ${providerId}:`, provider ? 'FOUND' : 'NOT FOUND');
     } else {
       provider = await storage.getDefaultExternalApiProvider();
+      console.log(`[Fulfill] Using default provider:`, provider ? 'FOUND' : 'NOT FOUND');
     }
 
-    if (!provider || !provider.isActive) {
-      return { success: false, error: "No active external API provider configured" };
+    if (!provider) {
+      console.error(`[Fulfill] No external API provider configured`);
+      return { success: false, error: "No external API provider configured" };
     }
+
+    if (!provider.isActive) {
+      console.error(`[Fulfill] External API provider is not active`);
+      return { success: false, error: "External API provider is not active" };
+    }
+
+    console.log(`[Fulfill] Provider details:`, {
+      name: provider.name,
+      endpoint: provider.endpoint,
+      hasApiKey: !!provider.apiKey,
+      hasApiSecret: !!provider.apiSecret
+    });
 
     const apiKey = provider.apiKey;
     const apiSecret = provider.apiSecret;
@@ -33,23 +50,68 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
     }
 
     // Compose recipients
-    const phoneData = transaction.phoneNumbers && Array.isArray(transaction.phoneNumbers)
-      ? transaction.phoneNumbers
-      : [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
+    let phoneData: any[] = [];
+    
+    if (transaction.phoneNumbers) {
+      if (Array.isArray(transaction.phoneNumbers)) {
+        phoneData = transaction.phoneNumbers;
+        console.log("[Fulfill] phoneNumbers is already an array");
+      } else if (typeof transaction.phoneNumbers === 'string') {
+        console.log("[Fulfill] phoneNumbers is a string, attempting to parse");
+        try {
+          phoneData = JSON.parse(transaction.phoneNumbers);
+          console.log("[Fulfill] Successfully parsed phoneNumbers string");
+        } catch (e) {
+          const error = e as Error;
+          console.warn("Failed to parse phoneNumbers JSON string:", error.message);
+          console.warn("Raw phoneNumbers string:", transaction.phoneNumbers);
+          phoneData = [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
+        }
+      } else {
+        console.log("[Fulfill] phoneNumbers is neither array nor string:", typeof transaction.phoneNumbers);
+        phoneData = [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
+      }
+    } else {
+      console.log("[Fulfill] No phoneNumbers found in transaction");
+      phoneData = [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
+    }
+
+    console.log("[Fulfill] transaction.phoneNumbers:", transaction.phoneNumbers);
+    console.log("[Fulfill] phoneData length:", phoneData.length);
+    console.log("[Fulfill] phoneData:", phoneData);
+
+    if (phoneData.length === 0) {
+      console.log("[Fulfill] phoneData is empty, using fallback for single order");
+      phoneData = [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
+      console.log("[Fulfill] Fallback phoneData:", phoneData);
+    }
+
+    console.log(`[Fulfill] Starting to process ${phoneData.length} items`);
 
     const results: any[] = [];
 
-    for (const item of phoneData) {
+    for (let i = 0; i < phoneData.length; i++) {
+      const item = phoneData[i];
+      console.log(`[Fulfill] Processing item ${i + 1}/${phoneData.length}:`, item);
       const phone = item.phone;
       const dataAmount = item.dataAmount || item.bundleName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1';
 
-      // Convert data amount to MB for capacity
+      console.log(`[Fulfill] Item dataAmount: ${dataAmount}, bundleName: ${item.bundleName}`);
+
+      // Convert data amount to capacity for API
       let capacity = 0;
       if (dataAmount.toLowerCase().includes('gb')) {
-        capacity = parseFloat(dataAmount) * 1024; // GB to MB
+        // Send GB as whole number (1 for 1GB, 2 for 2GB, etc.)
+        capacity = parseFloat(dataAmount);
+      } else if (dataAmount.toLowerCase().includes('mb')) {
+        // Send MB as is
+        capacity = parseFloat(dataAmount);
       } else {
-        capacity = parseFloat(dataAmount); // Already MB
+        // Fallback: try to parse as number
+        capacity = parseFloat(dataAmount) || 1;
       }
+
+      console.log(`[Fulfill] Calculated capacity: ${capacity} MB`);
 
       // Map network to API format using provider's network mappings
       const apiNetwork = (networkMappings as Record<string, string>)[network] || network.toUpperCase();
@@ -59,6 +121,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         recipient: phone,
         capacity: Math.round(capacity)
       });
+
+      console.log(`[Fulfill] API request body:`, body);
 
       // Generate signature
       const ts = Math.floor(Date.now() / 1000).toString();
@@ -70,6 +134,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       const signature = crypto.createHmac('sha256', apiSecret)
         .update(message)
         .digest('hex');
+
+      console.log(`[Fulfill] Making API call for phone: ${phone}`);
 
       try {
         const resp = await fetch(apiEndpoint, {
@@ -83,8 +149,12 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
           body: body,
         });
 
+        console.log(`[Fulfill] API response status for ${phone}: ${resp.status}`);
+
         const data = await resp.json().catch(() => ({ status: resp.ok ? 'success' : 'failed' })) as any;
         
+        console.log(`[Fulfill] API response data for ${phone}:`, data);
+
         if (resp.ok && data.ref) {
           results.push({ 
             phone, 
@@ -93,17 +163,23 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
             price: data.price,
             providerResponse: data 
           });
+          console.log(`[Fulfill] Success for ${phone}: ${data.ref}`);
         } else {
           results.push({ 
             phone, 
             status: "failed", 
             providerResponse: data 
           });
+          console.log(`[Fulfill] Failed for ${phone}:`, data);
         }
       } catch (e: any) {
+        console.error(`[Fulfill] Exception for ${phone}:`, e.message);
         results.push({ phone, status: "failed", error: e.message });
       }
     }
+
+    console.log("[Fulfill] Final results length:", results.length);
+    console.log("[Fulfill] Final results:", results);
 
     return { success: true, provider: "skytechgh", results };
   } catch (error: any) {

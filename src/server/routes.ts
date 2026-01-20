@@ -5759,7 +5759,7 @@ export async function registerRoutes(
         profit: profit.toFixed(2),
         customerPhone,
         customerEmail: dbUser.email,
-        phoneNumbers: (isBulkOrder || (orderItems && orderItems.length > 0)) && phoneNumbersData ? phoneNumbersData : undefined,
+        phoneNumbers: (isBulkOrder || (orderItems && orderItems.length > 0)) && phoneNumbersData ? JSON.stringify(phoneNumbersData) : undefined,
         isBulkOrder: isBulkOrder || (orderItems && orderItems.length > 0) || false,
         paymentMethod: "wallet",
         status: TransactionStatus.CONFIRMED,

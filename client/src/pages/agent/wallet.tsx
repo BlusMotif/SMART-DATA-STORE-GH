@@ -117,7 +117,7 @@ export default function AgentWalletPage() {
 
       {/* Mobile Sidebar */}
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="p-0 w-64 bg-background">
+        <SheetContent side="left" className="p-0 w-64 bg-sidebar">
           <VisuallyHidden>
             <SheetTitle>Navigation Menu</SheetTitle>
             <SheetDescription>Main navigation for your dashboard</SheetDescription>
@@ -136,7 +136,7 @@ export default function AgentWalletPage() {
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64 bg-background">
+              <SheetContent side="left" className="p-0 w-64 bg-sidebar">
                 <VisuallyHidden>
                   <SheetTitle>Navigation Menu</SheetTitle>
                   <SheetDescription>Main navigation for your dashboard</SheetDescription>

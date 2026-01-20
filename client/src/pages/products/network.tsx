@@ -149,9 +149,6 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const [bulkPhones, setBulkPhones] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
 
-  console.log("[PublicPurchaseFlow] Received network prop:", network);
-  console.log("[PublicPurchaseFlow] Received agentSlug prop:", agentSlug);
-
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
     if (network === "at_ishare" && orderType === "bulk") {
@@ -172,7 +169,6 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
     queryFn: async () => {
       const apiNetwork = network?.replace(/-/g, '_');
       const url = `/api/products/data-bundles?network=${apiNetwork}`;
-      console.log("[PublicPurchaseFlow] Fetching bundles from:", url);
       return await apiRequest('GET', url);
     },
     refetchOnMount: true,
@@ -195,12 +191,6 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       const priceB = parseFloat(b.effective_price);
       return priceA - priceB;
     });
-
-  console.log("[PublicPurchaseFlow] Network prop:", network);
-  console.log("[PublicPurchaseFlow] Bundles data:", bundles);
-  console.log("[PublicPurchaseFlow] Bundles length:", bundles?.length);
-  console.log("[PublicPurchaseFlow] Sorted bundles:", sortedBundles);
-  console.log("[PublicPurchaseFlow] Sorted bundles length:", sortedBundles?.length);
 
   const selectedBundle = sortedBundles?.find((b: any) => b.id === selectedBundleId) || null;
 
@@ -275,9 +265,6 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         productName: selectedBundle.name,
         network: selectedBundle.network,
       };
-
-      console.log("[Frontend] Single purchase payload:");
-      console.log("[Frontend] amount:", amount);
 
       checkoutMutation.mutate(payload, {
         onSuccess: (data) => {

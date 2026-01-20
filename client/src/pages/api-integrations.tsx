@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
+import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
+import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Key, Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, XCircle, Settings, Code, Webhook, Menu } from 'lucide-react';
+import { useAuth } from "@/hooks/use-auth";
 
 interface ApiKey {
   id: string;
@@ -24,6 +27,7 @@ interface ApiKey {
 }
 
 const ApiKeysPage: React.FC = () => {
+  const { user } = useAuth();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -174,10 +178,28 @@ const ApiKeysPage: React.FC = () => {
     }
   };
 
+  const renderSidebar = () => {
+    if (!user) return null;
+
+    switch (user.role) {
+      case 'admin':
+        return <AdminSidebar onClose={() => setSidebarOpen(false)} />;
+      case 'agent':
+      case 'dealer':
+      case 'super_dealer':
+      case 'master':
+        return <AgentSidebar onClose={() => setSidebarOpen(false)} />;
+      case 'user':
+        return <UserSidebar onClose={() => setSidebarOpen(false)} />;
+      default:
+        return <AdminSidebar onClose={() => setSidebarOpen(false)} />;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen bg-background">
-        <AdminSidebar />
+        {renderSidebar()}
         <div className="flex-1 flex items-center justify-center">
           <div className="text-lg">Loading...</div>
         </div>
@@ -192,14 +214,14 @@ const ApiKeysPage: React.FC = () => {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
           <div className="fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-200 ease-in-out">
-            <AdminSidebar onClose={() => setSidebarOpen(false)} />
+            {renderSidebar()}
           </div>
         </div>
       )}
 
       {/* Desktop sidebar */}
       <div className="hidden md:block">
-        <AdminSidebar />
+        {renderSidebar()}
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">

@@ -2466,19 +2466,36 @@ export async function registerRoutes(
         const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
         await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
 
-        if (fulfillmentResult.success) {
-          console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
-          // Order was placed successfully, set to pending until SkyTech delivers
-          await storage.updateTransaction(transaction.id, {
-            status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
-            deliveryStatus: "processing", // Changed from "pending" to "processing"
-          });
+        if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+          // Check if all items were successful
+          const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+          
+          if (allSuccess) {
+            console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
+            // Order was placed successfully, set to pending until SkyTech delivers
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.PENDING,
+              deliveryStatus: "processing",
+            });
+          } else {
+            // Some items failed - mark as failed
+            const failedItems = fulfillmentResult.results.filter((r: any) => r.status === 'failed');
+            console.error("[Verify] Data bundle API fulfillment had failures:", failedItems);
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.FAILED,
+              deliveryStatus: "failed",
+              completedAt: new Date(),
+              failureReason: `Provider rejected ${failedItems.length}/${fulfillmentResult.results.length} items: ${failedItems.map((r: any) => r.error || 'Unknown error').join(', ')}`,
+            });
+          }
         } else {
-          console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult.error);
+          console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult?.error);
           // Order failed to place, mark as failed
           await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.FAILED,
             deliveryStatus: "failed",
-            failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
+            completedAt: new Date(),
+            failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
           });
         }
       }

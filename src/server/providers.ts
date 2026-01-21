@@ -132,42 +132,43 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       // Generate unique idempotency key to prevent duplicate orders
       const idempotencyKey = `${transaction.reference}-${phone}`;
 
-      // Use application/x-www-form-urlencoded as SkyTech (PHP) expects form data
-      const params = new URLSearchParams({
+      // JSON body for SkyTech API
+      const body = JSON.stringify({
         network: apiNetwork,
         recipient: phone,
-        capacity: String(Math.round(capacity)),
+        capacity: Math.round(capacity),
         idempotency_key: idempotencyKey
       });
 
-      const bodyString = params.toString();
-      console.log(`[Fulfill] API request body (form-encoded):`, bodyString);
+      console.log(`[Fulfill] API request body:`, body);
 
-      // Generate signature using the raw form string (important for PHP backends)
+      // Generate signature from JSON data
       const ts = Math.floor(Date.now() / 1000).toString();
       const method = 'POST';
       const path = '/api/v1/orders';
-      const message = `${ts}\n${method}\n${path}\n${bodyString}`;
-
+      const message = `${ts}\n${method}\n${path}\n${body}`;
+      
       const crypto = await import('crypto');
       const signature = crypto.createHmac('sha256', apiSecret)
         .update(message)
         .digest('hex');
 
       console.log(`[Fulfill] Making API call for phone: ${phone}`);
+      console.log(`[Fulfill] Signature message: ${message}`);
+      console.log(`[Fulfill] Generated signature: ${signature}`);
 
       try {
         const resp = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
             "X-Timestamp": ts,
             "X-Signature": signature,
-            "User-Agent": "Mozilla/5.0 (resellershubprogh)",
-            "Referer": process.env.FRONTEND_URL || process.env.APP_URL || 'https://resellershubprogh.com'
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://resellershubprogh.com"
           },
-          body: bodyString,
+          body: body,
         });
 
         console.log(`[Fulfill] API response status for ${phone}: ${resp.status}`);
@@ -176,7 +177,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         
         console.log(`[Fulfill] API response data for ${phone}:`, data);
 
-        if (resp.ok && data.ref) {
+        // Check for success - PHP API should return success status and a ref
+        if (resp.ok && data.status === 'success' && data.ref) {
           results.push({ 
             phone, 
             status: "pending", 
@@ -186,9 +188,11 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
           });
           console.log(`[Fulfill] Success for ${phone}: ${data.ref}`);
         } else {
+          // Provider rejected the request or returned error
           results.push({ 
             phone, 
             status: "failed", 
+            error: data.error || data.message || 'Provider rejected request',
             providerResponse: data 
           });
           console.log(`[Fulfill] Failed for ${phone}:`, data);

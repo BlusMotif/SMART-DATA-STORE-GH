@@ -197,20 +197,35 @@ async function processWebhookEvent(event: any) {
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
 
             // Check if fulfillment was successful
-            if (fulfillResult && fulfillResult.success) {
-              // Order was placed successfully with SkyTech, keep status as pending until delivery
-              // Cron job will update both status and delivery status based on SkyTech status
-              await storage.updateTransaction(transaction.id, {
-                status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
-                deliveryStatus: "processing",
-                paymentReference: data.reference,
-                paymentStatus: "paid",
-                // Don't set completedAt yet - wait for actual delivery confirmation
-              });
+            if (fulfillResult && fulfillResult.success && fulfillResult.results && fulfillResult.results.length > 0) {
+              // Check if all items were successful
+              const allSuccess = fulfillResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+              
+              if (allSuccess) {
+                // Order was placed successfully with SkyTech, keep status as pending until delivery
+                // Cron job will update both status and delivery status based on SkyTech status
+                await storage.updateTransaction(transaction.id, {
+                  status: TransactionStatus.PENDING,
+                  deliveryStatus: "processing",
+                  paymentReference: data.reference,
+                  paymentStatus: "paid",
+                });
+              } else {
+                // Some items failed - mark as failed
+                const failedItems = fulfillResult.results.filter((r: any) => r.status === 'failed');
+                await storage.updateTransaction(transaction.id, {
+                  status: TransactionStatus.FAILED,
+                  deliveryStatus: "failed",
+                  completedAt: new Date(),
+                  paymentReference: data.reference,
+                  failureReason: `Provider rejected ${failedItems.length}/${fulfillResult.results.length} items: ${failedItems.map((r: any) => r.error || 'Unknown error').join(', ')}`,
+                  paymentStatus: "paid",
+                });
+              }
             } else {
               // Order failed to place, mark as failed
               await storage.updateTransaction(transaction.id, {
-                status: TransactionStatus.FAILED, // Changed from COMPLETED to FAILED
+                status: TransactionStatus.FAILED,
                 deliveryStatus: "failed",
                 completedAt: new Date(),
                 paymentReference: data.reference,
@@ -221,7 +236,7 @@ async function processWebhookEvent(event: any) {
           } catch (err: any) {
             console.error("Fulfillment error:", err);
             await storage.updateTransaction(transaction.id, {
-              status: TransactionStatus.COMPLETED,
+              status: TransactionStatus.FAILED,
               deliveryStatus: "failed",
               completedAt: new Date(),
               paymentReference: data.reference,

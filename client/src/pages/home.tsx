@@ -205,7 +205,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
               {productCategories.map((cat) => (
                 <Link key={cat.id} href={`/products/${cat.id}`}>
-                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border-0 dark:border-white shadow-md bg-card">
+                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 dark:border-2 dark:border-white shadow-md bg-card">
                     <CardContent className="p-2 text-center">
                       <div className="w-full h-32 mx-auto mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                         <cat.icon />

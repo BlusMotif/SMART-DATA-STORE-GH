@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { APP_NAME } from "@/lib/constants";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 
 export default function AgentUpgradePage() {
   const { theme } = useTheme();

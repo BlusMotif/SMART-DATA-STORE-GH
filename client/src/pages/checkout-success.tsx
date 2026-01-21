@@ -34,7 +34,24 @@ export default function CheckoutSuccessPage() {
 
   const { data: verifyResult, isLoading, error } = useQuery<{ success: boolean; transaction: Transaction }>({
     queryKey: [`/api/transactions/verify/${reference || paystackReference}`],
-    queryFn: () => apiRequest(`/api/transactions/verify/${reference || paystackReference}`, { disableAutoLogout: true }),
+    queryFn: async () => {
+      const response = await fetch(`/api/transactions/verify/${reference || paystackReference}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || errorData.message || `API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      return response.json();
+    },
     enabled: !!(reference || paystackReference) && !paymentFailed,
     retry: 1,
     retryDelay: 1000,

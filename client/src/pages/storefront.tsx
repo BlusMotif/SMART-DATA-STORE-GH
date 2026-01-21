@@ -93,11 +93,11 @@ export default function StorefrontPage() {
   if (error || !data) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <header className="border-b bg-white">
+        <header className="border-b bg-background">
           <div className="container mx-auto flex items-center justify-between h-16 px-4">
             <div className="flex items-center gap-2">
               <Store className="h-6 w-6" />
-              <span className="font-semibold">Store Not Found</span>
+              <span className="font-semibold text-foreground">Store Not Found</span>
             </div>
             <ThemeToggle />
           </div>
@@ -120,10 +120,10 @@ export default function StorefrontPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Storefront Header - Simple, no navigation to main app */}
-      <header className="border-b sticky top-0 z-50 bg-white">
+      <header className="border-b sticky top-0 z-50 bg-background">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
-            <h1 className="font-semibold text-lg">{store.businessName}</h1>
+            <h1 className="font-semibold text-lg text-foreground">{store.businessName}</h1>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -212,7 +212,7 @@ export default function StorefrontPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {/* MTN Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
                 onClick={() => navigateToProduct('mtn')}
               >
                 <img
@@ -228,7 +228,7 @@ export default function StorefrontPage() {
 
               {/* Telecel Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
                 onClick={() => navigateToProduct('telecel')}
               >
                 <img
@@ -244,7 +244,7 @@ export default function StorefrontPage() {
 
               {/* AT BIG TIME Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
                 onClick={() => navigateToProduct('at_bigtime')}
               >
                 <img
@@ -260,7 +260,7 @@ export default function StorefrontPage() {
 
               {/* AT iShare Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
                 onClick={() => navigateToProduct('at_ishare')}
               >
                 <img

@@ -100,7 +100,9 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
 
   return (
     <div 
-      className="flex h-full w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
+      className={`flex h-full w-64 flex-col border-r text-sidebar-foreground relative ${
+        onClose ? 'bg-white' : 'bg-sidebar'
+      }`}
     >
       <div className="flex h-16 items-center gap-2 border-b px-6">
         <div className="flex flex-col">

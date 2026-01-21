@@ -14,7 +14,7 @@ import { Loader2, Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { getAgentId, clearAgentStore } from "@/lib/store-context";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),

@@ -15,7 +15,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { APP_NAME } from "@/lib/constants";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 import { getAgentId } from "@/lib/store-context";
 import { useState } from "react";
 

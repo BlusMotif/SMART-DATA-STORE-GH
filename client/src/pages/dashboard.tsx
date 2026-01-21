@@ -8,9 +8,11 @@ import { formatCurrency } from "@/lib/constants";
 
 interface TopCustomer {
   rank: number;
-  customerPhone: string;
+  displayName: string;
+  displayPhone: string;
   totalPurchases: number;
   totalSpent: number;
+  lastPurchase: string;
 }
 
 export default function MainDashboard() {
@@ -26,10 +28,6 @@ export default function MainDashboard() {
     if (rank === 2) return <Medal className="h-6 w-6 text-gray-400" />;
     if (rank === 3) return <Award className="h-6 w-6 text-amber-600" />;
     return null;
-  };
-
-  const isCurrentUser = (phone: string) => {
-    return user?.phone === phone;
   };
 
   return (
@@ -61,12 +59,8 @@ export default function MainDashboard() {
                 <div className="space-y-3">
                   {rankings.map((customer) => (
                     <div
-                      key={customer.customerPhone}
-                      className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
-                        isCurrentUser(customer.customerPhone)
-                          ? "bg-primary/20 border-primary shadow-md"
-                          : "bg-white dark:bg-black hover:bg-accent/80 dark:hover:bg-accent/20"
-                      }`}
+                      key={customer.rank}
+                      className="flex items-center justify-between p-4 rounded-lg border transition-all bg-white dark:bg-black hover:bg-accent/80 dark:hover:bg-accent/20"
                     >
                       <div className="flex items-center gap-4 flex-1">
                         <div className="flex items-center justify-center w-12 h-12 rounded-full bg-muted">
@@ -77,14 +71,10 @@ export default function MainDashboard() {
                           )}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold">{customer.customerPhone}</p>
-                            {isCurrentUser(customer.customerPhone) && (
-                              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary text-primary-foreground">
-                                You
-                              </span>
-                            )}
-                          </div>
+                          <p className="font-semibold">{customer.displayName}</p>
+                          {customer.displayPhone && (
+                            <p className="text-xs text-muted-foreground">{customer.displayPhone}</p>
+                          )}
                           <p className="text-sm text-muted-foreground">
                             {customer.totalPurchases} {customer.totalPurchases === 1 ? 'purchase' : 'purchases'}
                           </p>

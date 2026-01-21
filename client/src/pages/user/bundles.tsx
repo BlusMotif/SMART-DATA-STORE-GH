@@ -700,7 +700,7 @@ export default function UserBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
+                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary">
                         <p className="text-sm text-muted-foreground">Selected Bundle</p>
                         <p className="font-medium text-lg">{selectedBundle.name}</p>
                         <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>

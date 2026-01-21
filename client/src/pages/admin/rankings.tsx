@@ -12,9 +12,11 @@ import { Button } from "@/components/ui/button";
 
 interface TopCustomer {
   customerEmail: string;
-  customerPhone: string;
+  customerPhone: string | null;
+  customerName: string | null;
   totalPurchases: number;
   totalSpent: number;
+  rank: number;
   lastPurchase: string;
 }
 
@@ -95,18 +97,23 @@ export default function AdminRankings() {
                       </TableHeader>
                       <TableBody>
                         {topCustomers.map((customer, index) => (
-                          <TableRow key={customer.customerPhone}>
+                          <TableRow key={customer.rank}>
                             <TableCell className="text-center">
                               {getRankIcon(index)}
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
-                                <span className="font-medium">{customer.customerPhone}</span>
-                                {customer.customerEmail && (
-                                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                    {customer.customerEmail}
+                                <span className="font-medium">
+                                  {customer.customerName || customer.customerEmail}
+                                </span>
+                                {customer.customerPhone && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {customer.customerPhone}
                                   </span>
                                 )}
+                                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  {customer.customerEmail}
+                                </span>
                               </div>
                             </TableCell>
                             <TableCell className="text-right">

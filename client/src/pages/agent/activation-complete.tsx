@@ -9,7 +9,7 @@ import { CheckCircle2, Loader2, XCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 
 export default function AgentActivationCompletePage() {
   const [status, setStatus] = useState<"processing" | "success" | "failed" | "cancelled">("processing");

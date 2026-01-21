@@ -55,7 +55,7 @@ export default function DataBundlesPage() {
               {products.map((product) => (
                 <Link key={product.id} href={product.href}>
                   <Card
-                    className="p-0.5 md:p-1 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3"
+                    className="p-0.5 md:p-1 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
                     data-testid={`card-product-${product.id}`}
                   >
                     <img

@@ -14,6 +14,7 @@ import {
   MessageCircle,
   AlertTriangle,
   Code,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,11 @@ const sidebarNavItems = [
     title: "Agents",
     href: "/admin/agents",
     icon: Users,
+  },
+  {
+    title: "User Rankings",
+    href: "/admin/rankings",
+    icon: Trophy,
   },
   {
     title: "Withdrawals",
@@ -121,7 +127,9 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div 
-      className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground relative"
+      className={`flex h-screen w-64 flex-col border-r text-sidebar-foreground relative ${
+        onClose ? 'bg-white' : 'bg-sidebar'
+      }`}
     >
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">

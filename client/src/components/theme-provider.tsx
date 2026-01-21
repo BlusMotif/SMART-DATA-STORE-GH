@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "dark" | "light" | "system";
+type Theme = "dark" | "light";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -29,7 +29,13 @@ export function ThemeProvider({
   const [theme, setTheme] = useState<Theme>(() => {
     try {
       if (typeof window !== "undefined" && window.localStorage) {
-        return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
+        const storedTheme = localStorage.getItem(storageKey) as Theme;
+        // Convert legacy "system" theme to "light"
+        if (storedTheme === "system") {
+          localStorage.setItem(storageKey, "light");
+          return "light";
+        }
+        return storedTheme || defaultTheme;
       }
       return defaultTheme;
     } catch (error) {
@@ -42,19 +48,8 @@ export function ThemeProvider({
     const root = window.document.documentElement;
 
     root.classList.remove("light", "dark");
-
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light";
-
-      root.classList.add(systemTheme);
-      console.log("Applied system theme:", systemTheme);
-      return;
-    }
-
     root.classList.add(theme);
+    
     console.log("Applied theme:", theme, "Classes on root:", root.classList.toString());
   }, [theme]);
 

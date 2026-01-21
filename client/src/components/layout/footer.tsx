@@ -3,7 +3,7 @@ import { SiVisa, SiMastercard } from "react-icons/si";
 import { Shield, Lock } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 
 export function Footer() {
   const { theme } = useTheme();

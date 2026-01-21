@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button";
 
 interface TopCustomer {
   rank: number;
-  customerPhone: string;
-  customerEmail: string;
+  displayName: string;
+  displayPhone: string;
   totalPurchases: number;
   totalSpent: number;
+  lastPurchase: string;
 }
 
 export default function PublicRankings() {
@@ -31,10 +32,6 @@ export default function PublicRankings() {
     if (index === 1) return <Medal className="h-5 w-5 text-gray-400" />;
     if (index === 2) return <Award className="h-5 w-5 text-amber-600" />;
     return <span className="text-sm font-semibold text-muted-foreground">#{index + 1}</span>;
-  };
-
-  const isCurrentUser = (phone: string) => {
-    return user?.phone === phone;
   };
 
   return (
@@ -78,31 +75,31 @@ export default function PublicRankings() {
                       <TableRow>
                         <TableHead className="w-16">Rank</TableHead>
                         <TableHead>Customer</TableHead>
+                        <TableHead className="text-right">Purchases</TableHead>
+                        <TableHead className="text-right">Total Spent</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {topCustomers.map((customer, index) => (
-                        <TableRow
-                          key={customer.customerPhone}
-                          className={isCurrentUser(customer.customerPhone) ? "bg-primary/20" : ""}
-                        >
+                        <TableRow key={customer.rank}>
                           <TableCell className="text-center">
                             {getRankIcon(index)}
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-col space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{customer.customerPhone}</span>
-                                {isCurrentUser(customer.customerPhone) && (
-                                  <Badge variant="default" className="text-xs">You</Badge>
-                                )}
-                              </div>
-                              {customer.customerEmail && (
+                              <span className="font-medium">{customer.displayName}</span>
+                              {customer.displayPhone && (
                                 <span className="text-xs text-muted-foreground">
-                                  {customer.customerEmail}
+                                  {customer.displayPhone}
                                 </span>
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {customer.totalPurchases}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            ₵{customer.totalSpent.toFixed(2)}
                           </TableCell>
                         </TableRow>
                       ))}

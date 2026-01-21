@@ -25,7 +25,7 @@ import { Loader2, Mail, Lock, User, Phone, Store, Link2, Eye, EyeOff, ArrowLeft,
 import { getAgentId } from "@/lib/store-context";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 
 const agentRegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -261,7 +261,7 @@ export default function AgentRegisterPage() {
                       <FormLabel>Full Name</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                           <Input placeholder="John Doe" autoComplete="name" className="pl-10" data-testid="input-name" {...field} />
                         </div>
                       </FormControl>
@@ -277,7 +277,7 @@ export default function AgentRegisterPage() {
                       <FormLabel>Phone Number</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                           <Input placeholder="0241234567" autoComplete="tel" className="pl-10" data-testid="input-phone" {...field} />
                         </div>
                       </FormControl>
@@ -295,7 +295,7 @@ export default function AgentRegisterPage() {
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input placeholder="you@example.com" type="email" autoComplete="email" className="pl-10" data-testid="input-email" {...field} />
                       </div>
                     </FormControl>
@@ -312,7 +312,7 @@ export default function AgentRegisterPage() {
                     <FormLabel>Business Name</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input placeholder="My Data Store" className="pl-10" data-testid="input-business" {...field} />
                       </div>
                     </FormControl>
@@ -329,7 +329,7 @@ export default function AgentRegisterPage() {
                     <FormLabel>Storefront URL</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input placeholder="my-store" className="pl-10" data-testid="input-slug" {...field} />
                       </div>
                     </FormControl>
@@ -379,7 +379,7 @@ export default function AgentRegisterPage() {
                       <FormLabel>Password</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                           <Input type={showPassword ? "text" : "password"} autoComplete="new-password" className="pl-10 pr-10" data-testid="input-password" {...field} />
                           <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -398,7 +398,7 @@ export default function AgentRegisterPage() {
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
                         <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                           <Input type={showPassword ? "text" : "password"} autoComplete="new-password" className="pl-10" data-testid="input-confirm" {...field} />
                         </div>
                       </FormControl>
@@ -441,7 +441,7 @@ export default function AgentRegisterPage() {
           </Form>
 
           <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Already have an account? </span>
+            <span className="text-muted-foreground dark:text-gray-300">Already have an account? </span>
             <Link href="/login" className="text-primary hover:underline font-medium">Sign in</Link>
           </div>
         </CardContent>

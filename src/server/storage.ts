@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt, isNotNull, ne, isNull } from "drizzle-orm";
 import { db } from "./db.js";
 import { randomUUID } from "crypto";
 import {
@@ -148,9 +148,11 @@ export interface IStorage {
   getTopCustomers(limit?: number): Promise<Array<{
     customerEmail: string;
     customerPhone: string | null;
+    customerName: string | null;
     totalPurchases: number;
     totalSpent: number;
-    lastPurchase: Date;
+    rank: number;
+    lastPurchase: string;
   }>>;
 
   // Admin Stats
@@ -1321,30 +1323,109 @@ export class DatabaseStorage implements IStorage {
   async getTopCustomers(limit: number = 10): Promise<Array<{
     customerEmail: string;
     customerPhone: string | null;
+    customerName: string | null;
     totalPurchases: number;
     totalSpent: number;
-    lastPurchase: Date;
+    rank: number;
+    lastPurchase: string;
   }>> {
-    const results = await db.select({
-      customerEmail: max(transactions.customerEmail),
-      customerPhone: transactions.customerPhone,
-      totalPurchases: count(),
-      totalSpent: sum(transactions.amount),
-      lastPurchase: sql<Date>`coalesce(max(${transactions.createdAt}), '1970-01-01')`,
-    })
-      .from(transactions)
-      .where(eq(transactions.status, 'completed'))
-      .groupBy(transactions.customerPhone)
-      .orderBy(desc(sum(transactions.amount)))
-      .limit(limit);
+    try {
+      // First, get all customer emails from completed transactions
+      const allCustomerEmails = await db.select({
+        email: transactions.customerEmail,
+      })
+        .from(transactions)
+        .where(and(
+          eq(transactions.status, 'completed'),
+          isNotNull(transactions.customerEmail),
+          ne(transactions.customerEmail, '')
+        ))
+        .groupBy(transactions.customerEmail);
 
-    return results.map((r: { customerEmail: string | null; customerPhone: string | null; totalPurchases: number; totalSpent: string | null; lastPurchase: Date }) => ({
-      customerEmail: r.customerEmail || '',
-      customerPhone: r.customerPhone,
-      totalPurchases: Number(r.totalPurchases),
-      totalSpent: Number(r.totalSpent),
-      lastPurchase: r.lastPurchase,
-    }));
+      const emailList = allCustomerEmails.map((row: any) => row.email).filter(Boolean);
+
+      // Filter out agent emails by checking user roles
+      let filteredEmails: string[] = [];
+      if (emailList.length > 0) {
+        const userRoles = await db.select({
+          email: users.email,
+          role: users.role,
+        })
+          .from(users)
+          .where(inArray(users.email, emailList));
+
+        // Include emails that are either not in users table (guests) or have user/guest role
+        const agentEmails = new Set(userRoles
+          .filter((user: any) => user.role && !['user', 'guest'].includes(user.role))
+          .map((user: any) => user.email)
+        );
+
+        filteredEmails = emailList.filter((email: string) => !agentEmails.has(email));
+      }
+
+      // Now get stats only for filtered customers
+      let customerStats: any[] = [];
+      if (filteredEmails.length > 0) {
+        customerStats = await db.select({
+          customerEmail: transactions.customerEmail,
+          customerPhone: max(transactions.customerPhone),
+          totalPurchases: count(),
+          totalSpent: sum(transactions.amount),
+          lastPurchase: max(transactions.createdAt),
+        })
+          .from(transactions)
+          .where(and(
+            eq(transactions.status, 'completed'),
+            inArray(transactions.customerEmail, filteredEmails)
+          ))
+          .groupBy(transactions.customerEmail);
+      }
+
+      // Get user names for the customers
+      const customerEmails = customerStats.map((stat: any) => stat.customerEmail).filter(Boolean);
+      
+      let userRecords: any[] = [];
+      if (customerEmails.length > 0) {
+        userRecords = await db.select({
+          email: users.email,
+          name: users.name,
+        })
+          .from(users)
+          .where(inArray(users.email, customerEmails));
+      }
+
+      const userMap = new Map(userRecords.map((user: any) => [user.email, user.name]));
+
+      // Sort and assign ranks
+      const sortedCustomers = customerStats
+        .map((stat: any) => ({
+          customerEmail: stat.customerEmail!,
+          customerPhone: stat.customerPhone || null,
+          customerName: userMap.get(stat.customerEmail!) || null,
+          totalPurchases: Number(stat.totalPurchases) || 0,
+          totalSpent: Number(stat.totalSpent) || 0,
+          lastPurchase: stat.lastPurchase,
+        }))
+        .sort((a: any, b: any) => {
+          // Primary sort: total spent descending
+          if (b.totalSpent !== a.totalSpent) {
+            return b.totalSpent - a.totalSpent;
+          }
+          // Secondary sort: total purchases descending (tie-breaker)
+          return b.totalPurchases - a.totalPurchases;
+        })
+        .slice(0, limit)
+        .map((customer: any, index: number) => ({
+          ...customer,
+          rank: index + 1,
+          lastPurchase: customer.lastPurchase ? customer.lastPurchase.toISOString() : new Date().toISOString(),
+        }));
+
+      return sortedCustomers;
+    } catch (error) {
+      console.error('Error in getTopCustomers:', error);
+      throw error;
+    }
   }
 
   // ============================================

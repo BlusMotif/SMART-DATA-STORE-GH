@@ -3918,7 +3918,7 @@ export async function registerRoutes(
   });
   app.get("/api/admin/rankings/customers", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 10;
+      const limit = parseInt(req.query.limit as string) || 50; // Default to 50 for admin view
       const topCustomers = await storage.getTopCustomers(limit);
       res.json(topCustomers);
     } catch (error: any) {
@@ -3931,21 +3931,36 @@ export async function registerRoutes(
     try {
       const limit = parseInt(req.query.limit as string) || 10;
       const topCustomers = await storage.getTopCustomers(limit);
-      // Include truncated email for public view (privacy-conscious)
-      const publicRankings = topCustomers.map((customer, index) => {
-        let truncatedEmail = "";
-        if (customer.customerEmail) {
-          const [localPart, domain] = customer.customerEmail.split("@");
-          truncatedEmail = localPart.length > 2 ? localPart.substring(0, 2) + ".....@" + domain : customer.customerEmail;
+
+      if (!Array.isArray(topCustomers)) {
+        return res.status(500).json({ error: "Invalid data format" });
+      }
+
+      // Include customer names and privacy-conscious data for public view
+      const publicRankings = topCustomers.map((customer) => {
+        // Truncate email for privacy
+        let displayName = customer.customerName || '';
+        if (!displayName && customer.customerEmail) {
+          const [localPart] = customer.customerEmail.split("@");
+          displayName = localPart.length > 3 ? localPart.substring(0, 3) + "***" : localPart + "***";
         }
+
+        // Truncate phone for privacy
+        let displayPhone = '';
+        if (customer.customerPhone && customer.customerPhone.length > 6) {
+          displayPhone = customer.customerPhone.substring(0, 3) + "***" + customer.customerPhone.slice(-3);
+        }
+
         return {
-          rank: index + 1,
-          customerPhone: customer.customerPhone ? (customer.customerPhone.length > 6 ? customer.customerPhone.substring(0, 6) + "......." : customer.customerPhone) : "",
-          customerEmail: truncatedEmail,
+          rank: customer.rank,
+          displayName,
+          displayPhone,
           totalPurchases: customer.totalPurchases,
           totalSpent: customer.totalSpent,
+          lastPurchase: customer.lastPurchase,
         };
       });
+
       res.json(publicRankings);
     } catch (error: any) {
       console.error("Error fetching public rankings:", error);
@@ -5235,49 +5250,37 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Calculate user's stats from all transactions (completed and pending)
-      const allTransactions = await storage.getTransactions({
+      // Get user's transaction stats
+      const userTransactions = await storage.getTransactions({
         customerEmail: req.user!.email,
+        status: 'completed'
       });
 
-      const completedTransactions = allTransactions.filter(t => t.status === 'completed');
-      const pendingTransactions = allTransactions.filter(t => t.status === 'pending' || t.status === 'confirmed');
+      const userTotalSpent = userTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      const userTotalPurchases = userTransactions.length;
 
-      const userTotalSpent = completedTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      const userPendingSpent = pendingTransactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      const userTotalTransactions = allTransactions.length;
+      // Get all customer rankings to find user's position
+      const allRankings = await storage.getTopCustomers(1000); // Get many to ensure we find the user
 
-      // Get all users' stats
-      const allUsers = await storage.getUsers();
-      const userRanks = await Promise.all(allUsers.map(async (u) => {
-        const userTxns = await storage.getTransactions({
-          customerEmail: u.email,
-        });
-        const completed = userTxns.filter(t => t.status === 'completed');
-        const totalSpent = completed.reduce((sum, t) => sum + parseFloat(t.amount), 0);
-        const totalTransactions = userTxns.length;
+      // Find user's rank in the sorted list
+      const userRanking = allRankings.find(ranking => ranking.customerEmail === req.user!.email);
 
-        return {
-          email: u.email,
-          totalSpent,
-          totalTransactions,
-          score: totalSpent + (totalTransactions * 0.1) // Give small bonus for transaction count
-        };
-      }));
+      let userRank = allRankings.length + 1; // Default to last place + 1 if not found
+      if (userRanking) {
+        userRank = userRanking.rank;
+      }
 
-      // Sort by score descending (spending + transaction bonus)
-      userRanks.sort((a, b) => b.score - a.score);
-
-      // Find user's rank (1-based)
-      const userRank = userRanks.findIndex(u => u.email === req.user!.email) + 1;
+      // If user has no completed transactions, they should be ranked after those with transactions
+      if (userTotalPurchases === 0) {
+        userRank = allRankings.length + 1;
+      }
 
       res.json({
         rank: userRank,
-        totalUsers: userRanks.length,
+        totalUsers: allRankings.length,
         totalSpent: userTotalSpent,
-        pendingSpent: userPendingSpent,
-        totalTransactions: userTotalTransactions,
-        score: userTotalSpent + (userTotalTransactions * 0.1)
+        totalPurchases: userTotalPurchases,
+        customerName: dbUser.name,
       });
     } catch (error: any) {
       console.error("Rank API error:", error);

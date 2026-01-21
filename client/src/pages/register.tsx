@@ -13,7 +13,7 @@ import { getAgentId } from "@/lib/store-context";
 import { Loader2, Mail, Lock, User, Phone, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
-import logoDark from "@assets/darkmode-icon.jpg";
+import logoDark from "@assets/darkmode-icon.png";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -122,7 +122,7 @@ export default function RegisterPage() {
               />
             </div>
             <h2 className="text-2xl font-bold">Create an account</h2>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground dark:text-gray-300">
               Join {APP_NAME} to purchase data bundles and result checkers
             </p>
           </div>
@@ -137,7 +137,7 @@ export default function RegisterPage() {
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input
                           placeholder="John Doe"
                           className="pl-10"
@@ -160,7 +160,7 @@ export default function RegisterPage() {
                     <FormLabel>Email</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input
                           placeholder="you@example.com"
                           type="email"
@@ -184,7 +184,7 @@ export default function RegisterPage() {
                     <FormLabel>Phone Number (optional)</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input
                           placeholder="0241234567"
                           autoComplete="tel"
@@ -207,7 +207,7 @@ export default function RegisterPage() {
                     <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input
                           placeholder="Create a password"
                           type={showPassword ? "text" : "password"}
@@ -224,9 +224,9 @@ export default function RegisterPage() {
                           onClick={() => setShowPassword(!showPassword)}
                         >
                           {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            <EyeOff className="h-4 w-4 text-muted-foreground dark:text-gray-400" />
                           ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            <Eye className="h-4 w-4 text-muted-foreground dark:text-gray-400" />
                           )}
                         </Button>
                       </div>
@@ -244,7 +244,7 @@ export default function RegisterPage() {
                     <FormLabel>Confirm Password</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />
                         <Input
                           placeholder="Confirm your password"
                           type={showPassword ? "text" : "password"}
@@ -278,7 +278,7 @@ export default function RegisterPage() {
           </Form>
 
           <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Already have an account? </span>
+            <span className="text-muted-foreground dark:text-gray-300">Already have an account? </span>
             <Link href="/login" className="text-primary hover:underline font-medium" data-testid="link-login">
               Sign in
             </Link>

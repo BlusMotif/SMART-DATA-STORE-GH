@@ -5,33 +5,27 @@ import { useLocation } from "wouter";
 import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatCard } from "@/components/ui/stat-card";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/constants";
+import { formatCurrency } from "@/lib/constants";
 import {
   DollarSign,
   ShoppingCart,
   TrendingUp,
   Wallet,
   ExternalLink,
-  ArrowRight,
   Menu,
   Package,
   Code,
   BarChart3,
   Users,
-  Target,
   Zap,
-  Award,
-  Clock
-} from "lucide-react";
+  Award} from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 import { Agent, Transaction } from "@shared/schema";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface AgentStats {
   balance: number;
@@ -74,7 +68,7 @@ const PerformanceChart = ({ stats }: { stats?: AgentStats }) => {
   }
 
   // Use real data if available, otherwise fallback to sample data
-  const chartData = performanceData || [
+  const chartData = Array.isArray(performanceData) ? performanceData : [
     { day: 'Mon', profit: 25.50, transactions: 3 },
     { day: 'Tue', profit: 45.20, transactions: 5 },
     { day: 'Wed', profit: 32.80, transactions: 4 },
@@ -183,7 +177,7 @@ export default function AgentDashboard() {
   console.log("[Dashboard] totalProfit:", stats?.totalProfit);
   console.log("[Dashboard] displayProfit:", displayProfit);
 
-  const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
+  useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions/recent"],
     refetchInterval: 5000,
     refetchOnWindowFocus: true,

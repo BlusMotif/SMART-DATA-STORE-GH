@@ -262,7 +262,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         customerPhone: normalized,
         amount: amount.toFixed(2),
         isBulkOrder: false,
-        agentSlug: undefined,
+        agentSlug,
         paymentMethod,
         productName: selectedBundle.name,
         network: selectedBundle.network,
@@ -336,7 +336,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       isBulkOrder: true,
       orderItems,
       totalAmount: total,
-      agentSlug: undefined,
+      agentSlug,
       paymentMethod: 'paystack',
     };
 

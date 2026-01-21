@@ -264,7 +264,8 @@ export default function AgentPublicStorefront() {
       }
 
       // Calculate total but don't store it since it's not used
-      parseFloat(selectedBundle.price) * phoneNumbersList.length;
+      const totalAmount = parseFloat(selectedBundle.price) * phoneNumbersList.length;
+      console.log(`[PublicStorefront] Purchase initiated for agent: ${slug}, bundle: ${selectedBundle.id}, amount: ${totalAmount}`);
 
       const payload = {
         productType: "data_bundle",
@@ -275,6 +276,8 @@ export default function AgentPublicStorefront() {
         customerEmail: data.customerEmail || undefined,
         agentSlug: slug,
       };
+
+      console.log(`[PublicStorefront] Payload:`, payload);
 
       const response = await apiRequest("POST", "/api/checkout/initialize", payload) as Response;
       return await response.json();

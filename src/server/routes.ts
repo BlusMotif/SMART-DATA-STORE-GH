@@ -3163,7 +3163,10 @@ export async function registerRoutes(
             total: sql`coalesce(sum(cast(agent_profit as numeric)), 0)`
           }).from(transactions).where(and(
             eq(transactions.agentId, agent.id),
-            eq(transactions.status, 'completed')
+            or(
+              eq(transactions.status, 'completed'),
+              eq(transactions.paymentStatus, 'paid')
+            )
           ));
           const totalProfit = Number(totalProfitResult[0]?.total || 0);
           const profitBalance = Math.max(0, totalProfit - withdrawnTotal);
@@ -3376,12 +3379,19 @@ export async function registerRoutes(
           });
           console.log(`[Agent Stats] Agent ${agent.id}: totalProfit from transactions: ${totalProfit}, agent.totalProfit: ${agent.totalProfit}`);
 
+          // Calculate available balance (total profit minus withdrawals)
+          const withdrawals = await storage.getWithdrawals({ userId: dbUser.id });
+          const withdrawnTotal = withdrawals
+            .filter(w => w?.status === "paid")
+            .reduce((sum, w) => sum + Number(w?.amount || 0), 0);
+          const availableBalance = Math.max(0, totalProfit - withdrawnTotal);
+
           stats = {
-            balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
-            totalProfit: totalProfit,
+            balance: availableBalance, // Available profit balance (after withdrawals)
+            totalProfit: availableBalance, // Total profit after withdrawals (shows net profit)
             totalSales: Number(agent.totalSales) || 0,
             totalTransactions: completedTransactions.length,
-            todayProfit: Number(todayProfit.toFixed(2)),
+            todayProfit: Number(todayProfit.toFixed(2)), // Today's profit only (not affected by withdrawals)
             todayTransactions: todayTransactions.length,
           };
         } else {
@@ -3606,7 +3616,10 @@ export async function registerRoutes(
         total: sql`coalesce(sum(cast(agent_profit as numeric)), 0)`
       }).from(transactions).where(and(
         eq(transactions.agentId, agent.id),
-        eq(transactions.status, 'completed')
+        or(
+          eq(transactions.status, 'completed'),
+          eq(transactions.paymentStatus, 'paid')
+        )
       ));
       const totalProfit = Number(totalProfitResult[0]?.total || 0);
 

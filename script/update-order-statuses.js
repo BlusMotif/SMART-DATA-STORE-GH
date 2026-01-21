@@ -5,7 +5,7 @@
  * Run this script periodically (e.g., every 5-10 minutes) using cron
  *
  * Example cron job:
- * */5 * * * * cd /path/to/project && node script/update-order-statuses.js
+ * *\/5 * * * * cd /path/to/project && node script/update-order-statuses.js
  */
 
 const API_BASE_URL = process.env.FRONTEND_URL || 'http://localhost:10000';

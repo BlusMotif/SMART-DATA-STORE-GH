@@ -81,17 +81,31 @@ export default function AgentDashboard() {
     }
   }, [agent, location, setLocation]);
 
-  const { data: stats, isLoading: statsLoading } = useQuery<AgentStats>({
+  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery<AgentStats>({
     queryKey: ["/api/agent/stats"],
-    refetchInterval: 30000,
+    refetchInterval: 5000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0,
   });
 
+  // Force re-render when stats change
+  const [displayProfit, setDisplayProfit] = useState(0);
+  useEffect(() => {
+    if (stats?.totalProfit !== undefined) {
+      setDisplayProfit(stats.totalProfit);
+    }
+  }, [stats?.totalProfit]);
+
+  // Debug logging
+  console.log("[Dashboard] Stats data:", stats);
+  console.log("[Dashboard] Stats error:", statsError);
+  console.log("[Dashboard] totalProfit:", stats?.totalProfit);
+  console.log("[Dashboard] displayProfit:", displayProfit);
+
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/agent/transactions/recent"],
-    refetchInterval: 30000,
+    refetchInterval: 5000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     staleTime: 0,
@@ -200,10 +214,11 @@ export default function AgentDashboard() {
                   trendLabel="vs yesterday"
                 />
                 <StatCard
+                  key={`profit-${displayProfit}`}
                   title="Total Profit"
-                  value={formatCurrency(stats?.totalSales || 0)}
+                  value={formatCurrency(displayProfit)}
                   icon={DollarSign}
-                  description="All-time earnings"
+                  description={`All-time earnings - Raw value: ${displayProfit}`}
                   trend="+24%"
                   trendLabel="vs last month"
                 />

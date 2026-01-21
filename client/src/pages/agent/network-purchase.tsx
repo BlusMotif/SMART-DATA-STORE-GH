@@ -153,8 +153,7 @@ export default function AgentNetworkPurchasePage() {
         const gbAmount = parseFloat(parts[1]);
         if (!isNaN(gbAmount) && gbAmount > 0) {
           const matchingBundle = sortedBundles.find(b => {
-            const bundleName = b.name.toLowerCase();
-            const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+            const gbMatch = b.dataAmount.match(/(\d+(?:\.\d+)?)\s*gb/i);
             if (gbMatch) {
               const bundleGB = parseFloat(gbMatch[1]);
               return bundleGB === gbAmount;
@@ -400,8 +399,7 @@ export default function AgentNetworkPurchasePage() {
     for (const item of parsedData) {
       // Find a bundle that matches the GB amount
       const matchingBundle = sortedBundles?.find(b => {
-        const bundleName = b.name.toLowerCase();
-        const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+        const gbMatch = b.dataAmount.match(/(\d+(?:\.\d+)?)\s*gb/i);
         if (gbMatch) {
           const bundleGB = parseFloat(gbMatch[1]);
           return bundleGB === item.gb;

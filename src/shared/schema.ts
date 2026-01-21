@@ -108,7 +108,7 @@ export const SmsStatus = {
 // USERS TABLE
 // ============================================
 export const users = pgTable("users", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => randomUUID()),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
@@ -573,6 +573,7 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
 // INSERT SCHEMAS
 // ============================================
 export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
   createdAt: true,
 }).extend({
   id: z.string().optional(), // Allow optional id for Supabase user ID

@@ -196,15 +196,16 @@ async function processWebhookEvent(event: any) {
             const fulfillResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
 
-            // Always set initial status to pending - admin will update later
+            // Check if fulfillment was successful
             if (fulfillResult && fulfillResult.success) {
-              // Order was placed successfully, set to pending for admin review
+              // Order was placed successfully with SkyTech, keep status as completed but delivery as processing
+              // Cron job will update delivery status based on SkyTech status
               await storage.updateTransaction(transaction.id, {
                 status: TransactionStatus.COMPLETED,
-                deliveryStatus: "pending",
-                completedAt: new Date(),
+                deliveryStatus: "processing", // Changed from "pending" to "processing"
                 paymentReference: data.reference,
                 paymentStatus: "paid",
+                // Don't set completedAt yet - wait for actual delivery confirmation
               });
             } else {
               // Order failed to place, mark as failed
@@ -6898,5 +6899,170 @@ export async function registerRoutes(
       res.status(500).json({ error: "Webhook processing failed" });
     }
   });
+
+// ============================================
+// CRON JOB ENDPOINTS
+// ============================================
+
+// Cron job endpoint to update order statuses from external providers
+app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) => {
+  try {
+    console.log('[Cron] Starting order status update check');
+
+    // Get all transactions that are completed but have processing delivery status (data bundles)
+    const pendingTransactions = await storage.getTransactionsByStatusAndDelivery('completed', 'processing');
+
+    console.log(`[Cron] Found ${pendingTransactions.length} transactions to check`);
+
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    for (const transaction of pendingTransactions) {
+      try {
+        // Only check data bundle transactions
+        if (transaction.type !== ProductType.DATA_BUNDLE) {
+          continue;
+        }
+
+        // Parse the API response to get the SkyTech order reference
+        let skytechRef = null;
+        if (transaction.apiResponse) {
+          try {
+            const apiResponse = JSON.parse(transaction.apiResponse);
+            if (apiResponse.results && apiResponse.results.length > 0) {
+              // For bulk orders, check the first result
+              skytechRef = apiResponse.results[0].ref;
+            }
+          } catch (e) {
+            console.warn(`[Cron] Failed to parse API response for transaction ${transaction.id}`);
+          }
+        }
+
+        if (!skytechRef) {
+          console.warn(`[Cron] No SkyTech reference found for transaction ${transaction.id}`);
+          continue;
+        }
+
+        // Check order status with SkyTech
+        const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? undefined);
+
+        if (statusResult.success && statusResult.order) {
+          const orderData = statusResult.order;
+          console.log(`[Cron] SkyTech status for ${skytechRef}: ${orderData.status}`);
+
+          // Map SkyTech status to our delivery status
+          let newDeliveryStatus = transaction.deliveryStatus;
+          let shouldComplete = false;
+
+          switch (orderData.status?.toLowerCase()) {
+            case 'completed':
+            case 'delivered':
+            case 'success':
+              newDeliveryStatus = 'delivered';
+              shouldComplete = true;
+              break;
+            case 'failed':
+            case 'error':
+              newDeliveryStatus = 'failed';
+              break;
+            case 'processing':
+            case 'pending':
+              newDeliveryStatus = 'processing';
+              break;
+            default:
+              console.log(`[Cron] Unknown SkyTech status: ${orderData.status}`);
+              break;
+          }
+
+          // Update transaction if status changed
+          if (newDeliveryStatus !== transaction.deliveryStatus) {
+            const updateData: any = {
+              deliveryStatus: newDeliveryStatus,
+              apiResponse: JSON.stringify({
+                ...JSON.parse(transaction.apiResponse || '{}'),
+                lastStatusCheck: new Date().toISOString(),
+                skytechStatus: orderData
+              })
+            };
+
+            if (shouldComplete && !transaction.completedAt) {
+              updateData.completedAt = new Date();
+            }
+
+            await storage.updateTransaction(transaction.id, updateData);
+            updatedCount++;
+            console.log(`[Cron] Updated transaction ${transaction.id} delivery status to ${newDeliveryStatus}`);
+          }
+        } else {
+          console.warn(`[Cron] Failed to get status for SkyTech ref ${skytechRef}: ${statusResult.error}`);
+          errorCount++;
+        }
+
+        // Add a small delay to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error: any) {
+        console.error(`[Cron] Error processing transaction ${transaction.id}:`, error.message);
+        errorCount++;
+      }
+    }
+
+    console.log(`[Cron] Order status update completed. Updated: ${updatedCount}, Errors: ${errorCount}`);
+
+    res.json({
+      success: true,
+      message: `Checked ${pendingTransactions.length} transactions, updated ${updatedCount}, errors ${errorCount}`
+    });
+
+  } catch (error: any) {
+    console.error('[Cron] Order status update failed:', error);
+    res.status(500).json({ error: 'Order status update failed', details: error.message });
+  }
+});
+
+// Cron job endpoint to clean up old failed transactions
+app.post('/api/cron/cleanup-failed-orders', async (req: Request, res: Response) => {
+  try {
+    console.log('[Cron] Starting failed order cleanup');
+
+    // Get transactions that have been in failed status for more than 24 hours
+    const cutoffDate = new Date();
+    cutoffDate.setHours(cutoffDate.getHours() - 24);
+
+    const failedTransactions = await storage.getFailedTransactionsOlderThan(cutoffDate);
+
+    console.log(`[Cron] Found ${failedTransactions.length} old failed transactions to clean up`);
+
+    let cleanedCount = 0;
+
+    for (const transaction of failedTransactions) {
+      try {
+        // Mark as permanently failed or archive
+        await storage.updateTransaction(transaction.id, {
+          deliveryStatus: 'permanently_failed',
+          apiResponse: JSON.stringify({
+            ...JSON.parse(transaction.apiResponse || '{}'),
+            cleanupDate: new Date().toISOString(),
+            cleanupReason: 'Auto-cleanup after 24 hours'
+          })
+        });
+        cleanedCount++;
+      } catch (error: any) {
+        console.error(`[Cron] Error cleaning up transaction ${transaction.id}:`, error.message);
+      }
+    }
+
+    console.log(`[Cron] Cleanup completed. Cleaned: ${cleanedCount}`);
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${cleanedCount} old failed transactions`
+    });
+
+  } catch (error: any) {
+    console.error('[Cron] Cleanup failed:', error);
+    res.status(500).json({ error: 'Cleanup failed', details: error.message });
+  }
+});
 
 }

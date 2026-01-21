@@ -181,6 +181,10 @@ export interface IStorage {
   createWalletTopupTransaction(topup: InsertWalletTopupTransaction): Promise<WalletTopupTransaction>;
   getWalletTopupTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletTopupTransaction[]>;
 
+  // Cron Job Helpers
+  getTransactionsByStatusAndDelivery(status: string, deliveryStatus: string): Promise<Transaction[]>;
+  getFailedTransactionsOlderThan(cutoffDate: Date): Promise<Transaction[]>;
+
   // Settings
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string, description?: string): Promise<void>;
@@ -1610,6 +1614,32 @@ export class DatabaseStorage implements IStorage {
       query = query.where(and(...conditions)) as typeof query;
     }
     return query.orderBy(desc(walletTopupTransactions.createdAt));
+  }
+
+  // ============================================
+  // CRON JOB HELPERS
+  // ============================================
+
+  async getTransactionsByStatusAndDelivery(status: string, deliveryStatus: string): Promise<Transaction[]> {
+    return db.select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.status, status),
+        eq(transactions.deliveryStatus, deliveryStatus),
+        eq(transactions.type, 'data_bundle') // Only data bundle transactions
+      ))
+      .orderBy(desc(transactions.createdAt));
+  }
+
+  async getFailedTransactionsOlderThan(cutoffDate: Date): Promise<Transaction[]> {
+    return db.select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.deliveryStatus, 'failed'),
+        eq(transactions.type, 'data_bundle'),
+        lt(transactions.createdAt, cutoffDate)
+      ))
+      .orderBy(desc(transactions.createdAt));
   }
 }
 

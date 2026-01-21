@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { db } from "./db.js";
-import { sql, and, eq, or } from "drizzle-orm";
+import { sql, and, eq, or, gte, lte } from "drizzle-orm";
 import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
@@ -3414,6 +3414,63 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to load stats" });
     }
   });
+
+  // Get agent performance history for charts
+  app.get("/api/agent/performance-history", requireAuth, requireAgent, async (req, res) => {
+    try {
+      const dbUser = await storage.getUserByEmail(req.user!.email);
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const agent = await storage.getAgentByUserId(dbUser.id);
+      if (!agent) {
+        return res.status(404).json({ error: "Agent not found" });
+      }
+
+      // Get data for the last 7 days
+      const performanceData = [];
+      const today = new Date();
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Get transactions for this day
+        const dayTransactions = await db.select().from(transactions).where(and(
+          eq(transactions.agentId, agent.id),
+          or(
+            eq(transactions.status, 'completed'),
+            eq(transactions.paymentStatus, 'paid')
+          ),
+          gte(transactions.createdAt, startOfDay),
+          lte(transactions.createdAt, endOfDay)
+        ));
+
+        const dayProfit = dayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+        const dayTransactionCount = dayTransactions.length;
+
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+
+        performanceData.push({
+          day: dayName,
+          date: date.toISOString().split('T')[0],
+          profit: Number(dayProfit.toFixed(2)),
+          transactions: dayTransactionCount
+        });
+      }
+
+      res.json(performanceData);
+    } catch (error: any) {
+      console.error("Error loading performance history:", error);
+      res.status(500).json({ error: "Failed to load performance history" });
+    }
+  });
+
   // Get agent transaction stats
   app.get("/api/agent/transactions/stats", requireAuth, requireAgent, async (req, res) => {
     try {

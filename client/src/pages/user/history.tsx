@@ -171,7 +171,11 @@ export default function UserHistoryPage() {
                       const statusConfig = getStatusConfig(transaction.status);
                       const StatusIcon = statusConfig.icon;
                       const isBulkOrder = transaction.isBulkOrder;
-                      const phoneNumbers = transaction.phoneNumbers as Array<{phone: string, bundleName: string, dataAmount: string}> | undefined;
+                      const phoneNumbers = transaction.phoneNumbers 
+                        ? (typeof transaction.phoneNumbers === 'string' 
+                            ? JSON.parse(transaction.phoneNumbers) 
+                            : transaction.phoneNumbers) as Array<{phone: string, bundleName: string, dataAmount: string}>
+                        : undefined;
 
                       return (
                         <div

@@ -1,0 +1,25 @@
+PAYSTACK CONFIGURATION URLs
+==========================
+
+Test Environment (Development)
+------------------------------
+Test Callback URL: http://localhost:5173/checkout/success
+Test Webhook URL:  http://localhost:10000/api/paystack/webhook
+
+Live Environment (Production)
+-----------------------------
+Live Callback URL: https://resellershubprogh.com/checkout/success
+Live Webhook URL:  https://resellershubprogh.com/api/paystack/webhook
+
+Additional URLs (if needed)
+---------------------------
+Wallet Topup Success: https://resellershubprogh.com/wallet/topup/success
+Agent Activation:     https://resellershubprogh.com/agent/activation-complete
+Alternative Webhook:  https://resellershubprogh.com/api/webhooks/paystack
+
+Important Notes:
+- Server runs on port 10000 (not default 3000)
+- Callback URLs are frontend URLs where users are redirected after payment
+- Webhook URLs are server endpoints that receive real-time payment notifications
+- Ensure production domain resellershubprogh.com is properly configured and accessible
+- Webhook endpoint handles payment confirmations and processes SkyTech API orders

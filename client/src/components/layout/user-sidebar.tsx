@@ -79,7 +79,7 @@ export function UserSidebar({ onClose, onApiIntegrationsClick }: { onClose?: () 
 
   const { data: rankData, error: rankError, isLoading: rankLoading } = useQuery<{ rank: number }>({
     queryKey: ["user-rank"],
-    queryFn: () => apiRequest("/api/user/rank", "GET"),
+    queryFn: () => apiRequest("GET", "/api/user/rank"),
     enabled: !!user,
     refetchInterval: 15000, // Refetch every 15 seconds for more real-time updates
     refetchOnWindowFocus: true, // Update when user comes back to the tab

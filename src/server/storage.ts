@@ -1374,7 +1374,7 @@ export class DatabaseStorage implements IStorage {
           customerEmail: transactions.customerEmail,
           customerPhone: max(transactions.customerPhone),
           totalPurchases: count(),
-          totalSpent: sum(transactions.amount),
+          totalSpent: sql`coalesce(sum(cast(${transactions.amount} as numeric)), 0)`,
           lastPurchase: max(transactions.createdAt),
         })
           .from(transactions)

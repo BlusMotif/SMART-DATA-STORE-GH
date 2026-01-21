@@ -161,44 +161,37 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div className={`flex h-full w-64 flex-col border-r text-sidebar-foreground relative ${
-      onClose ? 'bg-white' : 'bg-sidebar'
+      onClose ? 'bg-white dark:bg-black dark:text-white' : 'bg-sidebar dark:bg-black dark:text-white'
     }`}>
-      <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
-          {user?.name?.charAt(0).toUpperCase() || 'A'}
-        </div>
-      </div>
-
-      {agent && (
-        <div className="border-b p-4">
-          <div className="rounded-lg bg-primary/10 p-4">
-            <p className="text-xs text-muted-foreground mb-1">Profit Balance</p>
-            <p className="text-2xl font-bold tabular-nums" data-testid="text-agent-profit-balance">{formatCurrency(agent.profitBalance)}</p>
-            <p className="text-xs text-muted-foreground mt-2">Wallet Balance: {formatCurrency(agent.walletBalance)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Total Withdrawals: {formatCurrency(agent.totalWithdrawals)}</p>
-          </div>
-        </div>
-      )}
-
-      {/* User Info */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.name || 'Agent'}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+      <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''} dark:border-gray-700`}>
+        <div className="flex flex-col items-center text-center w-full">
+          <div className="flex items-center justify-center gap-4 mb-1 w-full">
+            <div className="flex flex-col items-center">
+              <p className="text-sm font-medium dark:text-white">{user?.name || 'Agent'}</p>
+              <p className="text-xs text-muted-foreground dark:text-gray-300">{user?.email}</p>
+            </div>
             {rankData && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-yellow-500/20 to-orange-500/20 px-2.5 py-1 text-xs font-medium text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
-                  <Trophy className="h-3 w-3" />
-                  <span>
-                    {rankData.rank && rankData.rank > 0 ? `Rank #${rankData.rank}` : 'Unranked'}
-                  </span>
-                </div>
+              <div className="flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white border border-green-600 dark:bg-green-600 dark:border-green-700">
+                <Trophy className="h-2.5 w-2.5" />
+                <span>
+                  {rankData.rank && rankData.rank > 0 ? `#${rankData.rank}` : 'Unranked'}
+                </span>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {agent && (
+        <div className="border-b p-3 dark:border-gray-700">
+          <div className="rounded-lg bg-green-500 p-3 dark:bg-green-600">
+            <p className="text-xs text-white mb-1">Profit Balance</p>
+            <p className="text-xl font-bold tabular-nums text-white" data-testid="text-agent-profit-balance">{formatCurrency(agent.profitBalance)}</p>
+            <p className="text-xs text-white mt-1">Wallet Balance: {formatCurrency(agent.walletBalance)}</p>
+            <p className="text-xs text-white mt-1">Total Withdrawals: {formatCurrency(agent.totalWithdrawals)}</p>
+          </div>
+        </div>
+      )}
 
       <ScrollArea className="flex-1 px-3 py-4">
         <nav className="flex flex-col gap-1">
@@ -210,16 +203,16 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 font-normal relative",
-                    isActive && "bg-yellow-500 text-white font-medium shadow-sm"
+                    "w-full justify-start gap-3 font-normal relative dark:text-white dark:hover:bg-gray-700",
+                    isActive && "bg-yellow-500 text-white font-medium shadow-sm dark:bg-yellow-600"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   onClick={() => onClose && onClose()}
                 >
-                  <item.icon className="h-4 w-4" />
-                  <span className="flex-1 text-left">{item.title}</span>
+                  <item.icon className="h-4 w-4 dark:text-white" />
+                  <span className="flex-1 text-left dark:text-white">{item.title}</span>
                   {isSupport && unreadCount > 0 && user?.role === 'admin' && (
-                    <Badge variant="destructive" className="ml-auto">{unreadCount}</Badge>
+                    <Badge variant="destructive" className="ml-auto dark:bg-red-600 dark:text-white">{unreadCount}</Badge>
                   )}
                 </Button>
               </Link>
@@ -228,8 +221,8 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
           {agent && (
             <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="mt-2">
-              <Button variant="outline" className="w-full justify-start gap-3" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
-                <ExternalLink className="h-4 w-4" />
+              <Button variant="outline" className="w-full justify-start gap-3 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
+                <ExternalLink className="h-4 w-4 dark:text-white" />
                 View Public Store
               </Button>
             </a>
@@ -237,26 +230,26 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
         </nav>
       </ScrollArea>
 
-      <div className="border-t p-3">
+      <div className="border-t p-3 dark:border-gray-700">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 dark:text-red-400 dark:hover:bg-red-900/20"
           onClick={() => { onClose && onClose(); logout(); }}
           disabled={isLoggingOut}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 dark:text-red-400" />
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
         
         {/* Developer Credit */}
-        <div className="mt-3 pt-3 border-t border-border/50">
-          <p className="text-xs text-muted-foreground text-center">
+        <div className="mt-3 pt-3 border-t border-border/50 dark:border-gray-600">
+          <p className="text-xs text-muted-foreground text-center dark:text-gray-400">
             Developed by{' '}
             <a
               href="https://bm-portfolio-up2x.onrender.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:text-primary/80 font-medium"
+              className="text-primary hover:text-primary/80 font-medium dark:text-blue-400 dark:hover:text-blue-300"
             >
               BlusMotif
             </a>

@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { db } from "./db.js";
-import { sql, and, eq } from "drizzle-orm";
+import { sql, and, eq, or } from "drizzle-orm";
 import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
@@ -204,6 +204,7 @@ async function processWebhookEvent(event: any) {
                 deliveryStatus: "pending",
                 completedAt: new Date(),
                 paymentReference: data.reference,
+                paymentStatus: "paid",
               });
             } else {
               // Order failed to place, mark as failed
@@ -213,6 +214,7 @@ async function processWebhookEvent(event: any) {
                 completedAt: new Date(),
                 paymentReference: data.reference,
                 failureReason: fulfillResult?.error || "Provider fulfillment failed",
+                paymentStatus: "paid",
               });
             }
           } catch (err: any) {
@@ -223,6 +225,7 @@ async function processWebhookEvent(event: any) {
               completedAt: new Date(),
               paymentReference: data.reference,
               failureReason: String(err?.message || err),
+              paymentStatus: "paid",
             });
           }
         } else {
@@ -232,6 +235,7 @@ async function processWebhookEvent(event: any) {
             deliveryStatus: "pending",
             completedAt: new Date(),
             paymentReference: data.reference,
+            paymentStatus: "paid",
           });
         }
       } else {
@@ -241,10 +245,12 @@ async function processWebhookEvent(event: any) {
           deliveredPin,
           deliveredSerial,
           paymentReference: data.reference,
+          paymentStatus: "paid",
         });
       }
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
+        console.log(`[Webhook] Crediting agent ${transaction.agentId} with profit: ${transaction.agentProfit}`);
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
         // Also credit agent's profit wallet for withdrawals
         const agent = await storage.getAgent(transaction.agentId);
@@ -1086,7 +1092,7 @@ export async function registerRoutes(
           // For agent storefronts, use resolved prices (custom or admin base)
           pricedBundles = await Promise.all(bundles.map(async (bundle) => {
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, agent.id, 'agent');
-            const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+            const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
             const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
             const sellingPrice = resolvedPrice ? parseFloat(resolvedPrice) : basePrice;
             const profit = Math.max(0, sellingPrice - basePrice);
@@ -1616,7 +1622,7 @@ export async function registerRoutes(
             return res.status(400).json({ error: `No pricing available for bundle ${bundle.name} (${bundle.id}).` });
           }
           itemPrice = parseFloat(resolvedPrice);
-          const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+          const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
           adminPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
         } else if (user.role === 'dealer') {
           const resolvedPrice = await storage.getResolvedPrice(bundle.id, user.id, 'dealer');
@@ -1872,10 +1878,8 @@ export async function registerRoutes(
             itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
           }
           amount += itemPrice;
-          // Calculate profit as selling price - agent base price for agents, or admin base price for others
-          const basePriceValue = storefrontAgent
-            ? await storage.getRoleBasePrice(bundle.id, 'agent')
-            : await storage.getAdminBasePrice(bundle.id);
+          // Calculate profit as selling price - admin base price for agents, or admin base price for others
+          const basePriceValue = await storage.getAdminBasePrice(bundle.id);
           const basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || '0');
           const profit = itemPrice - basePrice;
           computedAgentProfit += Math.max(0, profit); // Profit is 0 if using admin price
@@ -1910,9 +1914,9 @@ export async function registerRoutes(
               return res.status(400).json({ error: "No pricing available for this product" });
             }
             amount = parseFloat(resolvedPrice);
-            // Calculate profit as selling price - agent base price
-            const agentBasePrice = await storage.getRoleBasePrice(data.productId, 'agent');
-            const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product.basePrice || '0');
+            // Calculate profit as selling price - admin base price
+            const adminBasePrice = await storage.getAdminBasePrice(data.productId);
+            const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
             agentProfit = Math.max(0, amount - basePrice); // Profit is 0 if using admin price
           } else {
             amount = parseFloat(product.adminPrice || product.basePrice || '0');
@@ -2100,6 +2104,8 @@ export async function registerRoutes(
         agentId,
         agentProfit: totalAgentProfit.toFixed(2),
       });
+
+      console.log(`[Checkout] Created transaction ${transaction.id} with agentId: ${agentId}, agentProfit: ${totalAgentProfit.toFixed(2)}`);
       // Handle wallet payments immediately
       if (data.paymentMethod === 'wallet') {
         console.log("[Checkout] Processing wallet payment for reference:", reference);
@@ -3326,26 +3332,52 @@ export async function registerRoutes(
         const agent = await storage.getAgentByUserId(dbUser.id);
         if (agent) {
           // Full agent stats
+          console.log(`[Agent Stats] Calculating stats for agent ${agent.id}, user ${dbUser.id}`);
           const agentTransactions = await storage.getTransactions({ agentId: agent.id });
+          console.log(`[Agent Stats] Found ${agentTransactions.length} total transactions for agent ${agent.id}`);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          const todayTransactions = agentTransactions.filter(t => new Date(t.createdAt) >= today);
+          const todayTransactions = agentTransactions.filter(t => 
+            new Date(t.createdAt) >= today && 
+            (t.status === 'completed' || t.paymentStatus === 'paid')
+          );
           const todayProfit = todayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
 
           // Calculate total profit from completed transactions' agent_profit
           const totalProfitResult = await db.select({
-            total: sql`coalesce(sum(cast(agent_profit as numeric)), 0)`
+            total: sql`coalesce(sum(cast(agent_profit as decimal(10,2))), 0)`
           }).from(transactions).where(and(
             eq(transactions.agentId, agent.id),
-            eq(transactions.status, 'completed')
+            or(
+              eq(transactions.status, 'completed'),
+              eq(transactions.paymentStatus, 'paid')
+            )
           ));
           const totalProfit = Number(totalProfitResult[0]?.total || 0);
+
+          console.log(`[Agent Stats] totalProfitResult:`, totalProfitResult);
+          console.log(`[Agent Stats] totalProfit calculated:`, totalProfit);
+
+          // Also get count of completed/paid transactions for this agent
+          const completedTransactions = await db.select().from(transactions).where(and(
+            eq(transactions.agentId, agent.id),
+            or(
+              eq(transactions.status, 'completed'),
+              eq(transactions.paymentStatus, 'paid')
+            )
+          ));
+
+          console.log(`[Agent Stats] Agent ${agent.id}: found ${completedTransactions.length} completed/paid transactions`);
+          completedTransactions.forEach((t: any) => {
+            console.log(`[Agent Stats] Transaction ${t.id}: agentProfit=${t.agentProfit}, status=${t.status}, paymentStatus=${t.paymentStatus}`);
+          });
+          console.log(`[Agent Stats] Agent ${agent.id}: totalProfit from transactions: ${totalProfit}, agent.totalProfit: ${agent.totalProfit}`);
 
           stats = {
             balance: Number(dbUser.walletBalance) || 0, // Use user's wallet balance
             totalProfit: totalProfit,
             totalSales: Number(agent.totalSales) || 0,
-            totalTransactions: agentTransactions.length,
+            totalTransactions: completedTransactions.length,
             todayProfit: Number(todayProfit.toFixed(2)),
             todayTransactions: todayTransactions.length,
           };
@@ -3592,7 +3624,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
         return {
           bundleId: bundle.id,
           agentPrice: customPrice?.sellingPrice || "",
@@ -3713,7 +3745,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'dealer');
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
         return {
           bundleId: bundle.id,
           dealerPrice: customPrice?.sellingPrice || "",
@@ -3782,7 +3814,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'super_dealer');
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
         return {
           bundleId: bundle.id,
           superDealerPrice: customPrice?.sellingPrice || "",
@@ -3851,7 +3883,7 @@ export async function registerRoutes(
       const bundles = await storage.getDataBundles({ isActive: true });
       const result = await Promise.all(bundles.map(async (bundle) => {
         const customPrice = pricing.find(p => p.productId === bundle.id);
-        const adminBasePrice = await storage.getRoleBasePrice(bundle.id, 'master');
+        const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
         return {
           bundleId: bundle.id,
           masterPrice: customPrice?.sellingPrice || "",
@@ -5724,9 +5756,9 @@ export async function registerRoutes(
         const agent = await storage.getAgentBySlug(agentSlug);
         if (agent && agent.isApproved) {
           agentId = agent.id;
-          // For agent storefront purchases, calculate profit as selling price - agent base price
-          const agentBasePrice = await storage.getRoleBasePrice(productId || orderItems[0].bundleId, 'agent');
-          const basePrice = agentBasePrice ? parseFloat(agentBasePrice) : parseFloat(product?.basePrice || '0');
+          // For agent storefront purchases, calculate profit as selling price - admin base price
+          const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
+          const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
           agentProfit = Math.max(0, purchaseAmount - basePrice); // Profit is 0 if using admin price
         }
       }

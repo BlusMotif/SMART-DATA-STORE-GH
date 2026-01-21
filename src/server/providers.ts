@@ -98,20 +98,11 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
 
       console.log(`[Fulfill] Item dataAmount: ${dataAmount}, bundleName: ${item.bundleName}`);
 
-      // Convert data amount to capacity for API
-      let capacity = 0;
-      if (dataAmount.toLowerCase().includes('gb')) {
-        // Send GB as whole number (1 for 1GB, 2 for 2GB, etc.)
-        capacity = parseFloat(dataAmount);
-      } else if (dataAmount.toLowerCase().includes('mb')) {
-        // Send MB as is
-        capacity = parseFloat(dataAmount);
-      } else {
-        // Fallback: try to parse as number
-        capacity = parseFloat(dataAmount) || 1;
-      }
+      // Convert data amount to capacity for API (in GB)
+      const numAmount = parseFloat(dataAmount);
+      const capacity = numAmount;
 
-      console.log(`[Fulfill] Calculated capacity: ${capacity} MB`);
+      console.log(`[Fulfill] Calculated capacity: ${capacity} GB`);
 
       // Map network to API format using provider's network mappings
       const apiNetwork = (networkMappings as Record<string, string>)[network] || network.toUpperCase();

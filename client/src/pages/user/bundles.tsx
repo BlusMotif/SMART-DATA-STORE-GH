@@ -71,11 +71,11 @@ export default function UserBundlesPage() {
   // Single purchase state
   const [selectedBundle, setSelectedBundle] = useState<BundleWithPrice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
-  
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "paystack" | undefined>(undefined);
+
   // Bulk purchase state
   const [bulkPhoneNumbers, setBulkPhoneNumbers] = useState("");
-  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack" | null>(null);
+  const [bulkPaymentMethod, setBulkPaymentMethod] = useState<"wallet" | "paystack" | undefined>(undefined);
 
   const networkKey = network?.replace(/-/g, '_') as keyof typeof NetworkInfo;
   const networkInfo = NetworkInfo[networkKey];
@@ -132,48 +132,11 @@ export default function UserBundlesPage() {
 
   // Single purchase mutation
   const purchaseMutation = useMutation({
-    mutationFn: async (data: { bundleId: string; phoneNumber: string; paymentMethod: "wallet" | "paystack" }) => {
-      const bundle = bundles?.find(b => b.id === data.bundleId);
-      if (!bundle) throw new Error("Bundle not found");
-      
-      const phoneNumbers = [data.phoneNumber];
-      const price = parseFloat(bundle.effective_price);
-      const isBulk = false;
-
-      console.log("[Frontend] Single order payment initialization");
-      console.log("[Frontend] Phone numbers:", phoneNumbers);
-      console.log("[Frontend] Is bulk:", isBulk);
-
-      if (data.paymentMethod === "wallet") {
-        const payload = {
-          productType: "data_bundle",
-          productId: bundle.id,
-          productName: bundle.name,
-          network: bundle.network,
-          amount: price.toFixed(2),
-          customerPhone: phoneNumbers[0],
-          phoneNumbers: undefined,
-          isBulkOrder: isBulk,
-        };
-        
-        console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
-        
-        const response = await apiRequest("POST", "/api/wallet/pay", payload);
-        return response as MutationResponse;
+    mutationFn: async (payload: any) => {
+      if (payload.paymentMethod === "wallet") {
+        return await apiRequest<MutationResponse>("POST", "/api/wallet/pay", payload);
       } else {
-        const payload = {
-          productType: "data_bundle",
-          productId: bundle.id,
-          customerPhone: phoneNumbers[0],
-          phoneNumbers: undefined,
-          isBulkOrder: isBulk ? 1 : 0,
-          customerEmail: user?.email || undefined,
-        };
-        
-        console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
-        
-        const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-        return response as MutationResponse;
+        return await apiRequest<MutationResponse>("POST", "/api/checkout/initialize", payload);
       }
     },
     onSuccess: (data: MutationResponse, variables) => {
@@ -185,6 +148,7 @@ export default function UserBundlesPage() {
         });
         setSelectedBundle(null);
         setPhoneNumber("");
+        setPaymentMethod(undefined);
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       } else {
@@ -208,112 +172,22 @@ export default function UserBundlesPage() {
 
   // Bulk purchase mutation
   const bulkPurchaseMutation = useMutation({
-    mutationFn: async (data: { 
-      bundleId: string; 
-      phoneNumbers: string[]; 
-      paymentMethod: "wallet" | "paystack";
-      orderItems?: Array<{ phone: string; bundleId: string; bundleName: string; price: number }>;
-      totalAmount?: number;
-    }) => {
-      const isBulk = true;
-      
-      // Use new orderItems format if available
-      if (data.orderItems && data.totalAmount !== undefined) {
-        const phoneNumbers = data.orderItems.map(item => item.phone);
-        const totalAmount = data.totalAmount;
-
-        console.log("[Frontend] ========== NEW BULK FORMAT PAYMENT ==========");
-        console.log("[Frontend] Order items:", data.orderItems);
-        console.log("[Frontend] Total amount:", totalAmount);
-        console.log("[Frontend] ================================================");
-        
-        if (data.paymentMethod === "wallet") {
-          const payload = {
-            productType: "data_bundle",
-            productName: `Bulk Order - ${data.orderItems.length} items`,
-            network: network,
-            amount: totalAmount.toFixed(2),
-            customerPhone: phoneNumbers[0],
-            isBulkOrder: isBulk,
-            orderItems: data.orderItems,
-          };
-          
-          console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
-          
-          const response = await apiRequest("POST", "/api/wallet/pay", payload);
-          return response as MutationResponse;
-        } else {
-          const payload = {
-            productType: "data_bundle",
-            network: network,
-            customerPhone: phoneNumbers[0],
-            isBulkOrder: isBulk ? 1 : 0,
-            orderItems: data.orderItems,
-            totalAmount: totalAmount,
-            customerEmail: user?.email || undefined,
-          };
-          
-          console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
-          
-          const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-          
-          console.log("[Frontend] ===== SERVER RESPONSE =====");
-          console.log("[Frontend] Result:", response);
-          console.log("[Frontend] ================================");
-          
-          return response as MutationResponse;
-        }
+    mutationFn: async (payload: any) => {
+      if (payload.paymentMethod === "wallet") {
+        return await apiRequest<MutationResponse>("POST", "/api/wallet/pay", payload);
       } else {
-        // Fallback to old format for backward compatibility
-        const bundle = bundles?.find(b => b.id === data.bundleId);
-        if (!bundle) throw new Error("Bundle not found");
-        
-        const phoneNumbers = data.phoneNumbers;
-        const price = parseFloat(bundle.effective_price);
-        const totalAmount = price * phoneNumbers.length;
-
-        console.log("[Frontend] ========== LEGACY BULK FORMAT ==========");
-        console.log("[Frontend] Phone numbers:", phoneNumbers);
-        console.log("[Frontend] Total amount:", totalAmount);
-        console.log("[Frontend] ================================================");
-        
-        if (data.paymentMethod === "wallet") {
-          const payload = {
-            productType: "data_bundle",
-            productId: bundle.id,
-            productName: bundle.name,
-            network: bundle.network,
-            amount: totalAmount.toFixed(2),
-            customerPhone: phoneNumbers[0],
-            phoneNumbers: phoneNumbers,
-            isBulkOrder: isBulk,
-          };
-          
-          const response = await apiRequest("POST", "/api/wallet/pay", payload);
-          return response as MutationResponse;
-        } else {
-          const payload = {
-            productType: "data_bundle",
-            productId: bundle.id,
-            customerPhone: phoneNumbers[0],
-            phoneNumbers: phoneNumbers,
-            isBulkOrder: isBulk,
-            customerEmail: user?.email || undefined,
-          };
-          
-          const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-          return response as MutationResponse;
-        }
+        return await apiRequest<MutationResponse>("POST", "/api/checkout/initialize", payload);
       }
     },
     onSuccess: (data: MutationResponse, variables) => {
       if (variables.paymentMethod === "wallet") {
         toast({
-          title: "✅ Bulk Purchase Successful!",
-          description: `Your bulk order has been processed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
+          title: "✅ Payment Successful!",
+          description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
           duration: 5000,
         });
         setBulkPhoneNumbers("");
+        setBulkPaymentMethod(undefined);
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
       } else {
@@ -322,20 +196,16 @@ export default function UserBundlesPage() {
     },
     onError: (error: any) => {
       const errorMessage = error.message || "Unable to process payment";
-      const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
-      
       toast({
-        title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Bulk Purchase Failed",
-        description: isInsufficientBalance 
-          ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
-          : `${errorMessage}. Please try again or contact support if the problem persists.`,
+        title: "Payment Error",
+        description: errorMessage,
         variant: "destructive",
-        duration: 6000,
       });
     },
   });
 
-  const handleSinglePurchase = () => {
+
+  const handleSinglePurchase = async () => {
     if (!selectedBundle || !phoneNumber) {
       toast({
         title: "Missing Information",
@@ -384,11 +254,32 @@ export default function UserBundlesPage() {
       return;
     }
 
-    purchaseMutation.mutate({
-      bundleId: selectedBundle.id,
-      phoneNumber: normalizedPhone,
-      paymentMethod: paymentMethod,
-    });
+    // Fetch bundle to get current price
+    try {
+      const currentBundleData = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`) as any;
+      
+      const amount = parseFloat(currentBundleData.effective_price);
+      
+      const payload = {
+        productType: 'data_bundle',
+        productId: selectedBundle.id,
+        customerPhone: normalizedPhone,
+        amount: amount.toFixed(2),
+        isBulkOrder: false,
+        agentSlug: undefined,
+        paymentMethod,
+        productName: selectedBundle.name,
+        network: selectedBundle.network,
+      };
+
+      purchaseMutation.mutate(payload);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch bundle details",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleBulkPurchase = () => {
@@ -403,6 +294,27 @@ export default function UserBundlesPage() {
         title: "Missing Information",
         description: "Please enter phone numbers with GB amounts",
         variant: "destructive",
+      });
+      return;
+    }
+
+    if (!bulkPaymentMethod) {
+      toast({
+        title: "❌ Payment Method Required",
+        description: "Please select a payment method",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check wallet balance if paying with wallet
+    if (bulkPaymentMethod === "wallet" && bulkTotal && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)) {
+      const shortfall = bulkTotal.total - (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0);
+      toast({
+        title: "⚠️ Insufficient Wallet Balance",
+        description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${stats?.walletBalance || '0.00'}, Required: GH₵${bulkTotal.total.toFixed(2)}. Please top up or use Paystack.`,
+        variant: "destructive",
+        duration: 7000,
       });
       return;
     }
@@ -517,51 +429,28 @@ export default function UserBundlesPage() {
         phone: item.phone,
         bundleId: matchingBundle.id,
         bundleName: matchingBundle.name,
-        price: parseFloat(matchingBundle.basePrice),
+        price: parseFloat(matchingBundle.effective_price),
       });
 
-      totalAmount += parseFloat(matchingBundle.basePrice);
+      totalAmount += parseFloat(matchingBundle.effective_price);
     }
 
     console.log("[DEBUG] Order items:", orderItems);
     console.log("[DEBUG] Total amount:", totalAmount);
 
-    // Check wallet balance if paying with wallet
-    const walletBalance = stats?.walletBalance ? parseFloat(stats.walletBalance) : 0;
-    
-    if (bulkPaymentMethod === "wallet" && walletBalance < totalAmount) {
-      const shortfall = totalAmount - walletBalance;
-      console.log("[DEBUG] Insufficient wallet balance");
-      toast({
-        title: "⚠️ Insufficient Wallet Balance",
-        description: `You need GH₵${shortfall.toFixed(2)} more. Current balance: GH₵${walletBalance.toFixed(2)}, Required: GH₵${totalAmount.toFixed(2)} for ${parsedData.length} order(s). Please top up or use Paystack.`,
-        variant: "destructive",
-        duration: 7000,
-      });
-      return;
-    }
-
-    if (!bulkPaymentMethod) {
-      console.log("[DEBUG] No payment method selected");
-      toast({
-        title: "❌ Payment Method Required",
-        description: "Please select a payment method",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    console.log("[DEBUG] Calling bulkPurchaseMutation.mutate");
-    // Send bulk purchase with order items
-    // Note: This will need backend support for the new format
-    bulkPurchaseMutation.mutate({
-      bundleId: orderItems[0].bundleId, // For compatibility, but we'll send full orderItems
-      phoneNumbers: orderItems.map(item => item.phone),
-      paymentMethod: bulkPaymentMethod,
-      // @ts-ignore - adding custom field for new bulk format
-      orderItems: orderItems,
+    // Bulk orders can use wallet or Paystack
+    const payload = {
+      productType: 'data_bundle',
+      network: network,
+      customerPhone: orderItems[0]?.phone,
+      isBulkOrder: true,
+      orderItems,
       totalAmount: totalAmount,
-    });
+      agentSlug: undefined,
+      paymentMethod: bulkPaymentMethod,
+    };
+
+    bulkPurchaseMutation.mutate(payload);
   };
 
   if (!user) {
@@ -732,7 +621,7 @@ export default function UserBundlesPage() {
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={() => setPaymentMethod(paymentMethod === "wallet" ? null : "wallet")}
+                            onClick={() => setPaymentMethod(paymentMethod === "wallet" ? undefined : "wallet")}
                             disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
                               paymentMethod === "wallet"
@@ -770,7 +659,7 @@ export default function UserBundlesPage() {
                         <div>
                           <button
                             type="button"
-                            onClick={() => setPaymentMethod(paymentMethod === "paystack" ? null : "paystack")}
+                            onClick={() => setPaymentMethod(paymentMethod === "paystack" ? undefined : "paystack")}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
                               paymentMethod === "paystack"
                                 ? "border-green-500 bg-green-50 shadow-md"
@@ -870,14 +759,14 @@ export default function UserBundlesPage() {
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "wallet" ? null : "wallet")}
-                            disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
-                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
+                            onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "wallet" ? undefined : "wallet")}
+                            disabled={bulkTotal ? bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
+                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
                               bulkPaymentMethod === "wallet"
                                 ? "border-green-500 bg-green-50 shadow-md"
                                 : "hover:border-green-500 hover:shadow-md cursor-pointer"
                             } ${
-                              selectedBundle && parseFloat(selectedBundle.basePrice) * bulkPhoneNumbers.length > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
+                              bulkTotal && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""
                             }`}
@@ -895,13 +784,20 @@ export default function UserBundlesPage() {
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </button>
+                          {bulkTotal && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
+                            <div className="absolute top-2 right-2">
+                              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                                Insufficient
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Paystack Payment Option */}
                         <div>
                           <button
                             type="button"
-                            onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "paystack" ? null : "paystack")}
+                            onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "paystack" ? undefined : "paystack")}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
                               bulkPaymentMethod === "paystack"
                                 ? "border-green-500 bg-green-50 shadow-md"
@@ -930,9 +826,10 @@ export default function UserBundlesPage() {
                         size="lg"
                         onClick={handleBulkPurchase}
                         disabled={
-                          !bulkPhoneNumbers.trim() || 
+                          !bulkPhoneNumbers.trim() ||
                           !bulkPaymentMethod ||
-                          bulkPurchaseMutation.isPending
+                          bulkPurchaseMutation.isPending ||
+                          (bulkPaymentMethod === "wallet" && bulkTotal !== null && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0))
                         }
                       >
                         {bulkPurchaseMutation.isPending ? (
@@ -943,7 +840,7 @@ export default function UserBundlesPage() {
                         ) : (
                           <>
                             <Upload className="mr-2 h-4 w-4" />
-                            {bulkTotal 
+                            {bulkTotal
                               ? `Purchase for GH₵${bulkTotal.total.toFixed(2)} (${bulkTotal.count} items)`
                               : "Purchase Data Bundles"
                             }

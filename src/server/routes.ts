@@ -3451,7 +3451,7 @@ export async function registerRoutes(
           lte(transactions.createdAt, endOfDay)
         ));
 
-        const dayProfit = dayTransactions.reduce((sum, t) => sum + parseFloat(t.agentProfit || "0"), 0);
+        const dayProfit = dayTransactions.reduce((sum: number, t: any) => sum + parseFloat(t.agentProfit || "0"), 0);
         const dayTransactionCount = dayTransactions.length;
 
         const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });

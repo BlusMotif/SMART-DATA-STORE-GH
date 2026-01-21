@@ -198,11 +198,11 @@ async function processWebhookEvent(event: any) {
 
             // Check if fulfillment was successful
             if (fulfillResult && fulfillResult.success) {
-              // Order was placed successfully with SkyTech, keep status as completed but delivery as processing
-              // Cron job will update delivery status based on SkyTech status
+              // Order was placed successfully with SkyTech, keep status as pending until delivery
+              // Cron job will update both status and delivery status based on SkyTech status
               await storage.updateTransaction(transaction.id, {
-                status: TransactionStatus.COMPLETED,
-                deliveryStatus: "processing", // Changed from "pending" to "processing"
+                status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
+                deliveryStatus: "processing",
                 paymentReference: data.reference,
                 paymentStatus: "paid",
                 // Don't set completedAt yet - wait for actual delivery confirmation
@@ -210,7 +210,7 @@ async function processWebhookEvent(event: any) {
             } else {
               // Order failed to place, mark as failed
               await storage.updateTransaction(transaction.id, {
-                status: TransactionStatus.COMPLETED,
+                status: TransactionStatus.FAILED, // Changed from COMPLETED to FAILED
                 deliveryStatus: "failed",
                 completedAt: new Date(),
                 paymentReference: data.reference,
@@ -2168,9 +2168,10 @@ export async function registerRoutes(
           await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
 
           if (fulfillmentResult.success) {
-            // Order was placed successfully, set to pending for admin review
+            // Order was placed successfully, set to pending until SkyTech delivers
             await storage.updateTransaction(transaction.id, {
-              deliveryStatus: "pending",
+              status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
+              deliveryStatus: "processing", // Changed from "pending" to "processing"
             });
           } else {
             // Order failed to place, mark as failed
@@ -2452,9 +2453,10 @@ export async function registerRoutes(
 
         if (fulfillmentResult.success) {
           console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
-          // Order was placed successfully, set to pending for admin review
+          // Order was placed successfully, set to pending until SkyTech delivers
           await storage.updateTransaction(transaction.id, {
-            deliveryStatus: "pending",
+            status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
+            deliveryStatus: "processing", // Changed from "pending" to "processing"
           });
         } else {
           console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult.error);
@@ -5848,11 +5850,11 @@ export async function registerRoutes(
 
         if (fulfillmentResult.success) {
           console.log("[Wallet] Data bundle API fulfillment successful:", fulfillmentResult);
-          // Order was placed successfully, set to pending for admin review
+          // Order was placed successfully, set to pending until SkyTech delivers
           await storage.updateTransaction(transaction.id, {
-            status: TransactionStatus.COMPLETED,
-            deliveryStatus: "pending",
-            completedAt: new Date(),
+            status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
+            deliveryStatus: "processing", // Changed from "pending" to "processing"
+            // Don't set completedAt yet - wait for SkyTech delivery confirmation
           });
         } else {
           console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
@@ -6909,8 +6911,8 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
   try {
     console.log('[Cron] Starting order status update check');
 
-    // Get all transactions that are completed but have processing delivery status (data bundles)
-    const pendingTransactions = await storage.getTransactionsByStatusAndDelivery('completed', 'processing');
+    // Get all transactions that are pending and have processing delivery status (data bundles)
+    const pendingTransactions = await storage.getTransactionsByStatusAndDelivery('pending', 'processing');
 
     console.log(`[Cron] Found ${pendingTransactions.length} transactions to check`);
 
@@ -6986,12 +6988,13 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
             };
 
             if (shouldComplete && !transaction.completedAt) {
+              updateData.status = TransactionStatus.COMPLETED; // Set status to completed when delivered
               updateData.completedAt = new Date();
             }
 
             await storage.updateTransaction(transaction.id, updateData);
             updatedCount++;
-            console.log(`[Cron] Updated transaction ${transaction.id} delivery status to ${newDeliveryStatus}`);
+            console.log(`[Cron] Updated transaction ${transaction.id} status to ${shouldComplete ? 'completed' : 'pending'}, delivery status to ${newDeliveryStatus}`);
           }
         } else {
           console.warn(`[Cron] Failed to get status for SkyTech ref ${skytechRef}: ${statusResult.error}`);

@@ -146,7 +146,7 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       const crypto = await import('crypto');
       const signature = crypto.createHmac('sha256', apiSecret)
         .update(message)
-        .digest('hex');
+        .digest('base64');
 
       console.log(`[Fulfill] Making API call for phone: ${phone}`);
 
@@ -251,7 +251,7 @@ export async function getExternalBalance(providerId?: string) {
     const crypto = await import('crypto');
     const signature = crypto.createHmac('sha256', apiSecret)
       .update(message)
-      .digest('hex');
+      .digest('base64');
 
     const resp = await fetch(`${baseUrl}${path}`, {
       method: "GET",
@@ -310,7 +310,7 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
     const crypto = await import('crypto');
     const signature = crypto.createHmac('sha256', apiSecret)
       .update(message)
-      .digest('hex');
+      .digest('base64');
 
     const resp = await fetch(`${baseUrl}${path}${query}`, {
       method: "GET",
@@ -361,7 +361,7 @@ export async function getExternalOrderStatus(ref: string, providerId?: string) {
     const crypto = await import('crypto');
     const signature = crypto.createHmac('sha256', apiSecret)
       .update(message)
-      .digest('hex');
+      .digest('base64');
 
     const resp = await fetch(`${baseUrl}${path}`, {
       method: "GET",

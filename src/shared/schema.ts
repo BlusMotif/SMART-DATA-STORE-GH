@@ -794,7 +794,7 @@ export const purchaseSchema = z.object({
   productType: z.enum(["data_bundle", "result_checker"]),
   customerPhone: z.string().optional(),
   customerEmail: z.union([z.string().email(), z.literal("")]).optional(),
-  agentSlug: z.string().optional(),
+  agentSlug: z.union([z.string(), z.null()]).optional(),
   amount: z.string().optional(),
   paymentMethod: z.enum(["paystack", "wallet"]).optional(),
   phoneNumbers: z.array(z.object({

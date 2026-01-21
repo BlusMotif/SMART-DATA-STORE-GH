@@ -129,10 +129,14 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       // Map network to API format using provider's network mappings
       const apiNetwork = (networkMappings as Record<string, string>)[network] || network.toUpperCase();
 
+      // Generate unique idempotency key to prevent duplicate orders
+      const idempotencyKey = `${transaction.reference}-${phone}`;
+
       const body = JSON.stringify({
         network: apiNetwork,
         recipient: phone,
-        capacity: Math.round(capacity)
+        capacity: Math.round(capacity),
+        idempotency_key: idempotencyKey
       });
 
       console.log(`[Fulfill] API request body:`, body);

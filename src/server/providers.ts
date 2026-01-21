@@ -132,21 +132,23 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       // Generate unique idempotency key to prevent duplicate orders
       const idempotencyKey = `${transaction.reference}-${phone}`;
 
-      const body = JSON.stringify({
+      // Use application/x-www-form-urlencoded as SkyTech (PHP) expects form data
+      const params = new URLSearchParams({
         network: apiNetwork,
         recipient: phone,
-        capacity: Math.round(capacity),
+        capacity: String(Math.round(capacity)),
         idempotency_key: idempotencyKey
       });
 
-      console.log(`[Fulfill] API request body:`, body);
+      const bodyString = params.toString();
+      console.log(`[Fulfill] API request body (form-encoded):`, bodyString);
 
-      // Generate signature
+      // Generate signature using the raw form string (important for PHP backends)
       const ts = Math.floor(Date.now() / 1000).toString();
       const method = 'POST';
       const path = '/api/v1/orders';
-      const message = `${ts}\n${method}\n${path}\n${body}`;
-      
+      const message = `${ts}\n${method}\n${path}\n${bodyString}`;
+
       const crypto = await import('crypto');
       const signature = crypto.createHmac('sha256', apiSecret)
         .update(message)
@@ -158,12 +160,14 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         const resp = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
             "Authorization": `Bearer ${apiKey}`,
             "X-Timestamp": ts,
             "X-Signature": signature,
+            "User-Agent": "Mozilla/5.0 (resellershubprogh)",
+            "Referer": process.env.FRONTEND_URL || process.env.APP_URL || 'https://resellershubprogh.com'
           },
-          body: body,
+          body: bodyString,
         });
 
         console.log(`[Fulfill] API response status for ${phone}: ${resp.status}`);

@@ -13,7 +13,8 @@ async function run() {
     process.exit(1);
   }
 
-  const body = { network: 'MTN', recipient: '0546591622', capacity: 4 };
+  const params = new URLSearchParams({ network: 'MTN', recipient: '0546591622', capacity: '4' });
+  const body = params.toString();
   const method = 'POST';
   const pathCandidates = ['/api/v1/orders', '/v1/orders', '/orders'];
   const tsCandidates = [
@@ -29,7 +30,7 @@ async function run() {
     for (const tsFn of tsCandidates) {
       const ts = tsFn();
       for (const fmt of messageFormats) {
-        const bodyStr = JSON.stringify(body);
+        const bodyStr = body; // already form-encoded
         // Also try the newline-separated message format used in production code
         const newlineMessage = `${ts}\n${method}\n${path}\n${bodyStr}`;
         const message = fmt(ts, method, path, bodyStr);
@@ -51,7 +52,8 @@ async function run() {
                 'Authorization': `Bearer ${apiKey}`,
                 'X-Timestamp': ts,
                 'X-Signature': signature,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'Mozilla/5.0 (resellershubprogh)'
               },
               body: bodyStr
             });

@@ -3,7 +3,7 @@ import { storage } from "./storage.js";
 // Minimal generic provider caller - extend per provider as needed
 export async function fulfillDataBundleTransaction(transaction: any, providerId?: string) {
   console.log(`[Fulfill] STARTING fulfillment for transaction ${transaction.reference}, type: ${transaction.type}, isBulk: ${transaction.isBulkOrder}`);
-  
+
   try {
     const network = transaction.network;
     if (!network) {
@@ -20,33 +20,55 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       console.log(`[Fulfill] Using default provider:`, provider ? 'FOUND' : 'NOT FOUND');
     }
 
+    // Fallback to environment variables if no provider configured
+    let apiKey, apiSecret, apiEndpoint;
     if (!provider) {
-      console.error(`[Fulfill] No external API provider configured`);
-      return { success: false, error: "No external API provider configured" };
+      console.log(`[Fulfill] No database provider found, checking environment variables...`);
+      apiKey = process.env.SKYTECH_API_KEY;
+      apiSecret = process.env.SKYTECH_API_SECRET;
+      apiEndpoint = process.env.SKYTECH_API_ENDPOINT || 'https://skytechgh.com/api/v1/orders';
+
+      if (!apiKey || !apiSecret) {
+        console.error(`[Fulfill] No external API provider configured and missing environment variables SKYTECH_API_KEY/SKYTECH_API_SECRET`);
+        return { success: false, error: "No external API provider configured. Please set SKYTECH_API_KEY and SKYTECH_API_SECRET environment variables or configure a provider in the database." };
+      }
+
+      console.log(`[Fulfill] Using environment variables - endpoint: ${apiEndpoint}`);
+    } else {
+      if (!provider.isActive) {
+        console.error(`[Fulfill] External API provider is not active`);
+        return { success: false, error: "External API provider is not active" };
+      }
+
+      apiKey = provider.apiKey;
+      apiSecret = provider.apiSecret;
+      apiEndpoint = provider.endpoint;
+
+      console.log(`[Fulfill] Provider details:`, {
+        name: provider.name,
+        endpoint: provider.endpoint,
+        hasApiKey: !!provider.apiKey,
+        hasApiSecret: !!provider.apiSecret
+      });
     }
-
-    if (!provider.isActive) {
-      console.error(`[Fulfill] External API provider is not active`);
-      return { success: false, error: "External API provider is not active" };
-    }
-
-    console.log(`[Fulfill] Provider details:`, {
-      name: provider.name,
-      endpoint: provider.endpoint,
-      hasApiKey: !!provider.apiKey,
-      hasApiSecret: !!provider.apiSecret
-    });
-
-    const apiKey = provider.apiKey;
-    const apiSecret = provider.apiSecret;
-    const apiEndpoint = provider.endpoint;
 
     // Parse network mappings
     let networkMappings = {};
-    try {
-      networkMappings = provider.networkMappings ? JSON.parse(provider.networkMappings) : {};
-    } catch (e) {
-      console.warn("Failed to parse network mappings, using defaults");
+    if (provider && provider.networkMappings) {
+      try {
+        networkMappings = JSON.parse(provider.networkMappings);
+      } catch (e) {
+        console.warn("Failed to parse network mappings, using defaults");
+      }
+    } else {
+      // Default network mappings when using environment variables
+      networkMappings = {
+        "mtn": "MTN",
+        "telecel": "TELECEL",
+        "at_bigtime": "AIRTELTIGO",
+        "at_ishare": "AIRTELTIGO",
+        "airteltigo": "AIRTELTIGO"
+      };
     }
 
     // Compose recipients
@@ -195,21 +217,30 @@ export async function getExternalBalance(providerId?: string) {
       console.log("[getExternalBalance] Found default provider:", provider ? "YES" : "NO");
     }
 
+    // Fallback to environment variables if no provider configured
+    let apiKey, apiSecret, baseUrl;
     if (!provider) {
-      console.log("[getExternalBalance] No provider found");
-      return { success: false, error: "No external API provider configured" };
+      console.log("[getExternalBalance] No database provider found, checking environment variables...");
+      apiKey = process.env.SKYTECH_API_KEY;
+      apiSecret = process.env.SKYTECH_API_SECRET;
+      baseUrl = process.env.SKYTECH_API_ENDPOINT?.replace('/orders', '') || 'https://skytechgh.com/api/v1';
+
+      if (!apiKey || !apiSecret) {
+        console.log("[getExternalBalance] Missing environment variables SKYTECH_API_KEY/SKYTECH_API_SECRET");
+        return { success: false, error: "No external API provider configured. Please set SKYTECH_API_KEY and SKYTECH_API_SECRET environment variables or configure a provider in the database." };
+      }
+    } else {
+      if (!provider.isActive) {
+        console.log("[getExternalBalance] Provider is not active");
+        return { success: false, error: "External API provider is not active" };
+      }
+
+      apiKey = provider.apiKey;
+      apiSecret = provider.apiSecret;
+      baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
     }
 
-    if (!provider.isActive) {
-      console.log("[getExternalBalance] Provider is not active");
-      return { success: false, error: "External API provider is not active" };
-    }
-
-    console.log("[getExternalBalance] Using provider:", provider.name, "endpoint:", provider.endpoint);
-
-    const apiKey = provider.apiKey;
-    const apiSecret = provider.apiSecret;
-    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+    console.log("[getExternalBalance] Using baseUrl:", baseUrl);
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';

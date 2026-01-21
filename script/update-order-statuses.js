@@ -8,7 +8,7 @@
  * *\/5 * * * * cd /path/to/project && node script/update-order-statuses.js
  */
 
-const API_BASE_URL = process.env.FRONTEND_URL || 'http://localhost:10000';
+const API_BASE_URL = process.env.FRONTEND_URL || 'https://resellershubprogh.com';
 
 async function updateOrderStatuses() {
   try {

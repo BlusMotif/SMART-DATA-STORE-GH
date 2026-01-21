@@ -869,7 +869,7 @@ export async function registerRoutes(
       const activationFee = 60.00; // GHC 60.00
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
       console.log("Initializing payment without creating account");
-      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
@@ -1011,7 +1011,7 @@ export async function registerRoutes(
         console.log("Initializing Paystack payment...");
         // Initialize Paystack payment
         console.log("Making Paystack API call with email:", user.email, "amount:", Math.round(activationFee * 100));
-        const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
         const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
           method: "POST",
           headers: {
@@ -2230,7 +2230,7 @@ export async function registerRoutes(
       // Initialize Paystack payment
       const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
       // Use frontend URL for callback instead of backend URL
-      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
       const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
       console.log("[Checkout] Paystack initialization:", {
         totalAmount,
@@ -5670,7 +5670,7 @@ export async function registerRoutes(
         status: TransactionStatus.PENDING,
       });
       // Initialize Paystack payment
-      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
       const callbackUrl = `${frontendUrl}/wallet/topup/success`;
       const paystackResponse = await initializePayment({
         email: dbUser.email,

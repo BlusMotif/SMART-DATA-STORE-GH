@@ -141,7 +141,7 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       const ts = Math.floor(Date.now() / 1000).toString();
       const method = 'POST';
       const path = '/api/v1/orders';
-      const message = `${ts}\n${method}\n${path}\n${body}`;
+      const message = `${ts}:${method}:${path}:${body}`;
       
       const crypto = await import('crypto');
       const signature = crypto.createHmac('sha256', apiSecret)
@@ -246,7 +246,7 @@ export async function getExternalBalance(providerId?: string) {
     const method = 'GET';
     const path = '/api/v1/balance';
     const body = '';
-    const message = `${ts}\n${method}\n${path}\n${body}`;
+    const message = `${ts}:${method}:${path}:${body}`;
     
     const crypto = await import('crypto');
     const signature = crypto.createHmac('sha256', apiSecret)
@@ -305,7 +305,7 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
     if (params.toString()) query = `?${params.toString()}`;
     
     const body = '';
-    const message = `${ts}\n${method}\n${path}\n${body}`;
+    const message = `${ts}:${method}:${path}:${body}`;
     
     const crypto = await import('crypto');
     const signature = crypto.createHmac('sha256', apiSecret)
@@ -356,7 +356,7 @@ export async function getExternalOrderStatus(ref: string, providerId?: string) {
     const method = 'GET';
     const path = `/api/v1/orders/${ref}`;
     const body = '';
-    const message = `${ts}\n${method}\n${path}\n${body}`;
+    const message = `${ts}:${method}:${path}:${body}`;
     
     const crypto = await import('crypto');
     const signature = crypto.createHmac('sha256', apiSecret)

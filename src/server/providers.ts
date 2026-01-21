@@ -235,7 +235,7 @@ export async function getExternalBalance(providerId?: string) {
       console.log("[getExternalBalance] No database provider found, checking environment variables...");
       apiKey = process.env.SKYTECH_API_KEY;
       apiSecret = process.env.SKYTECH_API_SECRET;
-      baseUrl = process.env.SKYTECH_API_ENDPOINT?.replace('/orders', '') || 'https://skytechgh.com/api/v1';
+      baseUrl = process.env.SKYTECH_API_ENDPOINT?.replace('/api/v1/orders', '') || 'https://skytechgh.com';
 
       if (!apiKey || !apiSecret) {
         console.log("[getExternalBalance] Missing environment variables SKYTECH_API_KEY/SKYTECH_API_SECRET");
@@ -249,7 +249,7 @@ export async function getExternalBalance(providerId?: string) {
 
       apiKey = provider.apiKey;
       apiSecret = provider.apiSecret;
-      baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+      baseUrl = provider.endpoint.replace('/api/v1/orders', ''); // Remove path to get API root (no /api/v1)
     }
 
     console.log("[getExternalBalance] Using baseUrl:", baseUrl);
@@ -271,15 +271,24 @@ export async function getExternalBalance(providerId?: string) {
         "Authorization": `Bearer ${apiKey}`,
         "X-Timestamp": ts,
         "X-Signature": signature,
+        "Accept": "application/json",
       },
     });
 
-    const data = await resp.json().catch(() => ({ error: 'Invalid JSON response' })) as any;
+    const rawText = await resp.text();
+    let data: any;
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      const snippet = rawText?.slice(0, 500) || '';
+      console.error(`[getExternalBalance] Invalid JSON response (status ${resp.status}):`, snippet);
+      return { success: false, error: `Invalid JSON response (status ${resp.status}): ${snippet}` };
+    }
     
     if (resp.ok) {
       return { success: true, balance: data.balance, celebrate: data.celebrate };
     } else {
-      return { success: false, error: data.error || 'Failed to fetch balance' };
+      return { success: false, error: data.error || data.message || `Failed to fetch balance (status ${resp.status})` };
     }
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -303,7 +312,7 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
 
     const apiKey = provider.apiKey;
     const apiSecret = provider.apiSecret;
-    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+    const baseUrl = provider.endpoint.replace('/api/v1/orders', ''); // Remove path to get API root (no /api/v1)
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';
@@ -362,7 +371,7 @@ export async function getExternalOrderStatus(ref: string, providerId?: string) {
 
     const apiKey = provider.apiKey;
     const apiSecret = provider.apiSecret;
-    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+    const baseUrl = provider.endpoint.replace('/api/v1/orders', ''); // Remove path to get API root (no /api/v1)
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';

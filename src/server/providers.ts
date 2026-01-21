@@ -132,6 +132,7 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       // Generate unique idempotency key to prevent duplicate orders
       const idempotencyKey = `${transaction.reference}-${phone}`;
 
+      // JSON body for SkyTech API
       const body = JSON.stringify({
         network: apiNetwork,
         recipient: phone,
@@ -141,7 +142,7 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
 
       console.log(`[Fulfill] API request body:`, body);
 
-      // Generate signature
+      // Generate signature from JSON data
       const ts = Math.floor(Date.now() / 1000).toString();
       const method = 'POST';
       const path = '/api/v1/orders';
@@ -153,6 +154,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         .digest('hex');
 
       console.log(`[Fulfill] Making API call for phone: ${phone}`);
+      console.log(`[Fulfill] Signature message: ${message}`);
+      console.log(`[Fulfill] Generated signature: ${signature}`);
 
       try {
         const resp = await fetch(apiEndpoint, {
@@ -162,6 +165,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
             "Authorization": `Bearer ${apiKey}`,
             "X-Timestamp": ts,
             "X-Signature": signature,
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://resellershubprogh.com"
           },
           body: body,
         });
@@ -172,7 +177,8 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         
         console.log(`[Fulfill] API response data for ${phone}:`, data);
 
-        if (resp.ok && data.ref) {
+        // Check for success - PHP API should return success status and a ref
+        if (resp.ok && data.status === 'success' && data.ref) {
           results.push({ 
             phone, 
             status: "pending", 
@@ -182,9 +188,11 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
           });
           console.log(`[Fulfill] Success for ${phone}: ${data.ref}`);
         } else {
+          // Provider rejected the request or returned error
           results.push({ 
             phone, 
             status: "failed", 
+            error: data.error || data.message || 'Provider rejected request',
             providerResponse: data 
           });
           console.log(`[Fulfill] Failed for ${phone}:`, data);
@@ -227,7 +235,7 @@ export async function getExternalBalance(providerId?: string) {
       console.log("[getExternalBalance] No database provider found, checking environment variables...");
       apiKey = process.env.SKYTECH_API_KEY;
       apiSecret = process.env.SKYTECH_API_SECRET;
-      baseUrl = process.env.SKYTECH_API_ENDPOINT?.replace('/orders', '') || 'https://skytechgh.com/api/v1';
+      baseUrl = process.env.SKYTECH_API_ENDPOINT?.replace('/api/v1/orders', '') || 'https://skytechgh.com';
 
       if (!apiKey || !apiSecret) {
         console.log("[getExternalBalance] Missing environment variables SKYTECH_API_KEY/SKYTECH_API_SECRET");
@@ -241,7 +249,7 @@ export async function getExternalBalance(providerId?: string) {
 
       apiKey = provider.apiKey;
       apiSecret = provider.apiSecret;
-      baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+      baseUrl = provider.endpoint.replace('/api/v1/orders', ''); // Remove path to get API root (no /api/v1)
     }
 
     console.log("[getExternalBalance] Using baseUrl:", baseUrl);
@@ -263,15 +271,26 @@ export async function getExternalBalance(providerId?: string) {
         "Authorization": `Bearer ${apiKey}`,
         "X-Timestamp": ts,
         "X-Signature": signature,
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://resellershubprogh.com"
       },
     });
 
-    const data = await resp.json().catch(() => ({ error: 'Invalid JSON response' })) as any;
+    const rawText = await resp.text();
+    let data: any;
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      const snippet = rawText?.slice(0, 500) || '';
+      console.error(`[getExternalBalance] Invalid JSON response (status ${resp.status}):`, snippet);
+      return { success: false, error: `Invalid JSON response (status ${resp.status}): ${snippet}` };
+    }
     
     if (resp.ok) {
       return { success: true, balance: data.balance, celebrate: data.celebrate };
     } else {
-      return { success: false, error: data.error || 'Failed to fetch balance' };
+      return { success: false, error: data.error || data.message || `Failed to fetch balance (status ${resp.status})` };
     }
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -295,7 +314,7 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
 
     const apiKey = provider.apiKey;
     const apiSecret = provider.apiSecret;
-    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+    const baseUrl = provider.endpoint.replace('/api/v1/orders', ''); // Remove path to get API root (no /api/v1)
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';
@@ -322,6 +341,8 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
         "Authorization": `Bearer ${apiKey}`,
         "X-Timestamp": ts,
         "X-Signature": signature,
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://resellershubprogh.com"
       },
     });
 
@@ -354,7 +375,7 @@ export async function getExternalOrderStatus(ref: string, providerId?: string) {
 
     const apiKey = provider.apiKey;
     const apiSecret = provider.apiSecret;
-    const baseUrl = provider.endpoint.replace('/orders', ''); // Remove /orders to get base URL
+    const baseUrl = provider.endpoint.replace('/api/v1/orders', ''); // Remove path to get API root (no /api/v1)
 
     const ts = Math.floor(Date.now() / 1000).toString();
     const method = 'GET';
@@ -373,6 +394,8 @@ export async function getExternalOrderStatus(ref: string, providerId?: string) {
         "Authorization": `Bearer ${apiKey}`,
         "X-Timestamp": ts,
         "X-Signature": signature,
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://resellershubprogh.com"
       },
     });
 

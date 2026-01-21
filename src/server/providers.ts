@@ -272,6 +272,8 @@ export async function getExternalBalance(providerId?: string) {
         "X-Timestamp": ts,
         "X-Signature": signature,
         "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://resellershubprogh.com"
       },
     });
 
@@ -339,6 +341,8 @@ export async function getExternalPrices(network?: string, minCapacity?: number, 
         "Authorization": `Bearer ${apiKey}`,
         "X-Timestamp": ts,
         "X-Signature": signature,
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://resellershubprogh.com"
       },
     });
 
@@ -390,6 +394,8 @@ export async function getExternalOrderStatus(ref: string, providerId?: string) {
         "Authorization": `Bearer ${apiKey}`,
         "X-Timestamp": ts,
         "X-Signature": signature,
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://resellershubprogh.com"
       },
     });
 

@@ -155,7 +155,7 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiSecret}`,
+            "Authorization": `Bearer ${apiKey}`,
             "X-Timestamp": ts,
             "X-Signature": signature,
           },

@@ -687,15 +687,15 @@ export default function AgentBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
-                        <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                        <p className="font-medium text-lg">{selectedBundle.name}</p>
-                        <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
+                      <div className="p-2 bg-yellow-500 text-white rounded-lg border border-yellow-600">
+                        <p className="text-sm text-white">Selected Bundle</p>
+                        <p className="font-medium text-lg text-white">{selectedBundle.name}</p>
+                        <p className="text-sm text-white">{selectedBundle.validity}</p>
                         {selectedBundle.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{selectedBundle.description}</p>
+                          <p className="text-xs text-white mt-1">{selectedBundle.description}</p>
                         )}
                         <div className="flex items-center gap-2 mt-2">
-                          <span className="text-2xl font-bold text-primary">
+                          <span className="text-2xl font-bold text-white">
                             GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}
                           </span>
                         </div>

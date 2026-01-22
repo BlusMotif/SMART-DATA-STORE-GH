@@ -14,6 +14,8 @@ import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Tro
 import { Button } from "@/components/ui/button";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
+import { useAuth } from "@/hooks/use-auth";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -39,6 +41,7 @@ interface TopCustomer {
 export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showApiModal, setShowApiModal] = useState(false);
+  const { user } = useAuth();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -53,6 +56,18 @@ export default function AdminDashboard() {
     queryKey: ["/api/admin/rankings/customers"],
     refetchInterval: 60000, // Refresh every minute
   });
+
+  const { data: analyticsData, isLoading: analyticsLoading } = useQuery<Array<{ date: string; revenue: number; transactions: number }>>({
+    queryKey: ["/api/admin/analytics/revenue"],
+    refetchInterval: 300000, // Refresh every 5 minutes
+  });
+
+  // Format chart data for display
+  const chartData = analyticsData ? analyticsData.map(item => ({
+    name: new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' }),
+    revenue: item.revenue,
+    transactions: item.transactions,
+  })) : [];
 
   const getRankIcon = (index: number) => {
     if (index === 0) return <Trophy className="h-5 w-5 text-yellow-500" />;
@@ -96,6 +111,55 @@ export default function AdminDashboard() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-4 lg:space-y-6">
+            {/* Welcome Message */}
+            <Card className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 border-yellow-600 shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-14 h-14 bg-white/20 rounded-full shadow-lg backdrop-blur-sm">
+                      <span className="text-3xl animate-bounce">👋</span>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-sm">
+                        Welcome back, {user?.name?.toUpperCase() || 'ADMIN'}! 
+                      </h2>
+                      <p className="text-yellow-100 text-sm lg:text-base font-medium">
+                        Here's what's happening with your business today ✨
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-white/90">
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <span className="text-xs font-medium">Live Dashboard</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-white/90">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                          <span className="text-xs font-medium">Real-time Updates</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden lg:flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1 backdrop-blur-sm">
+                      <span className="text-xs text-white font-medium">
+                        {new Date().toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-white/80">
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                      <span className="text-xs">All systems operational</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {statsLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                 {Array.from({ length: 4 }).map((_, i) => (
@@ -135,6 +199,49 @@ export default function AdminDashboard() {
                 />
               </div>
             )}
+
+            {/* Analytics Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-500" />
+                  Revenue Analytics
+                </CardTitle>
+                <CardDescription>Weekly revenue and transaction trends</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {analyticsLoading ? (
+                  <div className="h-64 flex items-center justify-center">
+                    <div className="animate-pulse text-muted-foreground">Loading analytics...</div>
+                  </div>
+                ) : chartData.length > 0 ? (
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip 
+                          formatter={(value, name) => [
+                            name === 'revenue' ? formatCurrency(Number(value)) : value,
+                            name === 'revenue' ? 'Revenue' : 'Transactions'
+                          ]}
+                        />
+                        <Bar 
+                          dataKey="revenue" 
+                          fill="#10b981" 
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center">
+                    <div className="text-muted-foreground">No analytics data available</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <Card className="lg:col-span-2">
@@ -182,30 +289,30 @@ export default function AdminDashboard() {
                   <CardTitle className="text-lg">Quick Stats</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-900 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between p-3 bg-green-500 text-white rounded-lg border border-green-600">
                     <div className="flex items-center gap-3">
-                      <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      <span className="text-sm font-medium text-green-900 dark:text-green-100">Today's Revenue</span>
+                      <TrendingUp className="h-5 w-5 text-white" />
+                      <span className="text-sm font-medium text-white">Today's Revenue</span>
                     </div>
-                    <span className="font-bold text-green-700 dark:text-green-300">
+                    <span className="font-bold text-white">
                       {formatCurrency(stats?.todayRevenue || 0)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-blue-100 dark:bg-blue-900 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between p-3 bg-blue-500 text-white rounded-lg border border-blue-600">
                     <div className="flex items-center gap-3">
-                      <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Today's Orders</span>
+                      <Package className="h-5 w-5 text-white" />
+                      <span className="text-sm font-medium text-white">Today's Orders</span>
                     </div>
-                    <span className="font-bold text-blue-700 dark:text-blue-300">
+                    <span className="font-bold text-white">
                       {stats?.todayTransactions || 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-purple-100 dark:bg-purple-900 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center justify-between p-3 bg-purple-500 text-white rounded-lg border border-purple-600">
                     <div className="flex items-center gap-3">
-                      <DollarSign className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                      <span className="text-sm font-medium text-purple-900 dark:text-purple-100">Activation Revenue</span>
+                      <DollarSign className="h-5 w-5 text-white" />
+                      <span className="text-sm font-medium text-white">Activation Revenue</span>
                     </div>
-                    <span className="font-bold text-purple-700 dark:text-purple-300">
+                    <span className="font-bold text-white">
                       {formatCurrency(stats?.activationRevenue || 0)}
                     </span>
                   </div>
@@ -295,24 +402,6 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
-
-          {/* API & Integrations */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Code className="h-5 w-5" />
-                API & Integrations
-              </CardTitle>
-              <CardDescription>
-                Connect your app, automate actions, and integrate with third-party services
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={() => setShowApiModal(true)}>
-                Manage API Keys
-              </Button>
-            </CardContent>
-          </Card>
 
           {/* Order Tracker */}
           <Card>

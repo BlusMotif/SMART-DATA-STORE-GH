@@ -77,15 +77,15 @@ export function OrderTracker() {
 
   const getStatusBadge = (status: string, deliveryStatus: string) => {
     if (status === 'completed' && deliveryStatus === 'delivered') {
-      return <Badge variant="default" className="bg-green-500">Delivered</Badge>;
+      return <Badge variant="default" className="bg-green-500 text-white">Delivered</Badge>;
     } else if (status === 'failed' || deliveryStatus === 'failed') {
-      return <Badge variant="destructive">Failed</Badge>;
+      return <Badge variant="destructive" className="bg-red-500 text-white">Failed</Badge>;
     } else if (status === 'completed' && deliveryStatus === 'processing') {
-      return <Badge variant="secondary" className="bg-yellow-500 dark:text-white text-black">Processing</Badge>;
+      return <Badge variant="secondary" className="bg-yellow-500 text-white">Processing</Badge>;
     } else if (status === 'completed' && deliveryStatus === 'pending') {
-      return <Badge variant="secondary">Pending Delivery</Badge>;
+      return <Badge variant="secondary" className="bg-blue-500 text-white">Pending Delivery</Badge>;
     } else {
-      return <Badge variant="outline">{status}</Badge>;
+      return <Badge variant="outline" className="bg-gray-500 text-white">{status}</Badge>;
     }
   };
 

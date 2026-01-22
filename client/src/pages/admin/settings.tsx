@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2 } from "lucide-react";
+import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2, ExternalLink } from "lucide-react";
 
 interface Setting {
   key: string;
@@ -36,6 +36,33 @@ interface Announcement {
   isActive: boolean;
   createdBy: string;
   createdAt: string;
+}
+
+// Function to parse URLs from text and create clickable links
+function parseMessageWithLinks(text: string) {
+  // URL regex pattern
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  
+  // Split text by URLs and create elements
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+        >
+          {part}
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      );
+    }
+    return part;
+  });
 }
 
 export default function AdminSettings() {
@@ -375,41 +402,6 @@ export default function AdminSettings() {
               </CardContent>
             </Card>
 
-            {/* Processing Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-5 w-5" />
-                  Processing Settings
-                </CardTitle>
-                <CardDescription>
-                  Configure automatic processing and delivery options
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Auto-Process Data Bundles</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Automatically send data bundles to providers after payment
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.data_bundle_auto_processing === "true"}
-                    onCheckedChange={(checked) => {
-                      handleSettingChange("data_bundle_auto_processing", checked ? "true" : "false");
-                      handleSaveSetting("data_bundle_auto_processing", "Auto-process data bundle orders via API");
-                    }}
-                    className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  When enabled: Orders are automatically sent to data providers after payment.
-                  When disabled: Orders remain pending for manual processing and export.
-                </div>
-              </CardContent>
-            </Card>
-
             {/* User Credential Management */}
             <Card>
               <CardHeader>
@@ -573,7 +565,9 @@ export default function AdminSettings() {
                         <div key={announcement.id} className="flex items-center justify-between p-3 border rounded-md">
                           <div className="flex-1">
                             <h4 className="font-medium">{announcement.title}</h4>
-                            <p className="text-sm text-muted-foreground">{announcement.message}</p>
+                            <div className="text-sm text-muted-foreground">
+                              {parseMessageWithLinks(announcement.message)}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               By {announcement.createdBy} • {new Date(announcement.createdAt).toLocaleDateString()}
                             </p>

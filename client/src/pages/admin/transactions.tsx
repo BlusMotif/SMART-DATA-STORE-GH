@@ -260,126 +260,130 @@ export default function AdminTransactions() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              <Card className="text-sm md:text-base">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-xl md:text-2xl font-bold">{stats.total}</div>
                   <p className="text-xs text-muted-foreground">Total Transactions</p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
+              <Card className="text-sm md:text-base">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-xl md:text-2xl font-bold text-green-600">{stats.completed}</div>
                   <p className="text-xs text-muted-foreground">Completed</p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-orange-600">{stats.pending}</div>
+              <Card className="text-sm md:text-base">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-xl md:text-2xl font-bold text-orange-600">{stats.pending}</div>
                   <p className="text-xs text-muted-foreground">Pending</p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
+              <Card className="text-sm md:text-base">
+                <CardContent className="pt-4 md:pt-6">
+                  <div className="text-xl md:text-2xl font-bold text-red-600">{stats.failed}</div>
                   <p className="text-xs text-muted-foreground">Failed</p>
                 </CardContent>
               </Card>
             </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    All Transactions
+            <Card className="md:col-span-2 lg:col-span-3">
+              <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 md:pb-6">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                    <BarChart3 className="h-4 w-4 md:h-5 md:w-5" />
+                    <span className="truncate">All Transactions</span>
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm md:text-base">
                     View and track all customer orders
                   </CardDescription>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={exportPaymentStatus} onValueChange={setExportPaymentStatus}>
-                    <SelectTrigger className="w-40" data-testid="export-payment-status">
-                      <SelectValue placeholder="Export Filter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Payments</SelectItem>
-                      <SelectItem value="paid">Paid Only</SelectItem>
-                      <SelectItem value="pending">Pending Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    onClick={() => exportTransactionsMutation.mutate()}
-                    disabled={exportTransactionsMutation.isPending}
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    {exportTransactionsMutation.isPending ? "Exporting..." : "Export CSV"}
-                  </Button>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      placeholder="Search..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 w-48"
-                      data-testid="input-search"
-                    />
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full lg:w-auto">
+                  <div className="flex gap-2">
+                    <Select value={exportPaymentStatus} onValueChange={setExportPaymentStatus}>
+                      <SelectTrigger className="w-full sm:w-36 md:w-40 text-xs md:text-sm" data-testid="export-payment-status">
+                        <SelectValue placeholder="Export Filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Payments</SelectItem>
+                        <SelectItem value="paid">Paid Only</SelectItem>
+                        <SelectItem value="pending">Pending Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={() => exportTransactionsMutation.mutate()}
+                      disabled={exportTransactionsMutation.isPending}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-xs px-2 py-1 h-8"
+                    >
+                      <Download className="h-3 w-3 md:h-4 md:w-4" />
+                      {exportTransactionsMutation.isPending ? "Exporting..." : "Export CSV"}
+                    </Button>
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-32" data-testid="filter-status">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                      <SelectItem value="refunded">Refunded</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-40" data-testid="filter-type">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="data_bundle">Data Bundles</SelectItem>
-                      <SelectItem value="result_checker">Result Checkers</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1 sm:flex-initial">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-9 w-full sm:w-48 text-sm"
+                        data-testid="input-search"
+                      />
+                    </div>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-full sm:w-32 text-xs md:text-sm" data-testid="filter-status">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                        <SelectItem value="refunded">Refunded</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger className="w-full sm:w-36 md:w-40 text-xs md:text-sm" data-testid="filter-type">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="data_bundle">Data Bundles</SelectItem>
+                        <SelectItem value="result_checker">Result Checkers</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 md:px-6">
                 {isLoading ? (
-                  <TableSkeleton rows={10} />
+                  <TableSkeleton rows={5} />
                 ) : sortedTransactions && sortedTransactions.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Reference</TableHead>
+                          <TableHead className="text-xs md:text-sm">Reference</TableHead>
                           <SortableTableHead field="productName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            Product
+                            <span className="text-xs md:text-sm">Product</span>
                           </SortableTableHead>
-                          <TableHead>Network</TableHead>
+                          <TableHead className="hidden sm:table-cell text-xs md:text-sm">Network</TableHead>
                           <SortableTableHead field="amount" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            Amount
+                            <span className="text-xs md:text-sm">Amount</span>
                           </SortableTableHead>
                           <SortableTableHead field="profit" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            Profit
+                            <span className="text-xs md:text-sm">Profit</span>
                           </SortableTableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead>Payment Status</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Delivery</TableHead>
+                          <TableHead className="hidden lg:table-cell text-xs md:text-sm">Customer</TableHead>
+                          <TableHead className="hidden xl:table-cell text-xs md:text-sm">Payment</TableHead>
+                          <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          <TableHead className="hidden md:table-cell text-xs md:text-sm">Delivery</TableHead>
                           <SortableTableHead field="createdAt" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            Date
+                            <span className="text-xs md:text-sm">Date</span>
                           </SortableTableHead>
-                          <TableHead>Actions</TableHead>
+                          <TableHead className="text-xs md:text-sm">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -408,30 +412,29 @@ export default function AdminTransactions() {
                           }
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
-                              <TableCell>
-                                <div className="max-w-[200px]">
-                                  <div className="font-medium truncate">{tx.productName}</div>
-                                  <div className="flex gap-1 mt-1 flex-wrap">
-                                    <Badge variant="outline" className="text-xs">
-                                      {tx.type === "data_bundle" ? "Data Bundle" : "Result Checker"}
+                              <TableCell className="font-mono text-xs md:text-sm">{tx.reference}</TableCell>
+                              <TableCell className="max-w-[150px] md:max-w-[200px]">
+                                <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
+                                <div className="flex gap-1 mt-1 flex-wrap">
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {tx.type === "data_bundle" ? "Data" : "Result"}
+                                  </Badge>
+                                  {isBulkOrder && (
+                                    <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1">
+                                      <Layers className="h-2.5 w-2.5" />
+                                      {phoneNumbers?.length || 0}
                                     </Badge>
-                                    {isBulkOrder && (
-                                      <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                        <Layers className="h-3 w-3" />
-                                        Bulk ({phoneNumbers?.length || 0})
-                                      </Badge>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden sm:table-cell">
                                 {network ? (
                                   <Badge
                                     style={{
                                       backgroundColor: network.color,
                                       color: network.textColor,
                                     }}
+                                    className="text-xs px-1 py-0"
                                   >
                                     {network.name}
                                   </Badge>
@@ -439,7 +442,7 @@ export default function AdminTransactions() {
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="font-medium tabular-nums">
+                              <TableCell className="font-medium tabular-nums text-xs md:text-sm">
                                 <div>{formatCurrency(tx.amount)}</div>
                                 {isBulkOrder && phoneNumbers && (
                                   <div className="text-xs text-muted-foreground">
@@ -447,16 +450,16 @@ export default function AdminTransactions() {
                                   </div>
                                 )}
                               </TableCell>
-                              <TableCell className="text-green-600 tabular-nums">
+                              <TableCell className="text-green-600 tabular-nums text-xs md:text-sm">
                                 {formatCurrency(tx.profit)}
                               </TableCell>
-                              <TableCell className="text-muted-foreground">
+                              <TableCell className="hidden lg:table-cell text-muted-foreground text-xs md:text-sm">
                                 {isBulkOrder && phoneNumbers ? (
                                   <div className="text-xs">
                                     <div className="font-semibold">
                                       {phoneNumbers.length} items: {phoneNumbers.map(p => p.dataAmount).join(', ')}
                                     </div>
-                                    <div className="text-muted-foreground truncate max-w-[120px]">
+                                    <div className="text-muted-foreground truncate max-w-[80px] md:max-w-[120px]">
                                       {phoneNumbers[0]?.phone || 'Unknown'}
                                     </div>
                                   </div>
@@ -464,7 +467,7 @@ export default function AdminTransactions() {
                                   tx.customerPhone
                                 )}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden xl:table-cell">
                                 <Badge
                                   variant={
                                     (tx as any).paymentStatus === "paid" ? "default" :
@@ -472,6 +475,7 @@ export default function AdminTransactions() {
                                     (tx as any).paymentStatus === "cancelled" ? "outline" :
                                     "secondary"
                                   }
+                                  className="text-xs"
                                 >
                                   {(tx as any).paymentStatus || "pending"}
                                 </Badge>
@@ -479,11 +483,11 @@ export default function AdminTransactions() {
                               <TableCell>
                                 <StatusBadge status={tx.status} />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden md:table-cell">
                                 {editingDeliveryStatus === tx.id ? (
                                   <div className="flex items-center gap-2">
                                     <Select value={deliveryStatusValue} onValueChange={setDeliveryStatusValue}>
-                                      <SelectTrigger className="w-32 h-8">
+                                      <SelectTrigger className="w-24 md:w-32 h-7 md:h-8 text-xs">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -497,15 +501,15 @@ export default function AdminTransactions() {
                                       size="sm"
                                       onClick={() => handleSaveDeliveryStatus(tx.id)}
                                       disabled={updateDeliveryStatusMutation.isPending}
-                                      className="h-8 px-2"
+                                      className="h-7 px-2 text-xs"
                                     >
-                                      Save
+                                      {updateDeliveryStatusMutation.isPending ? "..." : "Save"}
                                     </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       onClick={handleCancelEdit}
-                                      className="h-8 px-2"
+                                      className="h-7 px-2 text-xs"
                                     >
                                       Cancel
                                     </Button>
@@ -515,16 +519,17 @@ export default function AdminTransactions() {
                                     variant={
                                       deliveryStatus === "delivered" ? "default" :
                                       deliveryStatus === "processing" ? "secondary" :
-                                      deliveryStatus === "failed" ? "destructive" : "outline"
+                                      deliveryStatus === "failed" ? "destructive" :
+                                      "outline"
                                     }
-                                    className="cursor-pointer"
+                                    className="cursor-pointer text-xs"
                                     onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
                                   >
                                     {deliveryStatus}
                                   </Badge>
                                 )}
                               </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
+                              <TableCell className="text-muted-foreground text-xs md:text-sm">
                                 {formatDate(tx.createdAt)}
                               </TableCell>
                               <TableCell>
@@ -533,9 +538,9 @@ export default function AdminTransactions() {
                                   variant="ghost"
                                   onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
                                   disabled={editingDeliveryStatus === tx.id}
-                                  className="h-8 w-8 p-0"
+                                  className="h-6 w-6 p-0"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  <Edit className="h-3 w-3" />
                                 </Button>
                               </TableCell>
                             </TableRow>

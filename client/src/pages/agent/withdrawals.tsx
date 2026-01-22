@@ -162,13 +162,13 @@ export default function AgentWithdrawals() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-lg lg:text-xl font-semibold">Withdrawals</h1>
+            <h1 className="text-xs md:text-lg lg:text-xl font-semibold">Withdrawals</h1>
           </div>
           <div className="flex items-center gap-4">
             <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
               <DialogTrigger asChild>
-                <Button data-testid="button-request-withdrawal">
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button data-testid="button-request-withdrawal" className="flex items-center text-xs px-1 py-0.5 h-6 md:text-sm md:px-3 md:py-2 md:h-10 lg:text-base lg:px-4 lg:py-2 lg:h-10">
+                  <Plus className="h-2.5 w-2.5 mr-0.5 md:h-4 md:w-4 md:mr-2" />
                   Request Withdrawal
                 </Button>
               </DialogTrigger>

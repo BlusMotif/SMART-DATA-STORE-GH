@@ -42,40 +42,40 @@ const getStatusConfig = (status: string) => {
       return {
         variant: 'default' as const,
         icon: CheckCircle,
-        color: 'text-green-600',
-        bgColor: 'bg-green-50 dark:bg-green-900/20',
+        color: 'text-white',
+        bgColor: 'bg-green-500',
         label: status === 'completed' ? 'Completed' : 'Delivered'
       };
     case 'confirmed':
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+        color: 'text-white',
+        bgColor: 'bg-blue-500',
         label: 'Confirmed'
       };
     case 'pending':
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+        color: 'text-white',
+        bgColor: 'bg-amber-500',
         label: 'Pending'
       };
     case 'failed':
       return {
         variant: 'destructive' as const,
         icon: XCircle,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50 dark:bg-red-900/30',
+        color: 'text-white',
+        bgColor: 'bg-red-500',
         label: 'Failed'
       };
     default:
       return {
         variant: 'outline' as const,
         icon: Clock,
-        color: 'text-gray-600',
-        bgColor: 'bg-gray-50 dark:bg-gray-900/20',
+        color: 'text-white',
+        bgColor: 'bg-gray-500',
         label: status
       };
   }
@@ -145,8 +145,8 @@ export default function AgentWalletPage() {
               </SheetContent>
             </Sheet>
             <div>
-              <h1 className="text-xl font-bold">Agent Wallet</h1>
-              <p className="text-sm text-muted-foreground">Manage your wallet balance and transactions</p>
+              <h1 className="text-base sm:text-lg font-bold">Agent Wallet</h1>
+              <p className="text-xs text-muted-foreground">Manage your wallet balance and transactions</p>
             </div>
           </div>
           <ThemeToggle />
@@ -156,67 +156,67 @@ export default function AgentWalletPage() {
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
+              <Card className="bg-blue-500 border-blue-600">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">User Wallet Balance</CardTitle>
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium text-white">User Wallet Balance</CardTitle>
+                  <Wallet className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-primary">
+                  <div className="text-2xl font-bold text-white">
                     GH₵{user?.walletBalance || '0.00'}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Available for purchases</p>
+                  <p className="text-xs text-white/70 mt-2">Available for purchases</p>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-green-500 border-green-600">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Agent Profit Balance</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium text-white">Agent Profit Balance</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">
+                  <div className="text-2xl font-bold text-white">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       `GH₵${stats?.balance || '0.00'}`
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Withdrawable earnings</p>
+                  <p className="text-xs text-white/70 mt-2">Withdrawable earnings</p>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-purple-500 border-purple-600">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Top-ups</CardTitle>
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium text-white">Total Top-ups</CardTitle>
+                  <CreditCard className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">
+                  <div className="text-2xl font-bold text-white">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       stats?.totalTopups || 0
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Wallet top-up transactions</p>
+                  <p className="text-xs text-white/70 mt-2">Wallet top-up transactions</p>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-red-500 border-red-600">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
-                  <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-sm font-medium text-white">Total Spent</CardTitle>
+                  <ArrowDownRight className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
+                  <div className="text-2xl font-bold text-white">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       `GH₵${stats?.totalSpent || '0.00'}`
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">Total amount spent</p>
+                  <p className="text-xs text-white/70 mt-2">Total amount spent</p>
                 </CardContent>
               </Card>
             </div>

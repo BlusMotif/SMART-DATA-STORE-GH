@@ -171,7 +171,7 @@ export function WalletTopupSuccessView({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="bg-green-500 text-white border border-green-600 rounded-lg p-4">
               <div className="flex justify-between">
                 <span>Amount Added</span>
                 <span className="font-bold">

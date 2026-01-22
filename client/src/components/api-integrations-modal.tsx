@@ -115,86 +115,92 @@ export function ApiIntegrationsModal({ open, onOpenChange }: ApiIntegrationsModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Code className="h-5 w-5" />
-            API & Integrations
+      <DialogContent className="max-w-[95vw] sm:max-w-md md:max-w-2xl lg:max-w-4xl max-h-[95vh] overflow-y-auto">
+        <DialogHeader className="pb-3 sm:pb-4">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg md:text-xl">
+            <Code className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-sm sm:text-base">API & Integrations</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm leading-relaxed">
             Generate secure API keys to connect your app or third-party services.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-3 sm:space-y-4 md:space-y-6">
           {/* Created Key Alert */}
           {createdKey && (
-            <Alert className="border-yellow-200 bg-yellow-50">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-800">
+            <Alert className="border-yellow-200 bg-yellow-50 p-3 sm:p-4">
+              <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600 flex-shrink-0" />
+              <AlertDescription className="text-yellow-800 text-xs sm:text-sm leading-relaxed">
                 <strong>New API Key Created:</strong> {createdKey}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="ml-2"
+                  className="ml-2 mt-2 sm:mt-0 h-6 px-2 text-xs sm:h-7 sm:px-3"
                   onClick={() => copyToClipboard(createdKey, "created")}
                 >
-                  {copiedKey === "created" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copiedKey === "created" ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5" />}
+                  <span className="ml-1 hidden sm:inline">Copy</span>
                 </Button>
               </AlertDescription>
             </Alert>
           )}
 
           {/* API Keys Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Key className="h-5 w-5" />
+          <Card className="p-3 sm:p-4 md:p-6">
+            <CardHeader className="pb-2 sm:pb-3 px-0">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                    <Key className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                     API Keys
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-xs sm:text-sm mt-1">
                     Manage your API keys for secure access to our platform
                   </CardDescription>
                 </div>
                 <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
                   <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create API Key
+                    <Button size="sm" className="w-full sm:w-auto h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm">
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <span>Create API Key</span>
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create New API Key</DialogTitle>
-                      <DialogDescription>
+                  <DialogContent className="w-[95vw] sm:w-full max-w-md mx-4 sm:mx-auto">
+                    <DialogHeader className="pb-3 sm:pb-4">
+                      <DialogTitle className="text-sm sm:text-base">Create New API Key</DialogTitle>
+                      <DialogDescription className="text-xs sm:text-sm leading-relaxed">
                         Enter a name for your API key. This will help you identify it later.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="keyName">API Key Name</Label>
+                    <div className="space-y-3 sm:space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="keyName" className="text-xs sm:text-sm font-medium">API Key Name</Label>
                         <Input
                           id="keyName"
                           placeholder="e.g., My App, Production API"
                           value={newKeyName}
                           onChange={(e) => setNewKeyName(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && handleCreateKey()}
+                          className="h-9 sm:h-10 text-sm"
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3">
                         <Button
                           variant="outline"
                           onClick={() => setShowCreateDialog(false)}
+                          size="sm"
+                          className="w-full sm:w-auto h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
                         >
                           Cancel
                         </Button>
                         <Button
                           onClick={handleCreateKey}
                           disabled={!newKeyName.trim() || createKeyMutation.isPending}
+                          size="sm"
+                          className="w-full sm:w-auto h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
                         >
-                          {createKeyMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          {createKeyMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
                           Create Key
                         </Button>
                       </div>
@@ -203,86 +209,99 @@ export function ApiIntegrationsModal({ open, onOpenChange }: ApiIntegrationsModa
                 </Dialog>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-0 pt-0">
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                <div className="flex items-center justify-center py-6 sm:py-8">
+                  <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin" />
                 </div>
               ) : apiKeys && apiKeys.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-2 sm:space-y-3 md:space-y-4">
                   {apiKeys.map((key) => (
                     <div
                       key={key.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      className="flex flex-col gap-3 p-3 sm:p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{key.name}</span>
-                          <Badge variant={key.isActive ? "default" : "secondary"}>
-                            {key.isActive ? "Active" : "Inactive"}
-                          </Badge>
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="space-y-2 flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-sm sm:text-base truncate">{key.name}</span>
+                            <Badge 
+                              variant={key.isActive ? "default" : "secondary"} 
+                              className="text-xs px-2 py-0.5"
+                            >
+                              {key.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                          <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
+                            <div>Created {new Date(key.createdAt).toLocaleDateString()}</div>
+                            {key.lastUsed && (
+                              <div>Last used {new Date(key.lastUsed).toLocaleDateString()}</div>
+                            )}
+                          </div>
+                          <div className="font-mono text-xs sm:text-sm bg-muted px-2 py-1.5 rounded break-all sm:break-normal">
+                            sk_••••••••••••••••••••••••••••••••
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          Created {new Date(key.createdAt).toLocaleDateString()}
-                          {key.lastUsed && ` • Last used ${new Date(key.lastUsed).toLocaleDateString()}`}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(`sk_••••••••••••••••••••••••••••••••`, key.id)}
+                            className="h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-2"
+                            title="Copy API Key"
+                          >
+                            {copiedKey === key.id ? <Check className="h-3 w-3 sm:h-4 sm:w-4" /> : <Copy className="h-3 w-3 sm:h-4 sm:w-4" />}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteKey(key.id)}
+                            disabled={deleteKeyMutation.isPending}
+                            className="h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-2 text-destructive hover:text-destructive"
+                            title="Delete API Key"
+                          >
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
                         </div>
-                        <div className="font-mono text-sm bg-muted px-2 py-1 rounded">
-                          sk_••••••••••••••••••••••••••••••••
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyToClipboard(`sk_••••••••••••••••••••••••••••••••`, key.id)}
-                        >
-                          {copiedKey === key.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteKey(key.id)}
-                          disabled={deleteKeyMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Code className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No API keys yet. Create your first key to get started.</p>
+                <div className="text-center py-6 sm:py-8 text-muted-foreground">
+                  <Code className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 opacity-50" />
+                  <p className="text-xs sm:text-sm">No API keys yet. Create your first key to get started.</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* API Documentation */}
-          <Card>
-            <CardHeader>
-              <CardTitle>API Documentation</CardTitle>
-              <CardDescription>
+          <Card className="p-3 sm:p-4 md:p-6">
+            <CardHeader className="pb-2 sm:pb-3 px-0">
+              <CardTitle className="text-sm sm:text-base">API Documentation</CardTitle>
+              <CardDescription className="text-xs sm:text-sm leading-relaxed">
                 Example API calls using your API keys
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Get Account Balance</h4>
-                <div className="bg-muted p-3 rounded-md font-mono text-sm">
-                  <div>GET /api/v1/user/balance</div>
-                  <div className="text-muted-foreground mt-1">Authorization: Bearer YOUR_API_KEY</div>
+            <CardContent className="px-0 pt-0 space-y-3 sm:space-y-4">
+              <div className="space-y-3 sm:space-y-4">
+                <div>
+                  <h4 className="font-medium mb-2 text-sm sm:text-base">Get Account Balance</h4>
+                  <div className="bg-muted p-3 sm:p-4 rounded-md font-mono text-xs sm:text-sm overflow-x-auto">
+                    <div className="whitespace-nowrap sm:whitespace-normal">GET /api/v1/user/balance</div>
+                    <div className="text-muted-foreground mt-1 whitespace-nowrap sm:whitespace-normal">Authorization: Bearer YOUR_API_KEY</div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2 text-sm sm:text-base">Get Transaction History</h4>
+                  <div className="bg-muted p-3 sm:p-4 rounded-md font-mono text-xs sm:text-sm overflow-x-auto">
+                    <div className="whitespace-nowrap sm:whitespace-normal">GET /api/v1/user/transactions?limit=10&offset=0</div>
+                    <div className="text-muted-foreground mt-1 whitespace-nowrap sm:whitespace-normal">Authorization: Bearer YOUR_API_KEY</div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <h4 className="font-medium mb-2">Get Transaction History</h4>
-                <div className="bg-muted p-3 rounded-md font-mono text-sm">
-                  <div>GET /api/v1/user/transactions?limit=10&offset=0</div>
-                  <div className="text-muted-foreground mt-1">Authorization: Bearer YOUR_API_KEY</div>
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-xs sm:text-sm text-muted-foreground leading-relaxed pt-2 border-t">
                 All API endpoints require Bearer token authentication with your API key.
               </div>
             </CardContent>

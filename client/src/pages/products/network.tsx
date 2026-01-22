@@ -397,10 +397,10 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               </div>
 
               {selectedBundle && (
-                <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
-                  <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                  <p className="font-medium text-lg">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
-                  <p className="text-2xl font-bold text-primary mt-2">GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
+                <div className="p-2 bg-yellow-500 text-white rounded-lg border border-yellow-600">
+                  <p className="text-sm text-white">Selected Bundle</p>
+                  <p className="font-medium text-lg text-white">{selectedBundle.network.toUpperCase()} {selectedBundle.dataAmount} - {selectedBundle.validity} - GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-white mt-2">GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}</p>
                 </div>
               )}
 

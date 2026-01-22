@@ -9,17 +9,17 @@ interface StatusBadgeProps {
 }
 
 const defaultStatusConfig: Record<string, { label: string; color: string; icon?: typeof CheckCircle }> = {
-  pending: { label: "Pending", color: "bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400", icon: Clock },
-  confirmed: { label: "Confirmed", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", icon: CheckCircle },
-  completed: { label: "Completed", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400", icon: CheckCircle },
-  delivered: { label: "Delivered", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400", icon: CheckCircle },
-  cancelled: { label: "Cancelled", color: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
-  failed: { label: "Failed", color: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
-  refunded: { label: "Refunded", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", icon: RefreshCw },
-  approved: { label: "Approved", color: "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400", icon: CheckCircle },
-  rejected: { label: "Rejected", color: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
-  sent: { label: "Sent", color: "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400", icon: CheckCircle },
-  retrying: { label: "Retrying", color: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400", icon: RefreshCw },
+  pending: { label: "Pending", color: "bg-amber-500 text-white", icon: Clock },
+  confirmed: { label: "Confirmed", color: "bg-blue-500 text-white", icon: CheckCircle },
+  completed: { label: "Completed", color: "bg-green-500 text-white", icon: CheckCircle },
+  delivered: { label: "Delivered", color: "bg-green-500 text-white", icon: CheckCircle },
+  cancelled: { label: "Cancelled", color: "bg-red-500 text-white", icon: XCircle },
+  failed: { label: "Failed", color: "bg-red-500 text-white", icon: XCircle },
+  refunded: { label: "Refunded", color: "bg-blue-500 text-white", icon: RefreshCw },
+  approved: { label: "Approved", color: "bg-blue-500 text-white", icon: CheckCircle },
+  rejected: { label: "Rejected", color: "bg-red-500 text-white", icon: XCircle },
+  sent: { label: "Sent", color: "bg-green-500 text-white", icon: CheckCircle },
+  retrying: { label: "Retrying", color: "bg-yellow-500 text-white", icon: RefreshCw },
 };
 
 export function StatusBadge({ status, statusConfig, className }: StatusBadgeProps) {

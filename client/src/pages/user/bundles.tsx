@@ -589,14 +589,14 @@ export default function UserBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary">
-                        <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                        <p className="font-medium text-lg">{selectedBundle.name}</p>
-                        <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
+                      <div className="p-2 bg-yellow-500 text-white rounded-lg border border-yellow-600">
+                        <p className="text-sm text-white">Selected Bundle</p>
+                        <p className="font-medium text-lg text-white">{selectedBundle.name}</p>
+                        <p className="text-sm text-white">{selectedBundle.validity}</p>
                         {selectedBundle.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{selectedBundle.description}</p>
+                          <p className="text-xs text-white mt-1">{selectedBundle.description}</p>
                         )}
-                        <p className="text-2xl font-bold text-primary mt-2">GH₵{selectedBundle.basePrice}</p>
+                        <p className="text-2xl font-bold text-white mt-2">GH₵{selectedBundle.basePrice}</p>
                       </div>
                     )}
 
@@ -625,7 +625,7 @@ export default function UserBundlesPage() {
                             disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
                               paymentMethod === "wallet"
-                                ? "border-green-500 bg-green-50 shadow-md"
+                                ? "border-green-500 bg-green-500 text-white shadow-md"
                                 : "hover:border-green-500 hover:shadow-md cursor-pointer"
                             } ${
                               selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
@@ -662,21 +662,21 @@ export default function UserBundlesPage() {
                             onClick={() => setPaymentMethod(paymentMethod === "paystack" ? undefined : "paystack")}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
                               paymentMethod === "paystack"
-                                ? "border-green-500 bg-green-50 shadow-md"
+                                ? "border-green-500 bg-green-500 text-white shadow-md"
                                 : "hover:border-green-500 hover:shadow-md cursor-pointer"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5 text-green-600" />
+                              <CreditCard className={`h-5 w-5 ${paymentMethod === "paystack" ? "text-white" : "text-green-600"}`} />
                               <div>
-                                <div className="font-medium text-green-700">Pay with MoMo</div>
-                                <div className="text-sm text-green-600">
+                                <div className={`font-medium ${paymentMethod === "paystack" ? "text-white" : "text-green-700"}`}>Pay with MoMo</div>
+                                <div className={`text-sm ${paymentMethod === "paystack" ? "text-white" : "text-green-600"}`}>
                                   Secure payment via Paystack
                                 </div>
                               </div>
                             </div>
                             {paymentMethod === "paystack" && (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <CheckCircle className="h-5 w-5 text-white" />
                             )}
                           </button>
                         </div>
@@ -763,7 +763,7 @@ export default function UserBundlesPage() {
                             disabled={bulkTotal ? bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
                               bulkPaymentMethod === "wallet"
-                                ? "border-green-500 bg-green-50 shadow-md"
+                                ? "border-green-500 bg-green-500 text-white shadow-md"
                                 : "hover:border-green-500 hover:shadow-md cursor-pointer"
                             } ${
                               bulkTotal && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
@@ -800,21 +800,21 @@ export default function UserBundlesPage() {
                             onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "paystack" ? undefined : "paystack")}
                             className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
                               bulkPaymentMethod === "paystack"
-                                ? "border-green-500 bg-green-50 shadow-md"
+                                ? "border-green-500 bg-green-500 text-white shadow-md"
                                 : "hover:border-green-500 hover:shadow-md cursor-pointer"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5 text-green-600" />
+                              <CreditCard className={`h-5 w-5 ${bulkPaymentMethod === "paystack" ? "text-white" : "text-green-600"}`} />
                               <div>
-                                <div className="font-medium text-green-700">Pay with MoMo</div>
-                                <div className="text-sm text-green-600">
+                                <div className={`font-medium ${bulkPaymentMethod === "paystack" ? "text-white" : "text-green-700"}`}>Pay with MoMo</div>
+                                <div className={`text-sm ${bulkPaymentMethod === "paystack" ? "text-white" : "text-green-600"}`}>
                                   Secure payment via Paystack
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "paystack" && (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <CheckCircle className="h-5 w-5 text-white" />
                             )}
                           </button>
                         </div>

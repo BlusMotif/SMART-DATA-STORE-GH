@@ -133,34 +133,34 @@ export default function AgentStorefront() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           {/* Hero Section */}
           <div className="max-w-4xl mx-auto mb-8">
-            <div className="relative bg-gradient-to-r from-primary/20 via-primary/10 to-secondary/20 rounded-lg p-8 border">
+            <div className="relative bg-green-500 rounded-lg p-8 border border-green-600">
               <div className="flex items-center gap-4 mb-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <Store className="h-8 w-8 text-primary" />
+                <div className="p-3 bg-white/20 rounded-full">
+                  <Store className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">
+                  <h2 className="text-2xl font-bold text-white">
                     {agent?.businessName || "Your Storefront"}
                   </h2>
-                  <p className="text-muted-foreground">
+                  <p className="text-green-100">
                     Manage and customize your online store
                   </p>
                 </div>
               </div>
-              
-              <div className="bg-background/50 rounded-md p-4 border">
-                <p className="text-sm text-muted-foreground leading-relaxed">
+
+              <div className="bg-white/10 rounded-md p-4 border border-white/20">
+                <p className="text-white/90 leading-relaxed">
                   {agent?.businessDescription || "No business description provided. Update it below to tell customers about your store."}
                 </p>
               </div>
-              
+
               <div className="flex items-center gap-4 mt-6">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm text-white/90">
                   <Smartphone className="h-4 w-4" />
                   <span>Active Storefront</span>
                 </div>
                 {agent?.storefrontSlug && (
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-xs bg-white/20 text-white border-white/30">
                     /{agent.storefrontSlug}
                   </Badge>
                 )}

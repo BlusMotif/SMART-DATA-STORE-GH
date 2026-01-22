@@ -196,8 +196,18 @@ export default function AdminChatSupport() {
             <CardHeader className="border-b p-3 md:p-6">
               <Tabs value={filter} onValueChange={(v) => setFilter(v as "open" | "closed")}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="open" className="text-xs md:text-sm">Open</TabsTrigger>
-                  <TabsTrigger value="closed" className="text-xs md:text-sm">Closed</TabsTrigger>
+                  <TabsTrigger 
+                    value="open" 
+                    className="text-xs md:text-sm data-[state=active]:bg-yellow-500 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-sm"
+                  >
+                    Open
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="closed" 
+                    className="text-xs md:text-sm data-[state=active]:bg-yellow-500 data-[state=active]:text-white data-[state=active]:font-medium data-[state=active]:shadow-sm"
+                  >
+                    Closed
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
             </CardHeader>

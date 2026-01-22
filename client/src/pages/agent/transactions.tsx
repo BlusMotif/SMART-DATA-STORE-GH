@@ -97,104 +97,110 @@ export default function AgentTransactions() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
               <StatCard
                 title="Total Transactions"
                 value={stats?.totalTransactions || 0}
                 icon={ShoppingCart}
                 description="All time"
+                className="text-sm md:text-base"
               />
               <StatCard
                 title="Total Revenue"
                 value={formatCurrency(stats?.totalRevenue || 0)}
                 icon={DollarSign}
                 description="From sales"
+                className="text-sm md:text-base"
               />
               <StatCard
                 title="Total Profit"
                 value={formatCurrency(stats?.totalProfit || 0)}
                 icon={TrendingUp}
                 description="Your earnings"
+                className="text-sm md:text-base"
               />
               <StatCard
                 title="Today"
                 value={stats?.todayTransactions || 0}
                 icon={BarChart3}
                 description="Transactions today"
+                className="text-sm md:text-base"
               />
             </div>
 
-            <Card className="bg-white text-black border-gray-200">
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-black">
-                    <BarChart3 className="h-5 w-5" />
-                    Transaction History
+            <Card className="bg-white text-black border-gray-200 md:col-span-2 lg:col-span-3">
+              <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 md:pb-6">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg text-black">
+                    <BarChart3 className="h-4 w-4 md:h-5 md:w-5" />
+                    <span className="truncate">Transaction History</span>
                   </CardTitle>
-                  <CardDescription className="text-gray-600">
+                  <CardDescription className="text-sm md:text-base text-gray-600">
                     View all your customer orders and earnings
                   </CardDescription>
                 </div>
-                <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                  <div className="relative">
+                <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full lg:w-auto">
+                  <div className="relative flex-1 sm:flex-initial">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       placeholder="Search..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 w-full sm:w-48"
+                      className="pl-9 w-full sm:w-48 text-sm"
                       data-testid="input-search"
                     />
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-32" data-testid="filter-status">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                      <SelectItem value="refunded">Refunded</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-full sm:w-40" data-testid="filter-type">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="data_bundle">Data Bundles</SelectItem>
-                      <SelectItem value="result_checker">Result Checkers</SelectItem>
-                      <SelectItem value="wallet_topup">Wallet Top-up</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-2">
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-full sm:w-32 text-xs md:text-sm" data-testid="filter-status">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="confirmed">Confirmed</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                        <SelectItem value="refunded">Refunded</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger className="w-full sm:w-36 md:w-40 text-xs md:text-sm" data-testid="filter-type">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="data_bundle">Data Bundles</SelectItem>
+                        <SelectItem value="result_checker">Result Checkers</SelectItem>
+                        <SelectItem value="wallet_topup">Wallet Top-up</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 md:px-6">
                 {isLoading ? (
-                  <TableSkeleton rows={10} />
+                  <TableSkeleton rows={5} />
                 ) : filteredTransactions && filteredTransactions.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Reference</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Network</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>My Profit</TableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead>Payment Status</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Date</TableHead>
+                          <TableHead className="text-xs md:text-sm">Reference</TableHead>
+                          <TableHead className="text-xs md:text-sm">Product</TableHead>
+                          <TableHead className="hidden sm:table-cell text-xs md:text-sm">Network</TableHead>
+                          <TableHead className="text-xs md:text-sm">Amount</TableHead>
+                          <TableHead className="hidden md:table-cell text-xs md:text-sm">My Profit</TableHead>
+                          <TableHead className="hidden lg:table-cell text-xs md:text-sm">Customer</TableHead>
+                          <TableHead className="hidden xl:table-cell text-xs md:text-sm">Payment</TableHead>
+                          <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          <TableHead className="hidden md:table-cell text-xs md:text-sm">Date</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredTransactions.map((tx) => {
+                        {filteredTransactions.slice(0, 20).map((tx) => {
                           const network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbersRaw = (tx as any).phoneNumbers;
@@ -202,26 +208,24 @@ export default function AgentTransactions() {
                           const isWalletTopup = tx.type === "wallet_topup";
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
-                              <TableCell>
-                                <div className="max-w-[200px]">
-                                  <div className="font-medium truncate">{tx.productName}</div>
-                                  <div className="flex gap-1 mt-1 flex-wrap">
-                                    <Badge variant="outline" className="text-xs">
-                                      {tx.type === "data_bundle" ? "Data Bundle" : 
-                                       tx.type === "result_checker" ? "Result Checker" :
-                                       tx.type === "wallet_topup" ? "Wallet Top-up" : tx.type}
+                              <TableCell className="font-mono text-xs md:text-sm">{tx.reference}</TableCell>
+                              <TableCell className="max-w-[150px] md:max-w-[200px]">
+                                <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
+                                <div className="flex gap-1 mt-1 flex-wrap">
+                                  <Badge variant="outline" className="text-xs px-1 py-0">
+                                    {tx.type === "data_bundle" ? "Data" :
+                                     tx.type === "result_checker" ? "Result" :
+                                     tx.type === "wallet_topup" ? "Wallet" : tx.type}
+                                  </Badge>
+                                  {isBulkOrder && (
+                                    <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1">
+                                      <Layers className="h-2.5 w-2.5" />
+                                      {phoneNumbers?.length || 0}
                                     </Badge>
-                                    {isBulkOrder && (
-                                      <Badge variant="secondary" className="text-xs flex items-center gap-1">
-                                        <Layers className="h-3 w-3" />
-                                        Bulk ({phoneNumbers?.length || 0})
-                                      </Badge>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden sm:table-cell">
                                 {isWalletTopup ? (
                                   <span className="text-muted-foreground">-</span>
                                 ) : network ? (
@@ -230,6 +234,7 @@ export default function AgentTransactions() {
                                       backgroundColor: network.color,
                                       color: network.textColor,
                                     }}
+                                    className="text-xs px-1 py-0"
                                   >
                                     {network.name}
                                   </Badge>
@@ -237,7 +242,7 @@ export default function AgentTransactions() {
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="font-medium tabular-nums">
+                              <TableCell className="font-medium tabular-nums text-xs md:text-sm">
                                 <div>{formatCurrency(tx.amount)}</div>
                                 {isBulkOrder && phoneNumbers && (
                                   <div className="text-xs text-muted-foreground">
@@ -245,7 +250,7 @@ export default function AgentTransactions() {
                                   </div>
                                 )}
                               </TableCell>
-                              <TableCell className="text-green-600 tabular-nums font-medium">
+                              <TableCell className="hidden md:table-cell text-green-600 tabular-nums font-medium text-xs md:text-sm">
                                 {isWalletTopup ? (
                                   <span className="text-muted-foreground">-</span>
                                 ) : (
@@ -257,7 +262,7 @@ export default function AgentTransactions() {
                                   </div>
                                 )}
                               </TableCell>
-                              <TableCell className="text-muted-foreground">
+                              <TableCell className="hidden lg:table-cell text-muted-foreground text-xs md:text-sm">
                                 {isWalletTopup ? (
                                   <span className="text-muted-foreground">Self</span>
                                 ) : isBulkOrder && phoneNumbers ? (
@@ -266,7 +271,7 @@ export default function AgentTransactions() {
                                       <Button variant="ghost" size="sm" className="h-auto p-1 text-left justify-start text-muted-foreground hover:text-foreground">
                                         <div className="text-xs">
                                           <div className="font-semibold">{phoneNumbers.length} numbers</div>
-                                          <div className="truncate max-w-[100px]">
+                                          <div className="truncate max-w-[80px] md:max-w-[100px]">
                                             {phoneNumbers[0]?.phone}
                                           </div>
                                         </div>
@@ -293,7 +298,7 @@ export default function AgentTransactions() {
                                   tx.customerPhone
                                 )}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="hidden xl:table-cell">
                                 <Badge
                                   variant={
                                     (tx as any).paymentStatus === "paid" ? "default" :
@@ -301,6 +306,7 @@ export default function AgentTransactions() {
                                     (tx as any).paymentStatus === "cancelled" ? "outline" :
                                     "secondary"
                                   }
+                                  className="text-xs"
                                 >
                                   {(tx as any).paymentStatus || "pending"}
                                 </Badge>
@@ -308,7 +314,7 @@ export default function AgentTransactions() {
                               <TableCell>
                                 <StatusBadge status={tx.status} />
                               </TableCell>
-                              <TableCell className="text-muted-foreground text-sm">
+                              <TableCell className="hidden md:table-cell text-muted-foreground text-xs md:text-sm">
                                 {formatDate(tx.createdAt)}
                               </TableCell>
                             </TableRow>
@@ -318,8 +324,13 @@ export default function AgentTransactions() {
                     </Table>
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
+                  <div className="text-center py-6 md:py-12 text-muted-foreground text-sm md:text-base">
                     No transactions found. Share your store link to start making sales!
+                  </div>
+                )}
+                {filteredTransactions && filteredTransactions.length > 20 && (
+                  <div className="text-center py-2 md:py-4 text-xs md:text-sm text-muted-foreground">
+                    Showing 20 of {filteredTransactions.length} items
                   </div>
                 )}
               </CardContent>

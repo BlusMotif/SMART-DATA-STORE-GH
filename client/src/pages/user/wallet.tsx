@@ -43,24 +43,27 @@ const getStatusConfig = (status: string) => {
       return {
         variant: 'default' as const,
         icon: CheckCircle,
-        color: 'text-green-600 dark:text-green-400',
-        bgColor: 'bg-green-100 dark:bg-green-900 border border-green-200 dark:border-green-800',
+        color: 'text-white',
+        bgColor: 'bg-emerald-600',
+        borderColor: 'border-emerald-500',
         label: status === 'completed' ? 'Completed' : 'Delivered'
       };
     case 'confirmed':
       return {
         variant: 'secondary' as const,
         icon: CheckCircle,
-        color: 'text-blue-600 dark:text-blue-400',
-        bgColor: 'bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-800',
+        color: 'text-white',
+        bgColor: 'bg-blue-600',
+        borderColor: 'border-blue-500',
         label: 'Confirmed'
       };
     case 'pending':
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-yellow-600 dark:text-yellow-400',
-        bgColor: 'bg-yellow-100 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-800',
+        color: 'text-white',
+        bgColor: 'bg-amber-500',
+        borderColor: 'border-amber-400',
         label: 'Pending'
       };
     case 'cancelled':
@@ -68,16 +71,18 @@ const getStatusConfig = (status: string) => {
       return {
         variant: 'destructive' as const,
         icon: XCircle,
-        color: 'text-red-600 dark:text-red-400',
-        bgColor: 'bg-red-100 dark:bg-red-900 border border-red-200 dark:border-red-800',
+        color: 'text-white',
+        bgColor: 'bg-red-600',
+        borderColor: 'border-red-500',
         label: status === 'cancelled' ? 'Cancelled' : 'Failed'
       };
     default:
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-gray-600 dark:text-gray-400',
-        bgColor: 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
+        color: 'text-white',
+        bgColor: 'bg-slate-600',
+        borderColor: 'border-slate-500',
         label: status
       };
   }
@@ -169,9 +174,9 @@ export default function WalletDashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
+          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blue-100">Current Balance</CardTitle>
+              <CardTitle className="text-sm font-medium text-green-100">Current Balance</CardTitle>
             </CardHeader>
             <CardContent>
               {statsLoading ? (
@@ -179,7 +184,7 @@ export default function WalletDashboard() {
               ) : (
                 <>
                   <div className="text-3xl font-bold">GH₵{stats?.walletBalance || '0.00'}</div>
-                  <p className="text-xs text-blue-100 mt-1">Available to spend</p>
+                  <p className="text-xs text-green-100 mt-1">Available to spend</p>
                 </>
               )}
             </CardContent>
@@ -278,35 +283,35 @@ export default function WalletDashboard() {
                       return (
                         <div
                           key={transaction.id}
-                          className={`p-4 border rounded-lg ${statusConfig.bgColor}`}
+                          className={`p-4 border rounded-lg ${statusConfig.bgColor} ${statusConfig.borderColor} text-white`}
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-2">
                                 {isTopup ? (
-                                  <ArrowUpRight className="h-4 w-4 text-green-600 shrink-0" />
+                                  <ArrowUpRight className="h-4 w-4 text-white shrink-0" />
                                 ) : (
-                                  <ArrowDownRight className="h-4 w-4 text-blue-600 shrink-0" />
+                                  <ArrowDownRight className="h-4 w-4 text-white shrink-0" />
                                 )}
-                                <p className="font-medium text-sm break-words">
+                                <p className="font-medium text-sm break-words text-white">
                                   {transaction.productName}
                                 </p>
-                                <Badge variant={statusConfig.variant} className="ml-auto shrink-0">
+                                <Badge variant={statusConfig.variant} className="ml-auto shrink-0 bg-white text-gray-800">
                                   <StatusIcon className="h-3 w-3 mr-1" />
                                   {statusConfig.label}
                                 </Badge>
                               </div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                              <div className="text-xs text-gray-200 space-y-1">
                                 <p>
                                   {isTopup ? 'Topup' : isWalletPayment ? 'Paid with wallet' : 'Paystack'}
                                   {' • '}
                                   {new Date(transaction.createdAt).toLocaleDateString()}
                                 </p>
-                                <p className="text-xs font-mono break-all">Ref: {transaction.reference}</p>
+                                <p className="text-xs font-mono break-all text-gray-300">Ref: {transaction.reference}</p>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
-                              <p className={`text-lg font-bold ${isTopup ? 'text-green-600' : 'text-blue-600'}`}>
+                              <p className="text-lg font-bold text-white">
                                 {isTopup ? '+' : '-'}GH₵{transaction.amount}
                               </p>
                             </div>

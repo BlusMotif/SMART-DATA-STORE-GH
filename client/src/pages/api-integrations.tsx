@@ -255,28 +255,29 @@ const ApiKeysPage: React.FC = () => {
               Create API Key
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="bg-black text-white border-gray-700">
             <DialogHeader>
-              <DialogTitle>Create New API Key</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-white">Create New API Key</DialogTitle>
+              <DialogDescription className="text-gray-300">
                 Create a new API key to access our services programmatically.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="keyName">API Key Name</Label>
+                <Label htmlFor="keyName" className="text-white">API Key Name</Label>
                 <Input
                   id="keyName"
                   placeholder="e.g., Production App, Development"
                   value={newKeyName}
                   onChange={(e) => setNewKeyName(e.target.value)}
+                  className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                 />
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="border-gray-600 text-white hover:bg-gray-800">
                   Cancel
                 </Button>
-                <Button onClick={createApiKey} disabled={creating}>
+                <Button onClick={createApiKey} disabled={creating} className="bg-yellow-500 text-black hover:bg-yellow-600">
                   {creating ? 'Creating...' : 'Create Key'}
                 </Button>
               </div>
@@ -315,11 +316,11 @@ const ApiKeysPage: React.FC = () => {
       </Dialog>
 
       <Tabs defaultValue="keys" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="keys">API Keys</TabsTrigger>
-          <TabsTrigger value="integrations">Integrations</TabsTrigger>
-          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-          <TabsTrigger value="docs">Documentation</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="keys" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">API Keys</TabsTrigger>
+          <TabsTrigger value="integrations" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Integrations</TabsTrigger>
+          <TabsTrigger value="webhooks" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Webhooks</TabsTrigger>
+          <TabsTrigger value="docs" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Documentation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="keys" className="space-y-6">

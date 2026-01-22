@@ -139,7 +139,7 @@ export default function AgentPricingPage() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <h1 className="text-lg lg:text-xl font-semibold">Pricing Management</h1>
+            <h1 className="text-sm lg:text-base font-semibold">Pricing Management</h1>
           </div>
           <div className="flex items-center gap-4">
             {hasUnsavedChanges && (

@@ -82,6 +82,55 @@ export default function UserDashboard() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6 mt-4">
             {/* Upgrade to Agent removed */}
+            {/* Welcome Message */}
+            <Card className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 border-yellow-600 shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center w-14 h-14 bg-white/20 rounded-full shadow-lg backdrop-blur-sm">
+                      <span className="text-3xl animate-bounce">👋</span>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl lg:text-3xl font-bold text-white mb-1 drop-shadow-sm">
+                        Welcome back, {user?.name?.toUpperCase() || 'USER'}! 
+                      </h2>
+                      <p className="text-yellow-100 text-sm lg:text-base font-medium">
+                        Here's what's happening with your account today ✨
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-white/90">
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <span className="text-xs font-medium">Live Dashboard</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-white/90">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                          <span className="text-xs font-medium">Real-time Updates</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden lg:flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1 backdrop-blur-sm">
+                      <span className="text-xs text-white font-medium">
+                        {new Date().toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-white/80">
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                      <span className="text-xs">All systems operational</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Card>

@@ -9,9 +9,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "cross-env NODE_ENV=development npx tsx src/server/index.ts",
-    "build": "npm install && npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && npm install && npm run build",
-    "build:server": "npx tsc --project .",
+    "build:server": "npx tsc --project . --skipLibCheck",
     "preview": "vite preview --host --port $PORT",
     "start": "node dist/server/index.js",
     "check": "tsc",

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Touch dist files to update timestamps so Hostinger thinks build succeeded
-import { readdirSync, statSync, utimesSync } from 'fs';
+import { readdirSync, statSync, utimesSync, existsSync } from 'fs';
 import { join } from 'path';
 
 function touchDir(dir) {
@@ -19,10 +19,17 @@ function touchDir(dir) {
       }
     }
   } catch (err) {
-    // Ignore errors
+    console.error(`Error touching ${dir}:`, err.message);
   }
 }
 
 console.log('Updating dist file timestamps...');
+
+if (!existsSync('./dist')) {
+  console.error('ERROR: dist directory does not exist!');
+  process.exit(1);
+}
+
 touchDir('./dist');
-console.log('✓ Build complete - using pre-built files');
+console.log('✓ Build complete - using pre-built files from ./dist');
+console.log('Output directory: dist');

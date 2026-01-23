@@ -118,9 +118,9 @@ export default function AdminDataBundles() {
                   Add Bundle
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="bg-white text-blue-800">
                 <DialogHeader>
-                  <DialogTitle>Create Data Bundle</DialogTitle>
+                  <DialogTitle className="text-blue-800">Create Data Bundle</DialogTitle>
                 </DialogHeader>
                 <BundleForm
                   onSubmit={(data) => createMutation.mutate(data)}
@@ -245,9 +245,9 @@ export default function AdminDataBundles() {
       </div>
 
       <Dialog open={!!editingBundle} onOpenChange={(open) => !open && setEditingBundle(null)}>
-        <DialogContent>
+        <DialogContent className="bg-white text-blue-800">
           <DialogHeader>
-            <DialogTitle>Edit Data Bundle</DialogTitle>
+            <DialogTitle className="text-blue-800">Edit Data Bundle</DialogTitle>
           </DialogHeader>
           {editingBundle && (
             <BundleForm
@@ -299,7 +299,7 @@ function BundleForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
+          <Label htmlFor="name" className="text-blue-800">Name</Label>
           <Input
             id="name"
             value={formData.name}
@@ -307,20 +307,21 @@ function BundleForm({
             placeholder="e.g., MTN 1GB Daily"
             required
             data-testid="input-bundle-name"
+            className="text-blue-800 placeholder-blue-400"
           />
         </div>
         <div className="space-y-2">
-          <Label>Network</Label>
+          <Label className="text-blue-800">Network</Label>
           <Select
             value={formData.network}
             onValueChange={(value) => setFormData({ ...formData, network: value })}
           >
-            <SelectTrigger data-testid="select-bundle-network">
+            <SelectTrigger data-testid="select-bundle-network" className="text-blue-800">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {NETWORKS.map((n) => (
-                <SelectItem key={n.id} value={n.id}>
+                <SelectItem key={n.id} value={n.id} className="text-blue-800">
                   {n.name}
                 </SelectItem>
               ))}
@@ -331,7 +332,7 @@ function BundleForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="dataAmount">Data Amount</Label>
+          <Label htmlFor="dataAmount" className="text-blue-800">Data Amount</Label>
           <Input
             id="dataAmount"
             value={formData.dataAmount}
@@ -339,10 +340,11 @@ function BundleForm({
             placeholder="e.g., 1GB, 500MB"
             required
             data-testid="input-bundle-data"
+            className="text-blue-800 placeholder-blue-400"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="validity">Validity</Label>
+          <Label htmlFor="validity" className="text-blue-800">Validity</Label>
           <Input
             id="validity"
             value={formData.validity}
@@ -350,13 +352,14 @@ function BundleForm({
             placeholder="e.g., 1 Day, 30 Days"
             required
             data-testid="input-bundle-validity"
+            className="text-blue-800 placeholder-blue-400"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="basePrice">Base Price (GHS)</Label>
+          <Label htmlFor="basePrice" className="text-blue-800">Base Price (GHS)</Label>
           <Input
             id="basePrice"
             type="number"
@@ -366,10 +369,11 @@ function BundleForm({
             placeholder="0.00"
             required
             data-testid="input-bundle-price"
+            className="text-blue-800 placeholder-blue-400"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="adminPrice">Admin Price (GHS)</Label>
+          <Label htmlFor="adminPrice" className="text-blue-800">Admin Price (GHS)</Label>
           <Input
             id="adminPrice"
             type="number"
@@ -378,6 +382,7 @@ function BundleForm({
             onChange={(e) => setFormData({ ...formData, adminPrice: e.target.value })}
             placeholder="0.00"
             data-testid="input-bundle-admin-price"
+            className="text-blue-800 placeholder-blue-400"
           />
         </div>
       </div>
@@ -402,7 +407,7 @@ function BundleForm({
 
       {(formData.network && formData.dataAmount && formData.validity && formData.basePrice) && (
         <div className="p-4 bg-muted rounded-lg border">
-          <Label className="text-sm font-medium text-muted-foreground mb-2 block">Preview (How users will see this bundle)</Label>
+          <Label className="text-sm font-medium text-blue-800 mb-2 block">Preview (How users will see this bundle)</Label>
           <div className="text-sm font-medium">
             {formData.network.toUpperCase()} {formData.dataAmount} - {formData.validity} - GH₵{formData.basePrice}
           </div>
@@ -418,7 +423,7 @@ function BundleForm({
             data-testid="switch-bundle-active"
             className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
           />
-          <Label>Active</Label>
+          <Label className="text-blue-800">Active</Label>
         </div>
         <Button type="submit" disabled={isLoading} data-testid="button-submit-bundle">
           {isLoading ? "Saving..." : bundle ? "Update Bundle" : "Create Bundle"}

@@ -22,6 +22,11 @@ create_*.js
 seed_*.js
 test_*.js
 update_*.js
+load-test.js
+run-load-tests.sh
+LOAD_TESTING.md
+LOAD_TESTING_QUICK.md
+load-test-results.txt
 
 # Logs
 *.log

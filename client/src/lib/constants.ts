@@ -1,7 +1,7 @@
 // resellershubprogh Constants
 
 export const APP_NAME = "resellershubprogh";
-export const APP_DESCRIPTION = "Digital Products & Data Bundle Marketplace";
+export const APP_DESCRIPTION = "Data Bundles & Result Checkers. RESELLERS HUB PRO GH";
 
 export const ROLE_LABELS = {
   admin: "Admin",

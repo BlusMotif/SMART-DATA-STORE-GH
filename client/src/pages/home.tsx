@@ -202,22 +202,22 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
               {productCategories.map((cat) => (
                 <Link key={cat.id} href={`/products/${cat.id}`}>
-                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 dark:border-2 dark:border-white shadow-md bg-card">
-                    <CardContent className="p-2 text-center">
-                      <div className="w-full h-32 mx-auto mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 dark:border-2 dark:border-white shadow-md bg-card aspect-square md:aspect-auto flex flex-col">
+                    <CardContent className="p-2 md:p-2 text-center flex flex-col h-full">
+                      <div className="w-full h-24 md:h-32 mx-auto mb-1 md:mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                         <cat.icon />
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
+                      <h3 className="font-semibold text-xs md:text-base lg:text-lg mb-0.5 md:mb-1 lg:mb-2 group-hover:text-primary transition-colors leading-tight">
                         {cat.title}
                       </h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground leading-tight md:leading-snug lg:leading-relaxed flex-grow">
                         {cat.description}
                       </p>
-                      <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ArrowRight className="w-5 h-5 text-primary mx-auto" />
+                      <div className="mt-2 md:mt-3 lg:mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ArrowRight className="w-3 md:w-4 lg:w-5 h-3 md:h-4 lg:h-5 text-primary mx-auto" />
                       </div>
                     </CardContent>
                   </Card>

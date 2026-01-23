@@ -25,8 +25,36 @@ export default function CheckoutSuccessPage() {
 
   // Function to get the return URL
   const getReturnUrl = () => {
-    const agentStore = localStorage.getItem("agentStore");
-    return agentStore ? `/store/agent/${agentStore}` : "/";
+    try {
+      const agentStorefront = localStorage.getItem("agentStorefront");
+      if (agentStorefront) {
+        const { role, slug, network } = JSON.parse(agentStorefront);
+        localStorage.removeItem("agentStorefront"); // Clear after reading
+        return `/store/${role}/${slug}/${network}`;
+      }
+    } catch (e) {
+      console.error("Failed to parse agentStorefront:", e);
+    }
+    return "/";
+  };
+
+  // Function to get dashboard URL based on user role
+  const getDashboardUrl = () => {
+    if (!user) return "/";
+    if (user.role === "agent" || user.role === "dealer" || user.role === "super_dealer") {
+      return `/${user.role}/dashboard`;
+    }
+    return "/user/dashboard";
+  };
+
+  // Determine if this was an agent storefront purchase
+  const isAgentStorefrontPurchase = () => {
+    try {
+      const agentStorefront = localStorage.getItem("agentStorefront");
+      return !!agentStorefront;
+    } catch {
+      return false;
+    }
   };
 
   const [verificationComplete, setVerificationComplete] = useState(false);
@@ -320,14 +348,17 @@ export default function CheckoutSuccessPage() {
               )}
 
               <div className="flex flex-col gap-3">
-                <Button onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-continue-shopping">
-                  Continue Shopping
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-home">
-                  <Home className="h-4 w-4" />
-                  {localStorage.getItem("agentStore") ? "Back to Store" : "Back to Home"}
-                </Button>
+                {isAgentStorefrontPurchase() ? (
+                  <Button onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-continue-shopping">
+                    Continue Shopping
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button onClick={() => setLocation(getDashboardUrl())} className="gap-2" data-testid="button-continue-dashboard">
+                    Continue to Dashboard
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -28,7 +28,7 @@ import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
 import { OrderTracker } from "@/components/order-tracker";
-import { AnnouncementPopup } from "@/components/announcement-popup";
+
 
 const bannerImages = [banner1, banner2, banner3];
 
@@ -164,9 +164,9 @@ export default function HomePage() {
         {/* Hero Section */}
         <Hero
           title={
-            <span className="text-xl md:text-4xl lg:text-5xl font-bold text-center block">
-              Your Trusted Platform for Digital{" "}
-              <span className="text-blue-600">Products</span>
+            <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-center block" style={{ fontFamily: "'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif" }}>
+              <span className="font-extrabold">Your Trusted Platform for Digital</span>{" "}
+              <span className="text-blue-600 font-extrabold">Products</span>
             </span>
           }
           description="Purchase data bundles and WAEC result checkers instantly with secure payments and instant delivery."
@@ -174,14 +174,14 @@ export default function HomePage() {
             text: "Browse Products",
             href: "/data-bundles",
             icon: ArrowRight,
-            size: "md",
+            size: "sm",
             className: "bg-yellow-500 hover:bg-yellow-600 dark:text-white text-black"
           }}
           secondaryButton={{
             text: "Track Order",
             href: "#track-orders",
             icon: Package,
-            size: "md"
+            size: "sm"
           }}
           images={bannerImages}
           showNavigation={false}
@@ -237,7 +237,7 @@ export default function HomePage() {
           title="Experience Excellence"
           subtitle="Why Choose Us"
           description="We're committed to providing the best digital product experience with top-notch service"
-          columns={2}
+          columns={4}
           className="py-0"
           features={features}
           variant="cards"
@@ -276,9 +276,6 @@ export default function HomePage() {
       </main>
 
       <Footer />
-
-      {/* Announcement Popup */}
-      <AnnouncementPopup />
     </div>
   );
 }

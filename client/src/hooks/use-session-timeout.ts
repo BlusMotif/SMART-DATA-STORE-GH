@@ -3,18 +3,26 @@ import { useAuth } from './use-auth';
 import { useToast } from '@/hooks/use-toast';
 
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
-const WARNING_TIME = 60 * 1000; // Show warning 1 minute before logout
+const WARNING_TIME = 0; // No warning - silent logout after inactivity
 
 export function useSessionTimeout() {
   const { logout, user } = useAuth();
+  // Keep hook order stable; do not show prompts
   const { toast } = useToast();
 
   const timeoutRef = useRef<number>();
   const warningRef = useRef<number>();
   const lastActivityRef = useRef<number>(Date.now());
+  const lastResetRef = useRef<number>(0);
 
   const resetTimer = useCallback(() => {
-    lastActivityRef.current = Date.now();
+    // Throttle resets to prevent excessive timer updates
+    const now = Date.now();
+    if (now - lastResetRef.current < 1000) {
+      return;
+    }
+    lastResetRef.current = now;
+    lastActivityRef.current = now;
 
     // Clear existing timers
     if (timeoutRef.current) {
@@ -27,26 +35,11 @@ export function useSessionTimeout() {
     // Only set timers if user is logged in
     if (!user) return;
 
-    // Set warning timer (4 minutes)
-    warningRef.current = setTimeout(() => {
-      toast({
-        title: "Session Timeout Warning",
-        description: "You will be logged out in 1 minute due to inactivity. Move your mouse or press a key to stay logged in.",
-        variant: "destructive",
-        duration: 10000, // Show for 10 seconds
-      });
-    }, INACTIVITY_TIMEOUT - WARNING_TIME);
+    // No warning prompts; silent logout only
 
-    // Set logout timer (5 minutes)
-    timeoutRef.current = setTimeout(async () => {
-      toast({
-        title: "Session Expired",
-        description: "You have been logged out due to inactivity.",
-        variant: "destructive",
-        duration: 5000,
-      });
-
-      // Logout the user
+    // Set logout timer
+    timeoutRef.current = window.setTimeout(async () => {
+      // Silent logout after inactivity
       await logout();
     }, INACTIVITY_TIMEOUT);
   }, [user, logout, toast]);

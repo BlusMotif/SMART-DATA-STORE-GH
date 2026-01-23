@@ -27,5 +27,5 @@ VALUES (
   'https://skytechgh.com/api/v1/orders',
   true,
   true,
-  '{"mtn": "MTN", "telecel": "TELECEL", "at_bigtime": "AIRTELTIGO", "at_ishare": "AIRTELTIGO", "airteltigo": "AIRTELTIGO"}'
+  '{"mtn": "MTN", "telecel": "TELECEL", "at_bigtime": "AT_BIGTIME", "at_ishare": "AT_ISHARE", "airteltigo": "AIRTELTIGO"}'
 ) ON CONFLICT DO NOTHING;

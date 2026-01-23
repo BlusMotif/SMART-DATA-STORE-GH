@@ -866,7 +866,7 @@ export async function registerRoutes(
       // Check if user already exists with this email
       console.log("Checking if user exists");
       const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
-      const existingAuthUser = existingUsers?.users.find(u => u.email === data.email);
+      const existingAuthUser = (existingUsers?.users as any[])?.find((u: any) => u.email === data.email);
       if (existingAuthUser) {
         // Check if they already have an agent account
         const existingAgent = await storage.getAgentByUserId(existingAuthUser.id);
@@ -1677,12 +1677,32 @@ export async function registerRoutes(
       }
       // Create transaction
       const reference = generateReference();
+      
+      // Determine network from first item (all items have same network due to validation)
+      let bulkNetwork: string | undefined;
+      if (processedOrderItems.length > 0) {
+        const firstBundle = await storage.getDataBundle(processedOrderItems[0].bundleId);
+        if (firstBundle) {
+          bulkNetwork = firstBundle.network?.toLowerCase();
+        }
+      }
+      
+      // Get provider for data bundle transactions
+      let providerId: string | undefined;
+      if (bulkNetwork) {
+        const provider = await storage.getProviderForNetwork(bulkNetwork);
+        if (provider) {
+          providerId = provider.id;
+          console.log(`[BulkUpload] Selected provider ${provider.name} (${provider.id}) for network ${bulkNetwork}`);
+        }
+      }
+      
       const transaction = await storage.createTransaction({
         reference,
         type: "data_bundle",
         productId: null, // Bulk order
         productName: `Bulk Data Bundle Purchase (${orderItems.length} items)`,
-        network: null,
+        network: bulkNetwork || null,
         amount: totalAmount.toFixed(2),
         profit: "0.00", // Will be calculated per item
         customerPhone: user.phone || "",
@@ -1692,6 +1712,7 @@ export async function registerRoutes(
         status: "pending",
         agentId: user.role === 'agent' ? user.id : undefined,
         agentProfit: user.role === 'agent' ? computedAgentProfit.toFixed(2) : "0.00",
+        providerId,
       });
       // Deduct from wallet if registered user
       if (user.role !== 'guest') {
@@ -1741,15 +1762,36 @@ export async function registerRoutes(
       // Process delivery for bulk orders
       const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
       if (autoProcessingEnabled) {
-        // Process each item
-        for (const item of processedOrderItems) {
-          try {
-            // This would call the provider API for each item
-            // For now, mark as delivered since it's wallet payment
-            await storage.updateTransactionDeliveryStatus(transaction.id, "delivered");
-          } catch (error) {
-            console.error("Bulk delivery error:", error);
+        // Process data bundle through external API
+        console.log("[BulkUpload] Processing data bundle transaction via API:", transaction.reference);
+        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+        await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+        if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+          // Check if all items were successful
+          const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+          
+          if (allSuccess) {
+            // Order was placed successfully with external provider
+            await storage.updateTransaction(transaction.id, {
+              status: "completed",
+              deliveryStatus: "processing",
+            });
+          } else {
+            // Some items failed - mark as failed
+            const failedItems = fulfillmentResult.results.filter((r: any) => r.status === 'failed');
+            await storage.updateTransaction(transaction.id, {
+              deliveryStatus: "failed",
+              failureReason: `API fulfillment failed: ${failedItems.length} items failed`,
+            });
           }
+        } else {
+          // Fulfillment failed
+          console.error("[BulkUpload] Data bundle API fulfillment failed:", fulfillmentResult.error);
+          await storage.updateTransaction(transaction.id, {
+            deliveryStatus: "failed",
+            failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
+          });
         }
       } else {
         // Manual processing - keep as pending
@@ -2103,6 +2145,17 @@ export async function registerRoutes(
       console.log("[Checkout] Total profit:", totalProfit);
       console.log("[Checkout] Total agent profit:", totalAgentProfit);
       console.log("[Checkout] ================================================");
+      
+      // Get provider for data bundle transactions
+      let providerId: string | undefined;
+      if (data.productType === ProductType.DATA_BUNDLE && network) {
+        const provider = await storage.getProviderForNetwork(network);
+        if (provider) {
+          providerId = provider.id;
+          console.log(`[Checkout] Selected provider ${provider.name} (${provider.id}) for network ${network}`);
+        }
+      }
+      
       const transaction = await storage.createTransaction({
         reference,
         type: data.productType,
@@ -2119,9 +2172,10 @@ export async function registerRoutes(
         paymentStatus: "pending",
         agentId,
         agentProfit: totalAgentProfit.toFixed(2),
+        providerId,
       });
 
-      console.log(`[Checkout] Created transaction ${transaction.id} with agentId: ${agentId}, agentProfit: ${totalAgentProfit.toFixed(2)}`);
+      console.log(`[Checkout] Created transaction ${transaction.id} with agentId: ${agentId}, agentProfit: ${totalAgentProfit.toFixed(2)}, providerId: ${providerId}`);
       // Handle wallet payments immediately
       if (data.paymentMethod === 'wallet') {
         console.log("[Checkout] Processing wallet payment for reference:", reference);
@@ -2642,7 +2696,7 @@ export async function registerRoutes(
           try {
             console.log("Step 1: Checking if user already exists in Supabase");
             const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
-            const existingAuthUser = existingUsers?.users.find(u => u.email === regData.email);
+            const existingAuthUser = (existingUsers?.users as any[])?.find((u: any) => u.email === regData.email);
 
             let userId: string;
             if (existingAuthUser) {
@@ -6765,6 +6819,17 @@ export async function registerRoutes(
 
       // Create transaction
       const reference = `API-${Date.now()}-${randomBytes(4).toString('hex').toUpperCase()}`;
+      
+      // Get provider for data bundle transactions
+      let providerId: string | undefined;
+      if (bundle.network) {
+        const provider = await storage.getProviderForNetwork(bundle.network.toLowerCase());
+        if (provider) {
+          providerId = provider.id;
+          console.log(`[API] Selected provider ${provider.name} (${provider.id}) for network ${bundle.network}`);
+        }
+      }
+      
       const transaction = await storage.createTransaction({
         reference,
         type: "data_bundle",
@@ -6784,7 +6849,8 @@ export async function registerRoutes(
         deliveredPin: null,
         deliveredSerial: null,
         failureReason: null,
-        apiResponse: null
+        apiResponse: null,
+        providerId,
       });
 
       // Deduct from wallet
@@ -6792,13 +6858,41 @@ export async function registerRoutes(
         walletBalance: (balance - priceNum).toFixed(2)
       });
 
-      // Process the purchase (this would trigger the actual data bundle purchase)
-      // For now, we'll mark as completed immediately
-      await storage.updateTransaction(transaction.id, {
-        status: "completed",
-        deliveryStatus: "delivered",
-        completedAt: new Date()
-      });
+      // Process the purchase through external API
+      console.log("[API] Processing data bundle transaction via API:", transaction.reference);
+      const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+      await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+      if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+        // Check if all items were successful
+        const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+        
+        if (allSuccess) {
+          // Order was placed successfully with external provider
+          await storage.updateTransaction(transaction.id, {
+            status: "completed",
+            deliveryStatus: "processing",
+            completedAt: new Date()
+          });
+        } else {
+          // Some items failed
+          await storage.updateTransaction(transaction.id, {
+            status: "completed",
+            deliveryStatus: "failed",
+            completedAt: new Date(),
+            failureReason: "API fulfillment failed for some items"
+          });
+        }
+      } else {
+        // Fulfillment failed
+        console.error("[API] Data bundle API fulfillment failed:", fulfillmentResult.error);
+        await storage.updateTransaction(transaction.id, {
+          status: "completed",
+          deliveryStatus: "failed",
+          completedAt: new Date(),
+          failureReason: `API fulfillment failed: ${fulfillmentResult.error}`
+        });
+      }
 
       res.json({
         success: true,

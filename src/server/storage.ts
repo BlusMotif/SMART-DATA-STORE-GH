@@ -103,6 +103,7 @@ export interface IStorage {
   getExternalApiProvider(id: string): Promise<ExternalApiProvider | undefined>;
   getActiveExternalApiProviders(): Promise<ExternalApiProvider[]>;
   getDefaultExternalApiProvider(): Promise<ExternalApiProvider | undefined>;
+  getProviderForNetwork(network?: string): Promise<ExternalApiProvider | undefined>;
   createExternalApiProvider(provider: InsertExternalApiProvider): Promise<ExternalApiProvider>;
   updateExternalApiProvider(id: string, data: UpdateExternalApiProvider): Promise<ExternalApiProvider | undefined>;
   deleteExternalApiProvider(id: string): Promise<boolean>;
@@ -1544,6 +1545,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(externalApiProviders.isDefault, true))
       .limit(1);
     return result[0];
+  }
+
+  async getProviderForNetwork(network?: string): Promise<ExternalApiProvider | undefined> {
+    // If no network specified, return default provider
+    if (!network) {
+      return await this.getDefaultExternalApiProvider();
+    }
+
+    // Get all active providers
+    const activeProviders = await this.getActiveExternalApiProviders();
+    
+    // Find a provider that supports this network in their network mappings
+    for (const provider of activeProviders) {
+      if (provider.networkMappings) {
+        try {
+          const mappings = JSON.parse(provider.networkMappings);
+          if (mappings[network]) {
+            return provider;
+          }
+        } catch (e) {
+          // Continue to next provider if JSON parsing fails
+          continue;
+        }
+      }
+    }
+
+    // If no provider supports the network specifically, use default
+    return await this.getDefaultExternalApiProvider();
   }
 
   async createExternalApiProvider(provider: InsertExternalApiProvider): Promise<ExternalApiProvider> {

@@ -39,7 +39,7 @@ interface AgentProfileResponse {
 }
 
 // Function to get ranking badge based on user role
-const getRankingBadge = (role: string) => {
+const _getRankingBadge = (role: string) => {
   const rankings = {
     admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
     master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
@@ -72,7 +72,7 @@ const sidebarNavItems = [
 export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user } = useAuth();
-  const { theme } = useTheme();
+  const { theme: _theme } = useTheme();
   const [showApiModal, setShowApiModal] = useState(false);
 
   // Get user rank

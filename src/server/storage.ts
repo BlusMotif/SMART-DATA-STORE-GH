@@ -171,6 +171,12 @@ export interface IStorage {
     resultCheckerStock: number;
   }>;
 
+  getRevenueAnalytics(days?: number): Promise<Array<{
+    date: string;
+    revenue: number;
+    transactions: number;
+  }>>;
+
   // API Keys
   getApiKeys(userId: string): Promise<ApiKey[]>;
   getApiKeyByKey(key: string): Promise<ApiKey | undefined>;
@@ -864,6 +870,61 @@ export class DatabaseStorage implements IStorage {
       dataBundleStock: Number(bundleStats?.count || 0),
       resultCheckerStock: Number(checkerStats?.count || 0),
     };
+  }
+
+  async getRevenueAnalytics(days: number = 7): Promise<Array<{
+    date: string;
+    revenue: number;
+    transactions: number;
+  }>> {
+    const safeDays = Math.min(Math.max(Math.floor(days), 1), 90);
+
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (safeDays - 1));
+
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+
+    // Pre-seed map so the frontend always receives a contiguous date range
+    const dailyTotals = new Map<string, { revenue: number; transactions: number }>();
+    for (let i = 0; i < safeDays; i++) {
+      const current = new Date(startDate);
+      current.setDate(startDate.getDate() + i);
+      const key = current.toISOString().slice(0, 10);
+      dailyTotals.set(key, { revenue: 0, transactions: 0 });
+    }
+
+    const rows = await db.select({
+      amount: transactions.amount,
+      status: transactions.status,
+      createdAt: transactions.createdAt,
+    })
+      .from(transactions)
+      .where(and(
+        gte(transactions.createdAt, startDate),
+        lte(transactions.createdAt, endDate),
+      ));
+
+    for (const row of rows) {
+      if (!row.createdAt) continue;
+
+      const dateKey = new Date(row.createdAt).toISOString().slice(0, 10);
+      const totals = dailyTotals.get(dateKey);
+      if (!totals) continue;
+
+      if (row.status === 'completed') {
+        const amount = Number.parseFloat(row.amount || "0");
+        totals.revenue += Number.isFinite(amount) ? amount : 0;
+        totals.transactions += 1;
+      }
+    }
+
+    return Array.from(dailyTotals.entries()).map(([date, totals]) => ({
+      date,
+      revenue: Number(totals.revenue.toFixed(2)),
+      transactions: totals.transactions,
+    }));
   }
 
   // Support Chat Methods

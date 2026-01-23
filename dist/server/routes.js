@@ -4080,6 +4080,17 @@ export async function registerRoutes(httpServer, app) {
             res.status(500).json({ error: "Failed to load stats" });
         }
     });
+    app.get("/api/admin/analytics/revenue", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const rawDays = parseInt(req.query.days, 10);
+            const analytics = await storage.getRevenueAnalytics(Number.isFinite(rawDays) ? rawDays : 7);
+            res.json(analytics);
+        }
+        catch (error) {
+            console.error("Error fetching revenue analytics:", error);
+            res.status(500).json({ error: "Failed to load analytics" });
+        }
+    });
     app.get("/api/admin/rankings/customers", requireAuth, requireAdmin, async (req, res) => {
         try {
             const limit = parseInt(req.query.limit) || 50; // Default to 50 for admin view

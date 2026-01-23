@@ -9,7 +9,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "cross-env NODE_ENV=development npx tsx src/server/index.ts",
-    "build": "npm run build:client && npm run build:server:production",
+    "build": "npm run build:client",
     "build:client": "cd client && npm install && npm run build",
     "build:server": "npx tsc --project . --skipLibCheck",
     "build:server:production": "node build-server.js",

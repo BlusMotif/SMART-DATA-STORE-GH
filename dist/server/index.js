@@ -4,6 +4,9 @@ dotenv.config();
 if (process.env.NODE_ENV === 'development') {
     dotenv.config({ path: '.env.development', override: true });
 }
+else if (process.env.NODE_ENV === 'production') {
+    dotenv.config({ path: '.env.production', override: true });
+}
 console.log('DATABASE_URL after loading:', process.env.DATABASE_URL);
 // Initialize Supabase immediately after loading environment variables
 import { createClient } from '@supabase/supabase-js';

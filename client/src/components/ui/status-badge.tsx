@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CheckCircle, Clock, XCircle, RefreshCw } from "lucide-react";
+import { CheckCircle, Clock, XCircle, RefreshCw, Layers } from "lucide-react";
 
 interface StatusBadgeProps {
   status: string;
@@ -10,7 +10,8 @@ interface StatusBadgeProps {
 
 const defaultStatusConfig: Record<string, { label: string; color: string; icon?: typeof CheckCircle }> = {
   pending: { label: "Pending", color: "bg-amber-500 text-white", icon: Clock },
-  confirmed: { label: "Confirmed", color: "bg-blue-500 text-white", icon: CheckCircle },
+  processing: { label: "Processing", color: "bg-blue-500 text-white", icon: Layers },
+  confirmed: { label: "Confirmed", color: "bg-blue-600 text-white", icon: CheckCircle },
   completed: { label: "Completed", color: "bg-green-500 text-white", icon: CheckCircle },
   delivered: { label: "Delivered", color: "bg-green-500 text-white", icon: CheckCircle },
   cancelled: { label: "Cancelled", color: "bg-red-500 text-white", icon: XCircle },

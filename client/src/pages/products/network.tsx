@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
-import { ShoppingCart, Package, ArrowLeft, Clock, AlertTriangle, Wallet, CreditCard } from "lucide-react";
+import { ShoppingCart, Package, ArrowLeft, Clock, AlertTriangle, Wallet, CreditCard, Loader2 } from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
@@ -148,6 +148,17 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const [phone, setPhone] = useState('');
   const [bulkPhones, setBulkPhones] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+
+  const scrollToTopQuick = () => {
+    const opts: ScrollToOptions = { top: 0, behavior: "smooth" };
+    window.requestAnimationFrame(() => {
+      window.scrollTo(opts);
+      document.documentElement?.scrollTo?.(opts);
+      document.body?.scrollTo?.(opts);
+    });
+  };
 
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
@@ -155,6 +166,11 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       setOrderType("single");
     }
   }, [network, orderType]);
+
+  // Ensure view starts at the top when the flow loads
+  useEffect(() => {
+    scrollToTopQuick();
+  }, []);
 
   // Fetch user stats for wallet balance
   const { data: userStats } = useQuery<{ walletBalance?: string }>({
@@ -250,11 +266,9 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
       }
     }
 
-    // Fetch bundle to get current price
+    setIsProcessing(true);
     try {
-      const currentBundleData = await apiRequest('GET', `/api/products/data-bundles/${selectedBundle.id}`) as any;
-      
-      const amount = parseFloat(currentBundleData.effective_price);
+      const amount = parseFloat(selectedBundle.effective_price);
       
       const payload = {
         productType: 'data_bundle',
@@ -270,6 +284,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
       checkoutMutation.mutate(payload, {
         onSuccess: (data) => {
+          setIsProcessing(false);
           if (paymentMethod === "wallet") {
             toast({
               title: "✅ Payment Successful!",
@@ -280,10 +295,26 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
             if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
           }
         },
-        onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
+        onError: (err: any) => {
+          setIsProcessing(false);
+          const errorMessage = err.message || 'Checkout failed';
+          // Check if it's a cooldown error (429) - message will contain "wait" and "minute"
+          if (errorMessage.includes('wait') && errorMessage.includes('minute')) {
+            console.log('[Checkout Error] Cooldown triggered:', errorMessage);
+            toast({ 
+              title: '⏳ Purchase Limit', 
+              description: errorMessage,
+              variant: 'destructive',
+              duration: 8000,
+            });
+          } else {
+            toast({ title: 'Error', description: errorMessage, variant: 'destructive' });
+          }
+        }
       });
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to fetch bundle details', variant: 'destructive' });
+      setIsProcessing(false);
+      toast({ title: 'Error', description: 'Failed to process payment', variant: 'destructive' });
     }
   };
 
@@ -435,10 +466,18 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                   onClick={handleSingle} 
                   disabled={
                     !selectedBundle || 
+                    isProcessing ||
                     (paymentMethod === 'wallet' && (!user || walletBalance < parseFloat(selectedBundle?.effective_price || '0')))
                   }
                 >
-                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'}
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'
+                  )}
                 </Button>
               </div>
             </CardContent>

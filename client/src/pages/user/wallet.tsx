@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Loader2, Wallet, TrendingUp, Clock, CheckCircle, XCircle, ArrowUpRight, ArrowDownRight, Calendar, DollarSign, CreditCard, Menu } from "lucide-react";
+import { Loader2, Wallet, TrendingUp, Clock, CheckCircle, XCircle, ArrowUpRight, ArrowDownRight, Calendar, DollarSign, CreditCard, Menu, Layers } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/api";
 import { WalletTopup } from "@/components/user/wallet-topup";
@@ -37,7 +37,10 @@ interface WalletStats {
 }
 
 const getStatusConfig = (status: string) => {
-  switch (status.toLowerCase()) {
+  // Normalize status to match SkyTech conventions
+  const normalizedStatus = status.toLowerCase();
+  
+  switch (normalizedStatus) {
     case 'completed':
     case 'delivered':
       return {
@@ -46,7 +49,16 @@ const getStatusConfig = (status: string) => {
         color: 'text-white',
         bgColor: 'bg-emerald-600',
         borderColor: 'border-emerald-500',
-        label: status === 'completed' ? 'Completed' : 'Delivered'
+        label: 'Completed'
+      };
+    case 'processing':
+      return {
+        variant: 'secondary' as const,
+        icon: Layers,
+        color: 'text-white',
+        bgColor: 'bg-blue-500',
+        borderColor: 'border-blue-400',
+        label: 'Processing'
       };
     case 'confirmed':
       return {
@@ -83,7 +95,7 @@ const getStatusConfig = (status: string) => {
         color: 'text-white',
         bgColor: 'bg-slate-600',
         borderColor: 'border-slate-500',
-        label: status
+        label: status.charAt(0).toUpperCase() + status.slice(1)
       };
   }
 };

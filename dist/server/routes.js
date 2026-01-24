@@ -5,7 +5,7 @@ import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import multer from "multer";
-import { registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema, UserRole, TransactionStatus, ProductType, WithdrawalStatus, transactions } from "../shared/schema.js";
+import { registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestSchema, UserRole, TransactionStatus, ProductType, WithdrawalStatus, transactions, insertVideoGuideSchema } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature } from "./paystack.js";
 import { fulfillDataBundleTransaction, getExternalBalance, getExternalPrices, getExternalOrderStatus } from "./providers.js";
 import { generateSecureApiKey, hasPermissions } from "./utils/api-keys.js";
@@ -21,6 +21,9 @@ const ROLE_LABELS = {
 };
 // Process webhook events asynchronously
 async function processWebhookEvent(event) {
+    const webhookStatus = event?.data?.status;
+    const webhookReference = event?.data?.reference;
+    console.log("[Webhook] Received event:", event?.event, "status:", webhookStatus, "ref:", webhookReference);
     if (event.event === "charge.success") {
         const data = event.data;
         const reference = data.reference;
@@ -296,8 +299,33 @@ async function processWebhookEvent(event) {
             console.error("Error processing transaction webhook:", transactionError);
         }
     }
+    else if (event.event === "charge.failed" || event.event === "charge.abandoned") {
+        // Handle failed/abandoned/cancelled Paystack payments
+        const data = event.data;
+        const reference = data.reference;
+        console.log(`[Webhook] Payment ${event.event}: ${reference}`);
+        try {
+            const transaction = await storage.getTransactionByReference(reference);
+            if (!transaction) {
+                console.log(`[Webhook] Transaction not found for failed payment: ${reference}`);
+                return;
+            }
+            // Mark transaction as failed/cancelled - NOT as paid
+            const paymentStatus = event.event === "charge.abandoned" ? "cancelled" : "failed";
+            console.log(`[Webhook] Marking transaction ${transaction.id} as ${paymentStatus}`);
+            await storage.updateTransaction(transaction.id, {
+                paymentStatus: paymentStatus,
+                status: TransactionStatus.FAILED,
+                failureReason: event.event === "charge.abandoned" ? "Payment cancelled by user" : "Payment failed",
+            });
+            console.log(`[Webhook] Payment marked as ${paymentStatus}: ${reference}`);
+        }
+        catch (err) {
+            console.error(`[Webhook] Error processing failed payment: ${reference}`, err);
+        }
+    }
     // Handle other Paystack webhooks if needed
-    console.log(`Unhandled webhook event: ${event.event}`);
+    console.log(`Unhandled webhook event: ${event.event} status: ${webhookStatus}`);
 }
 import { getSupabaseServer } from "./index.js";
 import { validatePhoneNetwork, getNetworkMismatchError, normalizePhoneNumber, isValidPhoneLength, detectNetwork } from "./utils/network-validator.js";
@@ -1747,11 +1775,12 @@ export async function registerRoutes(httpServer, app) {
                     await storage.updateUser(user.id, { walletBalance: newBalance.toFixed(2) });
                 }
             }
-            // Mark transaction as completed immediately for wallet payments
+            // Mark transaction payment as completed for wallet payments
             await storage.updateTransaction(transaction.id, {
-                status: "completed",
+                status: "pending", // Set to pending until SkyTech confirms delivery
                 completedAt: new Date(),
                 paymentReference: "wallet",
+                paymentStatus: "paid",
             });
             // Financial integrity: credit agent only their profit, and record admin revenue separately
             if (user.role === 'agent' && parseFloat(transaction.agentProfit || "0") > 0) {
@@ -1792,9 +1821,9 @@ export async function registerRoutes(httpServer, app) {
                     // Check if all items were successful
                     const allSuccess = fulfillmentResult.results.every((r) => r.status === 'pending' || r.status === 'success');
                     if (allSuccess) {
-                        // Order was placed successfully with external provider
+                        // Order was placed successfully with external provider - set to processing
                         await storage.updateTransaction(transaction.id, {
-                            status: "completed",
+                            status: TransactionStatus.PENDING,
                             deliveryStatus: "processing",
                         });
                     }
@@ -1802,6 +1831,7 @@ export async function registerRoutes(httpServer, app) {
                         // Some items failed - mark as failed
                         const failedItems = fulfillmentResult.results.filter((r) => r.status === 'failed');
                         await storage.updateTransaction(transaction.id, {
+                            status: TransactionStatus.FAILED,
                             deliveryStatus: "failed",
                             failureReason: `API fulfillment failed: ${failedItems.length} items failed`,
                         });
@@ -1811,6 +1841,7 @@ export async function registerRoutes(httpServer, app) {
                     // Fulfillment failed
                     console.error("[BulkUpload] Data bundle API fulfillment failed:", fulfillmentResult.error);
                     await storage.updateTransaction(transaction.id, {
+                        status: TransactionStatus.FAILED,
                         deliveryStatus: "failed",
                         failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
                     });
@@ -1827,8 +1858,8 @@ export async function registerRoutes(httpServer, app) {
                     reference: transaction.reference,
                     amount: transaction.amount,
                     productName: transaction.productName,
-                    status: "completed",
-                    deliveryStatus: autoProcessingEnabled ? "delivered" : "pending",
+                    status: "pending", // Changed from "completed" to "pending"
+                    deliveryStatus: autoProcessingEnabled ? "processing" : "pending", // Changed from "delivered"
                 },
                 totalRows: jsonData.length,
                 processedItems: orderItems.length,
@@ -1875,6 +1906,24 @@ export async function registerRoutes(httpServer, app) {
                     });
                 }
             }
+            // Helper to enforce cooldown per beneficiary for data bundle purchases
+            const ENFORCE_COOLDOWN_MINUTES = 20;
+            const enforcePhoneCooldown = async (phone) => {
+                const lastTx = await storage.getLatestDataBundleTransactionByPhone(phone);
+                if (lastTx && lastTx.paymentStatus === "paid" && lastTx.createdAt) {
+                    const lastTime = new Date(lastTx.createdAt).getTime();
+                    const cooldownMs = ENFORCE_COOLDOWN_MINUTES * 60 * 1000;
+                    const elapsed = Date.now() - lastTime;
+                    console.log(`[Cooldown] Phone: ${phone}, Last paid TX: ${lastTx.reference}, Elapsed: ${Math.round(elapsed / 1000)}s, Cooldown: ${ENFORCE_COOLDOWN_MINUTES * 60}s`);
+                    if (elapsed < cooldownMs) {
+                        const remainingMinutes = Math.ceil((cooldownMs - elapsed) / 60000);
+                        console.log(`[Cooldown] BLOCKED: ${phone} must wait ${remainingMinutes} minute(s)`);
+                        return { blocked: true, remainingMinutes, lastReference: lastTx.reference };
+                    }
+                }
+                console.log(`[Cooldown] ALLOWED: ${phone} (no recent paid transactions)`);
+                return { blocked: false, remainingMinutes: 0 };
+            };
             // Validate email format if provided
             if (data.customerEmail) {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1887,6 +1936,7 @@ export async function registerRoutes(httpServer, app) {
             let amount;
             let costPrice;
             let agentProfit = 0;
+            let agentId;
             let network = null;
             // Handle new bulk format with orderItems
             if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
@@ -1925,6 +1975,20 @@ export async function registerRoutes(httpServer, app) {
                         error: `Duplicate phone numbers detected in bulk order: ${uniqueDuplicates.join(', ')}. Each phone number can only appear once per bulk purchase.`,
                         duplicatePhones: uniqueDuplicates
                     });
+                }
+                // Enforce 20-minute cooldown per beneficiary for bulk purchases
+                const uniquePhones = [...new Set(phoneNumbers)];
+                console.log(`[Checkout] Checking cooldown for ${uniquePhones.length} unique phones in bulk order`);
+                for (const phone of uniquePhones) {
+                    const cooldown = await enforcePhoneCooldown(phone);
+                    if (cooldown.blocked) {
+                        console.log(`[Checkout] COOLDOWN BLOCKED for ${phone}: ${cooldown.remainingMinutes} minutes remaining`);
+                        return res.status(429).json({
+                            error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${phone}.`,
+                            cooldownMinutes: cooldown.remainingMinutes,
+                            phone,
+                        });
+                    }
                 }
                 // Calculate total amount from orderItems. For agent storefronts, REQUIRE agent_sell_price per item.
                 costPrice = 0;
@@ -1981,9 +2045,21 @@ export async function registerRoutes(httpServer, app) {
                     const errorMsg = getNetworkMismatchError(normalizedPhone, product.network);
                     return res.status(400).json({ error: errorMsg });
                 }
+                // Enforce 20-minute cooldown for this beneficiary on single purchases
+                if (normalizedPhone) {
+                    console.log(`[Checkout] Checking cooldown for single purchase: ${normalizedPhone}`);
+                    const cooldown = await enforcePhoneCooldown(normalizedPhone);
+                    if (cooldown.blocked) {
+                        console.log(`[Checkout] COOLDOWN BLOCKED for ${normalizedPhone}: ${cooldown.remainingMinutes} minutes remaining`);
+                        return res.status(429).json({
+                            error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${normalizedPhone}.`,
+                            cooldownMinutes: cooldown.remainingMinutes,
+                            phone: normalizedPhone,
+                        });
+                    }
+                }
                 // Apply role-based pricing for single purchases
                 let userRole = 'guest';
-                let agentId;
                 // Check for agent storefront
                 if (data.agentSlug) {
                     const agent = await storage.getAgentBySlug(data.agentSlug);
@@ -2019,6 +2095,13 @@ export async function registerRoutes(httpServer, app) {
                                     dbUser = await storage.getUserByEmail(user.email);
                                     if (dbUser) {
                                         userRole = dbUser.role;
+                                        // Set agentId for agent users making direct purchases
+                                        if (userRole === 'agent' || userRole === 'dealer' || userRole === 'super_dealer' || userRole === 'master') {
+                                            const agent = await storage.getAgentByUserId(dbUser.id);
+                                            if (agent && agent.isApproved) {
+                                                agentId = agent.id;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -2035,6 +2118,12 @@ export async function registerRoutes(httpServer, app) {
                         }
                         else {
                             amount = parseFloat(product.adminPrice || product.basePrice || '0');
+                        }
+                        // Calculate agent profit for agent users making direct purchases
+                        if (agentId) {
+                            const adminBasePrice = await storage.getAdminBasePrice(data.productId);
+                            const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
+                            agentProfit = Math.max(0, amount - basePrice);
                         }
                     }
                     else {
@@ -2069,13 +2158,19 @@ export async function registerRoutes(httpServer, app) {
                     return res.status(404).json({ error: "No stock available" });
                 }
                 productName = `${type.toUpperCase()} ${year} Result Checker`;
-                amount = parseFloat(product.basePrice);
+                // Use amount from frontend if provided (it's already the total price)
+                if (data.amount) {
+                    amount = parseFloat(data.amount);
+                    console.log("[Checkout] Result checker - using frontend amount:", amount);
+                }
+                else {
+                    amount = parseFloat(product.basePrice);
+                }
                 costPrice = 0; // Cost price removed from schema
             }
             else {
                 return res.status(400).json({ error: "Product ID or order items required" });
             }
-            let agentId;
             if (data.agentSlug) {
                 const agent = await storage.getAgentBySlug(data.agentSlug);
                 if (agent && agent.isApproved) {
@@ -2169,12 +2264,14 @@ export async function registerRoutes(httpServer, app) {
             console.log("[Checkout] Unit cost price:", costPrice);
             console.log("[Checkout] ================================================");
             // Calculate total amount for bulk orders
-            // For orderItems format, amount is already the total
-            const totalAmount = data.orderItems ? amount : (amount * numberOfRecipients);
+            // For orderItems format or result checkers, amount is already the total
+            const isResultChecker = data.productType === ProductType.RESULT_CHECKER || data.productType === "result_checker";
+            const totalAmount = (data.orderItems || isResultChecker) ? amount : (amount * numberOfRecipients);
             const totalCostPrice = 0;
             const totalProfit = agentProfit * numberOfRecipients; // Actual profit = selling_price - base_price
             const totalAgentProfit = agentProfit * numberOfRecipients;
             console.log("[Checkout] ========== CALCULATED TOTALS ==========");
+            console.log("[Checkout] isResultChecker:", isResultChecker);
             console.log("[Checkout] Total amount (", amount, " * ", numberOfRecipients, "):", totalAmount);
             console.log("[Checkout] Total cost price:", totalCostPrice);
             console.log("[Checkout] Total profit:", totalProfit);
@@ -2254,15 +2351,27 @@ export async function registerRoutes(httpServer, app) {
                 const newBalance = newBalanceCents / 100;
                 await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
                 // Process the order immediately
-                let deliveredPin;
-                let deliveredSerial;
+                let deliveredPins = [];
                 if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
-                    const checker = await storage.getResultChecker(transaction.productId);
-                    if (checker && !checker.isSold) {
-                        await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
-                        deliveredPin = checker.pin;
-                        deliveredSerial = checker.serialNumber;
+                    const [type, yearStr] = transaction.productId.split("-");
+                    const year = parseInt(yearStr);
+                    const requestedQuantity = data.quantity || 1;
+                    // Get multiple available result checkers
+                    const availableCheckers = await storage.getAvailableResultCheckersByQuantity(type, year, requestedQuantity);
+                    if (availableCheckers.length < requestedQuantity) {
+                        return res.status(400).json({
+                            error: `Insufficient stock. Only ${availableCheckers.length} checkers available.`
+                        });
                     }
+                    // Mark all checkers as sold and collect their details
+                    for (const checker of availableCheckers) {
+                        await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+                        deliveredPins.push({
+                            pin: checker.pin,
+                            serialNumber: checker.serialNumber,
+                        });
+                    }
+                    console.log(`[Checkout] Delivered ${deliveredPins.length} result checker PINs for transaction ${transaction.id}`);
                 }
                 else if (transaction.type === ProductType.DATA_BUNDLE) {
                     // Process data bundle through API
@@ -2270,28 +2379,33 @@ export async function registerRoutes(httpServer, app) {
                     const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
                     await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
                     if (fulfillmentResult.success) {
-                        // Order was placed successfully, set to pending until SkyTech delivers
+                        // Order was placed successfully, set to processing until SkyTech delivers
                         await storage.updateTransaction(transaction.id, {
-                            status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
-                            deliveryStatus: "processing", // Changed from "pending" to "processing"
+                            status: TransactionStatus.PENDING,
+                            deliveryStatus: "processing",
                         });
                     }
                     else {
                         // Order failed to place, mark as failed
                         console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
                         await storage.updateTransaction(transaction.id, {
+                            status: TransactionStatus.FAILED,
                             deliveryStatus: "failed",
                             failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
                         });
                     }
                 }
-                // Mark transaction as completed
-                await storage.updateTransaction(transaction.id, {
-                    status: TransactionStatus.COMPLETED,
-                    completedAt: new Date(),
-                    deliveredPin,
-                    deliveredSerial,
-                });
+                // Only mark as completed for result checkers (instant delivery)
+                // For data bundles, status will be updated by SkyTech status sync cron job
+                if (transaction.type === ProductType.RESULT_CHECKER) {
+                    await storage.updateTransaction(transaction.id, {
+                        status: TransactionStatus.COMPLETED,
+                        completedAt: new Date(),
+                        paymentStatus: "paid",
+                        deliveredPin: deliveredPins.length > 0 ? deliveredPins[0].pin : undefined,
+                        deliveredSerial: deliveredPins.length > 0 ? deliveredPins[0].serialNumber : undefined,
+                    });
+                }
                 // Credit agent if applicable
                 if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
                     const agentProfitValue = parseFloat(transaction.agentProfit || "0");
@@ -2324,8 +2438,9 @@ export async function registerRoutes(httpServer, app) {
                         amount: transaction.amount,
                         productName: transaction.productName,
                         status: TransactionStatus.COMPLETED,
-                        deliveredPin,
-                        deliveredSerial,
+                        deliveredPin: deliveredPins.length > 0 ? deliveredPins[0].pin : undefined,
+                        deliveredSerial: deliveredPins.length > 0 ? deliveredPins[0].serialNumber : undefined,
+                        pinsData: deliveredPins,
                     },
                     newBalance: newBalance.toFixed(2),
                 });
@@ -2423,10 +2538,12 @@ export async function registerRoutes(httpServer, app) {
                 return res.json({
                     success: true,
                     transaction: {
+                        id: transaction.id,
                         reference: transaction.reference,
                         productName: transaction.productName,
                         amount: transaction.amount,
                         status: transaction.status,
+                        type: transaction.type,
                         deliveredPin: transaction.deliveredPin,
                         deliveredSerial: transaction.deliveredSerial,
                     },
@@ -2485,25 +2602,68 @@ export async function registerRoutes(httpServer, app) {
             console.log("[Verify] Payment successful, fulfilling order");
             let deliveredPin;
             let deliveredSerial;
+            let pinsData = [];
             if (transaction.type === ProductType.RESULT_CHECKER && transaction.productId) {
-                const checker = await storage.getResultChecker(transaction.productId);
-                if (checker && !checker.isSold) {
-                    await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
-                    deliveredPin = checker.pin;
-                    deliveredSerial = checker.serialNumber;
-                    console.log("[Verify] Result checker delivered");
+                // Get quantity from transaction metadata
+                const requestedQuantity = transaction.quantity || 1;
+                if (requestedQuantity > 1) {
+                    // Handle multiple result checkers
+                    console.log(`[Verify] Processing ${requestedQuantity} result checkers`);
+                    const [type, year] = transaction.productId.split('-');
+                    const checkers = await storage.getAvailableResultCheckersByQuantity(type, parseInt(year), requestedQuantity);
+                    if (checkers.length < requestedQuantity) {
+                        console.error(`[Verify] Not enough result checkers available. Requested: ${requestedQuantity}, Available: ${checkers.length}`);
+                        return res.status(400).json({ error: "Insufficient result checkers available" });
+                    }
+                    // Mark all checkers as sold and build pinsData array
+                    for (const checker of checkers) {
+                        await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+                        pinsData.push({
+                            pin: checker.pin,
+                            serialNumber: checker.serialNumber
+                        });
+                    }
+                    // Set first PIN for backward compatibility
+                    deliveredPin = checkers[0].pin;
+                    deliveredSerial = checkers[0].serialNumber;
+                    console.log(`[Verify] ${checkers.length} result checkers delivered`);
+                }
+                else {
+                    // Handle single result checker (backward compatibility)
+                    const checker = await storage.getResultChecker(transaction.productId);
+                    if (checker && !checker.isSold) {
+                        await storage.markResultCheckerSold(checker.id, transaction.id, transaction.customerPhone);
+                        deliveredPin = checker.pin;
+                        deliveredSerial = checker.serialNumber;
+                        pinsData.push({
+                            pin: checker.pin,
+                            serialNumber: checker.serialNumber
+                        });
+                        console.log("[Verify] Result checker delivered");
+                    }
                 }
             }
-            // Update transaction as completed
-            await storage.updateTransaction(transaction.id, {
-                status: TransactionStatus.COMPLETED,
-                paymentStatus: "paid",
-                completedAt: new Date(),
-                deliveredPin,
-                deliveredSerial,
-                paymentReference: paystackVerification.data.reference,
-            });
-            console.log("[Verify] Transaction updated to completed");
+            // Update transaction payment status and complete result checkers immediately
+            // For data bundles, status will be set after API fulfillment
+            if (transaction.type === ProductType.RESULT_CHECKER) {
+                await storage.updateTransaction(transaction.id, {
+                    status: TransactionStatus.COMPLETED,
+                    paymentStatus: "paid",
+                    completedAt: new Date(),
+                    deliveredPin,
+                    deliveredSerial,
+                    paymentReference: paystackVerification.data.reference,
+                });
+                console.log("[Verify] Result checker transaction completed");
+            }
+            else {
+                // For data bundles and other types, just mark payment as completed
+                await storage.updateTransaction(transaction.id, {
+                    paymentStatus: "paid",
+                    paymentReference: paystackVerification.data.reference,
+                });
+                console.log("[Verify] Payment marked as paid, awaiting fulfillment");
+            }
             // Credit agent if applicable and record admin revenue
             if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
                 const agentProfitValue = parseFloat(transaction.agentProfit || "0");
@@ -2592,13 +2752,17 @@ export async function registerRoutes(httpServer, app) {
                 }
             }
             console.log("[Verify] Verification complete, sending success response");
+            // Get updated transaction to return actual status
+            const updatedTransaction = await storage.getTransaction(transaction.id);
             res.json({
                 success: true,
                 transaction: {
-                    reference: transaction.reference,
-                    productName: transaction.productName,
-                    amount: transaction.amount,
-                    status: TransactionStatus.COMPLETED,
+                    id: updatedTransaction.id,
+                    reference: updatedTransaction.reference,
+                    productName: updatedTransaction.productName,
+                    amount: updatedTransaction.amount,
+                    status: updatedTransaction.status,
+                    type: updatedTransaction.type,
                     deliveredPin,
                     deliveredSerial,
                 },
@@ -4596,6 +4760,86 @@ export async function registerRoutes(httpServer, app) {
             res.status(500).json({ error: "Failed to load announcements" });
         }
     });
+    // ============================================
+    // VIDEO GUIDES ROUTES
+    // ============================================
+    // Public fetch by category (only published)
+    app.get("/api/guides", async (req, res) => {
+        try {
+            const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+            const guides = await storage.getVideoGuides({ category, publishedOnly: true });
+            res.json(guides);
+        }
+        catch (error) {
+            res.status(500).json({ error: "Failed to load guides" });
+        }
+    });
+    // Admin: list all (optionally filter)
+    app.get("/api/admin/guides", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+            const publishedOnly = req.query.publishedOnly === 'true';
+            const guides = await storage.getVideoGuides({ category, publishedOnly });
+            res.json(guides);
+        }
+        catch (error) {
+            res.status(500).json({ error: "Failed to load guides" });
+        }
+    });
+    // Admin: create guide
+    app.post("/api/admin/guides", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            console.log("Creating guide with body:", req.body);
+            const parsed = insertVideoGuideSchema.safeParse(req.body);
+            if (!parsed.success) {
+                console.error("Video guide validation error:", parsed.error.errors);
+                return res.status(400).json({ error: parsed.error.errors.map(e => e.message).join(', ') });
+            }
+            // Auto-detect provider if not provided
+            const { url } = parsed.data;
+            let provider = parsed.data.provider;
+            if (!provider) {
+                if (url.includes("youtube.com") || url.includes("youtu.be"))
+                    provider = "youtube";
+                else if (url.includes("vimeo.com"))
+                    provider = "vimeo";
+                else if (url.endsWith(".mp4"))
+                    provider = "mp4";
+                else
+                    provider = "other";
+            }
+            const created = await storage.createVideoGuide({ ...parsed.data, provider });
+            res.json(created);
+        }
+        catch (error) {
+            console.error("Create video guide error:", error);
+            res.status(500).json({ error: error?.message || "Failed to create guide" });
+        }
+    });
+    // Admin: update guide
+    app.patch("/api/admin/guides/:id", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const id = req.params.id;
+            const updated = await storage.updateVideoGuide(id, req.body || {});
+            if (!updated)
+                return res.status(404).json({ error: "Guide not found" });
+            res.json(updated);
+        }
+        catch (error) {
+            res.status(500).json({ error: "Failed to update guide" });
+        }
+    });
+    // Admin: delete guide
+    app.delete("/api/admin/guides/:id", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const id = req.params.id;
+            const success = await storage.deleteVideoGuide(id);
+            res.json({ success });
+        }
+        catch (error) {
+            res.status(500).json({ error: "Failed to delete guide" });
+        }
+    });
     // Admin - Withdrawals Management
     app.get("/api/admin/withdrawals", requireAuth, requireAdmin, async (req, res) => {
         try {
@@ -5879,7 +6123,7 @@ export async function registerRoutes(httpServer, app) {
     app.post("/api/wallet/pay", requireAuth, async (req, res) => {
         try {
             console.log("Wallet pay request body:", req.body);
-            const { productType, productId, productName, network, amount, customerPhone, phoneNumbers, isBulkOrder, agentSlug, orderItems, } = req.body;
+            const { productType, productId, productName, network, amount, customerPhone, phoneNumbers, isBulkOrder, agentSlug, quantity, orderItems, } = req.body;
             // For new bulk format, productName might be generated
             const effectiveProductName = productName || (orderItems ? `Bulk Order - ${orderItems.length} items` : null);
             if (!productType || !effectiveProductName || !amount || !customerPhone) {
@@ -6423,10 +6667,21 @@ export async function registerRoutes(httpServer, app) {
             }
             // Parse productId to get type and year
             const [type, yearStr] = transaction.productId.split("-");
+            // Fetch all result checkers for this transaction
+            const allCheckers = await storage.getResultCheckersByTransaction(transactionId);
             const year = parseInt(yearStr);
-            // Generate PDF
+            // Generate PDF with all PINs
             const { generateResultCheckerPDF } = await import('./utils/pdf-generator.js');
-            const pdfBuffer = await generateResultCheckerPDF({
+            // If multiple checkers, pass them all
+            const pdfData = allCheckers.length > 1 ? {
+                type,
+                year,
+                pins: allCheckers.map(c => ({ pin: c.pin, serialNumber: c.serialNumber })),
+                customerName: dbUser.name,
+                customerPhone: transaction.customerPhone || undefined,
+                purchaseDate: new Date(transaction.completedAt || transaction.createdAt),
+                transactionReference: transaction.reference,
+            } : {
                 type,
                 year,
                 pin: transaction.deliveredPin,
@@ -6435,7 +6690,8 @@ export async function registerRoutes(httpServer, app) {
                 customerPhone: transaction.customerPhone || undefined,
                 purchaseDate: new Date(transaction.completedAt || transaction.createdAt),
                 transactionReference: transaction.reference,
-            });
+            };
+            const pdfBuffer = await generateResultCheckerPDF(pdfData);
             // Set headers for PDF download
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename="${type.toUpperCase()}-Result-Checker-${year}-${transaction.reference}.pdf"`);
@@ -6446,6 +6702,45 @@ export async function registerRoutes(httpServer, app) {
         catch (error) {
             console.error("PDF generation error:", error);
             res.status(500).json({ error: error.message || "Failed to generate PDF" });
+        }
+    });
+    // Get all result checkers for a transaction (admin only)
+    app.get("/api/admin/result-checker/:transactionId", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const { transactionId } = req.params;
+            // Get transaction to verify it exists and is a result checker transaction
+            const transaction = await storage.getTransaction(transactionId);
+            if (!transaction) {
+                return res.status(404).json({ error: "Transaction not found" });
+            }
+            if (transaction.type !== ProductType.RESULT_CHECKER) {
+                return res.status(400).json({ error: "Not a result checker transaction" });
+            }
+            // Get all result checkers for this transaction
+            const checkers = await storage.getResultCheckersByTransaction(transactionId);
+            res.json({
+                transaction: {
+                    id: transaction.id,
+                    reference: transaction.reference,
+                    customerPhone: transaction.customerPhone,
+                    customerEmail: transaction.customerEmail,
+                    quantity: transaction.quantity || checkers.length,
+                    status: transaction.status,
+                },
+                checkers: checkers.map(checker => ({
+                    id: checker.id,
+                    pin: checker.pin,
+                    serialNumber: checker.serialNumber,
+                    type: checker.type,
+                    year: checker.year,
+                    soldAt: checker.soldAt,
+                    soldToPhone: checker.soldToPhone,
+                }))
+            });
+        }
+        catch (error) {
+            console.error("Failed to fetch result checkers:", error);
+            res.status(500).json({ error: error.message || "Failed to fetch result checkers" });
         }
     });
     // ============================================
@@ -7135,31 +7430,43 @@ export async function registerRoutes(httpServer, app) {
                     if (statusResult.success && statusResult.order) {
                         const orderData = statusResult.order;
                         console.log(`[Cron] SkyTech status for ${skytechRef}: ${orderData.status}`);
-                        // Map SkyTech status to our delivery status
+                        // Map SkyTech status to internal status (using SkyTech conventions)
+                        // SkyTech uses: Pending, Processing, Completed, Failed
+                        let newStatus = transaction.status;
                         let newDeliveryStatus = transaction.deliveryStatus;
-                        let shouldComplete = false;
-                        switch (orderData.status?.toLowerCase()) {
+                        const skytechStatus = orderData.status?.toLowerCase();
+                        console.log(`[Cron] SkyTech status for transaction ${transaction.id}: ${skytechStatus}`);
+                        switch (skytechStatus) {
                             case 'completed':
                             case 'delivered':
                             case 'success':
+                                newStatus = TransactionStatus.COMPLETED;
                                 newDeliveryStatus = 'delivered';
-                                shouldComplete = true;
                                 break;
                             case 'failed':
                             case 'error':
+                                newStatus = TransactionStatus.FAILED;
                                 newDeliveryStatus = 'failed';
                                 break;
                             case 'processing':
-                            case 'pending':
+                                // When SkyTech is processing, keep transaction status as pending (payment already completed)
+                                // but update delivery status to show processing
+                                newStatus = TransactionStatus.PENDING;
                                 newDeliveryStatus = 'processing';
+                                break;
+                            case 'pending':
+                                newStatus = TransactionStatus.PENDING;
+                                newDeliveryStatus = 'pending';
                                 break;
                             default:
                                 console.log(`[Cron] Unknown SkyTech status: ${orderData.status}`);
                                 break;
                         }
                         // Update transaction if status changed
-                        if (newDeliveryStatus !== transaction.deliveryStatus) {
+                        const statusChanged = newStatus !== transaction.status || newDeliveryStatus !== transaction.deliveryStatus;
+                        if (statusChanged) {
                             const updateData = {
+                                status: newStatus,
                                 deliveryStatus: newDeliveryStatus,
                                 apiResponse: JSON.stringify({
                                     ...JSON.parse(transaction.apiResponse || '{}'),
@@ -7167,13 +7474,13 @@ export async function registerRoutes(httpServer, app) {
                                     skytechStatus: orderData
                                 })
                             };
-                            if (shouldComplete && !transaction.completedAt) {
-                                updateData.status = TransactionStatus.COMPLETED; // Set status to completed when delivered
+                            // Set completedAt when status becomes COMPLETED
+                            if (newStatus === TransactionStatus.COMPLETED && !transaction.completedAt) {
                                 updateData.completedAt = new Date();
                             }
                             await storage.updateTransaction(transaction.id, updateData);
                             updatedCount++;
-                            console.log(`[Cron] Updated transaction ${transaction.id} status to ${shouldComplete ? 'completed' : 'pending'}, delivery status to ${newDeliveryStatus}`);
+                            console.log(`[Cron] Updated transaction ${transaction.id} - status: ${newStatus}, delivery: ${newDeliveryStatus} (from SkyTech: ${orderData.status})`);
                         }
                     }
                     else {

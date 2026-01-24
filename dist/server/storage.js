@@ -1,7 +1,8 @@
 import { eq, and, desc, sql, gte, lte, or, max, count, inArray, lt, isNotNull, ne } from "drizzle-orm";
 import { db } from "./db.js";
 import { randomUUID } from "crypto";
-import { users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings, supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions, profitWallets, profitTransactions, externalApiProviders } from "../shared/schema.js";
+import { normalizePhoneNumber } from "./utils/network-validator.js";
+import { users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings, supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions, profitWallets, profitTransactions, externalApiProviders, videoGuides, ProductType } from "../shared/schema.js";
 export class DatabaseStorage {
     // ============================================
     // USERS
@@ -195,6 +196,17 @@ export class DatabaseStorage {
             .limit(1);
         return checker;
     }
+    async getAvailableResultCheckersByQuantity(type, year, quantity) {
+        const checkers = await db.select().from(resultCheckers)
+            .where(and(eq(resultCheckers.type, type), eq(resultCheckers.year, year), eq(resultCheckers.isSold, false)))
+            .limit(quantity);
+        return checkers;
+    }
+    async getResultCheckersByTransaction(transactionId) {
+        const checkers = await db.select().from(resultCheckers)
+            .where(eq(resultCheckers.transactionId, transactionId));
+        return checkers;
+    }
     async getResultCheckerStock(type, year) {
         const result = await db.select({ count: count() })
             .from(resultCheckers)
@@ -277,6 +289,34 @@ export class DatabaseStorage {
         if (!transaction) {
             const allTransactions = await db.select().from(transactions).where(sql `${transactions.phoneNumbers} LIKE ${'%' + phone + '%'}`).orderBy(desc(transactions.createdAt)).limit(1);
             transaction = allTransactions[0];
+        }
+        return transaction;
+    }
+    async getLatestDataBundleTransactionByPhone(phone) {
+        const normalized = normalizePhoneNumber(phone);
+        console.log(`[Cooldown Query] Looking for paid data bundle transactions for phone: ${normalized}`);
+        let [transaction] = await db.select()
+            .from(transactions)
+            .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), eq(transactions.customerPhone, normalized), eq(transactions.paymentStatus, "paid")))
+            .orderBy(desc(transactions.createdAt))
+            .limit(1);
+        if (transaction) {
+            console.log(`[Cooldown Query] Found paid transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus}, createdAt: ${transaction.createdAt})`);
+            return transaction;
+        }
+        console.log(`[Cooldown Query] No direct phone match, checking bulk orders...`);
+        const likePattern = `%${normalized}%`;
+        const matches = await db.select()
+            .from(transactions)
+            .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), sql `${transactions.phoneNumbers} LIKE ${likePattern}`, eq(transactions.paymentStatus, "paid")))
+            .orderBy(desc(transactions.createdAt))
+            .limit(1);
+        transaction = matches[0];
+        if (transaction) {
+            console.log(`[Cooldown Query] Found paid bulk transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus})`);
+        }
+        else {
+            console.log(`[Cooldown Query] No paid transactions found for ${normalized}`);
         }
         return transaction;
     }
@@ -1103,6 +1143,43 @@ export class DatabaseStorage {
     }
     async deleteAnnouncement(id) {
         const result = await db.delete(announcements).where(eq(announcements.id, id));
+        return (result.rowCount ?? 0) > 0;
+    }
+    // ============================================
+    // VIDEO GUIDES
+    // ============================================
+    async getVideoGuides(filters) {
+        let query = db.select().from(videoGuides);
+        const conditions = [];
+        if (filters?.category)
+            conditions.push(eq(videoGuides.category, filters.category));
+        if (filters?.publishedOnly)
+            conditions.push(eq(videoGuides.isPublished, true));
+        if (conditions.length > 0) {
+            query = query.where(and(...conditions));
+        }
+        return query.orderBy(desc(videoGuides.createdAt));
+    }
+    async getVideoGuide(id) {
+        const result = await db.select().from(videoGuides).where(eq(videoGuides.id, id)).limit(1);
+        return result[0];
+    }
+    async createVideoGuide(guide) {
+        const [created] = await db.insert(videoGuides).values({
+            id: randomUUID(),
+            ...guide,
+        }).returning();
+        return created;
+    }
+    async updateVideoGuide(id, data) {
+        const [updated] = await db.update(videoGuides)
+            .set({ ...data, updatedAt: new Date() })
+            .where(eq(videoGuides.id, id))
+            .returning();
+        return updated;
+    }
+    async deleteVideoGuide(id) {
+        const result = await db.delete(videoGuides).where(eq(videoGuides.id, id));
         return (result.rowCount ?? 0) > 0;
     }
     // ============================================

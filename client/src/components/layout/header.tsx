@@ -18,6 +18,7 @@ import logoLight from "@assets/logo_1765774201026.png";
 import logoDark from "@assets/darkmode-icon.png";
 import { getAgentId } from "@/lib/store-context";
 import { useState } from "react";
+import { WatchHowToPurchase } from "@/components/watch-how-to-purchase";
 
 export function Header() {
   const { user, isAuthenticated, logout, isLoggingOut, isLoading } = useAuth();
@@ -98,6 +99,12 @@ export function Header() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-3">
+            {/* Desktop-only watch button on homepage */}
+            {location === "/" && (
+              <div className="hidden md:flex">
+                <WatchHowToPurchase triggerVariant="outline" triggerSize="sm" />
+              </div>
+            )}
             <ThemeToggle />
 
             {/* Mobile menu */}
@@ -160,57 +167,57 @@ export function Header() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    className="relative h-9 w-9 rounded-full hover:bg-accent transition-colors"
+                    className="relative h-9 w-9 rounded-full bg-yellow-500 hover:bg-yellow-600 transition-colors"
                     aria-label="User menu"
                   >
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
+                      <AvatarFallback className="bg-yellow-500 text-white text-sm font-medium">
                         {getInitials(user.name)}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 bg-white">
-                  <div className="flex items-center gap-3 p-3 border-b">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary text-primary-foreground">
+                <DropdownMenuContent align="end" className="w-64 bg-yellow-500">
+                  <div className="flex items-center gap-3 p-3 border-b border-yellow-600">
+                    <Avatar className="h-10 w-10 flex-shrink-0">
+                      <AvatarFallback className="bg-yellow-600 text-white">
                         {getInitials(user.name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{user.name || "User"}</span>
-                        <span className="text-xs text-muted-foreground">({user.email})</span>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-sm text-black truncate">{user.name || "User"}</span>
+                        <span className="text-xs text-black/70 truncate">{user.email}</span>
                       </div>
-                      <span className="text-xs text-primary capitalize">{user.role}</span>
+                      <span className="text-xs text-black/80 capitalize font-medium mt-1">{user.role}</span>
                     </div>
                   </div>
 
                   <DropdownMenuItem asChild>
-                    <Link href={getDashboardLink()} className="flex items-center gap-2 cursor-pointer">
-                      <LayoutDashboard className="w-4 h-4" />
-                      Dashboard
+                    <Link href={getDashboardLink()} className="flex items-center gap-2 cursor-pointer text-black hover:bg-yellow-600 focus:bg-yellow-600 focus:text-black">
+                      <LayoutDashboard className="w-4 h-4 flex-shrink-0" />
+                      <span>Dashboard</span>
                     </Link>
                   </DropdownMenuItem>
 
                   {user.role === "agent" && (
                     <DropdownMenuItem asChild>
-                      <Link href="/agent/storefront" className="flex items-center gap-2 cursor-pointer">
-                        <Store className="w-4 h-4" />
-                        My Store
+                      <Link href="/agent/storefront" className="flex items-center gap-2 cursor-pointer text-black hover:bg-yellow-600 focus:bg-yellow-600 focus:text-black">
+                        <Store className="w-4 h-4 flex-shrink-0" />
+                        <span>My Store</span>
                       </Link>
                     </DropdownMenuItem>
                   )}
 
-                  <DropdownMenuSeparator />
+                  <DropdownMenuSeparator className="bg-yellow-600" />
 
                   <DropdownMenuItem
                     onClick={logout}
                     disabled={isLoggingOut}
-                    className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
+                    className="flex items-center gap-2 cursor-pointer text-black hover:bg-yellow-600 focus:bg-yellow-600 focus:text-black"
                   >
-                    <LogOut className="w-4 h-4" />
-                    {isLoggingOut ? "Signing out..." : "Sign out"}
+                    <LogOut className="w-4 h-4 flex-shrink-0" />
+                    <span>{isLoggingOut ? "Signing out..." : "Sign out"}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

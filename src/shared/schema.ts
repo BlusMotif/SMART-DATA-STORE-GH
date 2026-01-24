@@ -440,6 +440,24 @@ export const settings = pgTable("settings", {
 });
 
 // ============================================
+// VIDEO GUIDES TABLE
+// ============================================
+export const videoGuides = pgTable("video_guides", {
+  id: text("id").primaryKey().$defaultFn(() => randomUUID()),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // guest | customer | agent
+  url: text("url").notNull(),
+  provider: text("provider"), // youtube | vimeo | mp4 | other
+  isPublished: boolean("is_published").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  categoryIdx: index("video_guides_category_idx").on(table.category),
+  publishedIdx: index("video_guides_published_idx").on(table.isPublished),
+}));
+
+// ============================================
 // EXTERNAL API PROVIDERS TABLE
 // ============================================
 export const externalApiProviders = pgTable("external_api_providers", {
@@ -796,6 +814,15 @@ export const insertSettingsSchema = z.object({
   description: z.string().optional(),
 });
 
+export const insertVideoGuideSchema = z.object({
+  title: z.string(),
+  description: z.string().optional(),
+  category: z.enum(["guest", "customer", "agent"]),
+  url: z.string(),
+  provider: z.enum(["youtube", "vimeo", "mp4", "other"]).optional(),
+  isPublished: z.boolean().optional(),
+});
+
 export const insertExternalApiProviderSchema = z.object({
   name: z.string(),
   provider: z.string(),
@@ -876,6 +903,9 @@ export type Announcement = typeof announcements.$inferSelect;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
 
+export type InsertVideoGuide = z.infer<typeof insertVideoGuideSchema>;
+export type VideoGuide = typeof videoGuides.$inferSelect;
+
 export type InsertExternalApiProvider = z.infer<typeof insertExternalApiProviderSchema>;
 export type UpdateExternalApiProvider = z.infer<typeof updateExternalApiProviderSchema>;
 export type ExternalApiProvider = typeof externalApiProviders.$inferSelect;
@@ -931,6 +961,7 @@ export const purchaseSchema = z.object({
     price: z.number(),
   })).optional(),
   totalAmount: z.number().optional(),
+  quantity: z.number().optional(),
 }).refine((data) => {
   // customerPhone is required for data_bundle, optional for result_checker
   if (data.productType === "data_bundle" && (!data.customerPhone || (typeof data.customerPhone === 'string' && data.customerPhone.length < 10))) {

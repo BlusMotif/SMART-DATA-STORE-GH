@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown } from "lucide-react";
+import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
@@ -56,6 +56,8 @@ export default function AdminTransactions() {
   const [exportPaymentStatus, setExportPaymentStatus] = useState<string>("all");
   const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [expandedResultCheckers, setExpandedResultCheckers] = useState<Set<string>>(new Set());
+  const [resultCheckersData, setResultCheckersData] = useState<Record<string, any>>({});
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
@@ -78,6 +80,37 @@ export default function AdminTransactions() {
       toast({ title: "Failed to update delivery status", description: error?.message || 'Unknown error', variant: "destructive" });
     },
   });
+
+  // Toggle result checker expansion and fetch data if needed
+  const toggleResultCheckerExpand = async (transactionId: string) => {
+    const newExpanded = new Set(expandedResultCheckers);
+
+    if (newExpanded.has(transactionId)) {
+      newExpanded.delete(transactionId);
+    } else {
+      newExpanded.add(transactionId);
+
+      // Fetch result checker data if not already loaded
+      if (!resultCheckersData[transactionId]) {
+        try {
+          const data = await apiRequest("GET", `/api/admin/result-checker/${transactionId}`);
+          setResultCheckersData(prev => ({
+            ...prev,
+            [transactionId]: data
+          }));
+        } catch (error: any) {
+          toast({ 
+            title: "Failed to fetch result checker details", 
+            description: error?.message || 'Unknown error', 
+            variant: "destructive" 
+          });
+          return; // Don't expand if fetch failed
+        }
+      }
+    }
+
+    setExpandedResultCheckers(newExpanded);
+  };
 
   // Export transactions mutation
   const exportTransactionsMutation = useMutation({
@@ -410,7 +443,14 @@ export default function AdminTransactions() {
                               }
                             }
                           }
+                          
+                          const isResultChecker = tx.type === "result_checker";
+                          const isExpanded = expandedResultCheckers.has(tx.id);
+                          const checkerData = resultCheckersData[tx.id];
+                          const quantity = (tx as any).quantity || 1;
+                          
                           return (
+                            <>
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-xs md:text-sm">{tx.reference}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
@@ -419,10 +459,10 @@ export default function AdminTransactions() {
                                   <Badge variant="outline" className="text-xs px-1 py-0">
                                     {tx.type === "data_bundle" ? "Data" : "Result"}
                                   </Badge>
-                                  {isBulkOrder && (
+                                  {(isBulkOrder || (isResultChecker && quantity > 1)) && (
                                     <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1">
                                       <Layers className="h-2.5 w-2.5" />
-                                      {phoneNumbers?.length || 0}
+                                      {phoneNumbers?.length || quantity}
                                     </Badge>
                                   )}
                                 </div>
@@ -444,9 +484,9 @@ export default function AdminTransactions() {
                               </TableCell>
                               <TableCell className="font-medium tabular-nums text-xs md:text-sm">
                                 <div>{formatCurrency(tx.amount)}</div>
-                                {isBulkOrder && phoneNumbers && (
+                                {((isBulkOrder && phoneNumbers) || (isResultChecker && quantity > 1)) && (
                                   <div className="text-xs text-muted-foreground">
-                                    {formatCurrency(parseFloat(tx.amount) / phoneNumbers.length)} each
+                                    {formatCurrency(parseFloat(tx.amount) / (phoneNumbers?.length || quantity))} each
                                   </div>
                                 )}
                               </TableCell>
@@ -533,17 +573,79 @@ export default function AdminTransactions() {
                                 {formatDate(tx.createdAt)}
                               </TableCell>
                               <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
-                                  disabled={editingDeliveryStatus === tx.id}
-                                  className="h-6 w-6 p-0"
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
+                                <div className="flex gap-1">
+                                  {isResultChecker && quantity > 1 && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => toggleResultCheckerExpand(tx.id)}
+                                      className="h-6 w-6 p-0"
+                                      title={isExpanded ? "Collapse PINs" : "View all PINs"}
+                                    >
+                                      <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
+                                    disabled={editingDeliveryStatus === tx.id}
+                                    className="h-6 w-6 p-0"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
+
+                            {/* Expanded row for result checker details */}
+                            {isResultChecker && isExpanded && checkerData && (
+                              <TableRow key={`${tx.id}-expanded`}>
+                                <TableCell colSpan={11} className="bg-muted/30 p-4">
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-sm font-semibold">Result Checker PINs ({checkerData.checkers?.length || 0})</h4>
+                                      <div className="text-xs text-muted-foreground">
+                                        Customer: {checkerData.transaction?.customerPhone || 'N/A'}
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {checkerData.checkers?.map((checker: any, index: number) => (
+                                        <div 
+                                          key={checker.id} 
+                                          className="p-3 rounded-lg border bg-card text-card-foreground"
+                                        >
+                                          <div className="flex items-center justify-between mb-2">
+                                            <Badge variant="outline" className="text-xs">
+                                              PIN #{index + 1}
+                                            </Badge>
+                                            <span className="text-xs text-muted-foreground">
+                                              {checker.type.toUpperCase()} {checker.year}
+                                            </span>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="flex flex-col">
+                                              <span className="text-xs text-muted-foreground">Serial Number:</span>
+                                              <span className="font-mono text-sm font-medium">{checker.serialNumber}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                              <span className="text-xs text-muted-foreground">PIN:</span>
+                                              <span className="font-mono text-sm font-medium">{checker.pin}</span>
+                                            </div>
+                                            {checker.soldAt && (
+                                              <div className="text-xs text-muted-foreground mt-2">
+                                                Sold: {formatDate(checker.soldAt)}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            </>
                           );
                         })}
                       </TableBody>

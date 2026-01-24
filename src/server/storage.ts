@@ -1,10 +1,12 @@
 import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt, isNotNull, ne, isNull } from "drizzle-orm";
 import { db } from "./db.js";
 import { randomUUID } from "crypto";
+import { normalizePhoneNumber } from "./utils/network-validator.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
-  profitWallets, profitTransactions, externalApiProviders,
+  profitWallets, profitTransactions, externalApiProviders, videoGuides,
+  ProductType,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -15,7 +17,8 @@ import {
   type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction,
   type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction,
-  type Settings, type ExternalApiProvider, type InsertExternalApiProvider, type UpdateExternalApiProvider
+  type Settings, type ExternalApiProvider, type InsertExternalApiProvider, type UpdateExternalApiProvider,
+  type InsertVideoGuide, type VideoGuide
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -49,6 +52,8 @@ export interface IStorage {
   // Result Checkers
   getResultChecker(id: string): Promise<ResultChecker | undefined>;
   getAvailableResultChecker(type: string, year: number): Promise<ResultChecker | undefined>;
+  getAvailableResultCheckersByQuantity(type: string, year: number, quantity: number): Promise<ResultChecker[]>;
+    getResultCheckersByTransaction(transactionId: string): Promise<ResultChecker[]>;
   getResultCheckerStock(type: string, year: number): Promise<number>;
   getResultCheckers(filters?: { type?: string; year?: number; isSold?: boolean }): Promise<ResultChecker[]>;
   getResultCheckerSummary(): Promise<{ type: string; year: number; total: number; available: number; sold: number }[]>;
@@ -62,6 +67,7 @@ export interface IStorage {
   getTransaction(id: string): Promise<Transaction | undefined>;
   getTransactionByReference(reference: string): Promise<Transaction | undefined>;
   getTransactionByBeneficiaryPhone(phone: string): Promise<Transaction | undefined>;
+  getLatestDataBundleTransactionByPhone(phone: string): Promise<Transaction | undefined>;
   getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
@@ -196,6 +202,13 @@ export interface IStorage {
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string, description?: string): Promise<void>;
   getAllSettings(): Promise<Array<{ key: string; value: string; description?: string }>>;
+
+  // Video Guides
+  getVideoGuides(filters?: { category?: string; publishedOnly?: boolean }): Promise<VideoGuide[]>;
+  getVideoGuide(id: string): Promise<VideoGuide | undefined>;
+  createVideoGuide(guide: InsertVideoGuide): Promise<VideoGuide>;
+  updateVideoGuide(id: string, data: Partial<InsertVideoGuide>): Promise<VideoGuide | undefined>;
+  deleteVideoGuide(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -422,6 +435,23 @@ export class DatabaseStorage implements IStorage {
     return checker;
   }
 
+  async getAvailableResultCheckersByQuantity(type: string, year: number, quantity: number): Promise<ResultChecker[]> {
+    const checkers = await db.select().from(resultCheckers)
+      .where(and(
+        eq(resultCheckers.type, type),
+        eq(resultCheckers.year, year),
+        eq(resultCheckers.isSold, false)
+      ))
+      .limit(quantity);
+    return checkers;
+  }
+
+  async getResultCheckersByTransaction(transactionId: string): Promise<ResultChecker[]> {
+    const checkers = await db.select().from(resultCheckers)
+      .where(eq(resultCheckers.transactionId, transactionId));
+    return checkers;
+  }
+
   async getResultCheckerStock(type: string, year: number): Promise<number> {
     const result = await db.select({ count: count() })
       .from(resultCheckers)
@@ -519,6 +549,47 @@ export class DatabaseStorage implements IStorage {
     if (!transaction) {
       const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers} LIKE ${'%' + phone + '%'}`).orderBy(desc(transactions.createdAt)).limit(1);
       transaction = allTransactions[0];
+    }
+
+    return transaction;
+  }
+
+  async getLatestDataBundleTransactionByPhone(phone: string): Promise<Transaction | undefined> {
+    const normalized = normalizePhoneNumber(phone);
+    console.log(`[Cooldown Query] Looking for paid data bundle transactions for phone: ${normalized}`);
+    
+    let [transaction] = await db.select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, ProductType.DATA_BUNDLE),
+        eq(transactions.customerPhone, normalized),
+        eq(transactions.paymentStatus, "paid")
+      ))
+      .orderBy(desc(transactions.createdAt))
+      .limit(1);
+
+    if (transaction) {
+      console.log(`[Cooldown Query] Found paid transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus}, createdAt: ${transaction.createdAt})`);
+      return transaction;
+    }
+
+    console.log(`[Cooldown Query] No direct phone match, checking bulk orders...`);
+    const likePattern = `%${normalized}%`;
+    const matches = await db.select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, ProductType.DATA_BUNDLE),
+        sql`${transactions.phoneNumbers} LIKE ${likePattern}`,
+        eq(transactions.paymentStatus, "paid")
+      ))
+      .orderBy(desc(transactions.createdAt))
+      .limit(1);
+    transaction = matches[0];
+
+    if (transaction) {
+      console.log(`[Cooldown Query] Found paid bulk transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus})`);
+    } else {
+      console.log(`[Cooldown Query] No paid transactions found for ${normalized}`);
     }
 
     return transaction;
@@ -1527,6 +1598,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============================================
+  // VIDEO GUIDES
+  // ============================================
+  async getVideoGuides(filters?: { category?: string; publishedOnly?: boolean }): Promise<VideoGuide[]> {
+    let query = db.select().from(videoGuides);
+    const conditions = [] as any[];
+    if (filters?.category) conditions.push(eq(videoGuides.category, filters.category));
+    if (filters?.publishedOnly) conditions.push(eq(videoGuides.isPublished, true));
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    return query.orderBy(desc(videoGuides.createdAt));
+  }
+
+  async getVideoGuide(id: string): Promise<VideoGuide | undefined> {
+    const result = await db.select().from(videoGuides).where(eq(videoGuides.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createVideoGuide(guide: InsertVideoGuide): Promise<VideoGuide> {
+    const [created] = await db.insert(videoGuides).values({
+      id: randomUUID(),
+      ...guide,
+    }).returning();
+    return created;
+  }
+
+  async updateVideoGuide(id: string, data: Partial<InsertVideoGuide>): Promise<VideoGuide | undefined> {
+    const [updated] = await db.update(videoGuides)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(videoGuides.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteVideoGuide(id: string): Promise<boolean> {
+    const result = await db.delete(videoGuides).where(eq(videoGuides.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
   // API KEYS
   // ============================================
   async getApiKeys(userId: string): Promise<ApiKey[]> {
@@ -1540,7 +1651,6 @@ export class DatabaseStorage implements IStorage {
 
   async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
     const result = await db.insert(apiKeys).values({
-      
       ...apiKey,
     }).returning();
     return result[0];
@@ -1735,3 +1845,4 @@ export class DatabaseStorage implements IStorage {
 
 
 export const storage = new DatabaseStorage();
+

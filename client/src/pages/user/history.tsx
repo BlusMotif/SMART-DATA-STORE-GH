@@ -15,7 +15,10 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useToast } from "@/hooks/use-toast";
 
 const getStatusConfig = (status: string) => {
-  switch (status.toLowerCase()) {
+  // Normalize status to match SkyTech conventions
+  const normalizedStatus = status.toLowerCase();
+  
+  switch (normalizedStatus) {
     case 'completed':
     case 'delivered':
       return {
@@ -25,6 +28,15 @@ const getStatusConfig = (status: string) => {
         bgColor: 'bg-emerald-600',
         borderColor: 'border-emerald-500',
         label: 'Completed'
+      };
+    case 'processing':
+      return {
+        variant: 'secondary' as const,
+        icon: Layers,
+        color: 'text-white',
+        bgColor: 'bg-blue-500',
+        borderColor: 'border-blue-400',
+        label: 'Processing'
       };
     case 'pending':
       return {
@@ -52,7 +64,7 @@ const getStatusConfig = (status: string) => {
         color: 'text-white',
         bgColor: 'bg-slate-600',
         borderColor: 'border-slate-500',
-        label: status
+        label: status.charAt(0).toUpperCase() + status.slice(1)
       };
   }
 };
@@ -147,6 +159,7 @@ export default function UserHistoryPage() {
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="processing">Processing</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="failed">Failed</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>

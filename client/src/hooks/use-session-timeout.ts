@@ -39,8 +39,15 @@ export function useSessionTimeout() {
 
     // Set logout timer
     timeoutRef.current = window.setTimeout(async () => {
-      // Silent logout after inactivity
-      await logout();
+      try {
+        console.log('Session timeout: Logging out user due to inactivity');
+        // Silent logout after inactivity
+        await logout();
+      } catch (error) {
+        console.error('Session timeout logout error:', error);
+        // Force redirect even if logout fails
+        window.location.href = '/login';
+      }
     }, INACTIVITY_TIMEOUT);
   }, [user, logout, toast]);
 

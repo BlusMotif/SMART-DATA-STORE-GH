@@ -197,9 +197,9 @@ export default function AdminResultCheckers() {
                   Bulk Add
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-lg bg-black">
                 <DialogHeader>
-                  <DialogTitle>Bulk Add Result Checkers</DialogTitle>
+                  <DialogTitle className="text-white">Bulk Add Result Checkers</DialogTitle>
                 </DialogHeader>
                 <BulkAddForm
                   onSubmit={(data) => bulkAddMutation.mutate(data)}
@@ -444,7 +444,7 @@ function BulkAddForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Type</Label>
+          <Label className="text-white">Type</Label>
           <Select
             value={formData.type}
             onValueChange={(value) => setFormData({ ...formData, type: value })}
@@ -462,7 +462,7 @@ function BulkAddForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Year</Label>
+          <Label className="text-white">Year</Label>
           <Select
             value={formData.year}
             onValueChange={(value) => setFormData({ ...formData, year: value })}
@@ -483,7 +483,7 @@ function BulkAddForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="costPrice">Cost Price (GHS)</Label>
+          <Label htmlFor="costPrice" className="text-white">Cost Price (GHS)</Label>
           <Input
             id="costPrice"
             type="number"
@@ -496,7 +496,7 @@ function BulkAddForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="basePrice">Selling Price (GHS)</Label>
+          <Label htmlFor="basePrice" className="text-white">Selling Price (GHS)</Label>
           <Input
             id="basePrice"
             type="number"
@@ -511,7 +511,7 @@ function BulkAddForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="checkers">PIN/Serial Pairs</Label>
+        <Label htmlFor="checkers" className="text-white">PIN/Serial Pairs</Label>
         <Textarea
           id="checkers"
           value={formData.checkers}
@@ -522,13 +522,13 @@ function BulkAddForm({
           disabled={!!uploadedFile}
           data-testid="input-checker-pairs"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-300">
           Format: SERIAL,PIN (one per line) - OR upload a CSV file below
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="file">Upload CSV File (Optional)</Label>
+        <Label htmlFor="file" className="text-white">Upload CSV File (Optional)</Label>
         <Input
           id="file"
           type="file"
@@ -536,11 +536,11 @@ function BulkAddForm({
           onChange={handleFileChange}
           data-testid="input-checker-file"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-300">
           CSV format: SERIAL,PIN (one pair per line, no headers)
         </p>
         {uploadedFile && (
-          <p className="text-sm text-green-600">
+          <p className="text-sm text-green-400">
             File selected: {uploadedFile.name}
           </p>
         )}

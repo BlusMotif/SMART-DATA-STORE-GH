@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Code,
   Trophy,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,11 @@ const sidebarNavItems = [
     title: "Announcements",
     href: "/admin/announcements",
     icon: Bell,
+  },
+  {
+    title: "Video Guides",
+    href: "/admin/guides",
+    icon: Video,
   },
   {
     title: "External API Providers",

@@ -28,6 +28,7 @@ import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
 import { OrderTracker } from "@/components/order-tracker";
+import { WatchHowToPurchase } from "@/components/watch-how-to-purchase";
 
 
 const bannerImages = [banner1, banner2, banner3];
@@ -188,6 +189,15 @@ export default function HomePage() {
           background="gradient"
           size="lg"
         />
+
+        {/* Mobile-only watch button under hero */}
+        <section className="md:hidden py-4">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-sm mx-auto w-full">
+              <WatchHowToPurchase triggerVariant="default" triggerSize="sm" className="w-full" />
+            </div>
+          </div>
+        </section>
 
         {/* Product Categories Section */}
         <section id="products" className="py-20">

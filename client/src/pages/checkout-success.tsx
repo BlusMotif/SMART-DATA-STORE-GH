@@ -10,7 +10,6 @@ import { formatCurrency, formatDate } from "@/lib/constants";
 import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Phone as PhoneIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/api";
 import type { Transaction } from "@shared/schema";
 
 export default function CheckoutSuccessPage() {
@@ -31,8 +30,9 @@ export default function CheckoutSuccessPage() {
 
   const [verificationComplete, setVerificationComplete] = useState(false);
   const [paymentFailed, setPaymentFailed] = useState(paystackStatus === "failed" || paystackStatus === "cancelled");
+  const [autoDownloadTriggered, setAutoDownloadTriggered] = useState(false);
 
-  const { data: verifyResult, isLoading, error } = useQuery<{ success: boolean; transaction: Transaction }>({
+  const { data: verifyResult } = useQuery<{ success: boolean; transaction: Transaction }>({
     queryKey: [`/api/transactions/verify/${reference || paystackReference}`],
     queryFn: async () => {
       const response = await fetch(`/api/transactions/verify/${reference || paystackReference}`, {
@@ -68,6 +68,54 @@ export default function CheckoutSuccessPage() {
   }, [verifyResult]);
 
   const transaction = verifyResult?.transaction;
+
+  // Auto-download result checker PDF when verification completes
+  useEffect(() => {
+    console.log("=== Auto-download effect triggered ===");
+    console.log("hasTransaction:", !!transaction);
+    console.log("verificationComplete:", verificationComplete);
+    console.log("authLoading:", authLoading);
+    console.log("hasUser:", !!user);
+    console.log("transactionType:", transaction?.type);
+    console.log("transactionId:", transaction?.id);
+    console.log("autoDownloadTriggered:", autoDownloadTriggered);
+
+    if (
+      transaction &&
+      verificationComplete &&
+      !authLoading &&
+      user &&
+      transaction.type === "result_checker" &&
+      transaction.id &&
+      !autoDownloadTriggered
+    ) {
+      console.log("✅ All conditions met! Triggering auto-download for result checker");
+      setAutoDownloadTriggered(true);
+      
+      // Auto-download after a brief delay for better UX
+      const timer = setTimeout(() => {
+        try {
+          const link = document.createElement('a');
+          link.href = `/api/result-checker/${transaction.id}/pdf`;
+          link.download = `${transaction.productName.replace(/\s+/g, '-')}-${transaction.reference}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          toast({
+            title: "Download Started",
+            description: "Your result checker credentials are downloading",
+          });
+          
+          console.log("📥 Auto-download triggered successfully");
+        } catch (error) {
+          console.error("Auto-download failed:", error);
+        }
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [transaction, verificationComplete, authLoading, user, autoDownloadTriggered, toast]);
 
   // Show loading while authentication is being restored
   if (authLoading) {
@@ -179,7 +227,21 @@ export default function CheckoutSuccessPage() {
     },
   };
 
-  const status = (transaction?.status as keyof typeof statusConfig) || (paystackStatus === "success" ? "completed" : "pending");
+  // Determine effective status based on transaction type
+  let effectiveStatus: keyof typeof statusConfig;
+  
+  if (transaction?.type === "data_bundle" && transaction?.paymentStatus === "paid") {
+    // Data bundles: show success when payment is confirmed even if delivery is pending
+    effectiveStatus = "completed";
+  } else if (transaction?.type === "result_checker" && transaction?.paymentStatus === "paid") {
+    // Result checkers: show success when payment is confirmed and item is marked as completed
+    effectiveStatus = transaction.status === "completed" ? "completed" : "pending";
+  } else {
+    // Default: use actual transaction status
+    effectiveStatus = (transaction?.status as keyof typeof statusConfig) || (paystackStatus === "success" ? "completed" : "pending");
+  }
+  
+  const status = effectiveStatus;
   const config = statusConfig[status];
   const StatusIcon = config.icon;
 
@@ -282,7 +344,7 @@ export default function CheckoutSuccessPage() {
                     </div>
                   )}
 
-                  {status === "completed" && transaction.type === "result_checker" && (
+                  {transaction.status === "completed" && transaction.type === "result_checker" && (
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                       <h4 className="font-semibold text-green-800 dark:text-green-300 mb-3">Download Your Result Checker</h4>
                       <p className="text-sm text-green-700 dark:text-green-400 mb-3">
@@ -310,9 +372,22 @@ export default function CheckoutSuccessPage() {
 
                   {status === "completed" && transaction.type === "data_bundle" && (
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                      <h4 className="font-semibold text-green-800 dark:text-green-300 mb-2 flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        Order Placed Successfully
+                      </h4>
                       <p className="text-sm text-green-700 dark:text-green-400">
-                        Your data bundle has been delivered to <strong>{transaction.customerPhone}</strong>. 
-                        You should receive an SMS confirmation shortly.
+                        Your data bundle order for <strong>{transaction.customerPhone}</strong> has been placed with our provider.
+                        {transaction.deliveryStatus === "processing" && (
+                          <span className="block mt-1">
+                            ⏳ Delivery in progress - you will receive an SMS confirmation shortly.
+                          </span>
+                        )}
+                        {transaction.deliveryStatus === "delivered" && (
+                          <span className="block mt-1">
+                            ✓ Delivered! Check your phone for confirmation.
+                          </span>
+                        )}
                       </p>
                     </div>
                   )}

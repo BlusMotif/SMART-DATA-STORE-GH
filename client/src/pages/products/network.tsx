@@ -3,7 +3,7 @@ import { getAgentId } from "@/lib/store-context";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -149,6 +149,9 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   const [bulkPhones, setBulkPhones] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
 
+  const [isProcessing, setIsProcessing] = useState(false);
+  const isSubmittingRef = useRef(false);
+
   // Disable bulk orders for AT Ishare network
   useEffect(() => {
     if (network === "at_ishare" && orderType === "bulk") {
@@ -231,6 +234,10 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   });
 
   const handleSingle = async () => {
+    if (isSubmittingRef.current) return; // Prevent double submission
+    isSubmittingRef.current = true;
+    setIsProcessing(true);
+
     if (!selectedBundle) { toast({ title: 'No bundle selected', variant: 'destructive' }); return; }
     const normalized = normalizePhoneNumber(phone.trim());
     if (!normalized) { toast({ title: 'Invalid phone', variant: 'destructive' }); return; }
@@ -270,6 +277,8 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
       checkoutMutation.mutate(payload, {
         onSuccess: (data) => {
+          isSubmittingRef.current = false; // Reset submission guard
+          setIsProcessing(false); // Reset processing state
           if (paymentMethod === "wallet") {
             toast({
               title: "✅ Payment Successful!",
@@ -280,7 +289,11 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
             if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
           }
         },
-        onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
+        onError: (err: any) => {
+          isSubmittingRef.current = false; // Reset submission guard
+          setIsProcessing(false); // Reset processing state
+          toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
+        }
       });
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to fetch bundle details', variant: 'destructive' });
@@ -288,6 +301,10 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
   };
 
   const handleBulk = () => {
+    if (isSubmittingRef.current) return; // Prevent double submission
+    isSubmittingRef.current = true;
+    setIsProcessing(true);
+
     if (!bulkPhones.trim()) { toast({ title: 'Missing Information', description: 'Enter phone numbers with GB amounts', variant: 'destructive' }); return; }
     if (!sortedBundles) { toast({ title: 'No bundles', variant: 'destructive' }); return; }
 
@@ -342,9 +359,15 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
 
     checkoutMutation.mutate(payload, {
       onSuccess: (data) => {
+        isSubmittingRef.current = false; // Reset submission guard
+        setIsProcessing(false); // Reset processing state
         if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
       },
-      onError: (err: any) => toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
+      onError: (err: any) => {
+        isSubmittingRef.current = false; // Reset submission guard
+        setIsProcessing(false); // Reset processing state
+        toast({ title: 'Error', description: err.message || 'Checkout failed', variant: 'destructive' })
+      }
     });
   };
 
@@ -434,11 +457,12 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                 <Button 
                   onClick={handleSingle} 
                   disabled={
+                    isProcessing ||
                     !selectedBundle || 
                     (paymentMethod === 'wallet' && (!user || walletBalance < parseFloat(selectedBundle?.effective_price || '0')))
                   }
                 >
-                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack'}
+                  {isProcessing ? 'Processing...' : (paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Pay with Paystack')}
                 </Button>
               </div>
             </CardContent>
@@ -468,9 +492,9 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
               <div className="flex justify-end">
                 <Button 
                   onClick={handleBulk}
-                  disabled={bulkTotal.count === 0 || bulkTotal.invalidCount > 0}
+                  disabled={isProcessing || bulkTotal.count === 0 || bulkTotal.invalidCount > 0}
                 >
-                  Pay with Paystack {bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}
+                  {isProcessing ? 'Processing...' : `Pay with Paystack ${bulkTotal.count > 0 ? ` ${bulkTotal.count} Bundles - GH₵${bulkTotal.total.toFixed(2)}` : ''}`}
                 </Button>
               </div>
             </CardContent>

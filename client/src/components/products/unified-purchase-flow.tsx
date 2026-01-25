@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -88,6 +88,8 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   const [isStep1Open, setIsStep1Open] = useState(true);
   const [isStep2Open, setIsStep2Open] = useState(false);
   const [totalAmount, setTotalAmount] = useState(0);
+
+  const isSubmittingRef = useRef(false);
 
   const handleExcelUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -360,6 +362,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
       }
     },
     onSuccess: (data: PaymentResponse, variables: SingleOrderFormData | BulkOrderFormData) => {
+      isSubmittingRef.current = false; // Reset submission guard
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
@@ -374,6 +377,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
       }
     },
     onError: (error: any) => {
+      isSubmittingRef.current = false; // Reset submission guard
       const errorMessage = error.message || "Unable to process payment";
       const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
 
@@ -390,6 +394,10 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   });
 
   const onSubmit = (data: SingleOrderFormData | BulkOrderFormData) => {
+    if (isSubmittingRef.current) return; // Prevent double submission
+    isSubmittingRef.current = true;
+    setIsProcessing(true);
+
     const isBulk = 'phoneNumbers' in data;
     
     let totalAmount = 0;

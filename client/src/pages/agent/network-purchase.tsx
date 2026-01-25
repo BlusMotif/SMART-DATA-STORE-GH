@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -80,6 +80,8 @@ export default function AgentNetworkPurchasePage() {
   const [selectedBundleId, setSelectedBundleId] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderType, setOrderType] = useState<"single" | "bulk">("single");
+
+  const isSubmittingRef = useRef(false);
   // Force Paystack for single purchases on agent storefronts
 
   // Disable bulk orders for AT Ishare network
@@ -243,9 +245,11 @@ export default function AgentNetworkPurchasePage() {
       return await apiRequest("POST", "/api/checkout/initialize", payload);
     },
     onSuccess: (data: any) => {
+      isSubmittingRef.current = false; // Reset submission guard
       window.location.href = data.paymentUrl;
     },
     onError: (error: any) => {
+      isSubmittingRef.current = false; // Reset submission guard
       toast({
         title: "❌ Payment Failed",
         description: error.message || "Unable to process payment",
@@ -256,6 +260,10 @@ export default function AgentNetworkPurchasePage() {
   });
 
   const onSubmit = (data: SingleOrderFormData | BulkOrderFormData) => {
+    if (isSubmittingRef.current) return; // Prevent double submission
+    isSubmittingRef.current = true;
+    setIsProcessing(true);
+
     const isBulk = 'phoneNumbers' in data;
     
     // For single purchases, wallet balance check is not needed (always Paystack)

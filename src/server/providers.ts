@@ -177,23 +177,23 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
         
         console.log(`[Fulfill] API response data for ${phone}:`, data);
 
-        // Check for success - PHP API should return success status and a ref
-        if (resp.ok && data.status === 'success' && data.ref) {
-          results.push({ 
-            phone, 
-            status: "pending", 
-            ref: data.ref, 
+        // Check for success - PHP API should return success/queued status and a ref
+        if (resp.ok && (data.status === 'success' || data.status === 'queued') && data.ref) {
+          results.push({
+            phone,
+            status: "pending",
+            ref: data.ref,
             price: data.price,
-            providerResponse: data 
+            providerResponse: data
           });
           console.log(`[Fulfill] Success for ${phone}: ${data.ref}`);
         } else {
           // Provider rejected the request or returned error
-          results.push({ 
-            phone, 
-            status: "failed", 
+          results.push({
+            phone,
+            status: "failed",
             error: data.error || data.message || 'Provider rejected request',
-            providerResponse: data 
+            providerResponse: data
           });
           console.log(`[Fulfill] Failed for ${phone}:`, data);
         }

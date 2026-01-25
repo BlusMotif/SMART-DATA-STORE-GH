@@ -190,6 +190,11 @@ async function processWebhookEvent(event: any) {
       }
       // If this is a data bundle transaction, try to fulfill using provider settings
       if (transaction.type === ProductType.DATA_BUNDLE) {
+        // Check if already fulfilled to prevent duplicate processing
+        if (transaction.apiResponse || transaction.paymentStatus === "paid") {
+          console.log("Data bundle transaction already fulfilled, skipping duplicate processing:", reference);
+          return;
+        }
         const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
         if (autoProcessingEnabled) {
           try {
@@ -2177,24 +2182,29 @@ export async function registerRoutes(
             deliveredSerial = checker.serialNumber;
           }
         } else if (transaction.type === ProductType.DATA_BUNDLE) {
-          // Process data bundle through API
-          console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
-          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
-          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
-
-          if (fulfillmentResult.success) {
-            // Order was placed successfully, set to pending until SkyTech delivers
-            await storage.updateTransaction(transaction.id, {
-              status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
-              deliveryStatus: "processing", // Changed from "pending" to "processing"
-            });
+          // Check if already fulfilled to prevent duplicate processing
+          if (transaction.apiResponse) {
+            console.log("[Checkout] Data bundle transaction already fulfilled, skipping:", transaction.reference);
           } else {
-            // Order failed to place, mark as failed
-            console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
-            await storage.updateTransaction(transaction.id, {
-              deliveryStatus: "failed",
-              failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
-            });
+            // Process data bundle through API
+            console.log("[Checkout] Processing data bundle transaction via API:", transaction.reference);
+            const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+            await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+            if (fulfillmentResult.success) {
+              // Order was placed successfully, set to pending until SkyTech delivers
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.PENDING, // Changed from COMPLETED to PENDING
+                deliveryStatus: "processing", // Changed from "pending" to "processing"
+              });
+            } else {
+              // Order failed to place, mark as failed
+              console.error("[Checkout] Data bundle API fulfillment failed:", fulfillmentResult.error);
+              await storage.updateTransaction(transaction.id, {
+                deliveryStatus: "failed",
+                failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
+              });
+            }
           }
         }
         // Mark transaction as completed
@@ -2328,18 +2338,12 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Transaction not found" });
       }
       console.log("[Verify] Transaction status:", transaction.status);
-      if (transaction.status === TransactionStatus.COMPLETED) {
-        console.log("[Verify] Transaction already completed");
+      if (transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) {
+        console.log("[Verify] Transaction already completed or fulfilled");
+        // Return the full transaction record so the client has fields like id/type/customerPhone
         return res.json({
           success: true,
-          transaction: {
-            reference: transaction.reference,
-            productName: transaction.productName,
-            amount: transaction.amount,
-            status: transaction.status,
-            deliveredPin: transaction.deliveredPin,
-            deliveredSerial: transaction.deliveredSerial,
-          },
+          transaction,
         });
       }
       // Verify payment with Paystack API with retry logic
@@ -2462,54 +2466,54 @@ export async function registerRoutes(
       }
       // Process data bundle transactions through API
       if (transaction.type === ProductType.DATA_BUNDLE) {
-        console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
-        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
-        await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+        // Check if already fulfilled to prevent duplicate processing
+        if (transaction.apiResponse) {
+          console.log("[Verify] Data bundle transaction already fulfilled, skipping:", transaction.reference);
+        } else {
+          console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
 
-        if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
-          // Check if all items were successful
-          const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
-          
-          if (allSuccess) {
-            console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
-            // Order was placed successfully, set to pending until SkyTech delivers
-            await storage.updateTransaction(transaction.id, {
-              status: TransactionStatus.PENDING,
-              deliveryStatus: "processing",
-            });
+          if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+            // Check if all items were successful
+            const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+            
+            if (allSuccess) {
+              console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
+              // Order was placed successfully, set to pending until SkyTech delivers
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.PENDING,
+                deliveryStatus: "processing",
+              });
+            } else {
+              // Some items failed - mark as failed
+              const failedItems = fulfillmentResult.results.filter((r: any) => r.status === 'failed');
+              console.error("[Verify] Data bundle API fulfillment had failures:", failedItems);
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.FAILED,
+                deliveryStatus: "failed",
+                completedAt: new Date(),
+                failureReason: `Provider rejected ${failedItems.length}/${fulfillmentResult.results.length} items: ${failedItems.map((r: any) => r.error || 'Unknown error').join(', ')}`,
+              });
+            }
           } else {
-            // Some items failed - mark as failed
-            const failedItems = fulfillmentResult.results.filter((r: any) => r.status === 'failed');
-            console.error("[Verify] Data bundle API fulfillment had failures:", failedItems);
+            console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult?.error);
+            // Order failed to place, mark as failed
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.FAILED,
               deliveryStatus: "failed",
               completedAt: new Date(),
-              failureReason: `Provider rejected ${failedItems.length}/${fulfillmentResult.results.length} items: ${failedItems.map((r: any) => r.error || 'Unknown error').join(', ')}`,
+              failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
             });
           }
-        } else {
-          console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult?.error);
-          // Order failed to place, mark as failed
-          await storage.updateTransaction(transaction.id, {
-            status: TransactionStatus.FAILED,
-            deliveryStatus: "failed",
-            completedAt: new Date(),
-            failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
-          });
         }
       }
       console.log("[Verify] Verification complete, sending success response");
-      res.json({
+      // Fetch the latest state from storage to ensure accurate status/type and other fields
+      const freshTransaction = await storage.getTransactionByReference(transaction.reference);
+      return res.json({
         success: true,
-        transaction: {
-          reference: transaction.reference,
-          productName: transaction.productName,
-          amount: transaction.amount,
-          status: TransactionStatus.COMPLETED,
-          deliveredPin,
-          deliveredSerial,
-        },
+        transaction: freshTransaction ?? transaction,
       });
     } catch (error: any) {
       console.error("[Verify] Payment verification error:", error.message || error);

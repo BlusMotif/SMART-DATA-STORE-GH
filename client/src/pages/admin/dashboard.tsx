@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { PageLoader, TableSkeleton } from "@/components/ui/loading-spinner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +12,8 @@ import { DollarSign, ShoppingCart, Users, Wallet, TrendingUp, Package, Menu, Tro
 import { Button } from "@/components/ui/button";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
+import { Transaction } from "@shared/schema";
+import { TableSkeleton } from "@/components/ui/loading-spinner";
 
 interface DashboardStats {
   totalRevenue: number;
@@ -24,6 +24,7 @@ interface DashboardStats {
   activationRevenue: number;
   todayRevenue: number;
   todayTransactions: number;
+  totalAgentProfits: number;
 }
 
 interface TopCustomer {
@@ -108,7 +109,7 @@ export default function AdminDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
                 <StatCard
                   title="Total Revenue"
                   value={formatCurrency(stats?.totalRevenue || 0)}
@@ -126,6 +127,12 @@ export default function AdminDashboard() {
                   value={stats?.totalAgents || 0}
                   icon={Users}
                   description="Registered agents"
+                />
+                <StatCard
+                  title="Total Agent Profits"
+                  value={formatCurrency(stats?.totalAgentProfits || 0)}
+                  icon={TrendingUp}
+                  description="Combined agent earnings"
                 />
                 <StatCard
                   title="Pending Withdrawals"

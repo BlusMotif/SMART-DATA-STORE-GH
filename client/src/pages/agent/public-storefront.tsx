@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -81,6 +81,8 @@ export default function AgentPublicStorefront() {
   const [isStep1Open, setIsStep1Open] = useState(true);
   const [isStep2Open, setIsStep2Open] = useState(false);
   const [isStep3Open, setIsStep3Open] = useState(false);
+
+  const isSubmittingRef = useRef(false);
 
   // Banner carousel effect
   useEffect(() => {
@@ -283,9 +285,11 @@ export default function AgentPublicStorefront() {
       return await response.json();
     },
     onSuccess: (data) => {
+      isSubmittingRef.current = false; // Reset submission guard
       window.location.href = data.paymentUrl;
     },
     onError: (error: any) => {
+      isSubmittingRef.current = false; // Reset submission guard
       toast({
         title: "❌ Payment Failed",
         description: error.message || "Unable to process payment",
@@ -296,6 +300,9 @@ export default function AgentPublicStorefront() {
 
   // Submit handlers
   const handleSingleOrder = (data: SingleOrderFormData) => {
+    if (isSubmittingRef.current) return; // Prevent double submission
+    isSubmittingRef.current = true;
+
     if (!selectedBundle) {
       toast({
         title: "No Bundle Selected",
@@ -308,6 +315,9 @@ export default function AgentPublicStorefront() {
   };
 
   const handleBulkOrder = () => {
+    if (isSubmittingRef.current) return; // Prevent double submission
+    isSubmittingRef.current = true;
+
     if (!selectedBundle) {
       toast({
         title: "No Bundle Selected",

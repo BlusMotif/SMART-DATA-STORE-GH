@@ -798,6 +798,7 @@ export class DatabaseStorage implements IStorage {
   async getAdminStats(): Promise<{
     totalRevenue: number;
     totalProfit: number;
+    totalAgentProfits: number;
     totalTransactions: number;
     pendingWithdrawals: number;
     totalAgents: number;
@@ -812,6 +813,11 @@ export class DatabaseStorage implements IStorage {
       totalTransactions: sql`count(*)`,
       totalRevenue: sql`coalesce(sum(case when status = 'completed' then cast(amount as numeric) else 0 end), 0)`,
       totalProfit: sql`coalesce(sum(case when status = 'completed' then cast(profit as numeric) else 0 end), 0)`,
+    }).from(transactions);
+
+    // Get total agent profits from completed transactions
+    const [agentProfitStats] = await db.select({
+      totalAgentProfits: sql`coalesce(sum(case when status = 'completed' and agent_id is not null then cast(agent_profit as numeric) else 0 end), 0)`,
     }).from(transactions);
 
     // Get agent activation revenue
@@ -853,6 +859,7 @@ export class DatabaseStorage implements IStorage {
     return {
       totalRevenue: Number(txStats?.totalRevenue || 0),
       totalProfit: Number(txStats?.totalProfit || 0),
+      totalAgentProfits: Number(agentProfitStats?.totalAgentProfits || 0),
       totalTransactions: Number(txStats?.totalTransactions || 0),
       pendingWithdrawals: Number(withdrawalStats?.pending || 0),
       totalAgents: Number(agentStats?.total || 0),

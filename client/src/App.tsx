@@ -12,7 +12,6 @@ import { ConnectionStatus } from "@/components/connection-status";
 import { useSessionTimeout } from "@/hooks/use-session-timeout";
 import { BreakModeGuard } from "@/components/BreakModeGuard";
 import { AnnouncementPopup } from "@/components/announcement-popup";
-
 import HomePage from "@/pages/home";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -50,9 +49,9 @@ import AdminChatSupport from "@/pages/admin/chat-support";
 import AdminSettings from "@/pages/admin/settings";
 import AdminRankings from "@/pages/admin/rankings";
 import AdminBreakSettings from "@/pages/admin/break-settings";
-import AdminApiConfiguration from "@/pages/admin/api-configuration";
 import AdminExternalApiProviders from "@/pages/admin/external-api-providers";
 import AdminAnnouncements from "@/pages/admin/announcements";
+import AdminGuides from "@/pages/admin/guides";
 import PublicRankings from "@/pages/public-rankings";
 import { getAgentId } from "@/lib/store-context";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
@@ -128,6 +127,7 @@ function AppRouter() {
       <Route path="/data-bundles" component={DataBundlesPage} />
       <Route path="/products" component={DataBundlesPage} />
       <Route path="/products/result-checkers" component={ResultCheckersPage} />
+      <Route path="/products/waec-result-checker" component={ResultCheckersPage} />
       <Route path="/products/:network" component={NetworkProductsPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
@@ -172,8 +172,8 @@ function AppRouter() {
       <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
       <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
       <ProtectedRoute path="/admin/announcements" component={AdminAnnouncements} requiredRole="admin" />
+      <ProtectedRoute path="/admin/guides" component={AdminGuides} requiredRole="admin" />
       <ProtectedRoute path="/admin/break-settings" component={AdminBreakSettings} requiredRole="admin" />
-      <ProtectedRoute path="/admin/api-configuration" component={AdminApiConfiguration} requiredRole="admin" />
       <ProtectedRoute path="/admin/external-api-providers" component={AdminExternalApiProviders} requiredRole="admin" />
       <ProtectedRoute path="/admin/settings" component={AdminSettings} requiredRole="admin" />
       <Route path="/store/:role/:slug" component={StorefrontPage} />

@@ -22,14 +22,14 @@ export function StatCard({
   className,
 }: StatCardProps) {
   return (
-    <Card className={cn("", className)}>
+    <Card className={cn("bg-green-500 border border-yellow-500 text-white", className)}>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-white">
           {title}
         </CardTitle>
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-4 w-4 text-primary" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+            <Icon className="h-4 w-4 text-white" />
           </div>
         )}
       </CardHeader>
@@ -38,17 +38,17 @@ export function StatCard({
         {(description || trend) && (
           <div className="flex items-center gap-2 mt-1">
             {trend && (
-              <span className="text-xs font-medium text-green-600">
+              <span className="text-xs font-medium text-white">
                 {trend}
               </span>
             )}
             {trendLabel && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-white">
                 {trendLabel}
               </span>
             )}
             {description && !trend && !trendLabel && (
-              <p className="text-xs text-muted-foreground">{description}</p>
+              <p className="text-xs text-white">{description}</p>
             )}
           </div>
         )}

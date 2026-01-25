@@ -463,9 +463,9 @@ export default function AgentBundlesPage() {
     for (const item of parsedData) {
       // Find a bundle that matches the GB amount (looking for bundles with the GB in the dataAmount)
       const matchingBundle = bundles?.find(b => {
-        const dataAmount = b.dataAmount.toLowerCase();
+        const dataAmount = b.dataAmount;
         // Try to extract GB from dataAmount (e.g., "5GB" -> 5)
-        const gbMatch = dataAmount.match(/(\d+(?:\.\d+)?)/);
+        const gbMatch = dataAmount.match(/(\d+(?:\.\d+)?)\s*gb/i);
         if (gbMatch) {
           const bundleGB = parseFloat(gbMatch[1]);
           return bundleGB === item.gb;
@@ -558,9 +558,9 @@ export default function AgentBundlesPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="fixed inset-0 flex">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:block">
+      <aside className="hidden md:block flex-shrink-0">
         <AgentSidebar />
       </aside>
 
@@ -577,7 +577,7 @@ export default function AgentBundlesPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between border-b px-6 h-16 shrink-0">
+        <header className="flex items-center justify-between border-b px-6 h-16 flex-shrink-0">
           <div className="flex items-center gap-3">
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
               <SheetTrigger asChild>
@@ -687,15 +687,15 @@ export default function AgentBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary/20">
-                        <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                        <p className="font-medium text-lg">{selectedBundle.name}</p>
-                        <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
+                      <div className="p-2 bg-yellow-500 text-white rounded-lg border border-yellow-600">
+                        <p className="text-sm text-white">Selected Bundle</p>
+                        <p className="font-medium text-lg text-white">{selectedBundle.name}</p>
+                        <p className="text-sm text-white">{selectedBundle.validity}</p>
                         {selectedBundle.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{selectedBundle.description}</p>
+                          <p className="text-xs text-white mt-1">{selectedBundle.description}</p>
                         )}
                         <div className="flex items-center gap-2 mt-2">
-                          <span className="text-2xl font-bold text-primary">
+                          <span className="text-2xl font-bold text-white">
                             GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}
                           </span>
                         </div>

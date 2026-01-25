@@ -1,10 +1,12 @@
 import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt, isNotNull, ne, isNull } from "drizzle-orm";
 import { db } from "./db.js";
 import { randomUUID } from "crypto";
+import { normalizePhoneNumber } from "./utils/network-validator.js";
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
-  profitWallets, profitTransactions, externalApiProviders,
+  profitWallets, profitTransactions, externalApiProviders, videoGuides,
+  ProductType,
   type User, type InsertUser, type Agent, type InsertAgent,
   type DataBundle, type InsertDataBundle, type ResultChecker, type InsertResultChecker,
   type Transaction, type InsertTransaction, type Withdrawal, type InsertWithdrawal,
@@ -15,7 +17,8 @@ import {
   type RoleBasePrices, type InsertRoleBasePrices,
   type WalletTopupTransaction, type InsertWalletTopupTransaction,
   type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction,
-  type Settings, type ExternalApiProvider, type InsertExternalApiProvider, type UpdateExternalApiProvider
+  type Settings, type ExternalApiProvider, type InsertExternalApiProvider, type UpdateExternalApiProvider,
+  type InsertVideoGuide, type VideoGuide
 } from "../shared/schema.js";
 
 export interface IStorage {
@@ -49,6 +52,8 @@ export interface IStorage {
   // Result Checkers
   getResultChecker(id: string): Promise<ResultChecker | undefined>;
   getAvailableResultChecker(type: string, year: number): Promise<ResultChecker | undefined>;
+  getAvailableResultCheckersByQuantity(type: string, year: number, quantity: number): Promise<ResultChecker[]>;
+    getResultCheckersByTransaction(transactionId: string): Promise<ResultChecker[]>;
   getResultCheckerStock(type: string, year: number): Promise<number>;
   getResultCheckers(filters?: { type?: string; year?: number; isSold?: boolean }): Promise<ResultChecker[]>;
   getResultCheckerSummary(): Promise<{ type: string; year: number; total: number; available: number; sold: number }[]>;
@@ -62,6 +67,7 @@ export interface IStorage {
   getTransaction(id: string): Promise<Transaction | undefined>;
   getTransactionByReference(reference: string): Promise<Transaction | undefined>;
   getTransactionByBeneficiaryPhone(phone: string): Promise<Transaction | undefined>;
+  getLatestDataBundleTransactionByPhone(phone: string): Promise<Transaction | undefined>;
   getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
@@ -103,6 +109,7 @@ export interface IStorage {
   getExternalApiProvider(id: string): Promise<ExternalApiProvider | undefined>;
   getActiveExternalApiProviders(): Promise<ExternalApiProvider[]>;
   getDefaultExternalApiProvider(): Promise<ExternalApiProvider | undefined>;
+  getProviderForNetwork(network?: string): Promise<ExternalApiProvider | undefined>;
   createExternalApiProvider(provider: InsertExternalApiProvider): Promise<ExternalApiProvider>;
   updateExternalApiProvider(id: string, data: UpdateExternalApiProvider): Promise<ExternalApiProvider | undefined>;
   deleteExternalApiProvider(id: string): Promise<boolean>;
@@ -170,6 +177,12 @@ export interface IStorage {
     resultCheckerStock: number;
   }>;
 
+  getRevenueAnalytics(days?: number): Promise<Array<{
+    date: string;
+    revenue: number;
+    transactions: number;
+  }>>;
+
   // API Keys
   getApiKeys(userId: string): Promise<ApiKey[]>;
   getApiKeyByKey(key: string): Promise<ApiKey | undefined>;
@@ -189,9 +202,19 @@ export interface IStorage {
   getSetting(key: string): Promise<string | undefined>;
   setSetting(key: string, value: string, description?: string): Promise<void>;
   getAllSettings(): Promise<Array<{ key: string; value: string; description?: string }>>;
+
+  // Video Guides
+  getVideoGuides(filters?: { category?: string; publishedOnly?: boolean }): Promise<VideoGuide[]>;
+  getVideoGuide(id: string): Promise<VideoGuide | undefined>;
+  createVideoGuide(guide: InsertVideoGuide): Promise<VideoGuide>;
+  updateVideoGuide(id: string, data: Partial<InsertVideoGuide>): Promise<VideoGuide | undefined>;
+  deleteVideoGuide(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
+  getProduct(productId: string) {
+    throw new Error("Method not implemented.");
+  }
   // ============================================
   // USERS
   // ============================================
@@ -415,6 +438,23 @@ export class DatabaseStorage implements IStorage {
     return checker;
   }
 
+  async getAvailableResultCheckersByQuantity(type: string, year: number, quantity: number): Promise<ResultChecker[]> {
+    const checkers = await db.select().from(resultCheckers)
+      .where(and(
+        eq(resultCheckers.type, type),
+        eq(resultCheckers.year, year),
+        eq(resultCheckers.isSold, false)
+      ))
+      .limit(quantity);
+    return checkers;
+  }
+
+  async getResultCheckersByTransaction(transactionId: string): Promise<ResultChecker[]> {
+    const checkers = await db.select().from(resultCheckers)
+      .where(eq(resultCheckers.transactionId, transactionId));
+    return checkers;
+  }
+
   async getResultCheckerStock(type: string, year: number): Promise<number> {
     const result = await db.select({ count: count() })
       .from(resultCheckers)
@@ -512,6 +552,47 @@ export class DatabaseStorage implements IStorage {
     if (!transaction) {
       const allTransactions = await db.select().from(transactions).where(sql`${transactions.phoneNumbers} LIKE ${'%' + phone + '%'}`).orderBy(desc(transactions.createdAt)).limit(1);
       transaction = allTransactions[0];
+    }
+
+    return transaction;
+  }
+
+  async getLatestDataBundleTransactionByPhone(phone: string): Promise<Transaction | undefined> {
+    const normalized = normalizePhoneNumber(phone);
+    console.log(`[Cooldown Query] Looking for paid data bundle transactions for phone: ${normalized}`);
+    
+    let [transaction] = await db.select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, ProductType.DATA_BUNDLE),
+        eq(transactions.customerPhone, normalized),
+        eq(transactions.paymentStatus, "paid")
+      ))
+      .orderBy(desc(transactions.createdAt))
+      .limit(1);
+
+    if (transaction) {
+      console.log(`[Cooldown Query] Found paid transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus}, createdAt: ${transaction.createdAt})`);
+      return transaction;
+    }
+
+    console.log(`[Cooldown Query] No direct phone match, checking bulk orders...`);
+    const likePattern = `%${normalized}%`;
+    const matches = await db.select()
+      .from(transactions)
+      .where(and(
+        eq(transactions.type, ProductType.DATA_BUNDLE),
+        sql`${transactions.phoneNumbers} LIKE ${likePattern}`,
+        eq(transactions.paymentStatus, "paid")
+      ))
+      .orderBy(desc(transactions.createdAt))
+      .limit(1);
+    transaction = matches[0];
+
+    if (transaction) {
+      console.log(`[Cooldown Query] Found paid bulk transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus})`);
+    } else {
+      console.log(`[Cooldown Query] No paid transactions found for ${normalized}`);
     }
 
     return transaction;
@@ -870,6 +951,61 @@ export class DatabaseStorage implements IStorage {
       dataBundleStock: Number(bundleStats?.count || 0),
       resultCheckerStock: Number(checkerStats?.count || 0),
     };
+  }
+
+  async getRevenueAnalytics(days: number = 7): Promise<Array<{
+    date: string;
+    revenue: number;
+    transactions: number;
+  }>> {
+    const safeDays = Math.min(Math.max(Math.floor(days), 1), 90);
+
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (safeDays - 1));
+
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+
+    // Pre-seed map so the frontend always receives a contiguous date range
+    const dailyTotals = new Map<string, { revenue: number; transactions: number }>();
+    for (let i = 0; i < safeDays; i++) {
+      const current = new Date(startDate);
+      current.setDate(startDate.getDate() + i);
+      const key = current.toISOString().slice(0, 10);
+      dailyTotals.set(key, { revenue: 0, transactions: 0 });
+    }
+
+    const rows = await db.select({
+      amount: transactions.amount,
+      status: transactions.status,
+      createdAt: transactions.createdAt,
+    })
+      .from(transactions)
+      .where(and(
+        gte(transactions.createdAt, startDate),
+        lte(transactions.createdAt, endDate),
+      ));
+
+    for (const row of rows) {
+      if (!row.createdAt) continue;
+
+      const dateKey = new Date(row.createdAt).toISOString().slice(0, 10);
+      const totals = dailyTotals.get(dateKey);
+      if (!totals) continue;
+
+      if (row.status === 'completed') {
+        const amount = Number.parseFloat(row.amount || "0");
+        totals.revenue += Number.isFinite(amount) ? amount : 0;
+        totals.transactions += 1;
+      }
+    }
+
+    return Array.from(dailyTotals.entries()).map(([date, totals]) => ({
+      date,
+      revenue: Number(totals.revenue.toFixed(2)),
+      transactions: totals.transactions,
+    }));
   }
 
   // Support Chat Methods
@@ -1472,6 +1608,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ============================================
+  // VIDEO GUIDES
+  // ============================================
+  async getVideoGuides(filters?: { category?: string; publishedOnly?: boolean }): Promise<VideoGuide[]> {
+    let query = db.select().from(videoGuides);
+    const conditions = [] as any[];
+    if (filters?.category) conditions.push(eq(videoGuides.category, filters.category));
+    if (filters?.publishedOnly) conditions.push(eq(videoGuides.isPublished, true));
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    return query.orderBy(desc(videoGuides.createdAt));
+  }
+
+  async getVideoGuide(id: string): Promise<VideoGuide | undefined> {
+    const result = await db.select().from(videoGuides).where(eq(videoGuides.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createVideoGuide(guide: InsertVideoGuide): Promise<VideoGuide> {
+    const [created] = await db.insert(videoGuides).values({
+      id: randomUUID(),
+      ...guide,
+    }).returning();
+    return created;
+  }
+
+  async updateVideoGuide(id: string, data: Partial<InsertVideoGuide>): Promise<VideoGuide | undefined> {
+    const [updated] = await db.update(videoGuides)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(videoGuides.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteVideoGuide(id: string): Promise<boolean> {
+    const result = await db.delete(videoGuides).where(eq(videoGuides.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
   // API KEYS
   // ============================================
   async getApiKeys(userId: string): Promise<ApiKey[]> {
@@ -1485,7 +1661,6 @@ export class DatabaseStorage implements IStorage {
 
   async createApiKey(apiKey: InsertApiKey): Promise<ApiKey> {
     const result = await db.insert(apiKeys).values({
-      
       ...apiKey,
     }).returning();
     return result[0];
@@ -1551,6 +1726,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(externalApiProviders.isDefault, true))
       .limit(1);
     return result[0];
+  }
+
+  async getProviderForNetwork(network?: string): Promise<ExternalApiProvider | undefined> {
+    // If no network specified, return default provider
+    if (!network) {
+      return await this.getDefaultExternalApiProvider();
+    }
+
+    // Get all active providers
+    const activeProviders = await this.getActiveExternalApiProviders();
+    
+    // Find a provider that supports this network in their network mappings
+    for (const provider of activeProviders) {
+      if (provider.networkMappings) {
+        try {
+          const mappings = JSON.parse(provider.networkMappings);
+          if (mappings[network]) {
+            return provider;
+          }
+        } catch (e) {
+          // Continue to next provider if JSON parsing fails
+          continue;
+        }
+      }
+    }
+
+    // If no provider supports the network specifically, use default
+    return await this.getDefaultExternalApiProvider();
   }
 
   async createExternalApiProvider(provider: InsertExternalApiProvider): Promise<ExternalApiProvider> {
@@ -1652,3 +1855,4 @@ export class DatabaseStorage implements IStorage {
 
 
 export const storage = new DatabaseStorage();
+

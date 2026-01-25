@@ -5,8 +5,9 @@ import path from 'path';
 export interface ResultCheckerPDFData {
   type: string;
   year: number;
-  pin: string;
-  serialNumber: string;
+  pin?: string;
+  serialNumber?: string;
+  pins?: Array<{ pin: string; serialNumber: string }>;
   customerName?: string;
   customerPhone?: string;
   purchaseDate: Date;
@@ -16,9 +17,13 @@ export interface ResultCheckerPDFData {
 export function generateResultCheckerPDF(data: ResultCheckerPDFData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     try {
+      const isMultiple = data.pins && data.pins.length > 1;
+      const pins = data.pins || (data.pin && data.serialNumber ? [{ pin: data.pin, serialNumber: data.serialNumber }] : []);
+      
+      // Business card size: 3.5 x 2 inches (252 x 144 points)
       const doc = new PDFDocument({
-        size: 'A4',
-        margin: 50,
+        size: [252, 144],
+        margin: 0,
         info: {
           Title: `${data.type.toUpperCase()} Result Checker ${data.year}`,
           Author: 'resellershubprogh.com',
@@ -32,78 +37,59 @@ export function generateResultCheckerPDF(data: ResultCheckerPDFData): Promise<Bu
       doc.on('end', () => resolve(Buffer.concat(buffers)));
       doc.on('error', reject);
 
-      // Header
-      doc.fontSize(24).font('Helvetica-Bold').text('RESELLERSHUBPROGH.COM', { align: 'center' });
-      doc.moveDown(0.5);
-      doc.fontSize(18).font('Helvetica-Bold').text(`${data.type.toUpperCase()} RESULT CHECKER ${data.year}`, { align: 'center' });
-      doc.moveDown(1);
-
-      // Border
-      doc.rect(50, 150, 495, 300).stroke();
-      doc.moveDown(2);
-
-      // Title
-      doc.fontSize(16).font('Helvetica-Bold').text('RESULT CHECKER CREDENTIALS', { align: 'center' });
-      doc.moveDown(1);
-
-      // Credentials section
-      doc.fontSize(14).font('Helvetica-Bold').text('PIN:', 100, 220);
-      doc.fontSize(14).font('Helvetica').text(data.pin, 200, 220);
-
-      doc.fontSize(14).font('Helvetica-Bold').text('Serial Number:', 100, 250);
-      doc.fontSize(14).font('Helvetica').text(data.serialNumber, 200, 250);
-
-      doc.moveDown(2);
-
-      // Customer information
-      if (data.customerName) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Customer Name:', 100, 300);
-        doc.fontSize(12).font('Helvetica').text(data.customerName, 200, 300);
-      }
-
-      if (data.customerPhone) {
-        doc.fontSize(12).font('Helvetica-Bold').text('Phone Number:', 100, 320);
-        doc.fontSize(12).font('Helvetica').text(data.customerPhone, 200, 320);
-      }
-
-      doc.fontSize(12).font('Helvetica-Bold').text('Purchase Date:', 100, 340);
-      doc.fontSize(12).font('Helvetica').text(data.purchaseDate.toLocaleDateString(), 200, 340);
-
-      doc.fontSize(12).font('Helvetica-Bold').text('Transaction Ref:', 100, 360);
-      doc.fontSize(12).font('Helvetica').text(data.transactionReference, 200, 360);
-
-      doc.moveDown(2);
-
-      // Instructions
-      doc.fontSize(10).font('Helvetica-Bold').text('INSTRUCTIONS:', 100, 400);
-      doc.moveDown(0.5);
-      doc.fontSize(9).font('Helvetica').text(
-        '1. Visit the official result checking portal for your examination body.',
-        100, 420
-      );
-      doc.text(
-        '2. Enter your PIN and Serial Number when prompted.',
-        100, 435
-      );
-      doc.text(
-        '3. Keep this document safe and do not share your credentials with others.',
-        100, 450
-      );
-      doc.text(
-        '4. For support, contact resellershubprogh.com.',
-        100, 465
-      );
-
-      // Footer
-      doc.moveDown(2);
-      doc.fontSize(8).font('Helvetica').text(
-        'This document was generated electronically and is valid for result checking purposes.',
-        { align: 'center' }
-      );
-      doc.text(
-        `Generated on ${new Date().toLocaleString()}`,
-        { align: 'center' }
-      );
+      // Render each PIN as a separate card
+      pins.forEach((pinData, index) => {
+        if (index > 0) {
+          doc.addPage();
+        }
+        
+        const cardWidth = 252;
+        const cardHeight = 144;
+        const margin = 10;
+        
+        // Simple border
+        doc.roundedRect(2, 2, cardWidth - 4, cardHeight - 4, 3).stroke('#000000');
+        
+        // Header
+        doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000')
+           .text('RESELLERS HUB PRO', margin, 8, { align: 'center', width: cardWidth - (margin * 2) });
+        
+        doc.fontSize(7).font('Helvetica').fillColor('#333333')
+           .text(`${data.type.toUpperCase()} ${data.year} RESULT CHECKER`, margin, 22, { align: 'center', width: cardWidth - (margin * 2) });
+        
+        if (isMultiple) {
+          doc.fontSize(6).fillColor('#666666')
+             .text(`Card ${index + 1} of ${pins.length}`, margin, 32, { align: 'center', width: cardWidth - (margin * 2) });
+        }
+        
+        // Divider
+        doc.moveTo(margin, 40).lineTo(cardWidth - margin, 40).stroke('#cccccc');
+        
+        // Credentials
+        let yPos = 52;
+        
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#666666')
+           .text('SERIAL NUMBER: ', margin, yPos, { continued: true })
+           .fillColor('#000000')
+           .text(pinData.serialNumber);
+        
+        yPos += 14;
+        
+        doc.fontSize(7).font('Helvetica-Bold').fillColor('#666666')
+           .text('PIN: ', margin, yPos, { continued: true })
+           .fillColor('#000000')
+           .text(pinData.pin);
+        
+        // Footer
+        const footerY = cardHeight - 18;
+        doc.moveTo(margin, footerY - 3).lineTo(cardWidth - margin, footerY - 3).stroke('#cccccc');
+        
+        doc.fontSize(5).font('Helvetica').fillColor('#666666')
+           .text(`Ref: ${data.transactionReference} | ${data.purchaseDate.toLocaleDateString()}`, margin, footerY, { align: 'center', width: cardWidth - (margin * 2) });
+        
+        doc.fontSize(5).fillColor('#999999')
+           .text('www.resellershubprogh.com', margin, footerY + 8, { align: 'center', width: cardWidth - (margin * 2) });
+      });
 
       doc.end();
     } catch (error) {

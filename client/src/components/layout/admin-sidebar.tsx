@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Code,
   Trophy,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -81,9 +82,9 @@ const sidebarNavItems = [
     icon: Bell,
   },
   {
-    title: "API Configuration",
-    href: "/admin/api-configuration",
-    icon: Settings,
+    title: "Video Guides",
+    href: "/admin/guides",
+    icon: Video,
   },
   {
     title: "External API Providers",
@@ -91,7 +92,7 @@ const sidebarNavItems = [
     icon: Code,
   },
   {
-    title: "API & Integrations",
+    title: "API Keys & Integrations",
     href: "/dashboard/api-integrations",
     icon: Code,
   },
@@ -127,9 +128,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div 
-      className={`flex h-screen w-64 flex-col border-r text-sidebar-foreground relative ${
-        onClose ? 'bg-white' : 'bg-sidebar'
-      }`}
+      className={`flex h-screen w-64 flex-col border-r text-white relative overflow-hidden bg-black`}
     >
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">
@@ -138,10 +137,10 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
           </Button>
         </div>
       )}
-      <div className={`flex h-16 items-center gap-2 border-b px-6 ${onClose ? 'pr-16' : ''}`}>
+      <div className={`flex h-16 items-center gap-2 border-b px-6 bg-black ${onClose ? 'pr-16' : ''}`}>
         <div className="flex flex-col">
-          <span className="font-semibold text-sm">{user?.name || 'Admin'}</span>
-          <span className="text-xs text-muted-foreground">Admin Panel</span>
+          <span className="font-semibold text-sm text-white">{user?.name || 'Admin'}</span>
+          <span className="text-xs text-gray-400">Admin Panel</span>
         </div>
       </div>
 
@@ -178,7 +177,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
       <div className="border-t p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-2 px-2 py-1.5 text-xs bg-black text-red-500 hover:bg-gray-800"
           onClick={() => logout()}
           disabled={isLoggingOut}
           data-testid="button-admin-logout"

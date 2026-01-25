@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/schema";
 import { supabase } from "@/lib/supabaseClient";
+import { clearAuthCache } from "@/lib/queryClient";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -14,6 +15,9 @@ export function useAuth() {
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isRegisterLoading, setIsRegisterLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  
+  // Ref to prevent duplicate logout calls
+  const logoutInProgressRef = useRef(false);
 
   /**
    * ------------------------------------------------------
@@ -53,10 +57,23 @@ export function useAuth() {
 
   /**
    * ------------------------------------------------------
+   * EXPIRED SESSION DETECTION
+   * Detect and handle expired sessions to prevent stuck state
+   * ------------------------------------------------------
+   */
+  useEffect(() => {
+    // If we have no session but authLoading is complete, ensure query is reset
+    if (!authLoading && !session) {
+      queryClient.setQueryData(["/api/auth/me"], { user: null });
+    }
+  }, [session, authLoading, queryClient]);
+
+  /**
+   * ------------------------------------------------------
    * CURRENT USER
    * ------------------------------------------------------
    */
-  const { data, isLoading } = useQuery<{
+  const { data, isLoading: queryLoading } = useQuery<{
     user: User | null;
     agent?: any;
   }>({
@@ -83,6 +100,10 @@ export function useAuth() {
   const user = data?.user ?? null;
   const agent = data?.agent;
   const isAuthenticated = !!user;
+  
+  // Fix: When session is null, we're not loading
+  // This prevents getting stuck in loading state when session expires
+  const isLoading = authLoading || (!!session?.access_token && queryLoading);
 
   /**
    * ------------------------------------------------------
@@ -103,6 +124,9 @@ export function useAuth() {
       setIsLoginLoading(false);
       return { error: error.message };
     }
+
+    // Invalidate user query to immediately fetch user data and trigger navigation
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
 
     setIsLoginLoading(false);
     return { success: true };
@@ -134,15 +158,57 @@ export function useAuth() {
       return { error: error.message };
     }
 
+    // Invalidate user query to immediately fetch user data and trigger navigation
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+
     setIsRegisterLoading(false);
     return { success: true };
   };
 
   const logout = async () => {
-    setIsLoggingOut(true);
-    await supabase.auth.signOut();
-    setIsLoggingOut(false);
-    window.location.href = "/";
+    // Prevent duplicate logout calls
+    if (logoutInProgressRef.current) {
+      console.log('Logout already in progress, skipping duplicate call');
+      return;
+    }
+    
+    try {
+      logoutInProgressRef.current = true;
+      setIsLoggingOut(true);
+      
+      // Watchdog timer: Force redirect after 3 seconds if logout hangs
+      const watchdogTimer = setTimeout(() => {
+        console.warn('Logout taking too long, forcing redirect...');
+        window.location.href = "/";
+      }, 3000);
+      
+      // Clear all queries first
+      queryClient.clear();
+      
+      // Clear cached auth tokens
+      clearAuthCache();
+      
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Clear session state
+      setSession(null);
+      
+      // Cancel watchdog since logout succeeded
+      clearTimeout(watchdogTimer);
+      
+      // Force redirect to home page
+      window.location.href = "/";
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if logout fails, clear local state and redirect
+      queryClient.clear();
+      setSession(null);
+      window.location.href = "/";
+    } finally {
+      setIsLoggingOut(false);
+      logoutInProgressRef.current = false;
+    }
   };
 
   /**
@@ -154,7 +220,7 @@ export function useAuth() {
     user,
     agent,
     isAuthenticated,
-    isLoading: authLoading || isLoading,
+    isLoading,
     login,
     register,
     logout,

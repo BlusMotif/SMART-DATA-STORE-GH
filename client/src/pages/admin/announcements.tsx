@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatDate } from "@/lib/constants";
-import { Bell, Plus, Trash2, Menu, Eye, EyeOff } from "lucide-react";
+import { Bell, Plus, Trash2, Menu, Eye, EyeOff, ExternalLink } from "lucide-react";
 
 interface Announcement {
   id: string;
@@ -20,6 +20,33 @@ interface Announcement {
   isActive: boolean;
   createdAt: string;
   createdBy: string;
+}
+
+// Function to parse URLs from text and create clickable links
+function parseMessageWithLinks(text: string) {
+  // URL regex pattern
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  
+  // Split text by URLs and create elements
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+        >
+          {part}
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      );
+    }
+    return part;
+  });
 }
 
 export default function AdminAnnouncements() {
@@ -190,36 +217,41 @@ export default function AdminAnnouncements() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     {activeAnnouncements.map((announcement) => (
-                      <div key={announcement.id} className="border rounded-lg p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-lg">{announcement.title}</h3>
-                            <p className="text-muted-foreground mt-2">{announcement.message}</p>
-                            <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                      <div key={announcement.id} className="border rounded-lg p-3 md:p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm md:text-base leading-tight">{announcement.title}</h3>
+                            <div className="text-muted-foreground mt-1 md:mt-2 text-xs md:text-sm leading-relaxed">
+                              {parseMessageWithLinks(announcement.message)}
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 md:mt-3 text-xs md:text-sm text-muted-foreground">
                               <span>Created: {formatDate(announcement.createdAt)}</span>
-                              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs w-fit">
                                 Active
                               </Badge>
                             </div>
                           </div>
-                          <div className="flex gap-2 ml-4">
+                          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => toggleMutation.mutate({ id: announcement.id, isActive: false })}
                               disabled={toggleMutation.isPending}
+                              className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3"
                             >
-                              <EyeOff className="h-4 w-4" />
+                              <EyeOff className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <span className="sr-only sm:not-sr-only sm:ml-1">Hide</span>
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3"
                               onClick={() => setDeleteAnnouncementId(announcement.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <span className="sr-only sm:not-sr-only sm:ml-1">Delete</span>
                             </Button>
                           </div>
                         </div>
@@ -243,36 +275,41 @@ export default function AdminAnnouncements() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     {inactiveAnnouncements.map((announcement) => (
-                      <div key={announcement.id} className="border rounded-lg p-4 opacity-75">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-lg">{announcement.title}</h3>
-                            <p className="text-muted-foreground mt-2">{announcement.message}</p>
-                            <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+                      <div key={announcement.id} className="border rounded-lg p-3 md:p-4 opacity-75">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm md:text-base leading-tight">{announcement.title}</h3>
+                            <div className="text-muted-foreground mt-1 md:mt-2 text-xs md:text-sm leading-relaxed">
+                              {parseMessageWithLinks(announcement.message)}
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 md:mt-3 text-xs md:text-sm text-muted-foreground">
                               <span>Created: {formatDate(announcement.createdAt)}</span>
-                              <Badge variant="outline">
+                              <Badge variant="outline" className="w-fit">
                                 Inactive
                               </Badge>
                             </div>
                           </div>
-                          <div className="flex gap-2 ml-4">
+                          <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => toggleMutation.mutate({ id: announcement.id, isActive: true })}
                               disabled={toggleMutation.isPending}
+                              className="h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3"
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <span className="sr-only sm:not-sr-only sm:ml-1">Show</span>
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive h-8 w-8 p-0 sm:h-9 sm:w-auto sm:px-3"
                               onClick={() => setDeleteAnnouncementId(announcement.id)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                              <span className="sr-only sm:not-sr-only sm:ml-1">Delete</span>
                             </Button>
                           </div>
                         </div>

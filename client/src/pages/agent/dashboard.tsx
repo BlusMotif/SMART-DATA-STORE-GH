@@ -26,6 +26,7 @@ import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 import { Agent, Transaction } from "@shared/schema";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { useAuth } from "@/hooks/use-auth";
 
 interface AgentStats {
   balance: number;
@@ -135,6 +136,7 @@ export default function AgentDashboard() {
   const [showApiModal, setShowApiModal] = useState(false);
   const [, setLocation] = useLocation();
   const hasRedirected = useRef(false);
+  const { user } = useAuth();
 
   const { data: profileData } = useQuery<AgentProfileResponse>({
     queryKey: ["/api/profile"],
@@ -235,23 +237,49 @@ export default function AgentDashboard() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <div className="max-w-7xl mx-auto space-y-6">
-            {/* Welcome Section */}
-            <Card className="bg-yellow-500 dark:bg-yellow-600 border-yellow-600 text-white">
-              <CardContent className="pt-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base sm:text-2xl font-bold text-white">
-                      Welcome back, {agent?.user?.name?.split(' ')[0] || 'Agent'}! 👋
-                    </h2>
-                    <p className="text-xs sm:text-base text-white/90 mt-1">
-                      Here's what's happening with your business today
-                    </p>
+            {/* Welcome Message */}
+            <Card className="bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-600 border-yellow-600 shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 lg:w-32 lg:h-32 bg-white/10 rounded-full -translate-y-10 sm:-translate-y-12 lg:-translate-y-16 translate-x-10 sm:translate-x-12 lg:translate-x-16"></div>
+              <div className="absolute bottom-0 left-0 w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white/5 rounded-full translate-y-8 sm:translate-y-10 lg:translate-y-12 -translate-x-8 sm:-translate-x-10 lg:-translate-x-12"></div>
+              <CardContent className="p-3 sm:p-4 md:p-6 relative">
+                <div className="flex flex-col gap-3 sm:gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-white/20 rounded-full shadow-lg backdrop-blur-sm flex-shrink-0">
+                      <span className="text-lg sm:text-xl md:text-2xl animate-bounce">👋</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-white mb-1 drop-shadow-sm leading-tight">
+                        Welcome back, {user?.name?.toUpperCase() || 'AGENT'}!
+                      </h2>
+                      <p className="text-yellow-100 text-xs sm:text-sm md:text-base font-medium leading-relaxed">
+                        Here's what's happening with your business today ✨
+                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-white/90">
+                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <span className="text-xs font-medium">Live Dashboard</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-white/90">
+                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                          <span className="text-xs font-medium">Real-time Updates</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Badge variant="secondary" className="gap-1 bg-white text-green-600 border-green-700">
-                      <Award className="h-3 w-3" />
-                      {agent?.isApproved ? 'Verified Agent' : 'Pending Approval'}
-                    </Badge>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                    <div className="flex items-center gap-2 bg-white/10 rounded-full px-2 sm:px-3 py-1 backdrop-blur-sm w-fit">
+                      <span className="text-xs text-white font-medium">
+                        {new Date().toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-white/80">
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
+                      <span className="text-xs">All systems operational</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -270,7 +298,7 @@ export default function AgentDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
                   title="Available Balance"
                   value={formatCurrency(stats?.balance || 0)}
@@ -329,29 +357,29 @@ export default function AgentDashboard() {
                       <Zap className="h-4 w-4" />
                       Quick Actions
                     </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <Link href="/agent/bundles/mtn">
-                        <Button variant="outline" size="sm" className="w-full h-auto py-3 flex-col gap-1">
-                          <Package className="h-4 w-4" />
-                          <span className="text-xs">MTN</span>
+                        <Button variant="outline" size="sm" className="w-full h-auto py-4 flex-col gap-2 text-xs md:text-sm">
+                          <Package className="h-5 w-5" />
+                          <span>MTN</span>
                         </Button>
                       </Link>
                       <Link href="/agent/bundles/telecel">
-                        <Button variant="outline" size="sm" className="w-full h-auto py-3 flex-col gap-1">
-                          <Package className="h-4 w-4" />
-                          <span className="text-xs">Telecel</span>
+                        <Button variant="outline" size="sm" className="w-full h-auto py-4 flex-col gap-2 text-xs md:text-sm">
+                          <Package className="h-5 w-5" />
+                          <span>Telecel</span>
                         </Button>
                       </Link>
                       <Link href="/agent/bundles/at-bigtime">
-                        <Button variant="outline" size="sm" className="w-full h-auto py-3 flex-col gap-1">
-                          <Package className="h-4 w-4" />
-                          <span className="text-xs">AT BigTime</span>
+                        <Button variant="outline" size="sm" className="w-full h-auto py-4 flex-col gap-2 text-xs md:text-sm">
+                          <Package className="h-5 w-5" />
+                          <span>AT BigTime</span>
                         </Button>
                       </Link>
                       <Link href="/agent/wallet">
-                        <Button variant="outline" size="sm" className="w-full h-auto py-3 flex-col gap-1">
-                          <Wallet className="h-4 w-4" />
-                          <span className="text-xs">Top Up</span>
+                        <Button variant="outline" size="sm" className="w-full h-auto py-4 flex-col gap-2 text-xs md:text-sm">
+                          <Wallet className="h-5 w-5" />
+                          <span>Top Up</span>
                         </Button>
                       </Link>
                     </div>
@@ -361,7 +389,7 @@ export default function AgentDashboard() {
             </div>
 
             {/* Storefront & Order Tracker */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Your Storefront */}
               {agent && (
                 <Card>
@@ -432,22 +460,22 @@ export default function AgentDashboard() {
                 <CardDescription>Automate your business operations</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Button
                     variant="outline"
-                    className="justify-start h-auto p-4"
+                    className="justify-start h-auto p-4 text-left"
                     onClick={() => setShowApiModal(true)}
                   >
-                    <div className="text-left">
-                      <div className="font-medium">API Keys</div>
-                      <div className="text-xs text-muted-foreground">Integrate with external systems</div>
+                    <div>
+                      <div className="font-medium text-sm md:text-base">API Keys</div>
+                      <div className="text-xs md:text-sm text-muted-foreground">Integrate with external systems</div>
                     </div>
                   </Button>
                   <Link href="/agent/settings">
-                    <Button variant="outline" className="justify-start h-auto p-4 w-full">
-                      <div className="text-left">
-                        <div className="font-medium">Settings</div>
-                        <div className="text-xs text-muted-foreground">Manage your profile & links</div>
+                    <Button variant="outline" className="justify-start h-auto p-4 w-full text-left">
+                      <div>
+                        <div className="font-medium text-sm md:text-base">Settings</div>
+                        <div className="text-xs md:text-sm text-muted-foreground">Manage your profile & links</div>
                       </div>
                     </Button>
                   </Link>

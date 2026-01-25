@@ -4,6 +4,8 @@ dotenv.config();
 
 if (process.env.NODE_ENV === 'development') {
   dotenv.config({ path: '.env.development', override: true });
+} else if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: '.env.production', override: true });
 }
 
 console.log('DATABASE_URL after loading:', process.env.DATABASE_URL);
@@ -70,6 +72,13 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ========================
+// TIMEOUTS & PERFORMANCE
+// ========================
+const REQUEST_TIMEOUT_MS = 30 * 1000; // 30 seconds
+const SOCKET_TIMEOUT_MS = 60 * 1000; // 60 seconds
+const KEEP_ALIVE_TIMEOUT_MS = 65 * 1000; // 65 seconds
+
 function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "../../dist/public");
   console.log(`Serving static files from: ${distPath}`);
@@ -121,69 +130,150 @@ function serveStatic(app: Express) {
 const app = express();
 const httpServer = createServer(app);
 
-// Simple rate limiting (in-memory)
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+// ========================
+// ADVANCED RATE LIMITING
+// ========================
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+  blockedUntil?: number;
+}
 
-const rateLimit = (maxRequests: number, windowMs: number) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    const now = Date.now();
-    const record = rateLimitMap.get(ip);
-    
-    if (!record || now > record.resetTime) {
-      rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
-      return next();
+const rateLimitMap = new Map<string, RateLimitRecord>();
+
+const createRateLimiter = (maxRequests: number, windowMs: number, options?: { blockDurationMs?: number }) => {
+  const blockDurationMs = options?.blockDurationMs || windowMs;
+  
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const now = Date.now();
+      let record = rateLimitMap.get(ip);
+      
+      // Check if IP is temporarily blocked
+      if (record?.blockedUntil && now < record.blockedUntil) {
+        const remainingTime = Math.ceil((record.blockedUntil - now) / 1000);
+        res.set('Retry-After', String(Math.ceil(remainingTime / 60)));
+        return res.status(429).json({
+          error: "Too many requests",
+          message: `Rate limit exceeded. Try again in ${remainingTime} seconds.`,
+          retryAfter: remainingTime
+        });
+      }
+      
+      // Reset if window expired
+      if (!record || now > record.resetTime) {
+        rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+        return next();
+      }
+      
+      // Check request limit
+      if (record.count >= maxRequests) {
+        record.blockedUntil = now + blockDurationMs;
+        const remainingTime = Math.ceil(blockDurationMs / 1000);
+        res.set('Retry-After', String(Math.ceil(remainingTime / 60)));
+        return res.status(429).json({
+          error: "Rate limit exceeded",
+          message: `Too many requests from this IP. Blocked for ${Math.ceil(remainingTime / 60)} minute(s).`,
+          retryAfter: remainingTime
+        });
+      }
+      
+      record.count++;
+      next();
+    } catch (error) {
+      console.error('Rate limiting error:', error);
+      // On error, allow request to pass through
+      next();
     }
-    
-    if (record.count >= maxRequests) {
-      const remainingTime = Math.ceil((record.resetTime - now) / 1000 / 60); // minutes
-      return res.status(429).json({ 
-        error: "Too many requests. Please try again later.",
-        message: `You've exceeded the rate limit. Please wait ${remainingTime} minute(s) before trying again.`,
-        retryAfter: remainingTime
-      });
-    }
-    
-    record.count++;
-    next();
   };
 };
 
-// Cleanup old rate limit entries every hour
-setInterval(() => {
-  const now = Date.now();
-  rateLimitMap.forEach((record, ip) => {
-    if (now > record.resetTime) {
-      rateLimitMap.delete(ip);
+// Async cleanup for old rate limit entries
+const startRateLimitCleanup = () => {
+  setInterval(async () => {
+    try {
+      const now = Date.now();
+      let cleaned = 0;
+      
+      for (const [ip, record] of rateLimitMap.entries()) {
+        if (now > record.resetTime && (!record.blockedUntil || now > record.blockedUntil)) {
+          rateLimitMap.delete(ip);
+          cleaned++;
+        }
+      }
+      
+      if (cleaned > 0) {
+        console.log(`[Rate Limit Cleanup] Removed ${cleaned} expired entries`);
+      }
+    } catch (error) {
+      console.error('[Rate Limit Cleanup] Error:', error);
     }
-  });
-}, 60 * 60 * 1000);
+  }, 60 * 60 * 1000); // Run every hour
+};
 
-// Security headers middleware
-app.use((req, res, next) => {
-  // Prevent clickjacking
-  res.setHeader('X-Frame-Options', 'DENY');
-  // Prevent MIME type sniffing
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Enable XSS protection
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  // Referrer policy
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Content Security Policy
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://api.paystack.co https://checkout.paystack.com https://h.online-metrix.net; script-src-elem 'self' 'unsafe-inline' https://js.paystack.co https://api.paystack.co https://checkout.paystack.com https://h.online-metrix.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://api.paystack.co https://js.paystack.co https://checkout.paystack.com https://h.online-metrix.net https://jddstfppigucldetsxws.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com; frame-src https://js.paystack.co https://checkout.paystack.com; object-src 'none'; base-uri 'self'; form-action 'self';");
-  // Disable all caching
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Surrogate-Control', 'no-store');
-  next();
+// Start cleanup on server init
+startRateLimitCleanup();
+
+// Security headers middleware (non-blocking async)
+app.use(async (req, res, next) => {
+  try {
+    // Set timeout for this request
+    const timeout = setTimeout(() => {
+      if (!res.headersSent) {
+        res.status(408).json({ error: "Request timeout" });
+        req.socket.destroy();
+      }
+    }, REQUEST_TIMEOUT_MS);
+    
+    res.on('finish', () => clearTimeout(timeout));
+    res.on('close', () => clearTimeout(timeout));
+    
+    // Prevent clickjacking
+    res.setHeader('X-Frame-Options', 'DENY');
+    // Prevent MIME type sniffing
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Enable XSS protection
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    // Referrer policy
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    // Content Security Policy
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://api.paystack.co https://checkout.paystack.com https://h.online-metrix.net; script-src-elem 'self' 'unsafe-inline' https://js.paystack.co https://api.paystack.co https://checkout.paystack.com https://h.online-metrix.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' https://api.paystack.co https://js.paystack.co https://checkout.paystack.com https://h.online-metrix.net https://jddstfppigucldetsxws.supabase.co https://fonts.googleapis.com https://fonts.gstatic.com; frame-src https://js.paystack.co https://checkout.paystack.com; object-src 'none'; base-uri 'self'; form-action 'self';");
+    // Disable all caching
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+    next();
+  } catch (error) {
+    console.error('Security headers middleware error:', error);
+    next();
+  }
 });
 
-// Apply rate limiting to sensitive routes
-// Note: These limits are lenient for development. Adjust for production as needed.
-app.use('/api/auth/login', rateLimit(10, 15 * 60 * 1000)); // 10 requests per 15 minutes
-app.use('/api/auth/register', rateLimit(10, 30 * 60 * 1000)); // 10 requests per 30 minutes
-app.use('/api/agent/register', rateLimit(10, 30 * 60 * 1000)); // 10 requests per 30 minutes
+// Public health check endpoint (must be before rate limiting middleware)
+app.get('/api/health', (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    rateLimitDisabled: process.env.DISABLE_RATE_LIMIT === 'true'
+  });
+});
+
+// Optional toggle to disable rate limiting for local testing
+const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true';
+if (disableRateLimit) {
+  console.log('[RateLimit] Disabled for local testing');
+} else {
+  // Apply advanced rate limiting to sensitive routes
+  app.use('/api/auth/login', createRateLimiter(10, 15 * 60 * 1000, { blockDurationMs: 30 * 60 * 1000 })); // 10 req/15min, block for 30min
+  app.use('/api/auth/register', createRateLimiter(10, 30 * 60 * 1000, { blockDurationMs: 60 * 60 * 1000 })); // 10 req/30min, block for 1hr
+  app.use('/api/agent/register', createRateLimiter(10, 30 * 60 * 1000, { blockDurationMs: 60 * 60 * 1000 })); // 10 req/30min, block for 1hr
+
+  // General API rate limit (100 req/min)
+  app.use('/api/', createRateLimiter(100, 60 * 1000));
+}
 
 // Development-only endpoint to clear rate limits
 if (process.env.NODE_ENV !== "production") {
@@ -210,7 +300,38 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
-// Configure multer for file uploads
+// Async logging middleware (non-blocking)
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
+  res.on("finish", () => {
+    // Use setImmediate to defer logging to next iteration
+    setImmediate(() => {
+      try {
+        const duration = Date.now() - start;
+        if (path.startsWith("/api")) {
+          let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+          if (capturedJsonResponse) {
+            logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+          }
+          log(logLine);
+        }
+      } catch (error) {
+        console.error('Logging error:', error);
+      }
+    });
+  });
+
+  next();
+});
 // Use different upload target in production (dist/public/assets) vs dev (client/public/assets)
 const assetsUploadPath = process.env.NODE_ENV === "production"
   ? path.join(process.cwd(), "dist", "public", "assets")
@@ -355,47 +476,79 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await registerRoutes(httpServer, app);
+  try {
+    await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    // Global async error handler (non-blocking)
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+      setImmediate(async () => {
+        try {
+          const status = err.status || err.statusCode || 500;
+          const message = err.message || "Internal Server Error";
 
-    console.error("Express error:", err);
-    res.status(status).json({ message });
-    // Don't throw the error - just log it
-  });
+          console.error("Express error:", err);
+          
+          if (!res.headersSent) {
+            res.status(status).json({ message });
+          }
+        } catch (error) {
+          console.error('Error handler failed:', error);
+        }
+      });
+    });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite.js");
-    await setupVite(httpServer, app);
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    if (process.env.NODE_ENV === "production") {
+      serveStatic(app);
+    } else {
+      const { setupVite } = await import("./vite.js");
+      await setupVite(httpServer, app);
+    }
+
+    // ========================
+    // CONFIGURE TIMEOUTS
+    // ========================
+    httpServer.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
+    httpServer.headersTimeout = KEEP_ALIVE_TIMEOUT_MS + 5000;
+
+    // Set socket timeout
+    httpServer.on('connection', (socket) => {
+      socket.setTimeout(SOCKET_TIMEOUT_MS);
+      socket.on('timeout', () => {
+        socket.destroy();
+      });
+    });
+
+    // ALWAYS serve the app on the port specified in the environment variable PORT
+    // Use the provided PORT when available (Render sets this). Fall back to 10000
+    // for local development so the app still runs without additional env config.
+    const PORT = Number(process.env.PORT) || 10000;
+    const HOST = "0.0.0.0";
+    console.log(`Starting server on ${HOST}:${PORT}, NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`[Timeouts] Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
+    
+    httpServer.listen(
+      {
+        port: PORT,
+        host: HOST,
+      },
+      () => {
+        log(`serving on port ${PORT}`);
+      },
+    );
+  } catch (error) {
+    console.error('Server startup error:', error);
+    process.exit(1);
   }
-
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Use the provided PORT when available (Render sets this). Fall back to 10000
-  // for local development so the app still runs without additional env config.
-  const PORT = Number(process.env.PORT) || 10000;
-  const HOST = "0.0.0.0";
-  console.log(`Starting server on ${HOST}:${PORT}, NODE_ENV: ${process.env.NODE_ENV}`);
-  httpServer.listen(
-    {
-      port: PORT,
-      host: HOST,
-    },
-    () => {
-      log(`serving on port ${PORT}`);
-    },
-  );
 })();
 
-// Global error handlers to prevent server crashes
+// ========================
+// GLOBAL ERROR HANDLERS (Non-blocking)
+// ========================
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  console.error('[Uncaught Exception]', err);
   // Don't exit the process in production, just log the error
   if (process.env.NODE_ENV !== 'production') {
     process.exit(1);
@@ -403,6 +556,34 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('[Unhandled Rejection]', {
+    promise: String(promise),
+    reason: String(reason)
+  });
   // Don't exit the process, just log the error
 });
+
+// Graceful shutdown handler
+process.on('SIGTERM', async () => {
+  console.log('[SIGTERM] Graceful shutdown initiated');
+  httpServer.close(() => {
+    console.log('[Server] Closed all connections');
+    process.exit(0);
+  });
+  
+  // Force shutdown after 30 seconds
+  setTimeout(() => {
+    console.error('[Server] Forced shutdown due to timeout');
+    process.exit(1);
+  }, 30000);
+});
+
+process.on('SIGINT', async () => {
+  console.log('[SIGINT] Graceful shutdown initiated');
+  httpServer.close(() => {
+    console.log('[Server] Closed all connections');
+    process.exit(0);
+  });
+});
+
+console.log('[Server] Advanced features enabled: Async/Non-blocking, Rate Limiting, Request/Connection Timeouts');

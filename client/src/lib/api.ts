@@ -64,6 +64,9 @@ export const api = {
   store: (role: string, slug: string) => api.buildUrl(`/api/store/${role}/${slug}`),
 };
 
+// Lock to prevent duplicate 401 auto-logout attempts
+let autoLogoutInProgress = false;
+
 // API request utility
 export async function apiRequest(endpoint: string, options: RequestInit & { disableAutoLogout?: boolean } = {}): Promise<any> {
   const { disableAutoLogout, ...fetchOptions } = options;
@@ -92,9 +95,16 @@ export async function apiRequest(endpoint: string, options: RequestInit & { disa
     console.error('API Error:', { endpoint, status: response.status, error: errorData });
     
     // If unauthorized, sign out the user (unless disabled)
-    if (response.status === 401 && !disableAutoLogout) {
-      await supabase.auth.signOut();
-      window.location.href = '/login';
+    if (response.status === 401 && !disableAutoLogout && !autoLogoutInProgress) {
+      autoLogoutInProgress = true;
+      try {
+        await supabase.auth.signOut();
+        window.location.href = '/login';
+      } catch (error) {
+        console.error('Auto-logout failed:', error);
+        // Force redirect even if signOut fails
+        window.location.href = '/login';
+      }
       throw new Error('Session expired. Please log in again.');
     }
     

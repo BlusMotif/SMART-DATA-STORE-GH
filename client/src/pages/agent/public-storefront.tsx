@@ -405,7 +405,7 @@ export default function AgentPublicStorefront() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="border-b sticky top-0 z-50 bg-background">
+      <header className="border-b bg-white shadow-sm">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <Store className="h-6 w-6" />
@@ -439,6 +439,11 @@ export default function AgentPublicStorefront() {
                 <p className="text-lg text-white/90 max-w-2xl mx-auto">
                   {agent.businessDescription || "Purchase data bundles instantly with secure payments."}
                 </p>
+
+                <div className="mt-4 space-y-2 text-white">
+                  <p className="text-xl font-semibold">Your Trusted Platform for Digital Products</p>
+                  <p className="text-lg">Purchase data bundles</p>
+                </div>
               </div>
             </div>
 

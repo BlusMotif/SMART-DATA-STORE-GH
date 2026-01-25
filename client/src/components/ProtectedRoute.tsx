@@ -17,23 +17,24 @@ export function ProtectedRoute({
   requiredRoles,
   fallbackPath = "/login"
 }: ProtectedRouteProps) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isAuthenticated } = useAuth();
 
   return (
     <Route path={path}>
       {(params) => {
-        // Still loading
+        // Not authenticated - redirect immediately (even if loading)
+        // This prevents getting stuck when session expires
+        if (!isLoading && !user) {
+          return <Redirect to={fallbackPath} />;
+        }
+        
+        // Still loading initial auth check
         if (isLoading) {
           return (
             <div className="flex items-center justify-center min-h-screen">
               <LoadingSpinner size="lg" />
             </div>
           );
-        }
-
-        // Not authenticated
-        if (!user) {
-          return <Redirect to={fallbackPath} />;
         }
 
         // Check role if required

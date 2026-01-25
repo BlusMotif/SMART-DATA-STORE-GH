@@ -39,7 +39,7 @@ interface AgentProfileResponse {
 }
 
 // Function to get ranking badge based on user role
-const getRankingBadge = (role: string) => {
+const _getRankingBadge = (role: string) => {
   const rankings = {
     admin: { label: "Administrator", variant: "destructive" as const, icon: "👑" },
     master: { label: "Master Reseller", variant: "default" as const, icon: "🏆" },
@@ -63,7 +63,7 @@ const sidebarNavItems = [
   { title: "AT BIG TIME Bundles", href: "/agent/bundles/at_bigtime", icon: Smartphone },
   { title: "TELECEL Bundles", href: "/agent/bundles/telecel", icon: Smartphone },
   { title: "Top Up Wallet", href: "/agent/wallet", icon: CreditCard },
-  { title: "API & Integrations", href: "/dashboard/api-integrations", icon: Code },
+  { title: "API Keys & Integrations", href: "/dashboard/api-integrations", icon: Code },
   { title: "Withdrawals", href: "/agent/withdrawals", icon: Wallet },
   { title: "Settings", href: "/agent/settings", icon: Settings },
   { title: "Support Chat", href: "/agent/support", icon: MessageCircle },
@@ -72,7 +72,7 @@ const sidebarNavItems = [
 export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   const [location] = useLocation();
   const { logout, isLoggingOut, user } = useAuth();
-  const { theme } = useTheme();
+  const { theme: _theme } = useTheme();
   const [showApiModal, setShowApiModal] = useState(false);
 
   // Get user rank
@@ -221,8 +221,8 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
           {agent && (
             <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="mt-2">
-              <Button variant="outline" className="w-full justify-start gap-3 dark:border-gray-600 dark:text-white dark:hover:bg-gray-700" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
-                <ExternalLink className="h-4 w-4 dark:text-white" />
+              <Button variant="outline" className="w-full justify-start gap-3 bg-green-600 hover:bg-green-700 text-white border-green-600 dark:border-green-600 dark:bg-green-600 dark:hover:bg-green-700" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
+                <ExternalLink className="h-4 w-4" />
                 View Public Store
               </Button>
             </a>

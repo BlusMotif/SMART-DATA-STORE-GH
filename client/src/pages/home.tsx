@@ -8,6 +8,8 @@ import { Stats } from "@/components/ui/stats";
 import { Features } from "@/components/ui/features";
 import { CTA } from "@/components/ui/cta";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/api";
 import {
   ArrowRight,
   Zap,
@@ -28,12 +30,27 @@ import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
 import { OrderTracker } from "@/components/order-tracker";
-import { AnnouncementPopup } from "@/components/announcement-popup";
+import { WatchHowToPurchase } from "@/components/watch-how-to-purchase";
+
+interface ResultCheckerStock {
+  type: string;
+  year: number;
+  price: number;
+  stock: number;
+  available: number;
+}
 
 const bannerImages = [banner1, banner2, banner3];
 
 export default function HomePage() {
   const { user, isAuthenticated } = useAuth();
+
+  // Fetch result checker stock
+  const { data: resultCheckerStock } = useQuery<ResultCheckerStock[]>({
+    queryKey: ["/api/products/result-checkers/stock"],
+    queryFn: () => apiRequest("/api/products/result-checkers/stock"),
+    refetchInterval: 60000, // Refetch every minute
+  });
 
   // Product categories for homepage
   const productCategories = [
@@ -92,7 +109,9 @@ export default function HomePage() {
     {
       id: "waec-result-checker",
       title: "WAEC Result Checker",
-      description: "Instant BECE & WASSCE results",
+      description: resultCheckerStock && resultCheckerStock.length > 0 
+        ? `${resultCheckerStock.reduce((sum, item) => sum + item.available, 0)} PINs available` 
+        : "Instant BECE & WASSCE results",
       icon: () => (
         <img
           src={resultLogo}
@@ -100,7 +119,10 @@ export default function HomePage() {
           className="w-8 h-8 object-contain"
         />
       ),
-      color: "bg-gradient-to-br from-green-400 to-green-600"
+      color: "bg-gradient-to-br from-green-400 to-green-600",
+      badge: resultCheckerStock && resultCheckerStock.length > 0 
+        ? `${resultCheckerStock.reduce((sum, item) => sum + item.available, 0)} In Stock`
+        : null
     },
   ];
 
@@ -164,9 +186,9 @@ export default function HomePage() {
         {/* Hero Section */}
         <Hero
           title={
-            <span className="text-xl md:text-4xl lg:text-5xl font-bold text-center block">
-              Your Trusted Platform for Digital{" "}
-              <span className="text-blue-600">Products</span>
+            <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-center block" style={{ fontFamily: "'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif" }}>
+              <span className="font-extrabold">Your Trusted Platform for Digital</span>{" "}
+              <span className="text-blue-600 font-extrabold">Products</span>
             </span>
           }
           description="Purchase data bundles and WAEC result checkers instantly with secure payments and instant delivery."
@@ -174,20 +196,29 @@ export default function HomePage() {
             text: "Browse Products",
             href: "/data-bundles",
             icon: ArrowRight,
-            size: "md",
+            size: "sm",
             className: "bg-yellow-500 hover:bg-yellow-600 dark:text-white text-black"
           }}
           secondaryButton={{
             text: "Track Order",
             href: "#track-orders",
             icon: Package,
-            size: "md"
+            size: "sm"
           }}
           images={bannerImages}
           showNavigation={false}
           background="gradient"
           size="lg"
         />
+
+        {/* Mobile-only watch button under hero */}
+        <section className="md:hidden py-4">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="max-w-sm mx-auto w-full">
+              <WatchHowToPurchase triggerVariant="default" triggerSize="sm" className="w-full" />
+            </div>
+          </div>
+        </section>
 
         {/* Product Categories Section */}
         <section id="products" className="py-20">
@@ -202,22 +233,27 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
               {productCategories.map((cat) => (
                 <Link key={cat.id} href={`/products/${cat.id}`}>
-                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 dark:border-2 dark:border-white shadow-md bg-card">
-                    <CardContent className="p-2 text-center">
-                      <div className="w-full h-32 mx-auto mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Card className="group h-full hover:shadow-xl transition-all duration-300 hover:-translate-y-1 dark:border-2 dark:border-white shadow-md bg-card aspect-square md:aspect-auto flex flex-col">
+                    <CardContent className="p-2 md:p-2 text-center flex flex-col h-full">
+                      {cat.badge && (
+                        <Badge variant="secondary" className="mb-2 text-[10px] md:text-xs w-fit mx-auto">
+                          {cat.badge}
+                        </Badge>
+                      )}
+                      <div className="w-full h-24 md:h-32 mx-auto mb-1 md:mb-1 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                         <cat.icon />
                       </div>
-                      <h3 className="font-semibold text-lg mb-2 group-hover:text-primary transition-colors">
+                      <h3 className="font-semibold text-xs md:text-base lg:text-lg mb-0.5 md:mb-1 lg:mb-2 group-hover:text-primary transition-colors leading-tight">
                         {cat.title}
                       </h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] md:text-xs lg:text-sm text-muted-foreground leading-tight md:leading-snug lg:leading-relaxed flex-grow">
                         {cat.description}
                       </p>
-                      <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ArrowRight className="w-5 h-5 text-primary mx-auto" />
+                      <div className="mt-2 md:mt-3 lg:mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <ArrowRight className="w-3 md:w-4 lg:w-5 h-3 md:h-4 lg:h-5 text-primary mx-auto" />
                       </div>
                     </CardContent>
                   </Card>
@@ -237,7 +273,7 @@ export default function HomePage() {
           title="Experience Excellence"
           subtitle="Why Choose Us"
           description="We're committed to providing the best digital product experience with top-notch service"
-          columns={2}
+          columns={4}
           className="py-0"
           features={features}
           variant="cards"
@@ -276,9 +312,6 @@ export default function HomePage() {
       </main>
 
       <Footer />
-
-      {/* Announcement Popup */}
-      <AnnouncementPopup />
     </div>
   );
 }

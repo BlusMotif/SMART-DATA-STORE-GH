@@ -165,44 +165,44 @@ const Features = React.forwardRef<HTMLElement, FeaturesProps>(
       return (
         <section
           ref={ref}
-          className={cn("py-20", backgroundClasses[background], className)}
+          className={cn("pt-0 sm:pt-2 pb-12 sm:pb-20", backgroundClasses[background], className)}
           {...props}
         >
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="container mx-auto px-3 sm:px-6 lg:px-8">
             {(title || subtitle || description) && (
-              <div className="text-center mb-16">
+              <div className="text-center mb-8 sm:mb-16">
                 {subtitle && (
-                  <div className="text-sm font-medium text-primary mb-2 uppercase tracking-wide">
+                  <div className="text-xs sm:text-sm font-medium text-primary mb-1 sm:mb-2 uppercase tracking-wide">
                     {subtitle}
                   </div>
                 )}
                 {title && (
-                  <h2 className="text-3xl sm:text-4xl font-bold mb-4">{title}</h2>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 sm:mb-4">{title}</h2>
                 )}
                 {description && (
-                  <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                  <p className="text-sm sm:text-base lg:text-lg text-muted-foreground max-w-2xl mx-auto">
                     {description}
                   </p>
                 )}
               </div>
             )}
 
-            <div className={cn("grid gap-8", gridCols[columns])}>
+            <div className={cn("grid gap-3 sm:gap-6 lg:gap-8", "grid-cols-2 lg:grid-cols-4")}>
               {features.map((feature) => {
                 const Icon = feature.icon;
                 return (
-                  <Card key={feature.id} className="text-center hover:shadow-lg transition-shadow dark:border-2 dark:border-white bg-card backdrop-blur-sm">
-                    <CardContent className="p-8">
+                  <Card key={feature.id} className="hover:shadow-lg transition-shadow dark:border-2 dark:border-white bg-card backdrop-blur-sm aspect-square flex flex-col">
+                    <CardContent className="p-3 sm:p-6 lg:p-8 flex flex-col items-center justify-center h-full text-center">
                       {Icon && (
                         <div className={cn(
-                          "w-16 h-16 mx-auto mb-6 rounded-2xl p-4 flex items-center justify-center",
+                          "w-10 sm:w-14 lg:w-16 h-10 sm:h-14 lg:h-16 mx-auto mb-2 sm:mb-4 lg:mb-6 rounded-lg sm:rounded-xl lg:rounded-2xl p-2 sm:p-3 lg:p-4 flex items-center justify-center",
                           feature.color || "bg-gradient-to-br from-primary/10 to-primary/5 text-primary"
                         )}>
-                          <Icon className="w-8 h-8" />
+                          <Icon className="w-5 sm:w-6 lg:w-8 h-5 sm:h-6 lg:h-8" />
                         </div>
                       )}
-                      <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                      <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                      <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-1 sm:mb-2 lg:mb-3">{feature.title}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
                     </CardContent>
                   </Card>
                 );

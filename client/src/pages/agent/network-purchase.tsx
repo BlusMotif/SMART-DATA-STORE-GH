@@ -41,7 +41,7 @@ const singleOrderSchema = z.object({
     .min(10, "Phone number must be exactly 10 digits")
     .max(10, "Phone number must be exactly 10 digits")
     .regex(/^0[0-9]{9}$/, "Phone number must start with 0 and be 10 digits (e.g., 0241234567)"),
-  customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+  customerEmail: z.string().email("Invalid email"),
 });
 
 const bulkOrderSchema = z.object({
@@ -67,7 +67,7 @@ const bulkOrderSchema = z.object({
         return phoneValid && gbValid;
       });
     }, "Each line must have format: phone_number GB_amount (e.g., '0241234567 2' or '233241234567 2')"),
-  customerEmail: z.string().email("Invalid email").optional().or(z.literal("")),
+  customerEmail: z.string().email("Invalid email"),
 });
 
 type SingleOrderFormData = z.infer<typeof singleOrderSchema>;
@@ -246,6 +246,8 @@ export default function AgentNetworkPurchasePage() {
     },
     onSuccess: (data: any) => {
       isSubmittingRef.current = false; // Reset submission guard
+      // Store agent storefront info for checkout-success redirect
+      localStorage.setItem("agentStorefront", JSON.stringify({ role, slug, network }));
       window.location.href = data.paymentUrl;
     },
     onError: (error: any) => {
@@ -469,8 +471,8 @@ export default function AgentNetworkPurchasePage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background">
+    <div className="fixed inset-0 flex flex-col bg-background">
+      <header className="flex-none sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link href={`/store/${role}/${slug}`}>
             <Button variant="ghost" className="gap-2">
@@ -478,13 +480,14 @@ export default function AgentNetworkPurchasePage() {
               Back
             </Button>
           </Link>
-          <h1 className="text-xl font-bold">{storeData?.store.businessName}</h1>
+           <h1 className="text-xl font-bold truncate mx-4">{storeData?.store.businessName}</h1>
           <div className="w-20" /> {/* Spacer for centering */}
         </div>
       </header>
 
-      <main className="flex-1 py-8 px-4">
-        <div className="container mx-auto max-w-4xl">
+      <main className="flex-1 overflow-y-auto">
+        <div className="py-8 px-4">
+          <div className="container mx-auto max-w-4xl pb-12">
           {/* Network Header */}
           <div className="flex items-center gap-4 mb-8">
             {info.logo && (
@@ -581,14 +584,14 @@ export default function AgentNetworkPurchasePage() {
                         name="customerEmail"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email (Optional)</FormLabel>
+                            <FormLabel>Email *</FormLabel>
                             <FormControl>
                               <div className="relative">
                                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                 <Input type="email" placeholder="your@email.com" className="pl-10" {...field} />
                               </div>
                             </FormControl>
-                            <FormDescription>For receipt and order updates</FormDescription>
+                            <FormDescription>Required for receipt and order updates</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -685,14 +688,14 @@ export default function AgentNetworkPurchasePage() {
                           name="customerEmail"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Email (Optional)</FormLabel>
+                              <FormLabel>Email *</FormLabel>
                               <FormControl>
                                 <div className="relative">
                                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                   <Input type="email" placeholder="your@email.com" className="pl-10" {...field} />
                                 </div>
                               </FormControl>
-                              <FormDescription>For receipt and order updates</FormDescription>
+                              <FormDescription>Required for receipt and order updates</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
@@ -797,6 +800,7 @@ export default function AgentNetworkPurchasePage() {
                 </div>
               </Card>
             </div>
+          </div>
         </div>
       </main>
     </div>

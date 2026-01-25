@@ -15,22 +15,36 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { useToast } from "@/hooks/use-toast";
 
 const getStatusConfig = (status: string) => {
-  switch (status.toLowerCase()) {
+  // Normalize status to match SkyTech conventions
+  const normalizedStatus = status.toLowerCase();
+  
+  switch (normalizedStatus) {
     case 'completed':
     case 'delivered':
       return {
         variant: 'default' as const,
         icon: CheckCircle,
-        color: 'text-green-600',
-        bgColor: 'bg-green-50',
+        color: 'text-white',
+        bgColor: 'bg-emerald-600',
+        borderColor: 'border-emerald-500',
         label: 'Completed'
+      };
+    case 'processing':
+      return {
+        variant: 'secondary' as const,
+        icon: Layers,
+        color: 'text-white',
+        bgColor: 'bg-blue-500',
+        borderColor: 'border-blue-400',
+        label: 'Processing'
       };
     case 'pending':
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-yellow-600',
-        bgColor: 'bg-yellow-50',
+        color: 'text-white',
+        bgColor: 'bg-amber-500',
+        borderColor: 'border-amber-400',
         label: 'Pending'
       };
     case 'cancelled':
@@ -38,17 +52,19 @@ const getStatusConfig = (status: string) => {
       return {
         variant: 'destructive' as const,
         icon: XCircle,
-        color: 'text-red-600',
-        bgColor: 'bg-red-50',
+        color: 'text-white',
+        bgColor: 'bg-red-600',
+        borderColor: 'border-red-500',
         label: status === 'failed' ? 'Failed' : 'Cancelled'
       };
     default:
       return {
         variant: 'secondary' as const,
         icon: Clock,
-        color: 'text-gray-600',
-        bgColor: 'bg-gray-50',
-        label: status
+        color: 'text-white',
+        bgColor: 'bg-slate-600',
+        borderColor: 'border-slate-500',
+        label: status.charAt(0).toUpperCase() + status.slice(1)
       };
   }
 };
@@ -143,6 +159,7 @@ export default function UserHistoryPage() {
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="processing">Processing</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="failed">Failed</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
@@ -180,64 +197,64 @@ export default function UserHistoryPage() {
                       return (
                         <div
                           key={transaction.id}
-                          className={`p-4 border rounded-lg ${statusConfig.bgColor}`}
+                          className={`p-4 border rounded-lg ${statusConfig.bgColor} ${statusConfig.borderColor} text-white`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <p className="font-medium text-sm md:text-base">{transaction.productName}</p>
-                                <Badge variant={statusConfig.variant} className="flex items-center gap-1">
+                                <p className="font-medium text-sm md:text-base text-white">{transaction.productName}</p>
+                                <Badge variant={statusConfig.variant} className="flex items-center gap-1 bg-white text-gray-800">
                                   <StatusIcon className="h-3 w-3" />
                                   {statusConfig.label}
                                 </Badge>
                                 {isBulkOrder && (
-                                  <Badge variant="secondary" className="flex items-center gap-1">
+                                  <Badge variant="secondary" className="flex items-center gap-1 bg-gray-200 text-gray-800">
                                     <Layers className="h-3 w-3" />
                                     Bulk ({phoneNumbers?.length || 0})
                                   </Badge>
                                 )}
                               </div>
 
-                              <div className="text-xs md:text-sm text-gray-600 space-y-1">
+                              <div className="text-xs md:text-sm text-gray-200 space-y-1">
                                 {isBulkOrder && phoneNumbers ? (
                                   <>
-                                    <p className="font-semibold">Recipients: {phoneNumbers.length} numbers</p>
+                                    <p className="font-semibold text-white">Recipients: {phoneNumbers.length} numbers</p>
                                     <details className="cursor-pointer">
-                                      <summary className="text-blue-600 hover:underline">View all numbers</summary>
+                                      <summary className="text-blue-300 hover:underline">View all numbers</summary>
                                       <div className="mt-2 ml-2 space-y-1 max-h-32 overflow-y-auto">
                                         {phoneNumbers.map((phoneObj, idx) => (
-                                          <p key={idx} className="font-mono text-xs">{idx + 1}. {phoneObj.phone} - {phoneObj.bundleName} ({phoneObj.dataAmount})</p>
+                                          <p key={idx} className="font-mono text-xs text-gray-300">{idx + 1}. {phoneObj.phone} - {phoneObj.bundleName} ({phoneObj.dataAmount})</p>
                                         ))}
                                       </div>
                                     </details>
                                   </>
                                 ) : (
-                                  <p>Phone: {transaction.customerPhone}</p>
+                                  <p className="text-gray-200">Phone: {transaction.customerPhone}</p>
                                 )}
-                                {transaction.network && <p>Network: {transaction.network.toUpperCase()}</p>}
-                                <p className="text-xs">Ref: {transaction.reference}</p>
-                                <p className="text-xs">
+                                {transaction.network && <p className="text-gray-200">Network: {transaction.network.toUpperCase()}</p>}
+                                <p className="text-xs text-gray-300">Ref: {transaction.reference}</p>
+                                <p className="text-xs text-gray-300">
                                   {new Date(transaction.createdAt).toLocaleDateString()} at {new Date(transaction.createdAt).toLocaleTimeString()}
                                 </p>
                                 {transaction.completedAt && (
-                                  <p className="text-green-600 text-xs">
+                                  <p className="text-green-300 text-xs">
                                     Completed: {new Date(transaction.completedAt).toLocaleDateString()} at {new Date(transaction.completedAt).toLocaleTimeString()}
                                   </p>
                                 )}
                                 {transaction.failureReason && (
-                                  <p className="text-red-600 text-xs">Reason: {transaction.failureReason}</p>
+                                  <p className="text-red-300 text-xs">Reason: {transaction.failureReason}</p>
                                 )}
                               </div>
                             </div>
 
                             <div className="text-left sm:text-right shrink-0">
-                              <p className="font-medium text-lg">GH₵{transaction.amount}</p>
+                              <p className="font-medium text-lg text-white">GH₵{transaction.amount}</p>
                               {isBulkOrder && phoneNumbers && (
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-gray-300">
                                   GH₵{(parseFloat(transaction.amount) / phoneNumbers.length).toFixed(2)} each
                                 </p>
                               )}
-                              <Badge variant="outline" className="mt-1">
+                              <Badge variant="outline" className="mt-1 bg-white text-gray-800 border-white">
                                 {transaction.paymentMethod === 'wallet' ? 'Wallet' : 'MoMo'}
                               </Badge>
                             </div>

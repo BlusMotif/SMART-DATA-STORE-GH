@@ -32,6 +32,7 @@ interface ChatDetails {
 export function SupportChat() {
   const [message, setMessage] = useState("");
   const [chatId, setChatId] = useState<string | null>(null);
+  const [activeSupport, setActiveSupport] = useState<"whatsapp" | "chat">("chat");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -124,9 +125,15 @@ export function SupportChat() {
   };
 
   const handleWhatsAppSupport = () => {
+    setActiveSupport("whatsapp");
     const phoneNumber = "+233501234567"; // Replace with actual support number
     const messageText = encodeURIComponent("Hi, I need help with my data bundle purchase.");
     window.open(`https://wa.me/${phoneNumber}?text=${messageText}`, "_blank");
+  };
+
+  const handleLiveChatSupport = () => {
+    setActiveSupport("chat");
+    document.getElementById('chat-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -170,16 +177,23 @@ export function SupportChat() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Button
             onClick={handleWhatsAppSupport}
-            className="h-auto py-4 text-sm bg-green-600 hover:bg-green-700 text-white flex-col gap-2"
+            className={`h-auto py-4 text-sm flex-col gap-2 ${
+              activeSupport === "whatsapp"
+                ? "bg-yellow-500 text-white font-medium shadow-sm"
+                : "bg-green-600 hover:bg-green-700 text-white"
+            }`}
           >
             <MessageCircle className="h-6 w-6" />
             <span>WhatsApp Support</span>
             <span className="text-xs opacity-90">Get instant help via WhatsApp</span>
           </Button>
           <Button
-            variant="outline"
-            className="h-auto py-4 text-sm flex-col gap-2"
-            onClick={() => document.getElementById('chat-section')?.scrollIntoView({ behavior: 'smooth' })}
+            onClick={handleLiveChatSupport}
+            className={`h-auto py-4 text-sm flex-col gap-2 ${
+              activeSupport === "chat"
+                ? "bg-yellow-500 text-white font-medium shadow-sm"
+                : "border hover:bg-accent"
+            }`}
           >
             <MessageCircle className="h-6 w-6" />
             <span>Live Chat</span>

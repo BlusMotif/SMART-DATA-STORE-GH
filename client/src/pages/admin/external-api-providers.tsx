@@ -290,12 +290,12 @@ export default function AdminExternalApiProviders() {
                     Add Provider
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-black text-white border-gray-700">
                   <DialogHeader>
-                    <DialogTitle>
+                    <DialogTitle className="text-white">
                       {editingProvider ? "Edit" : "Add"} External API Provider
                     </DialogTitle>
-                    <DialogDescription>
+                    <DialogDescription className="text-gray-300">
                       {editingProvider
                         ? "Update the external API provider configuration."
                         : "Configure a new external API provider for data bundle purchases."
@@ -305,65 +305,69 @@ export default function AdminExternalApiProviders() {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="name">Provider Name</Label>
+                        <Label htmlFor="name" className="text-white">Provider Name</Label>
                         <Input
                           id="name"
                           value={form.name}
                           onChange={(e) => setForm({ ...form, name: e.target.value })}
                           placeholder="e.g., SkyTech GH"
                           required
+                          className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="provider">Provider Type</Label>
+                        <Label htmlFor="provider" className="text-white">Provider Type</Label>
                         <Select value={form.provider} onValueChange={(value) => setForm({ ...form, provider: value })}>
-                          <SelectTrigger>
+                          <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
                             <SelectValue placeholder="Select provider type" />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="skytech">SkyTech</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
+                          <SelectContent className="bg-gray-800 border-gray-600">
+                            <SelectItem value="skytech" className="text-white hover:bg-gray-700">SkyTech</SelectItem>
+                            <SelectItem value="other" className="text-white hover:bg-gray-700">Other</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
                     <div>
-                      <Label htmlFor="endpoint">API Endpoint</Label>
+                      <Label htmlFor="endpoint" className="text-white">API Endpoint</Label>
                       <Input
                         id="endpoint"
                         value={form.endpoint}
                         onChange={(e) => setForm({ ...form, endpoint: e.target.value })}
                         placeholder="https://api.example.com/v1/orders"
                         required
+                        className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="apiKey">API Key</Label>
+                        <Label htmlFor="apiKey" className="text-white">API Key</Label>
                         <Input
                           id="apiKey"
                           type="password"
                           value={form.apiKey}
                           onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
                           required
+                          className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="apiSecret">API Secret</Label>
+                        <Label htmlFor="apiSecret" className="text-white">API Secret</Label>
                         <Input
                           id="apiSecret"
                           type="password"
                           value={form.apiSecret}
                           onChange={(e) => setForm({ ...form, apiSecret: e.target.value })}
                           required
+                          className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <Label htmlFor="networkMappings">Network Mappings (JSON)</Label>
+                      <Label htmlFor="networkMappings" className="text-white">Network Mappings (JSON)</Label>
                       <Textarea
                         id="networkMappings"
                         value={form.networkMappings}
@@ -371,8 +375,9 @@ export default function AdminExternalApiProviders() {
                         placeholder='{"mtn": "MTN", "telecel": "TELECEL"}'
                         rows={6}
                         required
+                        className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                       />
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="text-sm text-gray-300 mt-1">
                         JSON mapping of internal network names to external API network codes
                       </p>
                     </div>
@@ -385,7 +390,7 @@ export default function AdminExternalApiProviders() {
                           onCheckedChange={(checked) => setForm({ ...form, isActive: checked })}
                           className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                         />
-                        <Label htmlFor="isActive">Active</Label>
+                        <Label htmlFor="isActive" className="text-white">Active</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Switch
@@ -394,7 +399,7 @@ export default function AdminExternalApiProviders() {
                           onCheckedChange={(checked) => setForm({ ...form, isDefault: checked })}
                           className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
                         />
-                        <Label htmlFor="isDefault">Set as Default</Label>
+                        <Label htmlFor="isDefault" className="text-white">Set as Default</Label>
                       </div>
                     </div>
 
@@ -403,11 +408,11 @@ export default function AdminExternalApiProviders() {
                         type="button"
                         variant="outline"
                         onClick={() => setDialogOpen(false)}
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto border-gray-600 text-white hover:bg-gray-700"
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={isSaving} className="w-full sm:w-auto">
+                      <Button type="submit" disabled={isSaving} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white">
                         {isSaving ? "Saving..." : (editingProvider ? "Update" : "Create")}
                       </Button>
                     </div>
@@ -419,19 +424,19 @@ export default function AdminExternalApiProviders() {
             {/* Providers Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
               {providers.map((provider) => (
-                <Card key={provider.id} className="relative">
+                <Card key={provider.id} className="relative bg-black text-white">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg flex items-center space-x-2 flex-wrap">
+                      <CardTitle className="text-lg flex items-center space-x-2 flex-wrap text-white">
                         <span className="truncate">{provider.name}</span>
                         {provider.isDefault && (
-                          <Badge variant="default" className="text-xs shrink-0">
+                          <Badge variant="default" className="text-xs shrink-0 bg-yellow-500 text-black">
                             <Star className="h-3 w-3 mr-1" />
                             Default
                           </Badge>
                         )}
                         {!provider.isActive && (
-                          <Badge variant="secondary" className="text-xs shrink-0">
+                          <Badge variant="secondary" className="text-xs shrink-0 bg-gray-600 text-white">
                             Inactive
                           </Badge>
                         )}
@@ -481,35 +486,35 @@ export default function AdminExternalApiProviders() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <Label className="text-sm font-medium text-muted-foreground">Provider Type</Label>
-                      <p className="text-sm">{provider.provider}</p>
+                      <Label className="text-sm font-medium text-gray-300">Provider Type</Label>
+                      <p className="text-sm text-white">{provider.provider}</p>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-muted-foreground">Endpoint</Label>
-                      <p className="font-mono break-all text-xs">{provider.endpoint}</p>
+                      <Label className="text-sm font-medium text-gray-300">Endpoint</Label>
+                      <p className="font-mono break-all text-xs text-white">{provider.endpoint}</p>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-muted-foreground">API Key</Label>
+                      <Label className="text-sm font-medium text-gray-300">API Key</Label>
                       <div className="flex items-center space-x-2">
                         <Input
                           value={showSecrets[provider.id] ? provider.apiKey : "••••••••••••••••"}
                           readOnly
-                          className="font-mono h-8 text-xs"
+                          className="font-mono h-8 text-xs bg-gray-800 border-gray-600 text-white"
                         />
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => toggleSecretVisibility(provider.id)}
-                          className="h-8 w-8 shrink-0"
+                          className="h-8 w-8 shrink-0 text-white hover:bg-gray-700"
                         >
                           {showSecrets[provider.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-sm font-medium text-muted-foreground">Network Mappings</Label>
-                      <div className="text-xs bg-muted p-2 rounded max-h-20 overflow-y-auto">
-                        <pre className="whitespace-pre-wrap break-words">{provider.networkMappings || "{}"}</pre>
+                      <Label className="text-sm font-medium text-gray-300">Network Mappings</Label>
+                      <div className="text-xs bg-gray-800 p-2 rounded max-h-20 overflow-y-auto border border-gray-600">
+                        <pre className="whitespace-pre-wrap break-words text-white">{provider.networkMappings || "{}"}</pre>
                       </div>
                     </div>
                   </CardContent>

@@ -440,6 +440,24 @@ export const settings = pgTable("settings", {
 });
 
 // ============================================
+// VIDEO GUIDES TABLE
+// ============================================
+export const videoGuides = pgTable("video_guides", {
+  id: text("id").primaryKey().$defaultFn(() => randomUUID()),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // guest | customer | agent
+  url: text("url").notNull(),
+  provider: text("provider"), // youtube | vimeo | mp4 | other
+  isPublished: boolean("is_published").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  categoryIdx: index("video_guides_category_idx").on(table.category),
+  publishedIdx: index("video_guides_published_idx").on(table.isPublished),
+}));
+
+// ============================================
 // EXTERNAL API PROVIDERS TABLE
 // ============================================
 export const externalApiProviders = pgTable("external_api_providers", {
@@ -572,131 +590,260 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
 // ============================================
 // INSERT SCHEMAS
 // ============================================
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-}).extend({
-  id: z.string().optional(), // Allow optional id for Supabase user ID
-  role: z.enum(["admin", "agent", "dealer", "super_dealer", "user", "guest"]).default("user"),
+export const insertUserSchema = z.object({
+  id: z.string().optional(),
+  email: z.string().email(),
+  password: z.string(),
+  name: z.string(),
+  phone: z.string().optional(),
+  role: z.enum(["admin", "agent", "dealer", "super_dealer", "master", "user", "guest"]).default("user"),
+  walletBalance: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
-export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
-  id: true,
-  createdAt: true,
-  lastUsed: true,
+export const insertApiKeySchema = z.object({
+  userId: z.string(),
+  name: z.string(),
+  key: z.string(),
+  permissions: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
-export const insertAgentSchema = createInsertSchema(agents).omit({
-  id: true,
-  createdAt: true,
-  balance: true,
-  totalSales: true,
-  totalProfit: true,
+export const insertAgentSchema = z.object({
+  userId: z.string(),
+  storefrontSlug: z.string(),
+  businessName: z.string(),
+  businessDescription: z.string().optional(),
+  customPricingMarkup: z.string().optional(),
+  isApproved: z.boolean().optional(),
+  paymentPending: z.boolean().optional(),
+  activationFee: z.string().optional(),
+  whatsappSupportLink: z.string().optional(),
+  whatsappChannelLink: z.string().optional(),
 });
 
-export const insertCustomPricingSchema = createInsertSchema(customPricing).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertCustomPricingSchema = z.object({
+  productId: z.string(),
+  roleOwnerId: z.string(),
+  role: z.string(),
+  sellingPrice: z.string(),
 });
 
-export const insertAdminBasePricesSchema = createInsertSchema(adminBasePrices).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertAdminBasePricesSchema = z.object({
+  productId: z.string(),
+  basePrice: z.string(),
 });
 
-export const insertRoleBasePricesSchema = createInsertSchema(roleBasePrices).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertRoleBasePricesSchema = z.object({
+  bundleId: z.string(),
+  role: z.string(),
+  basePrice: z.string(),
 });
 
-export const insertDataBundleSchema = createInsertSchema(dataBundles).omit({
-  id: true,
-  createdAt: true,
+export const insertDataBundleSchema = z.object({
+  name: z.string(),
+  network: z.string(),
+  dataAmount: z.string(),
+  validity: z.string(),
+  basePrice: z.string(),
+  agentPrice: z.string().optional(),
+  dealerPrice: z.string().optional(),
+  superDealerPrice: z.string().optional(),
+  masterPrice: z.string().optional(),
+  adminPrice: z.string().optional(),
+  isActive: z.boolean().optional(),
+  apiCode: z.string().optional(),
 });
 
-export const insertResultCheckerSchema = createInsertSchema(resultCheckers).omit({
-  id: true,
-  createdAt: true,
-  isSold: true,
-  soldAt: true,
-  soldToPhone: true,
-  transactionId: true,
+export const insertResultCheckerSchema = z.object({
+  type: z.string(),
+  year: z.number(),
+  serialNumber: z.string(),
+  pin: z.string(),
+  basePrice: z.string(),
+  isSold: z.boolean().optional(),
+  soldAt: z.date().optional(),
+  soldToPhone: z.string().optional(),
+  transactionId: z.string().optional(),
+  name: z.string().optional(),
+  price: z.string().optional(),
+  examType: z.enum(["bece", "wassce"]).optional(),
+  indexNumber: z.string().optional(),
+  schoolName: z.string().optional(),
+  currency: z.string().optional(),
 });
 
-export const insertTransactionSchema = createInsertSchema(transactions).omit({
-  id: true,
-  createdAt: true,
-  completedAt: true,
+export const insertTransactionSchema = z.object({
+  reference: z.string(),
+  type: z.string(),
+  productId: z.string().optional(),
+  productName: z.string(),
+  network: z.string().optional(),
+  amount: z.string(),
+  profit: z.string(),
+  customerPhone: z.string().optional(),
+  customerEmail: z.string().optional(),
+  phoneNumbers: z.string().optional(),
+  isBulkOrder: z.boolean().optional(),
+  paymentMethod: z.string().optional(),
+  status: z.string().optional(),
+  deliveryStatus: z.string().optional(),
+  paymentReference: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  agentId: z.string().optional(),
+  agentProfit: z.string().optional(),
+  providerId: z.string().optional(),
+  apiResponse: z.string().optional(),
+  deliveredPin: z.string().optional(),
+  deliveredSerial: z.string().optional(),
+  smsStatus: z.string().optional(),
+  failureReason: z.string().optional(),
+  completedAt: z.date().optional(),
 });
 
-export const insertWithdrawalSchema = createInsertSchema(withdrawals).omit({
-  id: true,
-  createdAt: true,
-  approvedBy: true,
-  approvedAt: true,
-  paidAt: true,
-  adminNote: true,
-  rejectionReason: true,
+export const insertWithdrawalSchema = z.object({
+  userId: z.string(),
+  amount: z.string(),
+  status: z.string().optional(),
+  paymentMethod: z.string().optional(),
+  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
+  accountNumber: z.string(),
+  accountName: z.string(),
+  adminNote: z.string().optional(),
+  rejectionReason: z.string().optional(),
+  approvedBy: z.string().optional(),
+  approvedAt: z.date().optional(),
+  paidAt: z.date().optional(),
+  paymentDetails: z.string().optional(),
+  requestedAt: z.date().optional(),
 });
 
-export const insertProfitWalletSchema = createInsertSchema(profitWallets).omit({
-  id: true,
-  updatedAt: true,
+export const insertProfitWalletSchema = z.object({
+  userId: z.string(),
+  availableBalance: z.string().optional(),
+  pendingBalance: z.string().optional(),
+  totalEarned: z.string().optional(),
+  agentId: z.string().optional(),
+  balance: z.string().optional(),
+  totalSales: z.string().optional(),
+  totalProfit: z.string().optional(),
 });
 
-export const insertProfitTransactionSchema = createInsertSchema(profitTransactions).omit({
-  id: true,
-  createdAt: true,
+export const insertProfitTransactionSchema = z.object({
+  userId: z.string(),
+  orderId: z.string().optional(),
+  productId: z.string().optional(),
+  sellingPrice: z.string(),
+  basePrice: z.string(),
+  profit: z.string(),
+  status: z.string().optional(),
+  agentId: z.string().optional(),
+  type: z.enum(["sale", "refund", "adjustment"]).optional(),
+  amount: z.string().optional(),
+  description: z.string().optional(),
 });
 
-export const insertSmsLogSchema = createInsertSchema(smsLogs).omit({
-  id: true,
-  createdAt: true,
+export const insertSmsLogSchema = z.object({
+  transactionId: z.string(),
+  phone: z.string(),
+  message: z.string(),
+  status: z.string().optional(),
+  provider: z.string().optional(),
+  providerMessageId: z.string().optional(),
+  retryCount: z.number().optional(),
+  lastRetryAt: z.date().optional(),
+  sentAt: z.date().optional(),
+  errorMessage: z.string().optional(),
 });
 
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
-  id: true,
-  createdAt: true,
+export const insertAuditLogSchema = z.object({
+  userId: z.string().optional(),
+  action: z.string(),
+  entityType: z.string(),
+  entityId: z.string().optional(),
+  oldValue: z.string().optional(),
+  newValue: z.string().optional(),
+  ipAddress: z.string().optional(),
+  userAgent: z.string().optional(),
 });
 
-export const insertSupportChatSchema = createInsertSchema(supportChats).omit({
-  id: true,
-  createdAt: true,
-  lastMessageAt: true,
+export const insertSupportChatSchema = z.object({
+  userId: z.string(),
+  userEmail: z.string(),
+  userName: z.string(),
+  status: z.string().optional(),
+  lastMessageAt: z.date().optional(),
+  assignedToAdminId: z.string().optional(),
+  closedAt: z.date().optional(),
 });
 
-export const insertChatMessageSchema = createInsertSchema(chatMessages).omit({
-  id: true,
-  createdAt: true,
+export const insertChatMessageSchema = z.object({
+  chatId: z.string(),
+  senderId: z.string(),
+  senderType: z.string(),
+  message: z.string(),
+  isRead: z.boolean().optional(),
 });
 
-export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertAnnouncementSchema = z.object({
+  title: z.string(),
+  message: z.string(),
+  isActive: z.boolean().optional(),
+  createdBy: z.string(),
+  content: z.string().optional(),
+  type: z.enum(["info", "warning", "success", "error"]).optional(),
+  expiresAt: z.date().optional(),
 });
 
-export const insertWalletTopupTransactionSchema = createInsertSchema(walletTopupTransactions).omit({
-  id: true,
-  createdAt: true,
+export const insertWalletTopupTransactionSchema = z.object({
+  userId: z.string(),
+  adminId: z.string(),
+  amount: z.string(),
+  reason: z.string().optional(),
+  transactionId: z.string().optional(),
+  method: z.string().optional(),
+  status: z.string().optional(),
+  reference: z.string().optional(),
+  agentId: z.string().optional(),
 });
 
-export const insertSettingsSchema = createInsertSchema(settings).omit({
-  updatedAt: true,
+export const insertSettingsSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  description: z.string().optional(),
 });
 
-export const insertExternalApiProviderSchema = createInsertSchema(externalApiProviders).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertVideoGuideSchema = z.object({
+  title: z.string(),
+  description: z.string().optional(),
+  category: z.enum(["guest", "customer", "agent"]),
+  url: z.string(),
+  provider: z.enum(["youtube", "vimeo", "mp4", "other"]).optional(),
+  isPublished: z.boolean().optional(),
 });
 
-export const updateExternalApiProviderSchema = createInsertSchema(externalApiProviders).omit({
-  id: true,
-  createdAt: true,
+export const insertExternalApiProviderSchema = z.object({
+  name: z.string(),
+  provider: z.string(),
+  apiKey: z.string(),
+  apiSecret: z.string(),
+  endpoint: z.string(),
+  isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  networkMappings: z.string().optional(),
+  type: z.string().optional(),
+});
+
+export const updateExternalApiProviderSchema = z.object({
+  name: z.string().optional(),
+  provider: z.string().optional(),
+  apiKey: z.string().optional(),
+  apiSecret: z.string().optional(),
+  endpoint: z.string().optional(),
+  isActive: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
+  networkMappings: z.string().optional(),
 });
 
 // ============================================
@@ -756,6 +903,9 @@ export type Announcement = typeof announcements.$inferSelect;
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
 
+export type InsertVideoGuide = z.infer<typeof insertVideoGuideSchema>;
+export type VideoGuide = typeof videoGuides.$inferSelect;
+
 export type InsertExternalApiProvider = z.infer<typeof insertExternalApiProviderSchema>;
 export type UpdateExternalApiProvider = z.infer<typeof updateExternalApiProviderSchema>;
 export type ExternalApiProvider = typeof externalApiProviders.$inferSelect;
@@ -811,6 +961,7 @@ export const purchaseSchema = z.object({
     price: z.number(),
   })).optional(),
   totalAmount: z.number().optional(),
+  quantity: z.number().optional(),
 }).refine((data) => {
   // customerPhone is required for data_bundle, optional for result_checker
   if (data.productType === "data_bundle" && (!data.customerPhone || (typeof data.customerPhone === 'string' && data.customerPhone.length < 10))) {

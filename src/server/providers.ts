@@ -65,11 +65,15 @@ export async function fulfillDataBundleTransaction(transaction: any, providerId?
       networkMappings = {
         "mtn": "MTN",
         "telecel": "TELECEL",
-        "at_bigtime": "AIRTELTIGO",
-        "at_ishare": "AIRTELTIGO",
+        "at_bigtime": "AT_BIGTIME",
+        "at_ishare": "AT_ISHARE",
         "airteltigo": "AIRTELTIGO"
       };
     }
+
+    // Ensure AT networks use explicit identifiers
+    (networkMappings as Record<string, string>)["at_bigtime"] = "AT_BIGTIME";
+    (networkMappings as Record<string, string>)["at_ishare"] = "AT_ISHARE";
 
     // Compose recipients
     let phoneData: any[] = [];

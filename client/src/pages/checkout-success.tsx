@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLoader } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Home, Phone as PhoneIcon } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Copy, ArrowRight, Phone as PhoneIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import type { Transaction } from "@shared/schema";
@@ -24,8 +24,36 @@ export default function CheckoutSuccessPage() {
 
   // Function to get the return URL
   const getReturnUrl = () => {
-    const agentStore = localStorage.getItem("agentStore");
-    return agentStore ? `/store/agent/${agentStore}` : "/";
+    try {
+      const agentStorefront = localStorage.getItem("agentStorefront");
+      if (agentStorefront) {
+        const { role, slug, network } = JSON.parse(agentStorefront);
+        localStorage.removeItem("agentStorefront"); // Clear after reading
+        return `/store/${role}/${slug}/${network}`;
+      }
+    } catch (e) {
+      console.error("Failed to parse agentStorefront:", e);
+    }
+    return "/";
+  };
+
+  // Function to get dashboard URL based on user role
+  const getDashboardUrl = () => {
+    if (!user) return "/";
+    if (user.role === "agent" || user.role === "dealer" || user.role === "super_dealer") {
+      return `/${user.role}/dashboard`;
+    }
+    return "/user/dashboard";
+  };
+
+  // Determine if this was an agent storefront purchase
+  const isAgentStorefrontPurchase = () => {
+    try {
+      const agentStorefront = localStorage.getItem("agentStorefront");
+      return !!agentStorefront;
+    } catch {
+      return false;
+    }
   };
 
   const [verificationComplete, setVerificationComplete] = useState(false);
@@ -80,11 +108,10 @@ export default function CheckoutSuccessPage() {
     console.log("transactionId:", transaction?.id);
     console.log("autoDownloadTriggered:", autoDownloadTriggered);
 
+    // Remove user requirement - rely on credentials in the request
     if (
       transaction &&
       verificationComplete &&
-      !authLoading &&
-      user &&
       transaction.type === "result_checker" &&
       transaction.id &&
       !autoDownloadTriggered
@@ -93,14 +120,47 @@ export default function CheckoutSuccessPage() {
       setAutoDownloadTriggered(true);
       
       // Auto-download after a brief delay for better UX
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         try {
+          console.log("🔍 Fetching PDF for guest download...");
+          
+          // Use guest-accessible endpoint with transaction reference
+          // No authentication required - validates via reference
+          const response = await fetch(`/api/result-checker/download/${transaction.reference}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/pdf',
+            },
+          });
+
+          if (!response.ok) {
+            console.warn("PDF not ready yet, status:", response.status);
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            console.error("PDF error:", errorData);
+            
+            toast({
+              title: "PDF Not Ready",
+              description: errorData.error || "Please click the download button manually",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          // Get the PDF blob
+          const blob = await response.blob();
+          
+          // Create download link
+          const url = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
-          link.href = `/api/result-checker/${transaction.id}/pdf`;
+          link.href = url;
           link.download = `${transaction.productName.replace(/\s+/g, '-')}-${transaction.reference}.pdf`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
+          
+          // Clean up
+          window.URL.revokeObjectURL(url);
           
           toast({
             title: "Download Started",
@@ -110,12 +170,17 @@ export default function CheckoutSuccessPage() {
           console.log("📥 Auto-download triggered successfully");
         } catch (error) {
           console.error("Auto-download failed:", error);
+          toast({
+            title: "Auto-download Failed",
+            description: "Please click the download button manually",
+            variant: "destructive",
+          });
         }
-      }, 1500);
+      }, 2000); // Increased delay to allow auth to settle
 
       return () => clearTimeout(timer);
     }
-  }, [transaction, verificationComplete, authLoading, user, autoDownloadTriggered, toast]);
+  }, [transaction, verificationComplete, autoDownloadTriggered, toast]);
 
   // Show loading while authentication is being restored
   if (authLoading) {
@@ -206,22 +271,22 @@ export default function CheckoutSuccessPage() {
   const statusConfig = {
     completed: {
       icon: CheckCircle,
-      color: "text-green-500",
-      bgColor: "bg-green-50 dark:bg-green-900/20",
+      color: "text-white",
+      bgColor: "bg-green-500 dark:bg-green-600",
       title: "Payment Successful!",
       description: verificationComplete ? "Your transaction has been completed successfully." : "Verifying transaction...",
     },
     pending: {
       icon: Clock,
-      color: "text-orange-500",
-      bgColor: "bg-orange-50 dark:bg-orange-900/20",
+      color: "text-white",
+      bgColor: "bg-orange-500 dark:bg-orange-600",
       title: "Payment Processing",
       description: "Your payment is being processed. Please wait...",
     },
     failed: {
       icon: XCircle,
-      color: "text-red-500",
-      bgColor: "bg-red-50 dark:bg-red-900/30",
+      color: "text-white",
+      bgColor: "bg-red-500 dark:bg-red-600",
       title: "Payment Failed",
       description: "Your payment could not be processed. Please try again.",
     },
@@ -261,22 +326,22 @@ export default function CheckoutSuccessPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {!verificationComplete && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 flex items-center gap-3">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                  <p className="text-sm text-blue-800 dark:text-blue-300">Verifying transaction details...</p>
+                <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-4 flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <p className="text-sm text-white font-medium">Verifying transaction details...</p>
                 </div>
               )}
               {transaction && (
                 <>
-                  <div className="bg-muted/80 rounded-lg p-4 space-y-3">
+                  <div className="bg-slate-700 dark:bg-slate-800 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Transaction ID</span>
+                      <span className="text-sm text-white/70">Transaction ID</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono" data-testid="text-transaction-id">{transaction.id}</span>
+                        <span className="text-xs font-mono text-white" data-testid="text-transaction-id">{transaction.id}</span>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 text-white hover:bg-white/20"
                           onClick={() => copyToClipboard(transaction.id)}
                         >
                           <Copy className="h-3 w-3" />
@@ -284,13 +349,13 @@ export default function CheckoutSuccessPage() {
                       </div>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Reference</span>
+                      <span className="text-sm text-white/70">Reference</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-mono" data-testid="text-reference">{transaction.reference}</span>
+                        <span className="text-sm font-mono text-white" data-testid="text-reference">{transaction.reference}</span>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6"
+                          className="h-6 w-6 text-white hover:bg-white/20"
                           onClick={() => copyToClipboard(transaction.reference)}
                         >
                           <Copy className="h-3 w-3" />
@@ -298,28 +363,28 @@ export default function CheckoutSuccessPage() {
                       </div>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Product</span>
-                      <span className="text-sm font-medium" data-testid="text-product">{transaction.productName}</span>
+                      <span className="text-sm text-white/70">Product</span>
+                      <span className="text-sm font-medium text-white" data-testid="text-product">{transaction.productName}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Amount</span>
-                      <span className="text-sm font-medium" data-testid="text-amount">{formatCurrency(transaction.amount)}</span>
+                      <span className="text-sm text-white/70">Amount</span>
+                      <span className="text-sm font-medium text-white" data-testid="text-amount">{formatCurrency(transaction.amount)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Phone</span>
-                      <span className="text-sm font-medium">{transaction.customerPhone}</span>
+                      <span className="text-sm text-white/70">Phone</span>
+                      <span className="text-sm font-medium text-white">{transaction.customerPhone}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Date</span>
-                      <span className="text-sm">{formatDate(transaction.createdAt)}</span>
+                      <span className="text-sm text-white/70">Date</span>
+                      <span className="text-sm text-white">{formatDate(transaction.createdAt)}</span>
                     </div>
                   </div>
 
                   {/* Bulk Order Phone Numbers */}
                   {(transaction as any).isBulkOrder && (transaction as any).phoneNumbers && (
-                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                    <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                        <h4 className="font-semibold text-white flex items-center gap-2">
                           <PhoneIcon className="h-4 w-4" />
                           Bulk Order Recipients ({((transaction as any).phoneNumbers as string[]).length})
                         </h4>
@@ -335,7 +400,7 @@ export default function CheckoutSuccessPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
                         {((transaction as any).phoneNumbers as string[]).map((phone: string, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-400 bg-white dark:bg-black rounded px-2 py-1">
+                          <div key={idx} className="flex items-center gap-2 text-sm text-blue-900 dark:text-white bg-white dark:bg-blue-700 rounded px-2 py-1">
                             <span className="text-xs text-muted-foreground">{idx + 1}.</span>
                             <code className="font-mono">{phone}</code>
                           </div>
@@ -351,15 +416,52 @@ export default function CheckoutSuccessPage() {
                         Your result checker has been purchased successfully. Download your PDF credentials below.
                       </p>
                       <Button
-                        onClick={() => {
-                          const link = document.createElement('a');
-                          link.href = `/api/result-checker/${transaction.id}/pdf`;
-                          link.download = `${transaction.productName.replace(/\s+/g, '-')}-${transaction.reference}.pdf`;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
+                        onClick={async () => {
+                          try {
+                            // Use guest-accessible endpoint with transaction reference
+                            // No authentication required
+                            const response = await fetch(`/api/result-checker/download/${transaction.reference}`, {
+                              method: 'GET',
+                              credentials: 'include',
+                              headers: {
+                                'Content-Type': 'application/pdf',
+                              },
+                            });
+                            
+                            if (!response.ok) {
+                              const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                              throw new Error(errorData.error || `Failed to download PDF: ${response.status}`);
+                            }
+                            
+                            // Get the PDF blob
+                            const blob = await response.blob();
+                            
+                            // Create download link
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `${transaction.productName.replace(/\s+/g, '-')}-${transaction.reference}.pdf`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            
+                            // Clean up
+                            window.URL.revokeObjectURL(url);
+                            
+                            toast({
+                              title: "✅ Downloaded",
+                              description: "Your PDF credentials have been downloaded successfully",
+                            });
+                          } catch (error: any) {
+                            console.error("PDF Download error:", error);
+                            toast({
+                              title: "❌ Download Failed",
+                              description: error.message || "Failed to download PDF. Please contact support.",
+                              variant: "destructive",
+                            });
+                          }
                         }}
-                        className="w-full gap-2"
+                        className="w-full gap-2 bg-green-400 hover:bg-green-300 text-black border-2 border-green-400 font-semibold"
                         data-testid="button-download-pdf"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -394,15 +496,18 @@ export default function CheckoutSuccessPage() {
                 </>
               )}
 
-              <div className="flex flex-col gap-3">
-                <Button onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-continue-shopping">
-                  Continue Shopping
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" onClick={() => setLocation(getReturnUrl())} className="gap-2" data-testid="button-home">
-                  <Home className="h-4 w-4" />
-                  {localStorage.getItem("agentStore") ? "Back to Store" : "Back to Home"}
-                </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                {isAgentStorefrontPurchase() ? (
+                  <Button onClick={() => setLocation(getReturnUrl())} className="gap-2 flex-1" variant="outline" data-testid="button-continue-shopping">
+                    Continue Shopping
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                ) : (
+                  <Button onClick={() => setLocation(getDashboardUrl())} className="gap-2 flex-1" variant="outline" data-testid="button-continue-dashboard">
+                    Back to Dashboard
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

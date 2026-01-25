@@ -197,9 +197,9 @@ export default function AdminResultCheckers() {
                   Bulk Add
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-lg bg-black">
                 <DialogHeader>
-                  <DialogTitle>Bulk Add Result Checkers</DialogTitle>
+                  <DialogTitle className="text-white">Bulk Add Result Checkers</DialogTitle>
                 </DialogHeader>
                 <BulkAddForm
                   onSubmit={(data) => bulkAddMutation.mutate(data)}
@@ -276,20 +276,20 @@ export default function AdminResultCheckers() {
               </div>
             )}
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileCheck className="h-5 w-5" />
-                    Result Checker Inventory
+            <Card className="md:col-span-2 lg:col-span-3">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3 md:pb-6">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                    <FileCheck className="h-4 w-4 md:h-5 md:w-5" />
+                    <span className="truncate">Result Checker Inventory</span>
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-sm md:text-base">
                     View and manage PIN/Serial inventory
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1 md:gap-2 flex-shrink-0">
                   <Select value={selectedType} onValueChange={setSelectedType}>
-                    <SelectTrigger className="w-32" data-testid="filter-type">
+                    <SelectTrigger className="w-24 md:w-32 text-xs md:text-sm" data-testid="filter-type">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -302,7 +302,7 @@ export default function AdminResultCheckers() {
                     </SelectContent>
                   </Select>
                   <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger className="w-32" data-testid="filter-year">
+                    <SelectTrigger className="w-20 md:w-32 text-xs md:text-sm" data-testid="filter-year">
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -316,81 +316,84 @@ export default function AdminResultCheckers() {
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-3 md:px-6">
                 {isLoading ? (
-                  <TableSkeleton rows={10} />
+                  <TableSkeleton rows={5} />
                 ) : filteredCheckers && filteredCheckers.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Year</TableHead>
-                        <TableHead>Serial</TableHead>
-                        <TableHead>PIN</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Sold To</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCheckers.slice(0, 50).map((checker) => (
-                        <TableRow key={checker.id} data-testid={`row-checker-${checker.id}`}>
-                          <TableCell>
-                            <Badge variant="outline">{checker.type.toUpperCase()}</Badge>
-                          </TableCell>
-                          <TableCell className="font-medium">{checker.year}</TableCell>
-                          <TableCell className="font-mono text-sm">{checker.serialNumber}</TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {checker.isSold ? checker.pin : "****"}
-                          </TableCell>
-                          <TableCell className="tabular-nums">
-                            {formatCurrency(checker.basePrice)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={checker.isSold ? "secondary" : "default"}>
-                              {checker.isSold ? "Sold" : "Available"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {checker.soldToPhone || "-"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">
-                            {checker.soldAt ? formatDate(checker.soldAt) : formatDate(checker.createdAt)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleEdit(checker)}
-                                disabled={checker.isSold}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleDelete(checker.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs md:text-sm">Type</TableHead>
+                          <TableHead className="text-xs md:text-sm">Year</TableHead>
+                          <TableHead className="text-xs md:text-sm">Serial</TableHead>
+                          <TableHead className="text-xs md:text-sm">PIN</TableHead>
+                          <TableHead className="text-xs md:text-sm">Price</TableHead>
+                          <TableHead className="text-xs md:text-sm">Status</TableHead>
+                          <TableHead className="hidden md:table-cell text-xs md:text-sm">Sold To</TableHead>
+                          <TableHead className="hidden lg:table-cell text-xs md:text-sm">Date</TableHead>
+                          <TableHead className="text-xs md:text-sm">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCheckers.slice(0, 20).map((checker) => (
+                          <TableRow key={checker.id} data-testid={`row-checker-${checker.id}`}>
+                            <TableCell className="text-xs md:text-sm">
+                              <Badge variant="outline" className="text-xs">{checker.type.toUpperCase()}</Badge>
+                            </TableCell>
+                            <TableCell className="font-medium text-xs md:text-sm">{checker.year}</TableCell>
+                            <TableCell className="font-mono text-xs md:text-sm">{checker.serialNumber}</TableCell>
+                            <TableCell className="font-mono text-xs md:text-sm">
+                              {checker.isSold ? checker.pin : "****"}
+                            </TableCell>
+                            <TableCell className="tabular-nums text-xs md:text-sm">
+                              {formatCurrency(checker.basePrice)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={checker.isSold ? "secondary" : "default"} className="text-xs">
+                                {checker.isSold ? "Sold" : "Available"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-muted-foreground text-xs md:text-sm">
+                              {checker.soldToPhone || "-"}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">
+                              {checker.soldAt ? formatDate(checker.soldAt) : formatDate(checker.createdAt)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1 md:gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEdit(checker)}
+                                  disabled={checker.isSold}
+                                  className="text-xs px-2 py-1 h-7"
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDelete(checker.id)}
+                                  className="text-destructive hover:text-destructive text-xs px-2 py-1 h-7"
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 ) : (
-                  <div className="text-center py-12 text-muted-foreground">
+                  <div className="text-center py-6 md:py-12 text-muted-foreground text-sm md:text-base">
                     No result checkers found. Use "Bulk Add" to add inventory.
                   </div>
                 )}
-                {filteredCheckers && filteredCheckers.length > 50 && (
-                  <div className="text-center py-4 text-sm text-muted-foreground">
-                    Showing 50 of {filteredCheckers.length} items
+                {filteredCheckers && filteredCheckers.length > 20 && (
+                  <div className="text-center py-2 md:py-4 text-xs md:text-sm text-muted-foreground">
+                    Showing 20 of {filteredCheckers.length} items
                   </div>
                 )}
               </CardContent>
@@ -441,7 +444,7 @@ function BulkAddForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Type</Label>
+          <Label className="text-white">Type</Label>
           <Select
             value={formData.type}
             onValueChange={(value) => setFormData({ ...formData, type: value })}
@@ -459,7 +462,7 @@ function BulkAddForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Year</Label>
+          <Label className="text-white">Year</Label>
           <Select
             value={formData.year}
             onValueChange={(value) => setFormData({ ...formData, year: value })}
@@ -480,7 +483,7 @@ function BulkAddForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="costPrice">Cost Price (GHS)</Label>
+          <Label htmlFor="costPrice" className="text-white">Cost Price (GHS)</Label>
           <Input
             id="costPrice"
             type="number"
@@ -493,7 +496,7 @@ function BulkAddForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="basePrice">Selling Price (GHS)</Label>
+          <Label htmlFor="basePrice" className="text-white">Selling Price (GHS)</Label>
           <Input
             id="basePrice"
             type="number"
@@ -508,7 +511,7 @@ function BulkAddForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="checkers">PIN/Serial Pairs</Label>
+        <Label htmlFor="checkers" className="text-white">PIN/Serial Pairs</Label>
         <Textarea
           id="checkers"
           value={formData.checkers}
@@ -519,13 +522,13 @@ function BulkAddForm({
           disabled={!!uploadedFile}
           data-testid="input-checker-pairs"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-300">
           Format: SERIAL,PIN (one per line) - OR upload a CSV file below
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="file">Upload CSV File (Optional)</Label>
+        <Label htmlFor="file" className="text-white">Upload CSV File (Optional)</Label>
         <Input
           id="file"
           type="file"
@@ -533,11 +536,11 @@ function BulkAddForm({
           onChange={handleFileChange}
           data-testid="input-checker-file"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-gray-300">
           CSV format: SERIAL,PIN (one pair per line, no headers)
         </p>
         {uploadedFile && (
-          <p className="text-sm text-green-600">
+          <p className="text-sm text-green-400">
             File selected: {uploadedFile.name}
           </p>
         )}

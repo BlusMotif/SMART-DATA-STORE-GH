@@ -59,6 +59,12 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   }
 }
 
+// Export function to clear cached token (useful during logout)
+export function clearAuthCache() {
+  cachedToken = null;
+  tokenExpiry = null;
+}
+
 /* --------------------------------------------------
    Fetch wrapper (mutations & manual requests)
 -------------------------------------------------- */

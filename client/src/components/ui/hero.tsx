@@ -8,6 +8,7 @@ interface HeroProps extends React.HTMLAttributes<HTMLElement> {
   title: React.ReactNode;
   subtitle?: string;
   description?: string;
+  aboveButtons?: React.ReactNode;
   badge?: string;
   primaryButton?: {
     text: string;
@@ -39,6 +40,7 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
     title,
     subtitle,
     description,
+    aboveButtons,
     badge,
     primaryButton,
     secondaryButton,
@@ -186,6 +188,12 @@ const Hero = React.forwardRef<HTMLElement, HeroProps>(
                 <p className="text-base sm:text-lg text-white/90 mb-8 max-w-2xl mx-auto leading-relaxed">
                   {description}
                 </p>
+              )}
+
+              {aboveButtons && (
+                <div className="mb-4 flex justify-center">
+                  {aboveButtons}
+                </div>
               )}
 
               {(primaryButton || secondaryButton) && (

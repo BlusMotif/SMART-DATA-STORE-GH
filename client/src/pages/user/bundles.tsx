@@ -400,14 +400,14 @@ export default function UserBundlesPage() {
 
     for (const item of parsedData) {
       console.log("[DEBUG] Finding bundle for GB:", item.gb);
-      // Find a bundle that matches the GB amount (looking for bundles with the GB in the name)
+      // Find a bundle that matches the GB amount (looking for bundles with the GB in dataAmount)
       const matchingBundle = bundles?.find(b => {
-        const bundleName = b.name.toLowerCase();
-        // Try to extract GB from bundle name (e.g., "5GB" -> 5)
-        const gbMatch = bundleName.match(/(\d+(?:\.\d+)?)\s*gb/i);
+        const dataAmount = b.dataAmount || b.name; // Fall back to name if dataAmount doesn't exist
+        // Try to extract GB from dataAmount (e.g., "5GB" -> 5)
+        const gbMatch = dataAmount.match(/(\d+(?:\.\d+)?)\s*gb/i);
         if (gbMatch) {
           const bundleGB = parseFloat(gbMatch[1]);
-          console.log("[DEBUG] Bundle", bundleName, "has GB:", bundleGB);
+          console.log("[DEBUG] Bundle", b.name, "has GB:", bundleGB);
           return bundleGB === item.gb;
         }
         return false;
@@ -589,14 +589,14 @@ export default function UserBundlesPage() {
 
                     {/* Selected Bundle Display */}
                     {selectedBundle && (
-                      <div className="p-2 bg-yellow-100 rounded-lg border border-primary">
-                        <p className="text-sm text-muted-foreground">Selected Bundle</p>
-                        <p className="font-medium text-lg">{selectedBundle.name}</p>
-                        <p className="text-sm text-muted-foreground">{selectedBundle.validity}</p>
+                      <div className="p-2 bg-yellow-500 text-white rounded-lg border border-yellow-600">
+                        <p className="text-sm text-white">Selected Bundle</p>
+                        <p className="font-medium text-lg text-white">{selectedBundle.name}</p>
+                        <p className="text-sm text-white">{selectedBundle.validity}</p>
                         {selectedBundle.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{selectedBundle.description}</p>
+                          <p className="text-xs text-white mt-1">{selectedBundle.description}</p>
                         )}
-                        <p className="text-2xl font-bold text-primary mt-2">GH₵{selectedBundle.basePrice}</p>
+                        <p className="text-2xl font-bold text-white mt-2">GH₵{selectedBundle.basePrice}</p>
                       </div>
                     )}
 
@@ -615,7 +615,7 @@ export default function UserBundlesPage() {
                     </div>
 
                     <div className="space-y-3">
-                      <Label>Payment Method</Label>
+                      <Label className="text-black font-semibold">Payment Method</Label>
                       <div className="grid gap-3">
                         {/* Wallet Payment Option */}
                         <div className="relative">
@@ -623,10 +623,10 @@ export default function UserBundlesPage() {
                             type="button"
                             onClick={() => setPaymentMethod(paymentMethod === "wallet" ? undefined : "wallet")}
                             disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
-                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
+                            className={`w-full flex items-center justify-between rounded-lg border-2 p-4 transition-all ${
                               paymentMethod === "wallet"
-                                ? "border-green-500 bg-green-50 shadow-md"
-                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                                ? "border-green-500 bg-green-500 shadow-md"
+                                : "border-muted bg-white hover:border-green-500 hover:shadow-md cursor-pointer"
                             } ${
                               selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
                                 ? "opacity-50 cursor-not-allowed"
@@ -634,21 +634,21 @@ export default function UserBundlesPage() {
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Wallet className="h-5 w-5 text-green-600" />
+                              <Wallet className={`h-5 w-5 ${paymentMethod === "wallet" ? "text-white" : "text-black"}`} />
                               <div>
-                                <div className="font-medium text-green-700">Wallet Balance</div>
-                                <div className="text-sm text-green-600">
+                                <div className={`font-medium ${paymentMethod === "wallet" ? "text-white" : "text-black"}`}>Wallet Balance</div>
+                                <div className={`text-sm ${paymentMethod === "wallet" ? "text-white" : "text-black"}`}>
                                   Available: GH₵{stats?.walletBalance || '0.00'}
                                 </div>
                               </div>
                             </div>
                             {paymentMethod === "wallet" && (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <CheckCircle className="h-5 w-5 text-white" />
                             )}
                           </button>
                           {selectedBundle && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
                             <div className="absolute top-2 right-2">
-                              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                              <span className="text-xs bg-black text-white px-2 py-1 rounded font-semibold">
                                 Insufficient
                               </span>
                             </div>
@@ -660,23 +660,23 @@ export default function UserBundlesPage() {
                           <button
                             type="button"
                             onClick={() => setPaymentMethod(paymentMethod === "paystack" ? undefined : "paystack")}
-                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
+                            className={`w-full flex items-center justify-between rounded-lg border-2 p-4 transition-all ${
                               paymentMethod === "paystack"
-                                ? "border-green-500 bg-green-50 shadow-md"
-                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                                ? "border-green-500 bg-green-500 shadow-md"
+                                : "border-muted bg-white hover:border-green-500 hover:shadow-md cursor-pointer"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5 text-green-600" />
+                              <CreditCard className={`h-5 w-5 ${paymentMethod === "paystack" ? "text-white" : "text-black"}`} />
                               <div>
-                                <div className="font-medium text-green-700">Pay with MoMo</div>
-                                <div className="text-sm text-green-600">
+                                <div className={`font-medium ${paymentMethod === "paystack" ? "text-white" : "text-black"}`}>Pay with MoMo</div>
+                                <div className={`text-sm ${paymentMethod === "paystack" ? "text-white" : "text-black"}`}>
                                   Secure payment via Paystack
                                 </div>
                               </div>
                             </div>
                             {paymentMethod === "paystack" && (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <CheckCircle className="h-5 w-5 text-white" />
                             )}
                           </button>
                         </div>
@@ -753,7 +753,7 @@ export default function UserBundlesPage() {
                       </div>
 
                     <div className="space-y-3">
-                      <Label>Payment Method</Label>
+                      <Label className="text-black font-semibold">Payment Method</Label>
                       <div className="grid gap-3">
                         {/* Wallet Payment Option */}
                         <div className="relative">
@@ -761,10 +761,10 @@ export default function UserBundlesPage() {
                             type="button"
                             onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "wallet" ? undefined : "wallet")}
                             disabled={bulkTotal ? bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) : false}
-                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md transition-all ${
+                            className={`w-full flex items-center justify-between rounded-lg border-2 p-4 transition-all ${
                               bulkPaymentMethod === "wallet"
-                                ? "border-green-500 bg-green-50 shadow-md"
-                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                                ? "border-green-500 bg-green-500 shadow-md"
+                                : "border-muted bg-white hover:border-green-500 hover:shadow-md cursor-pointer"
                             } ${
                               bulkTotal && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0)
                                 ? "opacity-50 cursor-not-allowed"
@@ -772,21 +772,21 @@ export default function UserBundlesPage() {
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <Wallet className="h-5 w-5 text-green-600" />
+                              <Wallet className={`h-5 w-5 ${bulkPaymentMethod === "wallet" ? "text-white" : "text-black"}`} />
                               <div>
-                                <div className="font-medium text-green-700">Wallet Balance</div>
-                                <div className="text-sm text-green-600">
+                                <div className={`font-medium ${bulkPaymentMethod === "wallet" ? "text-white" : "text-black"}`}>Wallet Balance</div>
+                                <div className={`text-sm ${bulkPaymentMethod === "wallet" ? "text-white" : "text-black"}`}>
                                   Available: GH₵{stats?.walletBalance || '0.00'}
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "wallet" && (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <CheckCircle className="h-5 w-5 text-white" />
                             )}
                           </button>
                           {bulkTotal && bulkTotal.total > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
                             <div className="absolute top-2 right-2">
-                              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
+                              <span className="text-xs bg-black text-white px-2 py-1 rounded font-semibold">
                                 Insufficient
                               </span>
                             </div>
@@ -798,23 +798,23 @@ export default function UserBundlesPage() {
                           <button
                             type="button"
                             onClick={() => setBulkPaymentMethod(bulkPaymentMethod === "paystack" ? undefined : "paystack")}
-                            className={`w-full flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 transition-all ${
+                            className={`w-full flex items-center justify-between rounded-lg border-2 p-4 transition-all ${
                               bulkPaymentMethod === "paystack"
-                                ? "border-green-500 bg-green-50 shadow-md"
-                                : "hover:border-green-500 hover:shadow-md cursor-pointer"
+                                ? "border-green-500 bg-green-500 shadow-md"
+                                : "border-muted bg-white hover:border-green-500 hover:shadow-md cursor-pointer"
                             }`}
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5 text-green-600" />
+                              <CreditCard className={`h-5 w-5 ${bulkPaymentMethod === "paystack" ? "text-white" : "text-black"}`} />
                               <div>
-                                <div className="font-medium text-green-700">Pay with MoMo</div>
-                                <div className="text-sm text-green-600">
+                                <div className={`font-medium ${bulkPaymentMethod === "paystack" ? "text-white" : "text-black"}`}>Pay with MoMo</div>
+                                <div className={`text-sm ${bulkPaymentMethod === "paystack" ? "text-white" : "text-black"}`}>
                                   Secure payment via Paystack
                                 </div>
                               </div>
                             </div>
                             {bulkPaymentMethod === "paystack" && (
-                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <CheckCircle className="h-5 w-5 text-white" />
                             )}
                           </button>
                         </div>

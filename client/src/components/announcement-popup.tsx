@@ -30,10 +30,10 @@ function parseMessageWithLinks(text: string) {
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+          className="text-blue-600 hover:text-blue-800 underline inline-flex items-start gap-1 break-all sm:items-center sm:gap-1"
         >
-          {part}
-          <ExternalLink className="h-3 w-3" />
+          <span className="break-all">{part}</span>
+          <ExternalLink className="h-3 w-3 flex-shrink-0 mt-0.5 sm:mt-0" />
         </a>
       );
     }

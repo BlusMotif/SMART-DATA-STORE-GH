@@ -16,6 +16,7 @@ import {
   Code,
   Trophy,
   Video,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,11 @@ const sidebarNavItems = [
     title: "Withdrawals",
     href: "/admin/withdrawals",
     icon: Wallet,
+  },
+  {
+    title: "Manual Top-up",
+    href: "/admin/manual-topup",
+    icon: CreditCard,
   },
   {
     title: "Chat Support",

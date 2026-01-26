@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageCircle, Send } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ChatMessage {
   id: string;
@@ -33,27 +34,31 @@ export function SupportChat() {
   const [message, setMessage] = useState("");
   const [chatId, setChatId] = useState<string | null>(null);
   const [activeSupport, setActiveSupport] = useState<"whatsapp" | "chat">("chat");
+  const [authError, setAuthError] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Get or create chat session
-  const { data: chats } = useQuery<SupportChat[]>({
+  const { data: chats, error: chatsError } = useQuery<SupportChat[]>({
     queryKey: ["/api/support/chats"],
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/support/chats") as Response;
-      return response.json();
+      return await apiRequest("GET", "/api/support/chats");
     },
+    enabled: isAuthenticated && !authLoading,
+    retry: false,
   });
 
-  // Create chat if none exists
+  // Create chat (used when starting first message)
   const createChatMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/support/chat/create", {}) as Response;
-      return response.json();
+      if (!isAuthenticated) {
+        throw new Error("Please log in to start a support chat.");
+      }
+      return await apiRequest("POST", "/api/support/chat/create", {});
     },
     onSuccess: (data) => {
-      console.log('Chat created successfully:', data);
       setChatId(data.chatId);
       queryClient.invalidateQueries({ queryKey: ["/api/support/chats"] });
     },
@@ -68,42 +73,65 @@ export function SupportChat() {
   });
 
   // Get chat messages
-  const { data: chatData, isLoading } = useQuery<ChatDetails>({
+  const { data: chatData, isLoading, error: chatError } = useQuery<ChatDetails>({
     queryKey: ["/api/support/chat", chatId],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/support/chat/${chatId}`) as Response;
-      return response.json();
+      return await apiRequest("GET", `/api/support/chat/${chatId}`);
     },
-    enabled: !!chatId,
+    enabled: !!chatId && isAuthenticated && !authLoading,
     refetchInterval: 5000, // Poll every 5 seconds
+    retry: false,
   });
 
-  // Set chatId from existing chats or create new one
+  // Set chatId from existing chats (do not auto-create to avoid empty chats)
   useEffect(() => {
-    console.log('useEffect triggered - chats:', chats, 'chatId:', chatId, 'createChatMutation.isPending:', createChatMutation.isPending);
-    if (chats && !chatId && !createChatMutation.isPending) {
-      // Use the most recent open chat
-      const openChat = chats.find(c => c.status === "open");
-      console.log('Found open chat:', openChat);
-      if (openChat) {
-        console.log('Setting chatId to existing chat:', openChat.id);
-        setChatId(openChat.id);
-      } else {
-        // There are chats but none are open, create new one
-        console.log('Chats exist but none open, creating new chat');
-        createChatMutation.mutate();
-      }
-    } else if (chats && chats.length === 0 && !chatId && !createChatMutation.isPending) {
-      // No chats exist, create one
-      console.log('No chats exist, creating new chat');
-      createChatMutation.mutate();
+    if (!isAuthenticated || authLoading) {
+      return;
     }
-  }, [chats, chatId, createChatMutation.isPending]); // Added back chatId but now it should work
+
+    if (typeof chats === 'undefined') {
+      return; // query not ready yet
+    }
+
+    if (!chatId && Array.isArray(chats)) {
+      const openChat = chats.find(c => c.status === "open");
+      if (openChat) {
+        setChatId(openChat.id);
+      }
+    }
+  }, [chats, chatId, isAuthenticated, authLoading]);
+
+  // Surface auth errors clearly so users know to re-login
+  useEffect(() => {
+    const unauthorized = (err?: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err || "");
+      return msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("401");
+    };
+
+    if (chatsError && unauthorized(chatsError)) {
+      setAuthError("Your session expired. Please log in again to use support chat.");
+    } else if (chatError && unauthorized(chatError)) {
+      setAuthError("Your session expired. Please log in again to use support chat.");
+    } else {
+      setAuthError(null);
+    }
+  }, [chatsError, chatError]);
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      const response = await apiRequest("POST", `/api/support/chat/${chatId}/message`, { message }) as Response;
-      return response.json();
+      if (!isAuthenticated) {
+        throw new Error("Please log in to send messages.");
+      }
+
+      let id = chatId;
+      if (!id) {
+        const created = await apiRequest<{ success: boolean; chatId: string }>("POST", "/api/support/chat/create", {});
+        id = created.chatId;
+        setChatId(id);
+        queryClient.invalidateQueries({ queryKey: ["/api/support/chats"] });
+      }
+
+      return await apiRequest("POST", `/api/support/chat/${id}/message`, { message });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/support/chat", chatId] });
@@ -120,7 +148,7 @@ export function SupportChat() {
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || !chatId) return;
+    if (!message.trim() || !chatId || !isAuthenticated) return;
     sendMessageMutation.mutate(message);
   };
 
@@ -166,6 +194,20 @@ export function SupportChat() {
   }, [chatData?.messages, chatId, queryClient]);
 
   const messages = chatData?.messages || [];
+
+  if (!isAuthenticated && !authLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Customer Support</CardTitle>
+          <CardDescription>You need to log in to start a support chat.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => window.location.href = "/login"} className="w-full">Go to Login</Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -223,6 +265,12 @@ export function SupportChat() {
         </CardHeader>
         <CardContent className="space-y-4">
 
+        {authError && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {authError}
+          </div>
+        )}
+
         <div className="border rounded-lg h-[600px] flex flex-col">
           <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
             {isLoading ? (
@@ -279,9 +327,8 @@ export function SupportChat() {
               <Button
                 type="submit"
                 size="sm"
-                disabled={sendMessageMutation.isPending || !message.trim() || !chatId}
+                disabled={sendMessageMutation.isPending || !message.trim()}
                 title={
-                  !chatId ? "Chat not initialized" :
                   !message.trim() ? "Message cannot be empty" :
                   sendMessageMutation.isPending ? "Sending message..." :
                   "Send message"

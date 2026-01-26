@@ -34,7 +34,7 @@ export function StatCard({
         )}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold tabular-nums">{value}</div>
+        <div className="text-lg font-bold tabular-nums">{value}</div>
         {(description || trend) && (
           <div className="flex items-center gap-2 mt-1">
             {trend && (

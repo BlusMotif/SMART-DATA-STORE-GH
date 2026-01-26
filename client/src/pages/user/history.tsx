@@ -76,6 +76,28 @@ export default function UserHistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
+  // Helper to extract SkyTech status from API response for real-time tracking
+  const getSkytechStatus = (transaction: any): string | null => {
+    try {
+      if (!transaction.apiResponse) return null;
+      const apiResponse = JSON.parse(transaction.apiResponse);
+      
+      // Check for latest status check
+      if (apiResponse.skytechStatus?.status) {
+        return apiResponse.skytechStatus.status;
+      }
+      
+      // Check for initial response
+      if (apiResponse.results && apiResponse.results[0]?.status) {
+        return apiResponse.results[0].status;
+      }
+      
+      return null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // Fetch transactions
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["/api/transactions"],
@@ -88,7 +110,7 @@ export default function UserHistoryPage() {
     const matchesSearch = searchQuery === "" || 
       transaction.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       transaction.customerPhone.includes(searchQuery) ||
-      transaction.reference.toLowerCase().includes(searchQuery.toLowerCase());
+      transaction.id.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
     
@@ -232,7 +254,7 @@ export default function UserHistoryPage() {
                                   <p className="text-gray-200">Phone: {transaction.customerPhone}</p>
                                 )}
                                 {transaction.network && <p className="text-gray-200">Network: {transaction.network.toUpperCase()}</p>}
-                                <p className="text-xs text-gray-300">Ref: {transaction.reference}</p>
+                                <p className="text-xs text-gray-300">Order ID: {transaction.id.slice(0,8)}</p>
                                 <p className="text-xs text-gray-300">
                                   {new Date(transaction.createdAt).toLocaleDateString()} at {new Date(transaction.createdAt).toLocaleTimeString()}
                                 </p>
@@ -241,6 +263,14 @@ export default function UserHistoryPage() {
                                     Completed: {new Date(transaction.completedAt).toLocaleDateString()} at {new Date(transaction.completedAt).toLocaleTimeString()}
                                   </p>
                                 )}
+                                {(() => {
+                                  const skytechStatus = getSkytechStatus(transaction);
+                                  return skytechStatus ? (
+                                    <p className="text-blue-200 text-xs font-semibold" title="Real-time provider status">
+                                      Provider Status: {skytechStatus}
+                                    </p>
+                                  ) : null;
+                                })()}
                                 {transaction.failureReason && (
                                   <p className="text-red-300 text-xs">Reason: {transaction.failureReason}</p>
                                 )}

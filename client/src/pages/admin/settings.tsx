@@ -163,7 +163,13 @@ export default function AdminSettings() {
       toast({ title: "User credentials updated successfully" });
     },
     onError: (error: any) => {
-      toast({ title: "Failed to update credentials", description: error.message, variant: "destructive" });
+      const errorMessage = error?.message || "Unknown error occurred";
+      console.error("[Credentials] Update error:", errorMessage);
+      toast({ 
+        title: "Failed to update credentials", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
     },
   });
 
@@ -260,16 +266,38 @@ export default function AdminSettings() {
     if (!selectedUser) return;
 
     const data: any = {};
-    if (credentialForm.email && credentialForm.email !== selectedUser.email) data.email = credentialForm.email;
-    if (credentialForm.password) data.password = credentialForm.password;
-    if (credentialForm.name && credentialForm.name !== selectedUser.name) data.name = credentialForm.name;
-    if (credentialForm.phone !== selectedUser.phone) data.phone = credentialForm.phone;
+    // Check for actual changes
+    if (credentialForm.email !== selectedUser.email) {
+      if (!credentialForm.email.trim()) {
+        toast({ title: "Email cannot be empty", variant: "destructive" });
+        return;
+      }
+      data.email = credentialForm.email;
+    }
+    if (credentialForm.password) {
+      if (credentialForm.password.length < 8) {
+        toast({ title: "Password must be at least 8 characters", variant: "destructive" });
+        return;
+      }
+      data.password = credentialForm.password;
+    }
+    if (credentialForm.name !== selectedUser.name) {
+      if (!credentialForm.name.trim()) {
+        toast({ title: "Name cannot be empty", variant: "destructive" });
+        return;
+      }
+      data.name = credentialForm.name;
+    }
+    if (credentialForm.phone !== (selectedUser.phone || "")) {
+      data.phone = credentialForm.phone;
+    }
 
     if (Object.keys(data).length === 0) {
-      toast({ title: "No changes detected", variant: "destructive" });
+      toast({ title: "No changes detected", variant: "default" });
       return;
     }
 
+    console.log("[Credentials] Submitting update for user:", selectedUser.id, "Data:", Object.keys(data));
     updateCredentialsMutation.mutate({ userId: selectedUser.id, data });
   };
 
@@ -349,7 +377,7 @@ export default function AdminSettings() {
                       id="appName"
                       value={settings.app_name || ""}
                       onChange={(e) => handleSettingChange("app_name", e.target.value)}
-                      placeholder="CLECTECH"
+                      placeholder="My App"
                     />
                     <Button
                       size="sm"
@@ -369,7 +397,7 @@ export default function AdminSettings() {
                       autoComplete="email"
                       value={settings.support_email || ""}
                       onChange={(e) => handleSettingChange("support_email", e.target.value)}
-                      placeholder="support@clectech.com"
+                      placeholder="support@example.com"
                     />
                     <Button
                       size="sm"
@@ -415,16 +443,17 @@ export default function AdminSettings() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>
-                    Select User to Manage
-                    <select
-                      className="w-full p-2 border rounded-md mt-1"
-                      value={selectedUser?.id || ""}
-                      onChange={(e) => {
-                        const user = users.find(u => u.id === e.target.value);
-                        if (user) handleUserSelect(user);
-                      }}
-                    >
+                  <Label htmlFor="userSelect">Select User to Manage</Label>
+                  <select
+                    id="userSelect"
+                    aria-label="Select User to Manage"
+                    className="w-full p-2 border rounded-md mt-1"
+                    value={selectedUser?.id || ""}
+                    onChange={(e) => {
+                      const user = users.find(u => u.id === e.target.value);
+                      if (user) handleUserSelect(user);
+                    }}
+                  >
                     <option value="">Choose a user...</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
@@ -432,7 +461,6 @@ export default function AdminSettings() {
                       </option>
                     ))}
                   </select>
-                  </Label>
                 </div>
 
                 {selectedUser && (

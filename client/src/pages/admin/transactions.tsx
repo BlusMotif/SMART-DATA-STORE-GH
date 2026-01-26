@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight } from "lucide-react";
+import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
@@ -58,6 +58,8 @@ export default function AdminTransactions() {
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [expandedResultCheckers, setExpandedResultCheckers] = useState<Set<string>>(new Set());
   const [resultCheckersData, setResultCheckersData] = useState<Record<string, any>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
@@ -142,7 +144,7 @@ export default function AdminTransactions() {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       if (
-        !tx.reference.toLowerCase().includes(term) &&
+        !tx.id.toLowerCase().includes(term) &&
         !tx.productName.toLowerCase().includes(term) &&
         (!tx.customerPhone || !tx.customerPhone.includes(term))
       ) {
@@ -193,6 +195,13 @@ export default function AdminTransactions() {
     if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
     return 0;
   });
+
+  // Pagination
+  const totalPages = Math.ceil((sortedTransactions?.length || 0) / ITEMS_PER_PAGE);
+  const paginatedTransactions = sortedTransactions?.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   // Helper functions
   const convertToCSV = (data: any[]) => {
@@ -256,6 +265,28 @@ export default function AdminTransactions() {
   const handleCancelEdit = () => {
     setEditingDeliveryStatus(null);
     setDeliveryStatusValue("");
+  };
+
+  // Helper to extract SkyTech status from API response for real-time tracking
+  const getSkytechStatus = (transaction: Transaction): string | null => {
+    try {
+      if (!transaction.apiResponse) return null;
+      const apiResponse = JSON.parse(transaction.apiResponse as string);
+      
+      // Check for latest status check
+      if (apiResponse.skytechStatus?.status) {
+        return apiResponse.skytechStatus.status;
+      }
+      
+      // Check for initial response
+      if (apiResponse.results && apiResponse.results[0]?.status) {
+        return apiResponse.results[0].status;
+      }
+      
+      return null;
+    } catch (e) {
+      return null;
+    }
   };
 
   return (
@@ -394,33 +425,34 @@ export default function AdminTransactions() {
                 {isLoading ? (
                   <TableSkeleton rows={5} />
                 ) : sortedTransactions && sortedTransactions.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-xs md:text-sm">Reference</TableHead>
-                          <SortableTableHead field="productName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            <span className="text-xs md:text-sm">Product</span>
-                          </SortableTableHead>
-                          <TableHead className="hidden sm:table-cell text-xs md:text-sm">Network</TableHead>
-                          <SortableTableHead field="amount" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            <span className="text-xs md:text-sm">Amount</span>
-                          </SortableTableHead>
-                          <SortableTableHead field="profit" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            <span className="text-xs md:text-sm">Profit</span>
-                          </SortableTableHead>
-                          <TableHead className="hidden lg:table-cell text-xs md:text-sm">Customer</TableHead>
-                          <TableHead className="hidden xl:table-cell text-xs md:text-sm">Payment</TableHead>
-                          <TableHead className="text-xs md:text-sm">Status</TableHead>
-                          <TableHead className="hidden md:table-cell text-xs md:text-sm">Delivery</TableHead>
-                          <SortableTableHead field="createdAt" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
-                            <span className="text-xs md:text-sm">Date</span>
-                          </SortableTableHead>
-                          <TableHead className="text-xs md:text-sm">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {sortedTransactions.map((tx) => {
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs md:text-sm">Order ID</TableHead>
+                            <SortableTableHead field="productName" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                              <span className="text-xs md:text-sm">Product</span>
+                            </SortableTableHead>
+                            <TableHead className="hidden sm:table-cell text-xs md:text-sm">Network</TableHead>
+                            <SortableTableHead field="amount" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                              <span className="text-xs md:text-sm">Amount</span>
+                            </SortableTableHead>
+                            <SortableTableHead field="profit" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                              <span className="text-xs md:text-sm">Profit</span>
+                            </SortableTableHead>
+                            <TableHead className="hidden lg:table-cell text-xs md:text-sm">Customer</TableHead>
+                            <TableHead className="hidden xl:table-cell text-xs md:text-sm">Payment</TableHead>
+                            <TableHead className="text-xs md:text-sm">Status</TableHead>
+                            <TableHead className="hidden md:table-cell text-xs md:text-sm">Delivery</TableHead>
+                            <SortableTableHead field="createdAt" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
+                              <span className="text-xs md:text-sm">Date</span>
+                            </SortableTableHead>
+                            <TableHead className="text-xs md:text-sm">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedTransactions?.map((tx) => {
                           let network = NETWORKS.find((n) => n.id === tx.network);
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbersRaw = (tx as any).phoneNumbers;
@@ -452,7 +484,7 @@ export default function AdminTransactions() {
                           return (
                             <>
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-xs md:text-sm">{tx.reference}</TableCell>
+                              <TableCell className="font-mono text-xs md:text-sm">{tx.id.slice(0,8)}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
                                 <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
                                 <div className="flex gap-1 mt-1 flex-wrap">
@@ -555,18 +587,28 @@ export default function AdminTransactions() {
                                     </Button>
                                   </div>
                                 ) : (
-                                  <Badge
-                                    variant={
-                                      deliveryStatus === "delivered" ? "default" :
-                                      deliveryStatus === "processing" ? "secondary" :
-                                      deliveryStatus === "failed" ? "destructive" :
-                                      "outline"
-                                    }
-                                    className="cursor-pointer text-xs"
-                                    onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
-                                  >
-                                    {deliveryStatus}
-                                  </Badge>
+                                  <div className="flex flex-col gap-1">
+                                    <Badge
+                                      variant={
+                                        deliveryStatus === "delivered" ? "default" :
+                                        deliveryStatus === "processing" ? "secondary" :
+                                        deliveryStatus === "failed" ? "destructive" :
+                                        "outline"
+                                      }
+                                      className="cursor-pointer text-xs"
+                                      onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
+                                    >
+                                      {deliveryStatus}
+                                    </Badge>
+                                    {(() => {
+                                      const skytechStatus = getSkytechStatus(tx);
+                                      return skytechStatus ? (
+                                        <span className="text-[10px] text-muted-foreground" title="SkyTech Provider Status">
+                                          SkyTech: {skytechStatus}
+                                        </span>
+                                      ) : null;
+                                    })()}
+                                  </div>
                                 )}
                               </TableCell>
                               <TableCell className="text-muted-foreground text-xs md:text-sm">
@@ -650,6 +692,88 @@ export default function AdminTransactions() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-xs text-muted-foreground leading-5 sm:text-sm sm:text-left text-center">
+                        Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, sortedTransactions?.length || 0)} to {Math.min(currentPage * ITEMS_PER_PAGE, sortedTransactions?.length || 0)} of {sortedTransactions?.length || 0} transactions
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 justify-start sm:justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                          className="gap-1"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </Button>
+                        
+                        <div className="flex flex-wrap items-center gap-1">
+                          <>
+                            {(() => {
+                              const maxVisible = 5;
+                              let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                              let end = Math.min(totalPages, start + maxVisible - 1);
+                              
+                              if (end - start + 1 < maxVisible) {
+                                start = Math.max(1, end - maxVisible + 1);
+                              }
+                              
+                              return (
+                                <>
+                                  {start > 1 && (
+                                    <>
+                                      <Button key="first" variant="outline" size="sm" onClick={() => setCurrentPage(1)} className="h-8 w-8 p-0">
+                                        1
+                                      </Button>
+                                      {start > 2 && <span key="ellipsis-start" className="px-1">...</span>}
+                                    </>
+                                  )}
+                                  
+                                  {Array.from({ length: end - start + 1 }, (_, idx) => {
+                                    const i = start + idx;
+                                    return (
+                                      <Button
+                                        key={`page-${i}`}
+                                        variant={currentPage === i ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setCurrentPage(i)}
+                                        className="h-8 w-8 p-0"
+                                      >
+                                        {i}
+                                      </Button>
+                                    );
+                                  })}
+                                  
+                                  {end < totalPages && (
+                                    <>
+                                      {end < totalPages - 1 && <span key="ellipsis-end" className="px-1">...</span>}
+                                      <Button key="last" variant="outline" size="sm" onClick={() => setCurrentPage(totalPages)} className="h-8 w-8 p-0">
+                                        {totalPages}
+                                      </Button>
+                                    </>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </>
+                        </div>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={currentPage === totalPages}
+                          className="gap-1"
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">

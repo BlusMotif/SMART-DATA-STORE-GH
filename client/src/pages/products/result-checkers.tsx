@@ -40,6 +40,9 @@ export default function ResultCheckersPage() {
               <p className="text-muted-foreground">
                 Complete your purchase in one easy flow
               </p>
+              <p className="text-sm text-amber-600 font-medium">
+                ⚠️ Please double-check your beneficiary number before completing purchase
+              </p>
             </div>
           </div>
 

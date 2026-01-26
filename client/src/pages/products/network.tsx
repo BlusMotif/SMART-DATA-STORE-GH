@@ -407,6 +407,10 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
         </CardContent>
       </Card>
 
+      <p className="text-sm text-amber-600 font-medium">
+        ⚠️ Please double-check your beneficiary number before completing purchase
+      </p>
+
       <Tabs defaultValue="single" className="w-full" onValueChange={(v) => setOrderType(v as 'single' | 'bulk')}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="single" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white"><ShoppingCart className="h-4 w-4 mr-2"/>Single Purchase</TabsTrigger>

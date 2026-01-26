@@ -183,7 +183,7 @@ export default function AgentWithdrawals() {
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <div className="p-4 bg-muted rounded-lg mb-4">
                       <p className="text-sm text-muted-foreground">Profit Balance</p>
-                      <p className="text-2xl font-bold">{formatCurrency(agent?.profitBalance || 0)}</p>
+                      <p className="text-lg font-bold">{formatCurrency(agent?.profitBalance || 0)}</p>
                     </div>
 
                     <FormField

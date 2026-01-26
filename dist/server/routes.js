@@ -9,6 +9,336 @@ import { registerSchema, agentRegisterSchema, purchaseSchema, withdrawalRequestS
 import { initializePayment, verifyPayment, validateWebhookSignature } from "./paystack.js";
 import { fulfillDataBundleTransaction, getExternalBalance, getExternalPrices, getExternalOrderStatus } from "./providers.js";
 import { generateSecureApiKey, hasPermissions } from "./utils/api-keys.js";
+import { getSupabaseServer } from "./index.js";
+import { validatePhoneNetwork, getNetworkMismatchError, normalizePhoneNumber, isValidPhoneLength, detectNetwork } from "./utils/network-validator.js";
+// Authentication middleware
+async function requireAuth(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        const supabase = getSupabaseServer();
+        if (!supabase) {
+            return res.status(500).json({ error: 'Authentication service unavailable' });
+        }
+        // Try standard getUser first
+        let user;
+        let { data: { user: supabaseUser }, error } = await supabase.auth.getUser(token);
+        if (error || !supabaseUser) {
+            // Fallback: decode JWT and use admin API
+            try {
+                const decoded = jwt.decode(token);
+                if (decoded?.sub) {
+                    const { data: adminData, error: adminError } = await supabase.auth.admin.getUserById(decoded.sub);
+                    if (adminError || !adminData?.user) {
+                        return res.status(401).json({ error: 'Invalid token' });
+                    }
+                    user = adminData.user;
+                }
+                else {
+                    return res.status(401).json({ error: 'Invalid token' });
+                }
+            }
+            catch (jwtError) {
+                console.error('JWT processing error:', jwtError);
+                return res.status(401).json({ error: 'Invalid token' });
+            }
+        }
+        else {
+            user = supabaseUser;
+        }
+        // Get user from database; if missing, try email lookup, then create
+        let dbUser = await storage.getUser(user.id);
+        // Fallback: lookup by email to avoid duplicate-key inserts
+        if (!dbUser && user.email) {
+            const existingByEmail = await storage.getUserByEmail(user.email);
+            if (existingByEmail) {
+                dbUser = existingByEmail;
+            }
+        }
+        // Create if still missing
+        if (!dbUser && user.email) {
+            try {
+                const fallbackRole = user.email === 'eleblununana@gmail.com'
+                    ? 'admin'
+                    : (user.user_metadata?.role || user.app_metadata?.role || 'user');
+                dbUser = await storage.createUser({
+                    id: user.id,
+                    email: user.email,
+                    password: '',
+                    name: user.user_metadata?.name || user.email.split('@')[0],
+                    phone: user.phone || null,
+                    role: fallbackRole,
+                    isActive: true,
+                });
+            }
+            catch (creationError) {
+                console.error('Failed to auto-create user during requireAuth:', creationError);
+            }
+        }
+        if (!dbUser) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+        req.user = dbUser;
+        next();
+    }
+    catch (error) {
+        console.error('Auth middleware error:', error);
+        res.status(500).json({ error: 'Authentication failed' });
+    }
+}
+async function requireAdmin(req, res, next) {
+    if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+}
+// Get Supabase instance
+const getSupabase = () => getSupabaseServer();
+// Password strength validation
+function validatePasswordStrength(password) {
+    if (password.length < 8) {
+        return { valid: false, message: "Password must be at least 8 characters long" };
+    }
+    if (!/[A-Z]/.test(password) && !/[a-z]/.test(password)) {
+        return { valid: false, message: "Password must contain at least one letter" };
+    }
+    if (!/[0-9]/.test(password)) {
+        return { valid: false, message: "Password must contain at least one number" };
+    }
+    return { valid: true };
+}
+// Email validation
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+// Phone validation - updated to use network validator
+function isValidPhone(phone) {
+    return isValidPhoneLength(phone);
+}
+// Auth middleware using Supabase JWT
+const requireAuthJWT = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        const supabaseServer = getSupabase();
+        if (!supabaseServer) {
+            return res.status(500).json({ error: "Supabase not configured" });
+        }
+        // Try standard getUser first, then fallback to admin API with JWT decode
+        let user;
+        const { data: { user: supabaseUser }, error } = await supabaseServer.auth.getUser(token);
+        if (error || !supabaseUser || !supabaseUser.email) {
+            // Fallback: decode JWT and use admin API
+            try {
+                const decoded = jwt.decode(token);
+                if (decoded?.sub) {
+                    const { data: adminData, error: adminError } = await supabaseServer.auth.admin.getUserById(decoded.sub);
+                    if (adminError || !adminData?.user) {
+                        return res.status(401).json({ error: "Unauthorized" });
+                    }
+                    user = adminData.user;
+                }
+                else {
+                    return res.status(401).json({ error: "Unauthorized" });
+                }
+            }
+            catch (jwtError) {
+                console.error('JWT processing error:', jwtError);
+                return res.status(401).json({ error: "Unauthorized" });
+            }
+        }
+        else {
+            user = supabaseUser;
+        }
+        // Get user from database; if missing, try email lookup, then create
+        let dbUser = await storage.getUser(user.id);
+        // Fallback: lookup by email to avoid duplicate-key inserts
+        if (!dbUser && user.email) {
+            const existingByEmail = await storage.getUserByEmail(user.email);
+            if (existingByEmail) {
+                dbUser = existingByEmail;
+            }
+        }
+        // Create if still missing
+        if (!dbUser && user.email) {
+            try {
+                const fallbackRole = user.email === 'eleblununana@gmail.com'
+                    ? 'admin'
+                    : (user.user_metadata?.role || user.app_metadata?.role || 'user');
+                dbUser = await storage.createUser({
+                    id: user.id,
+                    email: user.email,
+                    password: '',
+                    name: user.user_metadata?.name || user.email.split('@')[0],
+                    phone: user.phone || null,
+                    role: fallbackRole,
+                    isActive: true,
+                });
+            }
+            catch (creationError) {
+                console.error('Failed to auto-create user during requireAuthJWT:', creationError);
+            }
+        }
+        if (!dbUser) {
+            return res.status(401).json({ error: "User not found" });
+        }
+        req.user = dbUser;
+        next();
+    }
+    catch (error) {
+        console.error('Auth middleware error:', error);
+        res.status(401).json({ error: "Unauthorized" });
+    }
+};
+const requireAdminJWT = async (req, res, next) => {
+    try {
+        // requireAuth should have already run and set req.user with role
+        if (!req.user || !req.user.email) {
+            return res.status(403).json({ error: "Admin access required" });
+        }
+        // Check role from req.user (already set by requireAuth middleware)
+        if (req.user.role !== UserRole.ADMIN) {
+            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+            return res.status(403).json({ error: "Admin access required" });
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Admin auth error:', error);
+        res.status(403).json({ error: "Admin access required" });
+    }
+};
+const requireAgent = async (req, res, next) => {
+    try {
+        // requireAuth should have already run and set req.user with role
+        if (!req.user || !req.user.email) {
+            return res.status(403).json({ error: "Agent access required" });
+        }
+        // Check if user has agent-level access or higher (agent, dealer, super_dealer, master, admin)
+        const agentRoles = [UserRole.AGENT, UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
+        if (!req.user.role || !agentRoles.includes(req.user.role)) {
+            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+            return res.status(403).json({ error: "Agent access required" });
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Agent auth error:', error);
+        res.status(403).json({ error: "Agent access required" });
+    }
+};
+const requireSupport = async (req, res, next) => {
+    try {
+        // requireAuth should have already run and set req.user with role
+        if (!req.user || !req.user.email) {
+            return res.status(403).json({ error: "Support access required" });
+        }
+        // Check role from req.user (already set by requireAuth middleware)
+        if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.AGENT) {
+            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+            return res.status(403).json({ error: "Support access required" });
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Support auth error:', error);
+        res.status(403).json({ error: "Support access required" });
+    }
+};
+const requireApiKey = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: "API key required" });
+        }
+        const key = authHeader.substring(7); // Remove 'Bearer ' prefix
+        const apiKey = await storage.getApiKeyByKey(key);
+        if (!apiKey || !apiKey.isActive) {
+            return res.status(401).json({ error: "Invalid API key" });
+        }
+        // Update last used timestamp
+        await storage.updateApiKey(apiKey.id, { lastUsed: new Date() });
+        req.apiKey = apiKey;
+        next();
+    }
+    catch (error) {
+        console.error('API key auth error:', error);
+        res.status(401).json({ error: "Invalid API key" });
+    }
+};
+const requireDealer = async (req, res, next) => {
+    try {
+        // requireAuth should have already run and set req.user with role
+        if (!req.user || !req.user.email) {
+            return res.status(403).json({ error: "Dealer access required" });
+        }
+        // Check if user has dealer-level access or higher (dealer, super_dealer, master, admin)
+        const dealerRoles = [UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
+        if (!req.user.role || !dealerRoles.includes(req.user.role)) {
+            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+            return res.status(403).json({ error: "Dealer access required" });
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Dealer auth error:', error);
+        res.status(403).json({ error: "Dealer access required" });
+    }
+};
+const requireSuperDealer = async (req, res, next) => {
+    try {
+        // requireAuth should have already run and set req.user with role
+        if (!req.user || !req.user.email) {
+            return res.status(403).json({ error: "Super Dealer access required" });
+        }
+        // Check if user has super-dealer-level access or higher (super_dealer, master, admin)
+        const superDealerRoles = [UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
+        if (!req.user.role || !superDealerRoles.includes(req.user.role)) {
+            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+            return res.status(403).json({ error: "Super Dealer access required" });
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Super Dealer auth error:', error);
+        res.status(403).json({ error: "Super Dealer access required" });
+    }
+};
+const requireMaster = async (req, res, next) => {
+    try {
+        // requireAuth should have already run and set req.user with role
+        if (!req.user || !req.user.email) {
+            return res.status(403).json({ error: "Master access required" });
+        }
+        // Check if user has master-level access or higher (master, admin)
+        const masterRoles = [UserRole.MASTER, UserRole.ADMIN];
+        if (!req.user.role || !masterRoles.includes(req.user.role)) {
+            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
+            return res.status(403).json({ error: "Master access required" });
+        }
+        next();
+    }
+    catch (error) {
+        console.error('Master auth error:', error);
+        res.status(403).json({ error: "Master access required" });
+    }
+};
+// Generate unique transaction reference
+function generateReference() {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = randomUUID().split("-")[0].toUpperCase();
+    return `TXN-${timestamp}-${random}`;
+}
 // Role labels for storefront display
 const ROLE_LABELS = {
     admin: "Admin",
@@ -332,234 +662,6 @@ async function processWebhookEvent(event) {
     // Handle other Paystack webhooks if needed
     console.log(`Unhandled webhook event: ${event.event} status: ${webhookStatus}`);
 }
-import { getSupabaseServer } from "./index.js";
-import { validatePhoneNetwork, getNetworkMismatchError, normalizePhoneNumber, isValidPhoneLength, detectNetwork } from "./utils/network-validator.js";
-// Get Supabase instance
-const getSupabase = () => getSupabaseServer();
-// Password strength validation
-function validatePasswordStrength(password) {
-    if (password.length < 8) {
-        return { valid: false, message: "Password must be at least 8 characters long" };
-    }
-    if (!/[A-Z]/.test(password) && !/[a-z]/.test(password)) {
-        return { valid: false, message: "Password must contain at least one letter" };
-    }
-    if (!/[0-9]/.test(password)) {
-        return { valid: false, message: "Password must contain at least one number" };
-    }
-    return { valid: true };
-}
-// Email validation
-function isValidEmail(email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-}
-// Phone validation - updated to use network validator
-function isValidPhone(phone) {
-    return isValidPhoneLength(phone);
-}
-// Auth middleware using Supabase JWT
-const requireAuth = async (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
-        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        const supabaseServer = getSupabase();
-        if (!supabaseServer) {
-            return res.status(500).json({ error: "Supabase not configured" });
-        }
-        const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-        if (error || !user || !user.email) {
-            return res.status(401).json({ error: "Unauthorized" });
-        }
-        // Get user role - first from metadata, then try database
-        let role = user.user_metadata?.role || user.app_metadata?.role || 'user';
-        try {
-            const dbUser = await storage.getUserByEmail(user.email);
-            if (dbUser) {
-                role = dbUser.role; // Database role takes precedence if available
-            }
-            else {
-                // User exists in Supabase but not in our database - create them
-                console.log("Creating user in database:", user.email);
-                try {
-                    const newUser = await storage.createUser({
-                        id: user.id, // Use Supabase user ID for consistency
-                        email: user.email,
-                        password: "", // Password not needed since auth is handled by Supabase
-                        name: user.user_metadata?.name || user.email.split('@')[0],
-                        phone: user.phone || null,
-                        role: role, // Use metadata role as default
-                        isActive: true,
-                    });
-                    role = newUser.role;
-                    console.log("User created in database with role:", role);
-                }
-                catch (createError) {
-                    console.error("Failed to create user in database:", createError);
-                    // Keep metadata role if DB creation fails
-                }
-            }
-        }
-        catch (dbError) {
-            console.error("Database error in auth middleware:", dbError);
-            // Continue with role from metadata instead of failing
-            console.log("Using role from Supabase metadata due to DB error:", role);
-        }
-        req.user = {
-            id: user.id,
-            email: user.email,
-            user_metadata: user.user_metadata,
-            role: role,
-        };
-        next();
-    }
-    catch (error) {
-        console.error('Auth middleware error:', error);
-        res.status(401).json({ error: "Unauthorized" });
-    }
-};
-const requireAdmin = async (req, res, next) => {
-    try {
-        // requireAuth should have already run and set req.user with role
-        if (!req.user || !req.user.email) {
-            return res.status(403).json({ error: "Admin access required" });
-        }
-        // Check role from req.user (already set by requireAuth middleware)
-        if (req.user.role !== UserRole.ADMIN) {
-            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
-            return res.status(403).json({ error: "Admin access required" });
-        }
-        next();
-    }
-    catch (error) {
-        console.error('Admin auth error:', error);
-        res.status(403).json({ error: "Admin access required" });
-    }
-};
-const requireAgent = async (req, res, next) => {
-    try {
-        // requireAuth should have already run and set req.user with role
-        if (!req.user || !req.user.email) {
-            return res.status(403).json({ error: "Agent access required" });
-        }
-        // Check if user has agent-level access or higher (agent, dealer, super_dealer, master, admin)
-        const agentRoles = [UserRole.AGENT, UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
-        if (!req.user.role || !agentRoles.includes(req.user.role)) {
-            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
-            return res.status(403).json({ error: "Agent access required" });
-        }
-        next();
-    }
-    catch (error) {
-        console.error('Agent auth error:', error);
-        res.status(403).json({ error: "Agent access required" });
-    }
-};
-const requireSupport = async (req, res, next) => {
-    try {
-        // requireAuth should have already run and set req.user with role
-        if (!req.user || !req.user.email) {
-            return res.status(403).json({ error: "Support access required" });
-        }
-        // Check role from req.user (already set by requireAuth middleware)
-        if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.AGENT) {
-            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
-            return res.status(403).json({ error: "Support access required" });
-        }
-        next();
-    }
-    catch (error) {
-        console.error('Support auth error:', error);
-        res.status(403).json({ error: "Support access required" });
-    }
-};
-const requireApiKey = async (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: "API key required" });
-        }
-        const key = authHeader.substring(7); // Remove 'Bearer ' prefix
-        const apiKey = await storage.getApiKeyByKey(key);
-        if (!apiKey || !apiKey.isActive) {
-            return res.status(401).json({ error: "Invalid API key" });
-        }
-        // Update last used timestamp
-        await storage.updateApiKey(apiKey.id, { lastUsed: new Date() });
-        req.apiKey = apiKey;
-        next();
-    }
-    catch (error) {
-        console.error('API key auth error:', error);
-        res.status(401).json({ error: "Invalid API key" });
-    }
-};
-const requireDealer = async (req, res, next) => {
-    try {
-        // requireAuth should have already run and set req.user with role
-        if (!req.user || !req.user.email) {
-            return res.status(403).json({ error: "Dealer access required" });
-        }
-        // Check if user has dealer-level access or higher (dealer, super_dealer, master, admin)
-        const dealerRoles = [UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
-        if (!req.user.role || !dealerRoles.includes(req.user.role)) {
-            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
-            return res.status(403).json({ error: "Dealer access required" });
-        }
-        next();
-    }
-    catch (error) {
-        console.error('Dealer auth error:', error);
-        res.status(403).json({ error: "Dealer access required" });
-    }
-};
-const requireSuperDealer = async (req, res, next) => {
-    try {
-        // requireAuth should have already run and set req.user with role
-        if (!req.user || !req.user.email) {
-            return res.status(403).json({ error: "Super Dealer access required" });
-        }
-        // Check if user has super-dealer-level access or higher (super_dealer, master, admin)
-        const superDealerRoles = [UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
-        if (!req.user.role || !superDealerRoles.includes(req.user.role)) {
-            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
-            return res.status(403).json({ error: "Super Dealer access required" });
-        }
-        next();
-    }
-    catch (error) {
-        console.error('Super Dealer auth error:', error);
-        res.status(403).json({ error: "Super Dealer access required" });
-    }
-};
-const requireMaster = async (req, res, next) => {
-    try {
-        // requireAuth should have already run and set req.user with role
-        if (!req.user || !req.user.email) {
-            return res.status(403).json({ error: "Master access required" });
-        }
-        // Check if user has master-level access or higher (master, admin)
-        const masterRoles = [UserRole.MASTER, UserRole.ADMIN];
-        if (!req.user.role || !masterRoles.includes(req.user.role)) {
-            console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
-            return res.status(403).json({ error: "Master access required" });
-        }
-        next();
-    }
-    catch (error) {
-        console.error('Master auth error:', error);
-        res.status(403).json({ error: "Master access required" });
-    }
-};
-// Generate unique transaction reference
-function generateReference() {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = randomUUID().split("-")[0].toUpperCase();
-    return `CLEC-${timestamp}-${random}`;
-}
 export async function registerRoutes(httpServer, app) {
     // ============================================
     // AUTH ROUTES
@@ -804,7 +906,7 @@ export async function registerRoutes(httpServer, app) {
                 }
                 else {
                     // User exists in Supabase but not in our database - create them
-                    console.log("Creating user in database:", user.email);
+                    console.log("Creating user in database:", user.email, "with role:", role);
                     try {
                         const newUser = await storage.createUser({
                             id: user.id, // Persist Supabase user ID to avoid FK mismatches
@@ -812,7 +914,7 @@ export async function registerRoutes(httpServer, app) {
                             password: "", // Password not needed since auth is handled by Supabase
                             name: user.user_metadata?.name || user.email.split('@')[0],
                             phone: user.phone || null,
-                            role: 'user', // Default role for new users
+                            role: role, // Preserve the role determined above (including admin for specific email)
                             isActive: true,
                         });
                         dbUser = newUser;
@@ -2463,7 +2565,7 @@ export async function registerRoutes(httpServer, app) {
                 });
             }
             // Initialize Paystack payment
-            const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@clectech.com` : `result-checker-${reference}@clectech.com`);
+            const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@example.com` : `result-checker-${reference}@example.com`);
             // Use frontend URL for callback instead of backend URL
             const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
             const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
@@ -2542,6 +2644,16 @@ export async function registerRoutes(httpServer, app) {
         }
     });
     app.get("/api/transactions/verify/:reference", async (req, res) => {
+        // Set a 30-second timeout for this endpoint to ensure response
+        const timeoutId = setTimeout(() => {
+            if (!res.headersSent) {
+                console.error("[Verify] Request timeout for reference:", req.params.reference);
+                res.status(503).json({
+                    error: "Verification service temporarily unavailable. Please refresh the page.",
+                    success: false
+                });
+            }
+        }, 30000); // 30 second timeout
         try {
             console.log("[Verify] Starting verification for reference:", req.params.reference);
             const transaction = await storage.getTransactionByReference(req.params.reference);
@@ -2740,54 +2852,65 @@ export async function registerRoutes(httpServer, app) {
                     paymentStatus: "paid",
                 });
             }
-            // Process data bundle transactions through API
-            if (transaction.type === ProductType.DATA_BUNDLE) {
-                // Check if already fulfilled to prevent duplicate processing
-                if (transaction.apiResponse) {
-                    console.log("[Verify] Data bundle transaction already fulfilled, skipping:", transaction.reference);
-                }
-                else {
-                    console.log("[Verify] Processing data bundle transaction via API:", transaction.reference);
-                    const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
-                    await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
-                    if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
-                        // Check if all items were successful
-                        const allSuccess = fulfillmentResult.results.every((r) => r.status === 'pending' || r.status === 'success');
-                        if (allSuccess) {
-                            console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
-                            // Order was placed successfully, set to pending until SkyTech delivers
-                            await storage.updateTransaction(transaction.id, {
-                                status: TransactionStatus.PENDING,
-                                deliveryStatus: "processing",
-                            });
+            // Process data bundle transactions through API (in background, don't block response)
+            if (transaction.type === ProductType.DATA_BUNDLE && !transaction.apiResponse) {
+                console.log("[Verify] Queuing data bundle fulfillment for background processing:", transaction.reference);
+                // Fire-and-forget: don't await, just queue it for processing
+                (async () => {
+                    try {
+                        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+                        await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+                        if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+                            // Check if all items were successful
+                            const allSuccess = fulfillmentResult.results.every((r) => r.status === 'pending' || r.status === 'success');
+                            if (allSuccess) {
+                                console.log("[Verify] Data bundle API fulfillment successful:", fulfillmentResult);
+                                // Order was placed successfully, set to pending until SkyTech delivers
+                                await storage.updateTransaction(transaction.id, {
+                                    status: TransactionStatus.PENDING,
+                                    deliveryStatus: "processing",
+                                });
+                            }
+                            else {
+                                // Some items failed - mark as failed
+                                const failedItems = fulfillmentResult.results.filter((r) => r.status === 'failed');
+                                console.error("[Verify] Data bundle API fulfillment had failures:", failedItems);
+                                await storage.updateTransaction(transaction.id, {
+                                    status: TransactionStatus.FAILED,
+                                    deliveryStatus: "failed",
+                                    completedAt: new Date(),
+                                    failureReason: `Provider rejected ${failedItems.length}/${fulfillmentResult.results.length} items: ${failedItems.map((r) => r.error || 'Unknown error').join(', ')}`,
+                                });
+                            }
                         }
                         else {
-                            // Some items failed - mark as failed
-                            const failedItems = fulfillmentResult.results.filter((r) => r.status === 'failed');
-                            console.error("[Verify] Data bundle API fulfillment had failures:", failedItems);
+                            console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult?.error);
+                            // Order failed to place, mark as failed
                             await storage.updateTransaction(transaction.id, {
                                 status: TransactionStatus.FAILED,
                                 deliveryStatus: "failed",
                                 completedAt: new Date(),
-                                failureReason: `Provider rejected ${failedItems.length}/${fulfillmentResult.results.length} items: ${failedItems.map((r) => r.error || 'Unknown error').join(', ')}`,
+                                failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
                             });
                         }
                     }
-                    else {
-                        console.error("[Verify] Data bundle API fulfillment failed:", fulfillmentResult?.error);
-                        // Order failed to place, mark as failed
+                    catch (error) {
+                        console.error("[Verify] Background fulfillment error:", error);
                         await storage.updateTransaction(transaction.id, {
                             status: TransactionStatus.FAILED,
                             deliveryStatus: "failed",
                             completedAt: new Date(),
-                            failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
+                            failureReason: `Background fulfillment error: ${error.message || 'Unknown error'}`,
                         });
                     }
-                }
+                })().catch(err => {
+                    console.error("[Verify] Uncaught background fulfillment error:", err);
+                });
             }
             console.log("[Verify] Verification complete, sending success response");
             // Fetch the latest state from storage to ensure accurate status/type and other fields
             const freshTransaction = await storage.getTransactionByReference(transaction.reference);
+            clearTimeout(timeoutId);
             return res.json({
                 success: true,
                 transaction: freshTransaction ?? transaction,
@@ -2795,6 +2918,7 @@ export async function registerRoutes(httpServer, app) {
         }
         catch (error) {
             console.error("[Verify] Payment verification error:", error.message || error);
+            clearTimeout(timeoutId);
             res.status(500).json({ error: error.message || "Verification failed" });
         }
     });
@@ -3342,7 +3466,7 @@ export async function registerRoutes(httpServer, app) {
         }
     }
     // Admin wallet top-up
-    app.post("/api/admin/wallet/topup", requireAuth, requireAdmin, async (req, res) => {
+    app.post("/api/admin/wallet/topup", requireAuthJWT, requireAdminJWT, async (req, res) => {
         try {
             const { userId, amount, reason } = req.body;
             if (!userId || !amount) {
@@ -4710,6 +4834,140 @@ export async function registerRoutes(httpServer, app) {
                 error: "Failed to delete inactive users",
                 details: error.message
             });
+        }
+    });
+    // ============================================
+    // MANUAL TOP-UP ROUTES
+    // ============================================
+    // Get combined users and agents for manual top-up
+    app.get("/api/admin/users-agents", requireAuthJWT, requireAdminJWT, async (req, res) => {
+        try {
+            // Get all users
+            const allUsers = await storage.getUsers().then(users => users.map(user => ({
+                ...user,
+                walletBalance: parseFloat(user.walletBalance || "0")
+            })));
+            // Get all agents with their user data
+            const agents = await storage.getAgents();
+            const agentsWithUsers = await Promise.all(agents.map(async (agent) => {
+                const user = await storage.getUser(agent.userId);
+                return user ? {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    phone: user.phone,
+                    role: user.role,
+                    walletBalance: parseFloat(user.walletBalance || "0"),
+                    createdAt: user.createdAt,
+                } : null;
+            })).then(results => results.filter(Boolean));
+            // Combine users and agents, removing duplicates
+            const userMap = new Map();
+            [...allUsers, ...agentsWithUsers].forEach(user => {
+                if (user) {
+                    userMap.set(user.id, user);
+                }
+            });
+            const combinedUsers = Array.from(userMap.values());
+            res.json(combinedUsers);
+        }
+        catch (error) {
+            console.error("Error fetching users and agents:", error);
+            res.status(500).json({ error: "Failed to load users and agents" });
+        }
+    });
+    // Manual wallet top-up
+    app.post("/api/admin/manual-topup", requireAuthJWT, requireAdminJWT, async (req, res) => {
+        try {
+            const { userId, amount, reason } = req.body;
+            if (!userId || !amount || !reason) {
+                return res.status(400).json({ error: "User ID, amount, and reason are required" });
+            }
+            const topupAmount = parseFloat(amount);
+            if (isNaN(topupAmount) || topupAmount <= 0) {
+                return res.status(400).json({ error: "Invalid amount" });
+            }
+            // Get the user
+            const user = await storage.getUser(userId);
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            // Update user's wallet balance
+            const currentBalance = parseFloat(user.walletBalance || "0");
+            const newBalance = currentBalance + topupAmount;
+            try {
+                await storage.updateUser(userId, { walletBalance: newBalance.toFixed(2) });
+            }
+            catch (updateError) {
+                console.error("Error updating user wallet:", updateError);
+                return res.status(500).json({ error: "Failed to update user wallet" });
+            }
+            // Create wallet topup transaction record (dedicated table for admin top-ups)
+            let walletTopupRecord;
+            try {
+                walletTopupRecord = await storage.createWalletTopupTransaction({
+                    userId,
+                    adminId: req.user.id,
+                    amount: topupAmount.toFixed(2),
+                    reason: reason || null,
+                });
+            }
+            catch (topupError) {
+                console.error("Error creating wallet topup transaction:", topupError);
+                return res.status(500).json({ error: "Failed to create topup record" });
+            }
+            // Also create a transaction record so user sees it in their history
+            try {
+                const transactionRef = `MANUAL_TOPUP_${walletTopupRecord.id.substring(0, 8)}`;
+                await storage.createTransaction({
+                    reference: transactionRef,
+                    type: "wallet_topup",
+                    productId: walletTopupRecord.id,
+                    productName: "Manual Wallet Top-up",
+                    network: null,
+                    amount: topupAmount.toFixed(2),
+                    profit: "0.00",
+                    customerPhone: user.phone || null,
+                    customerEmail: user.email,
+                    paymentMethod: "admin",
+                    status: TransactionStatus.COMPLETED,
+                    paymentReference: transactionRef,
+                    agentId: null,
+                    agentProfit: "0.00",
+                });
+            }
+            catch (transactionError) {
+                console.error("Error creating transaction record:", transactionError);
+                // Don't fail the request if transaction record creation fails
+            }
+            // Create audit log
+            try {
+                await storage.createAuditLog({
+                    userId: req.user.id,
+                    action: "MANUAL_WALLET_TOPUP",
+                    entityType: "user",
+                    entityId: userId,
+                    oldValue: currentBalance.toFixed(2),
+                    newValue: newBalance.toFixed(2),
+                    ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
+                    userAgent: req.get('User-Agent') || "unknown",
+                });
+            }
+            catch (auditError) {
+                console.error("Error creating audit log:", auditError);
+                // Don't fail the request for audit log errors
+            }
+            res.json({
+                success: true,
+                userName: user.name,
+                amount: topupAmount,
+                newBalance: newBalance,
+                walletTopupRecord: walletTopupRecord
+            });
+        }
+        catch (error) {
+            console.error("Error processing manual top-up:", error);
+            res.status(500).json({ error: "Failed to process manual top-up" });
         }
     });
     // ============================================
@@ -6600,8 +6858,22 @@ export async function registerRoutes(httpServer, app) {
         try {
             const { userId } = req.params;
             const { email, password, name, phone } = req.body;
+            // Validate input
             if (!email && !password && !name && phone === undefined) {
                 return res.status(400).json({ error: "At least one field must be provided" });
+            }
+            // Validate email format if provided
+            if (email && typeof email === 'string') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email.trim())) {
+                    return res.status(400).json({ error: "Invalid email format" });
+                }
+            }
+            // Validate password strength if provided
+            if (password && typeof password === 'string') {
+                if (password.length < 8) {
+                    return res.status(400).json({ error: "Password must be at least 8 characters long" });
+                }
             }
             // Get current user data
             const currentUser = await storage.getUser(userId);
@@ -6610,47 +6882,61 @@ export async function registerRoutes(httpServer, app) {
             }
             const updateData = {};
             const supabaseUpdates = {};
-            if (email && email !== currentUser.email) {
-                updateData.email = email;
-                supabaseUpdates.email = email;
+            // Only update fields that actually changed
+            if (email && email.trim() !== currentUser.email) {
+                updateData.email = email.trim();
+                supabaseUpdates.email = email.trim();
             }
             if (password) {
                 const hashedPassword = await bcrypt.hash(password, 10);
                 updateData.password = hashedPassword;
                 supabaseUpdates.password = password;
             }
-            if (name && name !== currentUser.name) {
-                updateData.name = name;
-                supabaseUpdates.user_metadata = { ...supabaseUpdates.user_metadata, name };
+            if (name && name.trim() !== currentUser.name) {
+                updateData.name = name.trim();
+                supabaseUpdates.user_metadata = { ...(supabaseUpdates.user_metadata || {}), name: name.trim() };
             }
             if (phone !== undefined && phone !== currentUser.phone) {
-                updateData.phone = phone;
-                supabaseUpdates.phone = phone;
+                updateData.phone = phone || null;
+                supabaseUpdates.phone = phone || null;
             }
             if (Object.keys(updateData).length === 0) {
                 return res.status(400).json({ error: "No changes detected" });
             }
             // Update Supabase Auth if email or password changed
-            if (supabaseUpdates.email || supabaseUpdates.password || supabaseUpdates.phone) {
+            if (supabaseUpdates.email || supabaseUpdates.password) {
                 const supabaseServer = getSupabase();
-                if (supabaseServer) {
-                    try {
-                        const { error } = await supabaseServer.auth.admin.updateUserById(userId, supabaseUpdates);
-                        if (error) {
-                            console.error("Failed to update Supabase Auth:", error);
-                            return res.status(500).json({ error: "Failed to update authentication credentials" });
-                        }
+                if (!supabaseServer) {
+                    console.error("[Credentials] Supabase client not initialized");
+                    return res.status(500).json({ error: "Authentication service unavailable - please try again later" });
+                }
+                try {
+                    const updatePayload = {};
+                    if (supabaseUpdates.email)
+                        updatePayload.email = supabaseUpdates.email;
+                    if (supabaseUpdates.password)
+                        updatePayload.password = supabaseUpdates.password;
+                    console.log(`[Credentials] Updating Supabase user ${userId} with fields:`, Object.keys(updatePayload));
+                    const { data, error } = await supabaseServer.auth.admin.updateUserById(userId, updatePayload);
+                    if (error) {
+                        console.error(`[Credentials] Supabase Auth error for user ${userId}:`, JSON.stringify(error));
+                        return res.status(500).json({ error: `Failed to update authentication credentials: ${error.message || JSON.stringify(error)}` });
                     }
-                    catch (authError) {
-                        console.error("Supabase Auth update error:", authError);
-                        return res.status(500).json({ error: "Failed to update authentication credentials" });
-                    }
+                    console.log(`[Credentials] Successfully updated Supabase user ${userId}`, data ? 'with data' : 'no data returned');
+                }
+                catch (authError) {
+                    console.error(`[Credentials] Unexpected error updating Supabase Auth for user ${userId}:`, authError);
+                    return res.status(500).json({ error: `Failed to update authentication credentials: ${authError.message || 'Unknown error'}` });
                 }
             }
+            // Update database record
+            console.log(`[Credentials] Updating database for user ${userId} with fields:`, Object.keys(updateData));
             const updatedUser = await storage.updateUser(userId, updateData);
             if (!updatedUser) {
+                console.error(`[Credentials] Failed to update user ${userId} in database - user not found`);
                 return res.status(404).json({ error: "User not found" });
             }
+            console.log(`[Credentials] Successfully updated user ${userId} in database`);
             res.json({
                 id: updatedUser.id,
                 email: updatedUser.email,
@@ -6661,6 +6947,7 @@ export async function registerRoutes(httpServer, app) {
             });
         }
         catch (error) {
+            console.error(`[Credentials] Unhandled error:`, error);
             res.status(500).json({ error: error.message || "Failed to update user credentials" });
         }
     });
@@ -7481,17 +7768,17 @@ export async function registerRoutes(httpServer, app) {
                 // Check if all items were successful
                 const allSuccess = fulfillmentResult.results.every((r) => r.status === 'pending' || r.status === 'success');
                 if (allSuccess) {
-                    // Order was placed successfully with external provider
+                    // Order was placed successfully with external provider - keep as pending for real-time tracking
                     await storage.updateTransaction(transaction.id, {
-                        status: "completed",
+                        status: "pending",
                         deliveryStatus: "processing",
-                        completedAt: new Date()
+                        completedAt: null
                     });
                 }
                 else {
                     // Some items failed
                     await storage.updateTransaction(transaction.id, {
-                        status: "completed",
+                        status: "failed",
                         deliveryStatus: "failed",
                         completedAt: new Date(),
                         failureReason: "API fulfillment failed for some items"
@@ -7502,7 +7789,7 @@ export async function registerRoutes(httpServer, app) {
                 // Fulfillment failed
                 console.error("[API] Data bundle API fulfillment failed:", fulfillmentResult.error);
                 await storage.updateTransaction(transaction.id, {
-                    status: "completed",
+                    status: "failed",
                     deliveryStatus: "failed",
                     completedAt: new Date(),
                     failureReason: `API fulfillment failed: ${fulfillmentResult.error}`
@@ -7694,11 +7981,13 @@ export async function registerRoutes(httpServer, app) {
     // CRON JOB ENDPOINTS
     // ============================================
     // Cron job endpoint to update order statuses from external providers
+    // Status Flow: Order placed → Pending/Processing (SkyTech queued) → Processing (SkyTech actively processing) → Completed/Failed (SkyTech finished)
+    // This ensures real-time status tracking aligned with SkyTech's system
     app.post('/api/cron/update-order-statuses', async (req, res) => {
         try {
             console.log('[Cron] Starting order status update check');
-            // Get all transactions that are pending and have processing delivery status (data bundles)
-            const pendingTransactions = await storage.getTransactionsByStatusAndDelivery('pending', 'processing');
+            // Get data bundle transactions that still need delivery updates
+            const pendingTransactions = await storage.getTransactionsByStatusAndDelivery(['pending', 'completed'], ['processing', 'pending']);
             console.log(`[Cron] Found ${pendingTransactions.length} transactions to check`);
             let updatedCount = 0;
             let errorCount = 0;
@@ -7731,8 +8020,8 @@ export async function registerRoutes(httpServer, app) {
                     if (statusResult.success && statusResult.order) {
                         const orderData = statusResult.order;
                         console.log(`[Cron] SkyTech status for ${skytechRef}: ${orderData.status}`);
-                        // Map SkyTech status to internal status (using SkyTech conventions)
-                        // SkyTech uses: Pending, Processing, Completed, Failed
+                        // Map SkyTech status to internal status for real-time tracking
+                        // SkyTech uses: Pending (queued), Processing (in progress), Completed, Failed
                         let newStatus = transaction.status;
                         let newDeliveryStatus = transaction.deliveryStatus;
                         const skytechStatus = orderData.status?.toLowerCase();
@@ -7741,23 +8030,27 @@ export async function registerRoutes(httpServer, app) {
                             case 'completed':
                             case 'delivered':
                             case 'success':
+                                // SkyTech confirmed delivery completed
                                 newStatus = TransactionStatus.COMPLETED;
                                 newDeliveryStatus = 'delivered';
                                 break;
                             case 'failed':
                             case 'error':
+                                // SkyTech reported failure
                                 newStatus = TransactionStatus.FAILED;
                                 newDeliveryStatus = 'failed';
                                 break;
                             case 'processing':
-                                // When SkyTech is processing, keep transaction status as pending (payment already completed)
-                                // but update delivery status to show processing
+                                // SkyTech is actively processing the order
                                 newStatus = TransactionStatus.PENDING;
                                 newDeliveryStatus = 'processing';
                                 break;
                             case 'pending':
+                            case 'queued':
+                                // SkyTech has queued the order (awaiting processing)
+                                // This means it's been accepted by provider and is in their queue
                                 newStatus = TransactionStatus.PENDING;
-                                newDeliveryStatus = 'pending';
+                                newDeliveryStatus = 'processing';
                                 break;
                             default:
                                 console.log(`[Cron] Unknown SkyTech status: ${orderData.status}`);

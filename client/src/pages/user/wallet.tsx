@@ -319,7 +319,7 @@ export default function WalletDashboard() {
                                   {' • '}
                                   {new Date(transaction.createdAt).toLocaleDateString()}
                                 </p>
-                                <p className="text-xs font-mono break-all text-gray-300">Ref: {transaction.reference}</p>
+                                <p className="text-xs font-mono break-all text-gray-300">Order ID: {transaction.id.slice(0,8)}</p>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
@@ -352,7 +352,7 @@ export default function WalletDashboard() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Date</TableHead>
-                          <TableHead>Reference</TableHead>
+                          <TableHead>Order ID</TableHead>
                           <TableHead>Amount</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
@@ -372,7 +372,7 @@ export default function WalletDashboard() {
                                 </span>
                               </TableCell>
                               <TableCell className="font-mono text-xs">
-                                {transaction.reference}
+                                {transaction.id.slice(0,8)}
                               </TableCell>
                               <TableCell>
                                 <span className="text-green-600 font-bold">
@@ -434,7 +434,7 @@ export default function WalletDashboard() {
                                 <div>
                                   <p className="font-medium">{transaction.productName}</p>
                                   <p className="text-xs text-gray-500 font-mono">
-                                    {transaction.reference}
+                                    {transaction.id.slice(0,8)}
                                   </p>
                                 </div>
                               </TableCell>

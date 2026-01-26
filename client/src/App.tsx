@@ -52,6 +52,7 @@ import AdminBreakSettings from "@/pages/admin/break-settings";
 import AdminExternalApiProviders from "@/pages/admin/external-api-providers";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import AdminGuides from "@/pages/admin/guides";
+import AdminManualTopup from "@/pages/admin/manual-topup";
 import PublicRankings from "@/pages/public-rankings";
 import { getAgentId } from "@/lib/store-context";
 import AgentNetworkPurchasePage from "@/pages/agent/network-purchase";
@@ -170,6 +171,7 @@ function AppRouter() {
       <ProtectedRoute path="/admin/users" component={AdminUsers} requiredRole="admin" />
       <ProtectedRoute path="/admin/agents" component={AdminAgents} requiredRole="admin" />
       <ProtectedRoute path="/admin/withdrawals" component={AdminWithdrawals} requiredRole="admin" />
+      <ProtectedRoute path="/admin/manual-topup" component={AdminManualTopup} requiredRole="admin" />
       <ProtectedRoute path="/admin/chat-support" component={AdminChatSupport} requiredRole="admin" />
       <ProtectedRoute path="/admin/announcements" component={AdminAnnouncements} requiredRole="admin" />
       <ProtectedRoute path="/admin/guides" component={AdminGuides} requiredRole="admin" />

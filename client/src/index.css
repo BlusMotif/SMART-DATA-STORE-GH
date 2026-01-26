@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@tailwind base; /* stylelint-disable-line */
+@tailwind components; /* stylelint-disable-line */
+@tailwind utilities; /* stylelint-disable-line */
 
 /* Custom animations and utilities */
 @layer utilities {
@@ -14,6 +14,11 @@
 
   .animate-bounce-gentle {
     animation: bounceGentle 2s infinite;
+  }
+
+  /* Animation delay helpers */
+  .animate-delay-500 {
+    animation-delay: 0.5s;
   }
 
   .hover-lift {
@@ -32,6 +37,7 @@
 
   @supports (backdrop-filter: blur(12px)) {
     .glass-effect {
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
     }
   }
@@ -297,10 +303,6 @@ html {
 }
 
 @layer base {
-  * {
-    /* @apply border-border; */
-  }
-
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
@@ -334,7 +336,7 @@ html {
 
   /* Hide ugly search cancel button in Chrome until we can style it properly */
   input[type="search"]::-webkit-search-cancel-button {
-    @apply hidden;
+    @apply hidden; /* stylelint-disable-line */
   }
 
   /* Placeholder styling for contentEditable div */
@@ -415,5 +417,10 @@ html {
   .border.hover-elevate-2::after,
   .border.active-elevate-2::after {
     inset: -1px;
+  }
+
+  /* Progress bar with dynamic width using CSS custom property */
+  .progress-bar-fill {
+    width: var(--progress-width);
   }
 }

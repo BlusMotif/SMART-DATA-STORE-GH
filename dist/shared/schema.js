@@ -195,6 +195,7 @@ export const transactions = pgTable("transactions", {
     agentId: text("agent_id"),
     agentProfit: text("agent_profit").default("0.00"),
     providerId: text("provider_id"), // External API provider used for this transaction
+    webhookUrl: text("webhook_url"), // Optional webhook URL for status notifications
     apiResponse: text("api_response"),
     deliveredPin: text("delivered_pin"),
     deliveredSerial: text("delivered_serial"),
@@ -640,6 +641,7 @@ export const insertTransactionSchema = z.object({
     agentId: z.string().optional(),
     agentProfit: z.string().optional(),
     providerId: z.string().optional(),
+    webhookUrl: z.string().optional(), // Webhook URL for status notifications
     apiResponse: z.string().optional(),
     deliveredPin: z.string().optional(),
     deliveredSerial: z.string().optional(),
@@ -810,6 +812,7 @@ export const purchaseSchema = z.object({
     agentSlug: z.union([z.string(), z.null()]).optional(),
     amount: z.string().optional(),
     paymentMethod: z.enum(["paystack", "wallet"]).optional(),
+    webhookUrl: z.string().url().optional(), // Optional webhook URL for status notifications
     phoneNumbers: z.array(z.object({
         phone: z.string(),
         bundleName: z.string(),

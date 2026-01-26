@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { AgentSidebarV2 as AgentSidebar } from "@/components/layout/agent-sidebar-v2";
 import { UserSidebar } from "@/components/layout/user-sidebar";
@@ -13,8 +14,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Key, Plus, Trash2, Eye, EyeOff, Copy, CheckCircle, XCircle, Settings, Code, Webhook, Menu } from 'lucide-react';
+import { Key, Plus, Trash2, Copy, CheckCircle, XCircle, Code, Webhook, Menu } from 'lucide-react';
 import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/lib/supabaseClient";
 
 interface ApiKey {
   id: string;
@@ -27,6 +29,7 @@ interface ApiKey {
 }
 
 const ApiKeysPage: React.FC = () => {
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +40,7 @@ const ApiKeysPage: React.FC = () => {
   const [showCreatedKey, setShowCreatedKey] = useState(false);
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('keys');
 
   useEffect(() => {
     fetchApiKeys();
@@ -44,12 +48,30 @@ const ApiKeysPage: React.FC = () => {
 
   const fetchApiKeys = async () => {
     try {
-      const response = await fetch('/api/user/api-keys');
+      // Get the access token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Please log in to manage API keys');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('/api/user/api-keys', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setApiKeys(data);
       } else {
-        toast.error('Failed to fetch API keys');
+        if (response.status === 401) {
+          toast.error('Please log in to manage API keys');
+        } else {
+          toast.error('Failed to fetch API keys');
+        }
       }
     } catch (error) {
       toast.error('Error fetching API keys');
@@ -64,11 +86,28 @@ const ApiKeysPage: React.FC = () => {
       return;
     }
 
+    if (newKeyName.trim().length > 100) {
+      toast.error('API key name must be 100 characters or less');
+      return;
+    }
+
     setCreating(true);
     try {
+      // Get the access token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Please log in to create API keys');
+        setCreating(false);
+        return;
+      }
+
       const response = await fetch('/api/user/api-keys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({ name: newKeyName.trim() })
       });
 
@@ -79,10 +118,24 @@ const ApiKeysPage: React.FC = () => {
         setNewKeyName('');
         setShowCreateDialog(false);
         fetchApiKeys();
-        toast.success('API key created successfully');
+        
+        // Show remaining rate limit
+        if (data.remaining !== undefined) {
+          toast.success(`API key created! You can create ${data.remaining} more keys this hour.`);
+        } else {
+          toast.success('API key created successfully');
+        }
       } else {
         const error = await response.json();
-        toast.error(error.error || 'Failed to create API key');
+        
+        // Handle auth error
+        if (response.status === 401) {
+          toast.error('Please log in to create API keys');
+        } else if (response.status === 429) {
+          toast.error(error.error || 'Rate limit exceeded. Please try again later.');
+        } else {
+          toast.error(error.error || 'Failed to create API key');
+        }
       }
     } catch (error) {
       toast.error('Error creating API key');
@@ -91,92 +144,49 @@ const ApiKeysPage: React.FC = () => {
     }
   };
 
-  const toggleApiKey = async (keyId: string) => {
-    try {
-      const response = await fetch(`/api/user/api-keys/${keyId}/toggle`, {
-        method: 'PUT'
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setApiKeys(keys => keys.map(key =>
-          key.id === keyId ? { ...key, isActive: data.isActive } : key
-        ));
-        toast.success(`API key ${data.isActive ? 'activated' : 'deactivated'}`);
-      } else {
-        toast.error('Failed to update API key status');
-      }
-    } catch (error) {
-      toast.error('Error updating API key status');
-    }
-  };
 
   const deleteApiKey = async (keyId: string) => {
     try {
+      // Get the access token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        toast.error('Please log in to revoke API keys');
+        return;
+      }
+
       const response = await fetch(`/api/user/api-keys/${keyId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
       });
 
       if (response.ok) {
-        setApiKeys(keys => keys.filter(key => key.id !== keyId));
-        toast.success('API key deleted successfully');
+        fetchApiKeys(); // Refetch to get updated list
+        toast.success('API key revoked successfully');
       } else {
-        toast.error('Failed to delete API key');
+        const error = await response.json();
+        if (response.status === 401) {
+          toast.error('Please log in to revoke API keys');
+        } else {
+          toast.error(error.error || 'Failed to revoke API key');
+        }
       }
     } catch (error) {
-      toast.error('Error deleting API key');
+      toast.error('Error revoking API key');
     }
   };
 
-  const updatePermissions = async (keyId: string, permissions: Record<string, boolean>) => {
-    try {
-      const response = await fetch(`/api/user/api-keys/${keyId}/permissions`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissions })
-      });
-
-      if (response.ok) {
-        setApiKeys(keys => keys.map(key =>
-          key.id === keyId ? { ...key, permissions: JSON.stringify(permissions) } : key
-        ));
-        toast.success('Permissions updated successfully');
-      } else {
-        toast.error('Failed to update permissions');
-      }
-    } catch (error) {
-      toast.error('Error updating permissions');
-    }
-  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard');
   };
 
-  const maskApiKey = (key: string) => {
-    return `${key.substring(0, 8)}****${key.substring(key.length - 4)}`;
-  };
 
-  const toggleKeyVisibility = (keyId: string) => {
-    setVisibleKeys(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(keyId)) {
-        newSet.delete(keyId);
-      } else {
-        newSet.add(keyId);
-      }
-      return newSet;
-    });
-  };
 
-  const getPermissions = (permissions: string) => {
-    try {
-      return JSON.parse(permissions);
-    } catch {
-      return {};
-    }
-  };
 
   const renderSidebar = () => {
     if (!user) return null;
@@ -211,7 +221,7 @@ const ApiKeysPage: React.FC = () => {
     <div className="flex h-screen bg-background">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
           <div className="fixed left-0 top-0 bottom-0 w-64 bg-sidebar border-r transform transition-transform duration-200 ease-in-out">
             {renderSidebar()}
@@ -220,7 +230,7 @@ const ApiKeysPage: React.FC = () => {
       )}
 
       {/* Desktop sidebar */}
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         {renderSidebar()}
       </div>
 
@@ -230,7 +240,7 @@ const ApiKeysPage: React.FC = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="lg:hidden"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
@@ -262,6 +272,15 @@ const ApiKeysPage: React.FC = () => {
                 Create a new API key to access our services programmatically.
               </DialogDescription>
             </DialogHeader>
+            <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-md">
+              <p className="text-yellow-400 text-sm font-semibold mb-1">⚠️ Security Notice</p>
+              <ul className="text-yellow-300 text-xs space-y-1 ml-4 list-disc">
+                <li>Maximum 10 active keys per account</li>
+                <li>Maximum 5 key creations per hour</li>
+                <li>Keys are shown only once - save immediately!</li>
+                <li>Keys cannot be recovered if lost</li>
+              </ul>
+            </div>
             <div className="space-y-4">
               <div>
                 <Label htmlFor="keyName" className="text-white">API Key Name</Label>
@@ -270,8 +289,10 @@ const ApiKeysPage: React.FC = () => {
                   placeholder="e.g., Production App, Development"
                   value={newKeyName}
                   onChange={(e) => setNewKeyName(e.target.value)}
+                  maxLength={100}
                   className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                 />
+                <p className="text-xs text-gray-400 mt-1">{newKeyName.length}/100 characters</p>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="border-gray-600 text-white hover:bg-gray-800">
@@ -288,34 +309,58 @@ const ApiKeysPage: React.FC = () => {
 
       {/* Created Key Dialog */}
       <Dialog open={showCreatedKey} onOpenChange={setShowCreatedKey}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>API Key Created</DialogTitle>
-            <DialogDescription>
-              Your new API key has been created. Copy it now - you won't be able to see it again!
-            </DialogDescription>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Key className="w-6 h-6 text-yellow-500" />
+              API Key Created Successfully!
+            </DialogTitle>
           </DialogHeader>
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 rounded-lg mt-4">
+            <p className="text-red-600 dark:text-red-400 font-bold text-sm mb-2">
+              🔐 CRITICAL: Save Your API Key Now!
+            </p>
+            <ul className="text-red-600 dark:text-red-400 text-xs space-y-1 ml-4 list-disc">
+              <li>This is the ONLY time you'll see this key in full</li>
+              <li>Copy and store it securely (e.g., password manager)</li>
+              <li>Once you close this dialog, the key will be masked forever</li>
+              <li>If lost, you must revoke and create a new key</li>
+            </ul>
+          </div>
           <div className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <code className="text-sm break-all">{createdKey}</code>
+            <div className="p-4 bg-muted rounded-lg border-2 border-yellow-500">
+              <Label className="text-sm font-semibold mb-2 block">Your API Key:</Label>
+              <code className="text-sm break-all block p-3 bg-black text-green-400 rounded font-mono">
+                {createdKey}
+              </code>
             </div>
             <div className="flex justify-end space-x-2">
               <Button
                 variant="outline"
-                onClick={() => copyToClipboard(createdKey)}
+                onClick={() => {
+                  copyToClipboard(createdKey);
+                  toast.success('API key copied! Make sure to save it securely.');
+                }}
+                className="border-yellow-500 text-yellow-600 hover:bg-yellow-50"
               >
                 <Copy className="w-4 h-4 mr-2" />
-                Copy Key
+                Copy to Clipboard
               </Button>
-              <Button onClick={() => setShowCreatedKey(false)}>
-                Done
+              <Button 
+                onClick={() => {
+                  setShowCreatedKey(false);
+                  toast.info('API key dialog closed. The key is now masked in your list.');
+                }}
+                className="bg-yellow-500 hover:bg-yellow-600"
+              >
+                I've Saved It Securely
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue="keys" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="keys" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">API Keys</TabsTrigger>
           <TabsTrigger value="integrations" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Integrations</TabsTrigger>
@@ -359,14 +404,9 @@ const ApiKeysPage: React.FC = () => {
                           {apiKey.isActive ? (
                             <><CheckCircle className="w-3 h-3 mr-1" /> Active</>
                           ) : (
-                            <><XCircle className="w-3 h-3 mr-1" /> Inactive</>
+                            <><XCircle className="w-3 h-3 mr-1" /> Revoked</>
                           )}
                         </Badge>
-                        <Switch
-                          checked={apiKey.isActive}
-                          onCheckedChange={() => toggleApiKey(apiKey.id)}
-                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
-                        />
                       </div>
                     </div>
                   </CardHeader>
@@ -375,71 +415,62 @@ const ApiKeysPage: React.FC = () => {
                       <div>
                         <Label className="text-sm font-medium">API Key</Label>
                         <div className="flex items-center space-x-2 mt-1">
-                          <code className="flex-1 p-2 bg-muted rounded text-sm font-mono">
-                            {visibleKeys.has(apiKey.id) ? apiKey.key : maskApiKey(apiKey.key)}
+                          <code className="flex-1 p-2 bg-muted rounded text-sm font-mono overflow-x-auto">
+                            {apiKey.key}
                           </code>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => toggleKeyVisibility(apiKey.id)}
-                          >
-                            {visibleKeys.has(apiKey.id) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
                             onClick={() => copyToClipboard(apiKey.key)}
+                            title="Copy masked key"
                           >
                             <Copy className="w-4 h-4" />
                           </Button>
                         </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Key is masked for security. Full key was shown only once at creation.
+                        </p>
                       </div>
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="sm">
-                                <Settings className="w-4 h-4 mr-2" />
-                                Permissions
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>API Key Permissions</DialogTitle>
-                                <DialogDescription>
-                                  Configure what this API key can access.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <PermissionsEditor
-                                permissions={getPermissions(apiKey.permissions)}
-                                onSave={(permissions) => updatePermissions(apiKey.id, permissions)}
-                              />
-                            </DialogContent>
-                          </Dialog>
-
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="destructive" size="sm">
+                              <Button 
+                                variant="destructive" 
+                                size="sm"
+                                disabled={!apiKey.isActive}
+                              >
                                 <Trash2 className="w-4 h-4 mr-2" />
-                                Delete
+                                Revoke Key
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete API Key</AlertDialogTitle>
+                                <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete this API key? This action cannot be undone.
+                                  Are you sure you want to revoke this API key? This action cannot be undone and any applications using this key will immediately lose access.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteApiKey(apiKey.id)}>
-                                  Delete
+                                <AlertDialogAction 
+                                  onClick={() => deleteApiKey(apiKey.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Revoke Permanently
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          
+                          <div className="text-sm text-muted-foreground">
+                            {apiKey.isActive ? (
+                              <span className="text-green-600">✓ Key is active and functional</span>
+                            ) : (
+                              <span className="text-red-600">⨯ Key has been revoked</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -471,7 +502,11 @@ const ApiKeysPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Use our REST API to programmatically access data bundles, result checkers, and transactions.
                     </p>
-                    <Button variant="outline" size="sm" onClick={() => toast.info("View API Docs - Coming Soon!")}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => navigate('/dashboard/api-documentation')}
+                    >
                       View API Docs
                     </Button>
                   </CardContent>
@@ -488,7 +523,7 @@ const ApiKeysPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mb-4">
                       Receive real-time notifications about transaction status changes and other events.
                     </p>
-                    <Button variant="outline" size="sm" onClick={() => toast.info("Configure Webhooks - Coming Soon!")}>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('webhooks')}>
                       Configure Webhooks
                     </Button>
                   </CardContent>
@@ -503,30 +538,78 @@ const ApiKeysPage: React.FC = () => {
             <CardHeader>
               <CardTitle>Webhook Configuration</CardTitle>
               <CardDescription>
-                Set up webhooks to receive real-time notifications
+                Receive real-time notifications when order status changes
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="webhookUrl">Webhook URL</Label>
-                  <Input
-                    id="webhookUrl"
-                    placeholder="https://your-app.com/webhooks/resellers-hub-gh-pro"
-                  />
+              <div className="space-y-6">
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">💡 How to Use Webhooks</h4>
+                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                    Include the <code className="bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded text-xs">webhookUrl</code> parameter when creating orders via API:
+                  </p>
+                  <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto">
+{`{
+  "productId": "mtn-1gb",
+  "customerPhone": "0241234567",
+  "amount": "5.00",
+  "webhookUrl": "https://your-app.com/webhooks/order-status"
+}`}
+                  </pre>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
+                    When the order status changes (pending → completed/failed), we'll send a POST request to your webhook URL with the updated order details.
+                  </p>
                 </div>
-                <div>
-                  <Label>Events to Subscribe</Label>
-                  <div className="space-y-2 mt-2">
-                    {['transaction.completed', 'transaction.failed', 'bundle.delivered'].map((event) => (
-                      <div key={event} className="flex items-center space-x-2">
-                        <Switch id={event} className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white" />
-                        <Label htmlFor={event} className="text-sm">{event}</Label>
-                      </div>
-                    ))}
+
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Webhook Payload Example</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Here's what you'll receive when an order status updates:
+                    </p>
+                    <pre className="bg-gray-900 text-green-400 p-4 rounded text-xs overflow-x-auto">
+{`{
+  "event": "order.status_updated",
+  "reference": "TXN_1234567890",
+  "status": "completed",
+  "deliveryStatus": "delivered",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "order": {
+    "id": "uuid-here",
+    "reference": "TXN_1234567890",
+    "amount": 5.00,
+    "previousStatus": "pending",
+    "currentStatus": "completed"
+  },
+  "products": [
+    {
+      "bundleId": "mtn-1gb",
+      "bundleName": "MTN 1GB",
+      "phone": "0241234567",
+      "network": "mtn"
+    }
+  ]
+}`}
+                    </pre>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={() => navigate('/dashboard/api-documentation')} className="flex-1">
+                      View Full Documentation
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        window.open('https://webhook.site', '_blank');
+                        toast.success('Opening webhook.site for testing!');
+                      }}
+                      className="flex-1"
+                    >
+                      <Webhook className="w-4 h-4 mr-2" />
+                      Test with webhook.site
+                    </Button>
                   </div>
                 </div>
-                <Button onClick={() => toast.info("Save Webhook Configuration - Coming Soon!")}>Save Webhook Configuration</Button>
               </div>
             </CardContent>
           </Card>
@@ -542,19 +625,22 @@ const ApiKeysPage: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
-                <Button variant="outline" className="justify-start" onClick={() => toast.info("REST API Reference - Coming Soon!")}>
+                <Button variant="outline" className="justify-start" onClick={() => navigate('/dashboard/api-documentation')}>
                   <Code className="w-4 h-4 mr-2" />
                   REST API Reference
                 </Button>
-                <Button variant="outline" className="justify-start" onClick={() => toast.info("Webhook Documentation - Coming Soon!")}>
+                <Button variant="outline" className="justify-start" onClick={() => navigate('/dashboard/api-documentation')}>
                   <Webhook className="w-4 h-4 mr-2" />
                   Webhook Documentation
                 </Button>
-                <Button variant="outline" className="justify-start" onClick={() => toast.info("Authentication Guide - Coming Soon!")}>
+                <Button variant="outline" className="justify-start" onClick={() => navigate('/dashboard/api-documentation')}>
                   <Key className="w-4 h-4 mr-2" />
                   Authentication Guide
                 </Button>
-                <Button variant="outline" className="justify-start" onClick={() => toast.info("Download Postman Collection - Coming Soon!")}>
+                <Button variant="outline" className="justify-start" onClick={() => {
+                  window.open('https://documenter.getpostman.com/view/your-collection-id', '_blank');
+                  toast.info('Opening Postman Collection...');
+                }}>
                   Download Postman Collection
                 </Button>
               </div>
@@ -569,48 +655,5 @@ const ApiKeysPage: React.FC = () => {
   );
 };
 
-const PermissionsEditor: React.FC<{
-  permissions: Record<string, boolean>;
-  onSave: (permissions: Record<string, boolean>) => void;
-}> = ({ permissions, onSave }) => {
-  const [localPermissions, setLocalPermissions] = useState(permissions);
-
-  const permissionOptions = [
-    { key: 'read', label: 'Read Data', description: 'Access bundles, transactions, and user data' },
-    { key: 'purchase', label: 'Make Purchases', description: 'Purchase data bundles and result checkers' },
-    { key: 'webhook', label: 'Receive Webhooks', description: 'Receive webhook notifications' },
-  ];
-
-  return (
-    <div className="space-y-4">
-      {permissionOptions.map((option) => (
-        <div key={option.key} className="flex items-start space-x-3">
-          <Switch
-            id={option.key}
-            checked={localPermissions[option.key] || false}
-            onCheckedChange={(checked) =>
-              setLocalPermissions(prev => ({ ...prev, [option.key]: checked }))
-            }
-            className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
-          />
-          <div className="flex-1">
-            <Label htmlFor={option.key} className="font-medium">
-              {option.label}
-            </Label>
-            <p className="text-sm text-muted-foreground">{option.description}</p>
-          </div>
-        </div>
-      ))}
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button variant="outline" onClick={() => setLocalPermissions(permissions)}>
-          Reset
-        </Button>
-        <Button onClick={() => onSave(localPermissions)}>
-          Save Permissions
-        </Button>
-      </div>
-    </div>
-  );
-};
 
 export default ApiKeysPage;

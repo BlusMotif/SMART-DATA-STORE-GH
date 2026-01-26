@@ -14,7 +14,7 @@ import {
 } from "../shared/schema.js";
 import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
 import { fulfillDataBundleTransaction, getExternalBalance, getExternalPrices, getExternalOrderStatus } from "./providers.js";
-import { generateSecureApiKey, hasPermissions } from "./utils/api-keys.js";
+import { generateSecureApiKey, hasPermissions, checkKeyGenerationRateLimit, validateApiKeyFormat, maskApiKey } from "./utils/api-keys.js";
 // Role labels for storefront display
 const ROLE_LABELS = {
   admin: "Admin",
@@ -2285,6 +2285,7 @@ export async function registerRoutes(
         agentId,
         agentProfit: totalAgentProfit.toFixed(2),
         providerId,
+        webhookUrl: data.webhookUrl || null, // Store webhook URL if provided
       });
 
       console.log(`[Checkout] Created transaction ${transaction.id} with agentId: ${agentId}, agentProfit: ${totalAgentProfit.toFixed(2)}, providerId: ${providerId}`);
@@ -7065,31 +7066,41 @@ export async function registerRoutes(
   app.get("/api/user/api-keys", requireAuth, async (req, res) => {
     try {
       const apiKeys = await storage.getApiKeys(req.user!.id);
-      res.json(apiKeys);
+      
+      // Return masked keys for security (never expose the full key after creation)
+      const maskedKeys = apiKeys.map(key => ({
+        ...key,
+        key: maskApiKey(key.key),
+      }));
+      
+      res.json(maskedKeys);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to fetch API keys" });
     }
   });
+  
   // Create new API key
   app.post("/api/user/api-keys", requireAuth, async (req, res) => {
     try {
       const { name } = req.body;
+      
+      // Validate input
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
         return res.status(400).json({ error: "API key name is required" });
       }
-      // Generate a secure API key
-      const key = generateSecureApiKey('sk');
-      // Resolve the database user id to use for the foreign key.
-      // Some installations have pre-existing users with a different local id
-      // (created before Supabase IDs were adopted). Prefer the DB user id
-      // when it exists to avoid foreign key violations.
+      
+      if (name.trim().length > 100) {
+        return res.status(400).json({ error: "API key name must be 100 characters or less" });
+      }
+      
+      // Resolve the database user id
       let resolvedUserId = req.user!.id;
       try {
         const dbUser = await storage.getUserByEmail(req.user!.email!);
         if (dbUser) {
           resolvedUserId = dbUser.id;
         } else {
-          // Create a DB user record with the Supabase id so future ops match
+          // Create a DB user record with the Supabase id
           try {
             await storage.createUser({
               id: req.user!.id,
@@ -7100,8 +7111,8 @@ export async function registerRoutes(
               role: 'user',
               isActive: true,
             });
+            resolvedUserId = req.user!.id;
           } catch (createErr) {
-            // If creation fails due to unique email constraint, fetch the existing user and use its id
             console.error('Failed to create DB user for API key creation:', createErr);
             const fallback = await storage.getUserByEmail(req.user!.email!);
             if (fallback) resolvedUserId = fallback.id;
@@ -7110,19 +7121,59 @@ export async function registerRoutes(
       } catch (err) {
         console.error('Error resolving DB user id for API key creation:', err);
       }
+      
+      // Check rate limit (5 keys per hour per user)
+      const rateLimit = checkKeyGenerationRateLimit(resolvedUserId);
+      if (!rateLimit.allowed) {
+        const resetDate = new Date(rateLimit.resetAt);
+        return res.status(429).json({ 
+          error: "Rate limit exceeded. Maximum 5 API keys per hour.",
+          resetAt: resetDate.toISOString(),
+          remaining: 0
+        });
+      }
+      
+      // Check total number of active keys (max 10 per user)
+      const existingKeys = await storage.getApiKeys(resolvedUserId);
+      const activeKeys = existingKeys.filter(k => k.isActive);
+      if (activeKeys.length >= 10) {
+        return res.status(400).json({ 
+          error: "Maximum of 10 active API keys allowed. Please revoke some keys before creating new ones."
+        });
+      }
+      
+      // Generate a cryptographically secure API key with timestamp
+      const key = generateSecureApiKey('sk');
+      
+      // Validate the generated key format
+      if (!validateApiKeyFormat(key)) {
+        console.error('Generated key failed validation:', key);
+        return res.status(500).json({ error: "Failed to generate valid API key" });
+      }
+      
       const apiKey = await storage.createApiKey({
         userId: resolvedUserId,
         name: name.trim(),
         key,
-        permissions: "{}",
+        permissions: JSON.stringify({
+          read: true,
+          write: false,
+          admin: false
+        }),
         isActive: true,
       });
-      // Return the key (this is the only time it will be shown)
+      
+      console.log(`[API Key] Created new key for user ${resolvedUserId}: ${maskApiKey(key)}`);
+      
+      // Return the FULL key (this is the ONLY time it will be shown in plain text)
       res.json({
         ...apiKey,
-        key, // Include the key in response
+        key, // Include the full key in response - user must save it now
+        message: "Save this API key securely. You won't be able to see it again!",
+        remaining: rateLimit.remaining
       });
     } catch (error: any) {
+      console.error('API key creation error:', error);
       res.status(500).json({ error: error.message || "Failed to create API key" });
     }
   });
@@ -7130,15 +7181,33 @@ export async function registerRoutes(
   app.delete("/api/user/api-keys/:id", requireAuth, async (req, res) => {
     try {
       const { id } = req.params;
-      // Find API key by ID
-      const apiKeys = await storage.getApiKeys(req.user!.id);
+      
+      // Resolve user ID
+      let resolvedUserId = req.user!.id;
+      try {
+        const dbUser = await storage.getUserByEmail(req.user!.email!);
+        if (dbUser) resolvedUserId = dbUser.id;
+      } catch (err) {
+        console.error('Error resolving user ID:', err);
+      }
+      
+      // Find API key by ID and verify ownership
+      const apiKeys = await storage.getApiKeys(resolvedUserId);
       const apiKey = apiKeys.find(k => k.id === id);
+      
       if (!apiKey) {
         return res.status(404).json({ error: "API key not found" });
       }
-      await storage.deleteApiKey(apiKey.id);
-      res.json({ success: true });
+      
+      // Soft delete - mark as inactive instead of deleting
+      // This preserves audit trail and prevents key reuse
+      await storage.updateApiKey(apiKey.id, { isActive: false });
+      
+      console.log(`[API Key] Revoked key ${maskApiKey(apiKey.key)} for user ${resolvedUserId}`);
+      
+      res.json({ success: true, message: "API key revoked successfully" });
     } catch (error: any) {
+      console.error('API key revocation error:', error);
       res.status(500).json({ error: error.message || "Failed to revoke API key" });
     }
   });
@@ -7857,6 +7926,33 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
             await storage.updateTransaction(transaction.id, updateData);
             updatedCount++;
             console.log(`[Cron] Updated transaction ${transaction.id} - status: ${newStatus}, delivery: ${newDeliveryStatus} (from SkyTech: ${orderData.status})`);
+
+            // Send webhook notification if webhookUrl is provided
+            if (transaction.webhookUrl) {
+              console.log(`[Cron] Sending webhook notification to ${transaction.webhookUrl}`);
+              
+              // Import webhook utilities
+              const { sendWebhook, buildWebhookPayload } = await import('./webhook.js');
+              
+              // Build webhook payload with updated status
+              const updatedTransaction = {
+                ...transaction,
+                status: newStatus,
+                deliveryStatus: newDeliveryStatus,
+                completedAt: updateData.completedAt || transaction.completedAt,
+              };
+              
+              const payload = buildWebhookPayload(
+                updatedTransaction,
+                'order.status_updated',
+                transaction.status
+              );
+              
+              // Send webhook asynchronously (don't block cron job)
+              sendWebhook(transaction.webhookUrl, payload).catch((error) => {
+                console.error(`[Cron] Webhook failed for transaction ${transaction.id}:`, error);
+              });
+            }
           }
         } else {
           console.warn(`[Cron] Failed to get status for SkyTech ref ${skytechRef}: ${statusResult.error}`);

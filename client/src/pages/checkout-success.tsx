@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export default function CheckoutSuccessPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const params = new URLSearchParams(search);
   const reference = params.get("reference");
   const paystackReference = params.get("trxref"); // Paystack adds this
@@ -91,9 +92,14 @@ export default function CheckoutSuccessPage() {
       setVerificationComplete(true);
       if (verifyResult.success === false) {
         setPaymentFailed(true);
+      } else if (verifyResult.success && verifyResult.transaction) {
+        // Invalidate agent transactions and stats queries to refresh the data
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/transactions"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/transactions/stats"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/agent/stats"] });
       }
     }
-  }, [verifyResult]);
+  }, [verifyResult, queryClient]);
 
   const transaction = verifyResult?.transaction;
 

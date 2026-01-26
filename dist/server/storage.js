@@ -357,6 +357,8 @@ export class DatabaseStorage {
         const conditions = [];
         if (filters?.customerEmail)
             conditions.push(eq(transactions.customerEmail, filters.customerEmail));
+        if (filters?.customerPhone)
+            conditions.push(eq(transactions.customerPhone, filters.customerPhone));
         if (filters?.agentId)
             conditions.push(eq(transactions.agentId, filters.agentId));
         if (filters?.status)

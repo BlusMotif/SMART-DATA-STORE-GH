@@ -92,19 +92,19 @@ const ApiDocumentationPage: React.FC = () => {
           <div className="max-w-7xl mx-auto space-y-6">
             <Tabs defaultValue="overview" className="space-y-6">
               <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="overview" className="flex items-center gap-2">
+                <TabsTrigger value="overview" className="flex items-center gap-2 data-[state=active]:text-green-500">
                   <BookOpen className="w-4 h-4" />
                   Overview
                 </TabsTrigger>
-                <TabsTrigger value="authentication" className="flex items-center gap-2">
+                <TabsTrigger value="authentication" className="flex items-center gap-2 data-[state=active]:text-green-500">
                   <Key className="w-4 h-4" />
                   Authentication
                 </TabsTrigger>
-                <TabsTrigger value="endpoints" className="flex items-center gap-2">
+                <TabsTrigger value="endpoints" className="flex items-center gap-2 data-[state=active]:text-green-500">
                   <Server className="w-4 h-4" />
                   Endpoints
                 </TabsTrigger>
-                <TabsTrigger value="examples" className="flex items-center gap-2">
+                <TabsTrigger value="examples" className="flex items-center gap-2 data-[state=active]:text-green-500">
                   <Code className="w-4 h-4" />
                   Code Examples
                 </TabsTrigger>

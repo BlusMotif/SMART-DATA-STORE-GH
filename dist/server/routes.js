@@ -2031,10 +2031,49 @@ export async function registerRoutes(httpServer, app) {
                 console.log(`[Cooldown] ALLOWED: ${phone} (no recent paid transactions)`);
                 return { blocked: false, remainingMinutes: 0 };
             };
+            // Get authenticated user's email and update phone if provided
+            let authenticatedUserEmail;
+            let authenticatedUserId;
+            try {
+                const authHeader = req.headers.authorization;
+                if (authHeader && authHeader.startsWith('Bearer ')) {
+                    const token = authHeader.substring(7);
+                    const supabaseServer = getSupabase();
+                    if (supabaseServer) {
+                        const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+                        if (!error && user && user.email) {
+                            authenticatedUserEmail = user.email;
+                            console.log("[Checkout] Authenticated user email:", authenticatedUserEmail);
+                            // Get user from database to get their ID
+                            const dbUser = await storage.getUserByEmail(user.email);
+                            if (dbUser) {
+                                authenticatedUserId = dbUser.id;
+                                // If user provided a phone and their profile doesn't have one, update it
+                                if (normalizedPhone && !dbUser.phone) {
+                                    await storage.updateUser(dbUser.id, { phone: normalizedPhone });
+                                    console.log("[Checkout] Updated user phone:", normalizedPhone);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (authError) {
+                // Ignore auth errors, continue as guest
+            }
+            // Use authenticated user's email if not provided in request
+            const customerEmail = data.customerEmail || authenticatedUserEmail;
+            // Log email resolution for debugging
+            console.log('[Checkout] Email resolution:', {
+                'data.customerEmail': data.customerEmail,
+                'authenticatedUserEmail': authenticatedUserEmail,
+                'resolved customerEmail': customerEmail,
+                'normalized phone': normalizedPhone
+            });
             // Validate email format if provided
-            if (data.customerEmail) {
+            if (customerEmail) {
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(data.customerEmail)) {
+                if (!emailRegex.test(customerEmail)) {
                     return res.status(400).json({ error: "Invalid email format" });
                 }
             }
@@ -2408,7 +2447,7 @@ export async function registerRoutes(httpServer, app) {
                 amount: totalAmount.toFixed(2),
                 profit: totalProfit.toFixed(2),
                 customerPhone: normalizedPhone || null,
-                customerEmail: data.customerEmail,
+                customerEmail: customerEmail,
                 phoneNumbers: metadataField,
                 isBulkOrder: isBulkOrder || false,
                 status: TransactionStatus.PENDING,
@@ -2417,7 +2456,7 @@ export async function registerRoutes(httpServer, app) {
                 agentProfit: totalAgentProfit.toFixed(2),
                 providerId,
             });
-            console.log(`[Checkout] Created transaction ${transaction.id} with agentId: ${agentId}, agentProfit: ${totalAgentProfit.toFixed(2)}, providerId: ${providerId}`);
+            console.log(`[Checkout] Created transaction ${transaction.id} with customerEmail: ${customerEmail}, customerPhone: ${normalizedPhone}, agentId: ${agentId}, agentProfit: ${totalAgentProfit.toFixed(2)}, providerId: ${providerId}`);
             // Handle wallet payments immediately
             if (data.paymentMethod === 'wallet') {
                 console.log("[Checkout] Processing wallet payment for reference:", reference);
@@ -2565,7 +2604,7 @@ export async function registerRoutes(httpServer, app) {
                 });
             }
             // Initialize Paystack payment
-            const customerEmail = data.customerEmail || (normalizedPhone ? `${normalizedPhone}@example.com` : `result-checker-${reference}@example.com`);
+            const paystackEmail = customerEmail || (normalizedPhone ? `${normalizedPhone}@example.com` : `result-checker-${reference}@example.com`);
             // Use frontend URL for callback instead of backend URL
             const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
             const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
@@ -2576,7 +2615,7 @@ export async function registerRoutes(httpServer, app) {
             });
             try {
                 const paystackResponse = await initializePayment({
-                    email: customerEmail,
+                    email: paystackEmail,
                     amount: Math.round(totalAmount * 100), // Convert GHS to pesewas
                     reference: reference,
                     callbackUrl: callbackUrl,
@@ -5661,10 +5700,23 @@ export async function registerRoutes(httpServer, app) {
             if (!dbUser) {
                 return res.status(404).json({ error: "User not found" });
             }
-            const transactions = await storage.getTransactions({
+            // Get transactions by email (authenticated purchases)
+            let transactions = await storage.getTransactions({
                 customerEmail: req.user.email,
                 limit: 50,
             });
+            // Also include transactions by phone if user has a linked phone number
+            // This handles cases where user made guest purchases with Paystack, then logged in
+            if (dbUser.phone) {
+                const phoneTransactions = await storage.getTransactions({
+                    customerPhone: dbUser.phone,
+                    limit: 50,
+                });
+                // Combine and deduplicate by reference
+                const combined = [...transactions, ...phoneTransactions];
+                const uniqueByReference = Array.from(new Map(combined.map(t => [t.reference, t])).values());
+                transactions = uniqueByReference.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            }
             res.json(transactions);
         }
         catch (error) {
@@ -5678,9 +5730,20 @@ export async function registerRoutes(httpServer, app) {
             if (!dbUser) {
                 return res.status(404).json({ error: "User not found" });
             }
-            const transactions = await storage.getTransactions({
+            // Get transactions by email (authenticated purchases)
+            let transactions = await storage.getTransactions({
                 customerEmail: req.user.email,
             });
+            // Also include transactions by phone if user has a linked phone number
+            // This handles cases where user made guest purchases with Paystack, then logged in
+            if (dbUser.phone) {
+                const phoneTransactions = await storage.getTransactions({
+                    customerPhone: dbUser.phone,
+                });
+                // Combine and deduplicate by reference
+                const combined = [...transactions, ...phoneTransactions];
+                transactions = Array.from(new Map(combined.map(t => [t.reference, t])).values());
+            }
             const totalOrders = transactions.length;
             const totalSpent = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
             res.json({

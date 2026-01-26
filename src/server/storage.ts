@@ -638,9 +638,10 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
 
-  async getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]> {
+  async getTransactions(filters?: { customerEmail?: string; customerPhone?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]> {
     const conditions = [];
     if (filters?.customerEmail) conditions.push(eq(transactions.customerEmail, filters.customerEmail));
+    if (filters?.customerPhone) conditions.push(eq(transactions.customerPhone, filters.customerPhone));
     if (filters?.agentId) conditions.push(eq(transactions.agentId, filters.agentId));
     if (filters?.status) conditions.push(eq(transactions.status, filters.status));
     if (filters?.type) conditions.push(eq(transactions.type, filters.type));

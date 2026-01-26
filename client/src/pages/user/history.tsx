@@ -101,21 +101,28 @@ export default function UserHistoryPage() {
   // Fetch transactions
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["/api/transactions"],
-    queryFn: () => apiRequest("/api/transactions"),
+    queryFn: async () => {
+      const data = await apiRequest("/api/transactions");
+      console.log('[User History] Fetched transactions:', data);
+      return data;
+    },
     refetchInterval: 10000,
   });
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((transaction: any) => {
     const matchesSearch = searchQuery === "" || 
-      transaction.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.customerPhone.includes(searchQuery) ||
-      transaction.id.toLowerCase().includes(searchQuery.toLowerCase());
+      transaction.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transaction.customerPhone?.includes(searchQuery) ||
+      transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      transaction.id?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
+
+  console.log('[User History] Filtered transactions:', filteredTransactions?.length, 'out of', transactions?.length);
 
   if (!user) {
     return (

@@ -133,6 +133,8 @@ export default function MasterDashboard() {
               type="button"
               className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 md:hidden"
               onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
+              title="Open sidebar"
             >
               <Menu className="h-6 w-6" />
             </button>

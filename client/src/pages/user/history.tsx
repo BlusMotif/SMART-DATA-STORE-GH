@@ -214,7 +214,17 @@ export default function UserHistoryPage() {
                 ) : filteredTransactions && filteredTransactions.length > 0 ? (
                   <div className="space-y-4">
                     {filteredTransactions.map((transaction: any) => {
-                      const statusConfig = getStatusConfig(transaction.status);
+                      const isWalletDeduction = transaction.type === 'wallet_deduction';
+                      const statusConfig = isWalletDeduction 
+                        ? {
+                            variant: 'destructive' as const,
+                            icon: XCircle,
+                            color: 'text-white',
+                            bgColor: 'bg-red-600',
+                            borderColor: 'border-red-500',
+                            label: 'Complete'
+                          }
+                        : getStatusConfig(transaction.status);
                       const StatusIcon = statusConfig.icon;
                       const isBulkOrder = transaction.isBulkOrder;
                       const phoneNumbers = transaction.phoneNumbers 

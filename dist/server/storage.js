@@ -32,7 +32,7 @@ async function retryDatabaseOperation(operation, maxRetries = 3, delayMs = 1000)
     }
     throw lastError || new Error('Database operation failed after all retries');
 }
-import { users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings, supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions, profitWallets, profitTransactions, externalApiProviders, videoGuides, ProductType } from "../shared/schema.js";
+import { users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings, supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions, walletDeductionTransactions, profitWallets, profitTransactions, externalApiProviders, videoGuides, ProductType } from "../shared/schema.js";
 export class DatabaseStorage {
     getProduct(productId) {
         throw new Error("Method not implemented.");
@@ -1381,6 +1381,28 @@ export class DatabaseStorage {
     async updateWalletTopupTransaction(id, data) {
         const [updated] = await db.update(walletTopupTransactions).set(data).where(eq(walletTopupTransactions.id, id)).returning();
         return updated;
+    }
+    // ============================================
+    // WALLET DEDUCTION TRANSACTIONS
+    // ============================================
+    async createWalletDeductionTransaction(deduction) {
+        const [created] = await db.insert(walletDeductionTransactions).values({
+            id: randomUUID(),
+            ...deduction,
+        }).returning();
+        return created;
+    }
+    async getWalletDeductionTransactions(filters) {
+        const conditions = [];
+        if (filters?.userId)
+            conditions.push(eq(walletDeductionTransactions.userId, filters.userId));
+        if (filters?.adminId)
+            conditions.push(eq(walletDeductionTransactions.adminId, filters.adminId));
+        let query = db.select().from(walletDeductionTransactions);
+        if (conditions.length > 0) {
+            query = query.where(and(...conditions));
+        }
+        return query.orderBy(desc(walletDeductionTransactions.createdAt));
     }
     // ============================================
     // CRON JOB HELPERS

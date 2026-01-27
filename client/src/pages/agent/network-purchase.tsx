@@ -513,6 +513,12 @@ export default function AgentNetworkPurchasePage() {
               <CardDescription>Enter order details and checkout</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Warning Message */}
+              <div className="text-sm text-orange-600 flex items-start gap-2">
+                <span className="text-lg">⚠️</span>
+                <span>Please double-check your beneficiary number before completing purchase</span>
+              </div>
+
               {/* Order Type Selection */}
               <Tabs value={orderType} onValueChange={(v) => {
                   setOrderType(v as "single" | "bulk");
@@ -603,20 +609,6 @@ export default function AgentNetworkPurchasePage() {
                           <span className="text-2xl font-bold text-primary">
                             {formatCurrency(price)}
                           </span>
-                        </div>
-
-                        {/* Payment Method - Only Paystack for single purchases */}
-                        <div className="space-y-3 mb-4">
-                          <Label className="text-base font-semibold">Payment Method</Label>
-                          <div className="grid grid-cols-1 gap-3">
-                            <div className="p-4 border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">
-                              <CreditCard className="h-6 w-6 mx-auto mb-2 text-blue-600" />
-                              <div className="font-semibold">Paystack</div>
-                              <div className="text-sm text-muted-foreground">
-                                Pay with card/mobile money
-                              </div>
-                            </div>
-                          </div>
                         </div>
 
                         <Button

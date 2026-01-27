@@ -5153,6 +5153,110 @@ export async function registerRoutes(httpServer, app) {
             res.status(500).json({ error: "Failed to process manual top-up" });
         }
     });
+    // Manual wallet deduction endpoint
+    app.post("/api/admin/manual-deduct", requireAuthJWT, requireAdminJWT, async (req, res) => {
+        try {
+            const { userId, amount, reason } = req.body;
+            if (!userId || !amount || !reason) {
+                return res.status(400).json({ error: "User ID, amount, and reason are required" });
+            }
+            const deductAmount = parseFloat(amount);
+            if (isNaN(deductAmount) || deductAmount <= 0) {
+                return res.status(400).json({ error: "Invalid amount" });
+            }
+            // Get the user
+            const user = await storage.getUser(userId);
+            if (!user) {
+                return res.status(404).json({ error: "User not found" });
+            }
+            // Check if user has sufficient balance
+            const currentBalance = parseFloat(user.walletBalance || "0");
+            if (currentBalance < deductAmount) {
+                return res.status(400).json({
+                    error: "Insufficient balance",
+                    currentBalance: currentBalance.toFixed(2),
+                    requestedAmount: deductAmount.toFixed(2)
+                });
+            }
+            // Update user's wallet balance
+            const newBalance = currentBalance - deductAmount;
+            try {
+                await storage.updateUser(userId, { walletBalance: newBalance.toFixed(2) });
+            }
+            catch (updateError) {
+                console.error("Error updating user wallet:", updateError);
+                return res.status(500).json({ error: "Failed to update user wallet" });
+            }
+            // Create wallet deduction transaction record
+            let walletDeductionRecord;
+            try {
+                walletDeductionRecord = await storage.createWalletDeductionTransaction({
+                    userId,
+                    adminId: req.user.id,
+                    amount: deductAmount.toFixed(2),
+                    reason: reason || null,
+                });
+            }
+            catch (deductError) {
+                console.error("Error creating wallet deduction transaction:", deductError);
+                // Rollback the balance update
+                await storage.updateUser(userId, { walletBalance: currentBalance.toFixed(2) });
+                return res.status(500).json({ error: "Failed to create deduction record" });
+            }
+            // Also create a transaction record so user sees it in their history
+            try {
+                const transactionRef = `MANUAL_DEDUCT_${walletDeductionRecord.id.substring(0, 8)}`;
+                await storage.createTransaction({
+                    reference: transactionRef,
+                    type: "wallet_deduction",
+                    productId: walletDeductionRecord.id,
+                    productName: "Manual Wallet Deduction",
+                    network: null,
+                    amount: `-${deductAmount.toFixed(2)}`,
+                    profit: "0.00",
+                    customerPhone: user.phone || null,
+                    customerEmail: user.email,
+                    paymentMethod: "admin",
+                    status: TransactionStatus.COMPLETED,
+                    paymentReference: transactionRef,
+                    agentId: null,
+                    agentProfit: "0.00",
+                });
+            }
+            catch (transactionError) {
+                console.error("Error creating transaction record:", transactionError);
+                // Don't fail the request if transaction record creation fails
+            }
+            // Create audit log
+            try {
+                await storage.createAuditLog({
+                    userId: req.user.id,
+                    action: "MANUAL_WALLET_DEDUCTION",
+                    entityType: "user",
+                    entityId: userId,
+                    oldValue: currentBalance.toFixed(2),
+                    newValue: newBalance.toFixed(2),
+                    ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
+                    userAgent: req.get('User-Agent') || "unknown",
+                });
+            }
+            catch (auditError) {
+                console.error("Error creating audit log:", auditError);
+                // Don't fail the request for audit log errors
+            }
+            res.json({
+                success: true,
+                userName: user.name,
+                amount: deductAmount,
+                newBalance: newBalance,
+                walletDeductionRecord: walletDeductionRecord
+            });
+        }
+        catch (error) {
+            console.error("Error processing manual deduction:", error);
+            res.status(500).json({ error: "Failed to process manual deduction" });
+        }
+    });
     // ============================================
     // ANNOUNCEMENTS ROUTES
     // ============================================
@@ -5169,7 +5273,7 @@ export async function registerRoutes(httpServer, app) {
     // Create announcement
     app.post("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
         try {
-            const { title, message } = req.body;
+            const { title, message, audiences } = req.body;
             if (!title || !message) {
                 return res.status(400).json({ error: "Title and message are required" });
             }
@@ -5177,6 +5281,7 @@ export async function registerRoutes(httpServer, app) {
             if (!dbUser) {
                 return res.status(404).json({ error: "User not found" });
             }
+            const audienceArray = Array.isArray(audiences) && audiences.length > 0 ? audiences : ["all"];
             const announcement = await storage.createAnnouncement({
                 title: title.trim(),
                 message: message.trim(),

@@ -119,19 +119,19 @@ export default function StorefrontPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Storefront Header - Simple, no navigation to main app */}
-      <header className="border-b sticky top-0 z-50 bg-background">
+      <header className="border-b sticky top-0 z-50 bg-blue-100 dark:bg-blue-200">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
-            <h1 className="font-semibold text-lg text-foreground">{store.businessName}</h1>
+            <h1 className="font-semibold text-lg text-black">{store.businessName}</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => {
+            <Button variant="outline" size="sm" className="text-black" onClick={() => {
               document.getElementById('track-orders')?.scrollIntoView({ behavior: 'smooth' });
             }}>
               <Search className="h-4 w-4 mr-2" />
               Track Orders
             </Button>
-            <ThemeToggle />
+            <ThemeToggle className="text-black" />
           </div>
         </div>
       </header>
@@ -283,12 +283,12 @@ export default function StorefrontPage() {
         </section>
 
         {/* Track Orders Section */}
-        <section id="track-orders" className="py-12 px-4 bg-blue-50 dark:bg-blue-950/20 border-y">
+        <section id="track-orders" className="py-12 px-4 bg-blue-100 dark:bg-blue-950/40 border-y">
           <div className="container mx-auto max-w-4xl">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2 text-blue-600 dark:text-blue-400">Track Orders</h2>
-              <h3 className="text-xl text-muted-foreground mb-4">Never Lose Track</h3>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              <h3 className="text-xl text-black dark:text-white mb-4">Never Lose Track</h3>
+              <p className="text-lg text-black dark:text-white max-w-2xl mx-auto">
                 Easily track your data bundle and result checker orders using your transaction ID or beneficiary phone number.
               </p>
             </div>

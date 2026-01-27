@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -30,13 +30,6 @@ export function WalletTopup() {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  const { data: userStats } = useQuery({
-    queryKey: ["user-stats"],
-    queryFn: () => apiRequest("/api/user/stats"),
-    enabled: !!user,
-  });
 
   const form = useForm<TopupFormData>({
     resolver: zodResolver(topupSchema),
@@ -45,9 +38,6 @@ export function WalletTopup() {
       paymentMethod: "paystack",
     },
   });
-
-  const walletBalance = userStats?.walletBalance ? parseFloat(userStats.walletBalance) : 0;
-  const topupAmount = parseFloat(form.watch("amount") || "0");
 
   useEffect(() => {
     if (open) {

@@ -43,7 +43,7 @@ async function retryDatabaseOperation<T>(
 
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
-  supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
+    supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions, walletDeductionTransactions,
   profitWallets, profitTransactions, externalApiProviders, videoGuides,
   ProductType,
   type User, type InsertUser, type Agent, type InsertAgent,
@@ -54,7 +54,7 @@ import {
   type Announcement, type InsertAnnouncement, type ApiKey, type InsertApiKey,
   type CustomPricing, type InsertCustomPricing, type AdminBasePrices, type InsertAdminBasePrices,
   type RoleBasePrices, type InsertRoleBasePrices,
-  type WalletTopupTransaction, type InsertWalletTopupTransaction,
+    type WalletTopupTransaction, type InsertWalletTopupTransaction, type WalletDeductionTransaction, type InsertWalletDeductionTransaction,
   type ProfitWallet, type InsertProfitWallet, type ProfitTransaction, type InsertProfitTransaction,
   type Settings, type ExternalApiProvider, type InsertExternalApiProvider, type UpdateExternalApiProvider,
   type InsertVideoGuide, type VideoGuide
@@ -233,6 +233,10 @@ export interface IStorage {
   createWalletTopupTransaction(topup: InsertWalletTopupTransaction): Promise<WalletTopupTransaction>;
   updateWalletTopupTransaction(id: string, data: Partial<WalletTopupTransaction>): Promise<WalletTopupTransaction | undefined>;
   getWalletTopupTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletTopupTransaction[]>;
+
+    // Wallet Deduction Transactions
+    createWalletDeductionTransaction(deduction: InsertWalletDeductionTransaction): Promise<WalletDeductionTransaction>;
+    getWalletDeductionTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletDeductionTransaction[]>;
 
   // Cron Job Helpers
   getTransactionsByStatusAndDelivery(status: string | string[], deliveryStatus: string | string[]): Promise<Transaction[]>;
@@ -1870,6 +1874,29 @@ export class DatabaseStorage implements IStorage {
   async updateWalletTopupTransaction(id: string, data: Partial<WalletTopupTransaction>): Promise<WalletTopupTransaction | undefined> {
     const [updated] = await db.update(walletTopupTransactions).set(data).where(eq(walletTopupTransactions.id, id)).returning();
     return updated;
+  }
+
+  // ============================================
+  // WALLET DEDUCTION TRANSACTIONS
+  // ============================================
+  async createWalletDeductionTransaction(deduction: InsertWalletDeductionTransaction): Promise<WalletDeductionTransaction> {
+    const [created] = await db.insert(walletDeductionTransactions).values({
+      id: randomUUID(),
+      ...deduction,
+    }).returning();
+    return created;
+  }
+
+  async getWalletDeductionTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletDeductionTransaction[]> {
+    const conditions = [];
+    if (filters?.userId) conditions.push(eq(walletDeductionTransactions.userId, filters.userId));
+    if (filters?.adminId) conditions.push(eq(walletDeductionTransactions.adminId, filters.adminId));
+
+    let query = db.select().from(walletDeductionTransactions);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as typeof query;
+    }
+    return query.orderBy(desc(walletDeductionTransactions.createdAt));
   }
 
   // ============================================

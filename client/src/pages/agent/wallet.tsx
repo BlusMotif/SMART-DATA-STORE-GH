@@ -162,7 +162,7 @@ export default function AgentWalletPage() {
                   <Wallet className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-white">
+                  <div className="text-lg font-bold text-white">
                     GH₵{user?.walletBalance || '0.00'}
                   </div>
                   <p className="text-xs text-white/70 mt-2">Available for purchases</p>
@@ -175,7 +175,7 @@ export default function AgentWalletPage() {
                   <TrendingUp className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-white">
+                  <div className="text-lg font-bold text-white">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
@@ -192,7 +192,7 @@ export default function AgentWalletPage() {
                   <CreditCard className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-white">
+                  <div className="text-lg font-bold text-white">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
@@ -209,7 +209,7 @@ export default function AgentWalletPage() {
                   <ArrowDownRight className="h-4 w-4 text-white/80" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-white">
+                  <div className="text-lg font-bold text-white">
                     {statsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
@@ -256,7 +256,7 @@ export default function AgentWalletPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Reference</TableHead>
+                        <TableHead>Order ID</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Product</TableHead>
                         <TableHead>Amount</TableHead>
@@ -272,7 +272,7 @@ export default function AgentWalletPage() {
                         return (
                           <TableRow key={transaction.id}>
                             <TableCell className="font-mono text-sm">
-                              {transaction.reference}
+                              {transaction.id.slice(0,8)}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="capitalize">

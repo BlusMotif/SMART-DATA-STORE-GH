@@ -37,7 +37,6 @@ const ApiKeysPage: React.FC = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createdKey, setCreatedKey] = useState<string>('');
   const [showCreatedKey, setShowCreatedKey] = useState(false);
-  const [] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('keys');
 
@@ -264,16 +263,16 @@ const ApiKeysPage: React.FC = () => {
               Create API Key
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-black text-white border-gray-700">
+          <DialogContent className="bg-black text-white border border-gray-800">
             <DialogHeader>
-              <DialogTitle className="text-white">Create New API Key</DialogTitle>
-              <DialogDescription className="text-gray-300">
+              <DialogTitle className="text-white font-bold text-lg">Create New API Key</DialogTitle>
+              <DialogDescription className="text-gray-200">
                 Create a new API key to access our services programmatically.
               </DialogDescription>
             </DialogHeader>
-            <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-md">
-              <p className="text-yellow-400 text-sm font-semibold mb-1">⚠️ Security Notice</p>
-              <ul className="text-yellow-300 text-xs space-y-1 ml-4 list-disc">
+            <div className="mt-3 p-3 bg-yellow-900/40 border border-yellow-600/60 rounded-md">
+              <p className="text-yellow-300 text-sm font-semibold mb-1">⚠️ Security Notice</p>
+              <ul className="text-yellow-200 text-xs space-y-1 ml-4 list-disc">
                 <li>Maximum 10 active keys per account</li>
                 <li>Maximum 5 key creations per hour</li>
                 <li>Keys are shown only once - save immediately!</li>
@@ -282,22 +281,22 @@ const ApiKeysPage: React.FC = () => {
             </div>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="keyName" className="text-white">API Key Name</Label>
+                <Label htmlFor="keyName" className="text-white font-semibold">API Key Name</Label>
                 <Input
                   id="keyName"
                   placeholder="e.g., Production App, Development"
                   value={newKeyName}
                   onChange={(e) => setNewKeyName(e.target.value)}
                   maxLength={100}
-                  className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
+                  className="bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-500"
                 />
                 <p className="text-xs text-gray-400 mt-1">{newKeyName.length}/100 characters</p>
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="border-gray-600 text-white hover:bg-gray-800">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="border-gray-700 text-white hover:bg-gray-900 hover:text-white">
                   Cancel
                 </Button>
-                <Button onClick={createApiKey} disabled={creating} className="bg-yellow-500 text-black hover:bg-yellow-600">
+                <Button onClick={createApiKey} disabled={creating} className="bg-yellow-500 text-black hover:bg-yellow-600 font-semibold">
                   {creating ? 'Creating...' : 'Create Key'}
                 </Button>
               </div>
@@ -308,18 +307,18 @@ const ApiKeysPage: React.FC = () => {
 
       {/* Created Key Dialog */}
       <Dialog open={showCreatedKey} onOpenChange={setShowCreatedKey}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-gray-900 border-gray-700">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
+            <DialogTitle className="flex items-center gap-2 text-xl text-white">
               <Key className="w-6 h-6 text-yellow-500" />
               API Key Created Successfully!
             </DialogTitle>
           </DialogHeader>
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 rounded-lg mt-4">
-            <p className="text-red-600 dark:text-red-400 font-bold text-sm mb-2">
+          <div className="p-4 bg-red-900/30 border-2 border-red-600 rounded-lg mt-4">
+            <p className="text-red-300 font-bold text-sm mb-2">
               🔐 CRITICAL: Save Your API Key Now!
             </p>
-            <ul className="text-red-600 dark:text-red-400 text-xs space-y-1 ml-4 list-disc">
+            <ul className="text-red-300 text-xs space-y-1 ml-4 list-disc">
               <li>This is the ONLY time you'll see this key in full</li>
               <li>Copy and store it securely (e.g., password manager)</li>
               <li>Once you close this dialog, the key will be masked forever</li>
@@ -327,8 +326,8 @@ const ApiKeysPage: React.FC = () => {
             </ul>
           </div>
           <div className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg border-2 border-yellow-500">
-              <Label className="text-sm font-semibold mb-2 block">Your API Key:</Label>
+            <div className="p-4 bg-gray-800 rounded-lg border-2 border-yellow-500">
+              <Label className="text-sm font-semibold mb-2 block text-white">Your API Key:</Label>
               <code className="text-sm break-all block p-3 bg-black text-green-400 rounded font-mono">
                 {createdKey}
               </code>
@@ -340,7 +339,7 @@ const ApiKeysPage: React.FC = () => {
                   copyToClipboard(createdKey);
                   toast.success('API key copied! Make sure to save it securely.');
                 }}
-                className="border-yellow-500 text-yellow-600 hover:bg-yellow-50"
+                className="border-yellow-500 text-yellow-400 hover:bg-yellow-500/20"
               >
                 <Copy className="w-4 h-4 mr-2" />
                 Copy to Clipboard
@@ -350,7 +349,7 @@ const ApiKeysPage: React.FC = () => {
                   setShowCreatedKey(false);
                   toast.info('API key dialog closed. The key is now masked in your list.');
                 }}
-                className="bg-yellow-500 hover:bg-yellow-600"
+                className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
               >
                 I've Saved It Securely
               </Button>
@@ -444,15 +443,15 @@ const ApiKeysPage: React.FC = () => {
                                 Revoke Key
                               </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent>
+                            <AlertDialogContent className="bg-gray-900 border-gray-700">
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
-                                <AlertDialogDescription>
+                                <AlertDialogTitle className="text-white">Revoke API Key</AlertDialogTitle>
+                                <AlertDialogDescription className="text-gray-300">
                                   Are you sure you want to revoke this API key? This action cannot be undone and any applications using this key will immediately lose access.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">Cancel</AlertDialogCancel>
                                 <AlertDialogAction 
                                   onClick={() => deleteApiKey(apiKey.id)}
                                   className="bg-red-600 hover:bg-red-700"

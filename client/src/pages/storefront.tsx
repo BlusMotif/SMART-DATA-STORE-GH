@@ -2,18 +2,17 @@ import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { OrderTracker } from "@/components/order-tracker";
 import { PageLoader } from "@/components/ui/loading-spinner";
-import { Store, Shield, MessageCircle } from "lucide-react";
-import type { Agent } from "@shared/schema";
+import { Store, Shield, MessageCircle, Search } from "lucide-react";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
 import airteltigoLogo from "@assets/at_1765780772206.jpg";
 import banner1 from "@assets/banner1_1765774201032.jpeg";
 import banner2 from "@assets/banner2_1765774201033.jpeg";
 import banner3 from "@assets/banner3_1765774201030.jpeg";
-import { ROLE_LABELS } from "@/lib/constants";
 
 const bannerImages = [banner1, banner2, banner3];
 
@@ -126,6 +125,12 @@ export default function StorefrontPage() {
             <h1 className="font-semibold text-lg text-foreground">{store.businessName}</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => {
+              document.getElementById('track-orders')?.scrollIntoView({ behavior: 'smooth' });
+            }}>
+              <Search className="h-4 w-4 mr-2" />
+              Track Orders
+            </Button>
             <ThemeToggle />
           </div>
         </div>
@@ -276,6 +281,21 @@ export default function StorefrontPage() {
             </div>
           </div>
         </section>
+
+        {/* Track Orders Section */}
+        <section id="track-orders" className="py-12 px-4 bg-blue-50 dark:bg-blue-950/20 border-y">
+          <div className="container mx-auto max-w-4xl">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-2 text-blue-600 dark:text-blue-400">Track Orders</h2>
+              <h3 className="text-xl text-muted-foreground mb-4">Never Lose Track</h3>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                Easily track your data bundle and result checker orders using your transaction ID or beneficiary phone number.
+              </p>
+            </div>
+
+            <OrderTracker />
+          </div>
+        </section>
       </main>
 
       {/* Simple Footer */}
@@ -285,13 +305,15 @@ export default function StorefrontPage() {
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} {store.businessName}. All rights reserved.
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Developed by <a href="https://bm-portfolio-up2x.onrender.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">BlusMotif</a>
-            </p>
-            <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
+ <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
               <Shield className="h-3 w-3" />
               <span>Secure payments • Fast delivery • 24/7 support</span>
             </div>
+
+            <p className="text-xs text-muted-foreground mt-1">
+              Developed by <a href="https://bm-portfolio-up2x.onrender.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">BlusMotif</a>
+            </p>
+           
           </div>
         </div>
       </footer>

@@ -61,29 +61,41 @@ export default function CheckoutSuccessPage() {
   const [paymentFailed, setPaymentFailed] = useState(paystackStatus === "failed" || paystackStatus === "cancelled");
   const [autoDownloadTriggered, setAutoDownloadTriggered] = useState(false);
 
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
   const { data: verifyResult } = useQuery<{ success: boolean; transaction: Transaction }>({
     queryKey: [`/api/transactions/verify/${reference || paystackReference}`],
     queryFn: async () => {
-      const response = await fetch(`/api/transactions/verify/${reference || paystackReference}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        },
-        cache: 'no-store',
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || errorData.message || `API request failed: ${response.status} ${response.statusText}`);
+      try {
+        const response = await fetch(`/api/transactions/verify/${reference || paystackReference}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+          cache: 'no-store',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          const errorMsg = errorData.error || errorData.message || `API request failed: ${response.status} ${response.statusText}`;
+          setVerifyError(errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        setVerifyError(null); // Clear error on success
+        return response.json();
+      } catch (error: any) {
+        const msg = error?.message || 'Failed to connect to server. Please check your internet connection.';
+        setVerifyError(msg);
+        throw error;
       }
-      
-      return response.json();
     },
     enabled: !!(reference || paystackReference) && !paymentFailed,
-    retry: 1,
-    retryDelay: 1000,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff: 1s, 2s, 4s, max 10s
+    refetchInterval: 5000, // Poll every 5 seconds for real-time status updates from SkyTech
   });
 
   // Mark verification as complete once we get data
@@ -273,6 +285,39 @@ export default function CheckoutSuccessPage() {
     );
   }
 
+  // Show connection error if verification failed after retries
+  if (verifyError) {
+    return (
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="pt-6 text-center">
+              <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Connection Failed</h2>
+              <p className="text-muted-foreground mb-2 text-sm">{verifyError}</p>
+              <p className="text-muted-foreground mb-4 text-xs">
+                Your payment may have been processed. Please try refreshing the page or contact support if you experience any issues.
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button onClick={() => window.location.reload()}>
+                  Refresh Page
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  const agentStore = localStorage.getItem("agentStore");
+                  setLocation(agentStore ? `/store/agent/${agentStore}` : "/");
+                }}>
+                  {localStorage.getItem("agentStore") ? "Back to Store" : "Go to Home"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   // Show success immediately and verify in background
   const statusConfig = {
     completed: {
@@ -355,14 +400,14 @@ export default function CheckoutSuccessPage() {
                       </div>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-sm text-white/70">Reference</span>
+                      <span className="text-sm text-white/70">Order ID</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-mono text-white" data-testid="text-reference">{transaction.reference}</span>
+                        <span className="text-sm font-mono text-white" data-testid="text-reference">{transaction.id.slice(0,8)}</span>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-white hover:bg-white/20"
-                          onClick={() => copyToClipboard(transaction.reference)}
+                          onClick={() => copyToClipboard(transaction.id.slice(0,8))}
                         >
                           <Copy className="h-3 w-3" />
                         </Button>
@@ -479,20 +524,20 @@ export default function CheckoutSuccessPage() {
                   )}
 
                   {status === "completed" && transaction.type === "data_bundle" && (
-                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                      <h4 className="font-semibold text-green-800 dark:text-green-300 mb-2 flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4" />
+                    <div className="bg-green-500 text-white rounded-lg p-4 shadow-sm">
+                      <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-white" />
                         Order Placed Successfully
                       </h4>
-                      <p className="text-sm text-green-700 dark:text-green-400">
-                        Your data bundle order for <strong>{transaction.customerPhone}</strong> has been placed with our provider.
+                      <p className="text-sm text-white/90">
+                        Your data bundle order for <strong className="font-semibold text-white">{transaction.customerPhone}</strong> has been placed with our provider.
                         {transaction.deliveryStatus === "processing" && (
-                          <span className="block mt-1">
+                          <span className="block mt-1 text-white/90">
                             ⏳ Delivery in progress - you will receive an SMS confirmation shortly.
                           </span>
                         )}
                         {transaction.deliveryStatus === "delivered" && (
-                          <span className="block mt-1">
+                          <span className="block mt-1 text-white/90">
                             ✓ Delivered! Check your phone for confirmation.
                           </span>
                         )}

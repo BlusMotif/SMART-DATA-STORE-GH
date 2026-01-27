@@ -1,4 +1,4 @@
-﻿// Database connection for CLECTECH - PostgreSQL with Drizzle ORM
+﻿// Database connection - PostgreSQL with Drizzle ORM
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
@@ -31,29 +31,38 @@ if (usePostgreSQL) {
     throw new Error('DATABASE_URL environment variable is required');
   }
 
-  // Connection pool
+  // Connection pool with enhanced settings for stability
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     max: 20,
+    min: 2, // Keep minimum connections ready
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
+    statement_timeout: 30000, // 30s statement timeout
+    query_timeout: 30000, // 30s query timeout
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
 
-  // Add error handling for the pool
+  // Add comprehensive error handling for the pool
   pool.on('error', (err: Error) => {
-    console.error('Unexpected error on idle client', err);
+    console.error('[DB Pool] Unexpected error on idle client:', err);
   });
 
-  // Test the connection on startup
-  pool.connect()
-    .then(() => {
-      console.log('PostgreSQL database connection established successfully');
-    })
-    .catch((err) => {
-      console.error('Database connection failed:', err.message);
-      process.exit(1);
-    });
+  pool.on('connect', () => {
+    console.log('[DB Pool] Client connected to database');
+  });
+
+  pool.on('acquire', () => {
+    console.log('[DB Pool] Client acquired from pool');
+  });
+
+  pool.on('release', () => {
+    console.log('[DB Pool] Client released back to pool');
+  });
+
+  pool.on('remove', () => {
+    console.log('[DB Pool] Client removed from pool');
+  });
 
   db = drizzle(pool, { schema });
 } else {

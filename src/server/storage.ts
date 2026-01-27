@@ -2,6 +2,45 @@ import { eq, and, desc, sql, gte, lte, or, like, max, sum, count, inArray, lt, i
 import { db } from "./db.js";
 import { randomUUID } from "crypto";
 import { normalizePhoneNumber } from "./utils/network-validator.js";
+
+// Retry logic for database operations in case of connection loss
+async function retryDatabaseOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries = 3,
+  delayMs = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      console.error(`[DB Retry] Attempt ${attempt}/${maxRetries} failed:`, error.message);
+      
+      // Check if error is connection-related
+      const isConnectionError = 
+        error.message?.includes('ECONNREFUSED') ||
+        error.message?.includes('ENOTFOUND') ||
+        error.message?.includes('connection') ||
+        error.message?.includes('pool') ||
+        error.code === 'ECONNREFUSED' ||
+        error.code === 'ENOTFOUND';
+      
+      if (isConnectionError && attempt < maxRetries) {
+        // Wait before retrying for connection errors
+        console.log(`[DB Retry] Waiting ${delayMs}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else if (!isConnectionError) {
+        // Don't retry non-connection errors
+        throw error;
+      }
+    }
+  }
+  
+  throw lastError || new Error('Database operation failed after all retries');
+}
+
 import {
   users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings,
   supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions,
@@ -192,10 +231,11 @@ export interface IStorage {
 
   // Wallet Top-up Transactions
   createWalletTopupTransaction(topup: InsertWalletTopupTransaction): Promise<WalletTopupTransaction>;
+  updateWalletTopupTransaction(id: string, data: Partial<WalletTopupTransaction>): Promise<WalletTopupTransaction | undefined>;
   getWalletTopupTransactions(filters?: { userId?: string; adminId?: string }): Promise<WalletTopupTransaction[]>;
 
   // Cron Job Helpers
-  getTransactionsByStatusAndDelivery(status: string, deliveryStatus: string): Promise<Transaction[]>;
+  getTransactionsByStatusAndDelivery(status: string | string[], deliveryStatus: string | string[]): Promise<Transaction[]>;
   getFailedTransactionsOlderThan(cutoffDate: Date): Promise<Transaction[]>;
 
   // Settings
@@ -598,9 +638,10 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
 
-  async getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]> {
+  async getTransactions(filters?: { customerEmail?: string; customerPhone?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]> {
     const conditions = [];
     if (filters?.customerEmail) conditions.push(eq(transactions.customerEmail, filters.customerEmail));
+    if (filters?.customerPhone) conditions.push(eq(transactions.customerPhone, filters.customerPhone));
     if (filters?.agentId) conditions.push(eq(transactions.agentId, filters.agentId));
     if (filters?.status) conditions.push(eq(transactions.status, filters.status));
     if (filters?.type) conditions.push(eq(transactions.type, filters.type));
@@ -1826,16 +1867,24 @@ export class DatabaseStorage implements IStorage {
     return query.orderBy(desc(walletTopupTransactions.createdAt));
   }
 
+  async updateWalletTopupTransaction(id: string, data: Partial<WalletTopupTransaction>): Promise<WalletTopupTransaction | undefined> {
+    const [updated] = await db.update(walletTopupTransactions).set(data).where(eq(walletTopupTransactions.id, id)).returning();
+    return updated;
+  }
+
   // ============================================
   // CRON JOB HELPERS
   // ============================================
 
-  async getTransactionsByStatusAndDelivery(status: string, deliveryStatus: string): Promise<Transaction[]> {
+  async getTransactionsByStatusAndDelivery(status: string | string[], deliveryStatus: string | string[]): Promise<Transaction[]> {
+    const statusList = Array.isArray(status) ? status : [status];
+    const deliveryList = Array.isArray(deliveryStatus) ? deliveryStatus : [deliveryStatus];
+
     return db.select()
       .from(transactions)
       .where(and(
-        eq(transactions.status, status),
-        eq(transactions.deliveryStatus, deliveryStatus),
+        inArray(transactions.status, statusList),
+        inArray(transactions.deliveryStatus, deliveryList),
         eq(transactions.type, 'data_bundle') // Only data bundle transactions
       ))
       .orderBy(desc(transactions.createdAt));

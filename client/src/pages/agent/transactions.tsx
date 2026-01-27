@@ -188,7 +188,7 @@ export default function AgentTransactions() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="text-xs md:text-sm">Reference</TableHead>
+                          <TableHead className="text-xs md:text-sm">Order ID</TableHead>
                           <TableHead className="text-xs md:text-sm">Product</TableHead>
                           <TableHead className="hidden sm:table-cell text-xs md:text-sm">Network</TableHead>
                           <TableHead className="text-xs md:text-sm">Amount</TableHead>
@@ -208,7 +208,7 @@ export default function AgentTransactions() {
                           const isWalletTopup = tx.type === "wallet_topup";
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-xs md:text-sm">{tx.reference}</TableCell>
+                              <TableCell className="font-mono text-xs md:text-sm">{tx.id.slice(0,8)}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
                                 <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
                                 <div className="flex gap-1 mt-1 flex-wrap">

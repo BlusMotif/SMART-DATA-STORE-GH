@@ -261,6 +261,66 @@ app.get('/api/health', (_req: Request, res: Response) => {
   });
 });
 
+// Database health check endpoint
+app.get('/api/health/db', async (_req: Request, res: Response) => {
+  try {
+    const { pool } = await import('./db.js');
+    if (!pool) {
+      return res.status(503).json({ status: 'error', message: 'Database pool not initialized' });
+    }
+    
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT NOW()');
+      client.release();
+      res.status(200).json({ 
+        status: 'ok', 
+        message: 'Database connection healthy',
+        timestamp: result.rows[0]?.now 
+      });
+    } catch (err: any) {
+      client.release();
+      res.status(503).json({ 
+        status: 'error', 
+        message: 'Database query failed',
+        error: err.message 
+      });
+    }
+  } catch (error: any) {
+    res.status(503).json({ 
+      status: 'error', 
+      message: 'Database pool error',
+      error: error.message 
+    });
+  }
+});
+
+// Database connection monitor middleware
+app.use(async (req, res, next) => {
+  try {
+    const { pool } = await import('./db.js');
+    
+    // Attach pool to request for potential use in routes
+    (req as any).dbPool = pool;
+    
+    // Check if pool is healthy
+    if (pool && pool.totalCount > 0) {
+      // Monitor pool status
+      const idleCount = pool.idleCount || 0;
+      const totalCount = pool.totalCount || 0;
+      
+      if (idleCount === 0 && totalCount > 0) {
+        console.warn(`[DB Pool Warning] All ${totalCount} connections in use`);
+      }
+    }
+    
+    next();
+  } catch (error) {
+    console.error('[DB Monitor] Error:', error);
+    next(); // Continue anyway
+  }
+});
+
 // Optional toggle to disable rate limiting for local testing
 const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true';
 if (disableRateLimit) {
@@ -424,7 +484,7 @@ app.use(cors({
 const SessionStore = MemoryStore(session);
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "clectech-secret-key-change-in-production",
+    secret: process.env.SESSION_SECRET || "change-this-secret-key-in-production",
     resave: false,
     saveUninitialized: false,
     store: new SessionStore({

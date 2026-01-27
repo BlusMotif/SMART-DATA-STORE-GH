@@ -2,6 +2,36 @@ import { eq, and, desc, sql, gte, lte, or, max, count, inArray, lt, isNotNull, n
 import { db } from "./db.js";
 import { randomUUID } from "crypto";
 import { normalizePhoneNumber } from "./utils/network-validator.js";
+// Retry logic for database operations in case of connection loss
+async function retryDatabaseOperation(operation, maxRetries = 3, delayMs = 1000) {
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        }
+        catch (error) {
+            lastError = error;
+            console.error(`[DB Retry] Attempt ${attempt}/${maxRetries} failed:`, error.message);
+            // Check if error is connection-related
+            const isConnectionError = error.message?.includes('ECONNREFUSED') ||
+                error.message?.includes('ENOTFOUND') ||
+                error.message?.includes('connection') ||
+                error.message?.includes('pool') ||
+                error.code === 'ECONNREFUSED' ||
+                error.code === 'ENOTFOUND';
+            if (isConnectionError && attempt < maxRetries) {
+                // Wait before retrying for connection errors
+                console.log(`[DB Retry] Waiting ${delayMs}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+            else if (!isConnectionError) {
+                // Don't retry non-connection errors
+                throw error;
+            }
+        }
+    }
+    throw lastError || new Error('Database operation failed after all retries');
+}
 import { users, agents, dataBundles, resultCheckers, transactions, withdrawals, smsLogs, auditLogs, settings, supportChats, chatMessages, customPricing, adminBasePrices, roleBasePrices, announcements, apiKeys, walletTopupTransactions, profitWallets, profitTransactions, externalApiProviders, videoGuides, ProductType } from "../shared/schema.js";
 export class DatabaseStorage {
     getProduct(productId) {
@@ -327,6 +357,8 @@ export class DatabaseStorage {
         const conditions = [];
         if (filters?.customerEmail)
             conditions.push(eq(transactions.customerEmail, filters.customerEmail));
+        if (filters?.customerPhone)
+            conditions.push(eq(transactions.customerPhone, filters.customerPhone));
         if (filters?.agentId)
             conditions.push(eq(transactions.agentId, filters.agentId));
         if (filters?.status)
@@ -1346,13 +1378,19 @@ export class DatabaseStorage {
         }
         return query.orderBy(desc(walletTopupTransactions.createdAt));
     }
+    async updateWalletTopupTransaction(id, data) {
+        const [updated] = await db.update(walletTopupTransactions).set(data).where(eq(walletTopupTransactions.id, id)).returning();
+        return updated;
+    }
     // ============================================
     // CRON JOB HELPERS
     // ============================================
     async getTransactionsByStatusAndDelivery(status, deliveryStatus) {
+        const statusList = Array.isArray(status) ? status : [status];
+        const deliveryList = Array.isArray(deliveryStatus) ? deliveryStatus : [deliveryStatus];
         return db.select()
             .from(transactions)
-            .where(and(eq(transactions.status, status), eq(transactions.deliveryStatus, deliveryStatus), eq(transactions.type, 'data_bundle') // Only data bundle transactions
+            .where(and(inArray(transactions.status, statusList), inArray(transactions.deliveryStatus, deliveryList), eq(transactions.type, 'data_bundle') // Only data bundle transactions
         ))
             .orderBy(desc(transactions.createdAt));
     }

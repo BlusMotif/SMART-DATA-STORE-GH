@@ -103,7 +103,7 @@ export function OrderTracker() {
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="Transaction ID or Phone Number (e.g., CLEC-123456789-ABCDEF or 0241234567)"
+            placeholder="Transaction ID or Phone Number (e.g., TXN-123456789-ABCDEF or 0241234567)"
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearch()}

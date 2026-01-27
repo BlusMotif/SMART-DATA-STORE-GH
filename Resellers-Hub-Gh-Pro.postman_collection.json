@@ -536,9 +536,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/transactions/verify/CLEC-123456-ABCDEF",
+              "raw": "{{base_url}}/transactions/verify/TXN-123456-ABCDEF",
               "host": ["{{base_url}}"],
-              "path": ["transactions", "verify", "CLEC-123456-ABCDEF"]
+              "path": ["transactions", "verify", "TXN-123456-ABCDEF"]
             },
             "description": "Verify payment and complete transaction"
           }
@@ -772,13 +772,13 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/paystack/verify?reference=CLEC-123456-ABCDEF",
+              "raw": "{{base_url}}/paystack/verify?reference=TXN-123456-ABCDEF",
               "host": ["{{base_url}}"],
               "path": ["paystack", "verify"],
               "query": [
                 {
                   "key": "reference",
-                  "value": "CLEC-123456-ABCDEF"
+                  "value": "TXN-123456-ABCDEF"
                 }
               ]
             },

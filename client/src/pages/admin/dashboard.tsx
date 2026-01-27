@@ -135,7 +135,7 @@ export default function AdminDashboard() {
                           <span className="text-xs font-medium">Live Dashboard</span>
                         </div>
                         <div className="flex items-center gap-1 text-white/90">
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse animate-delay-500"></div>
                           <span className="text-xs font-medium">Real-time Updates</span>
                         </div>
                       </div>
@@ -263,7 +263,7 @@ export default function AdminDashboard() {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Reference</TableHead>
+                            <TableHead>Order ID</TableHead>
                             <TableHead>Product</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>Status</TableHead>
@@ -273,7 +273,7 @@ export default function AdminDashboard() {
                         <TableBody>
                           {recentTransactions.slice(0, 10).map((tx) => (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-sm">{tx.reference}</TableCell>
+                              <TableCell className="font-mono text-sm">{tx.id.slice(0,8)}</TableCell>
                               <TableCell className="max-w-[200px] truncate">{tx.productName}</TableCell>
                               <TableCell className="font-medium tabular-nums">{formatCurrency(tx.amount)}</TableCell>
                               <TableCell><StatusBadge status={tx.status} /></TableCell>

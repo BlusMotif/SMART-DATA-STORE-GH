@@ -91,11 +91,16 @@ export default function AdminAnnouncements() {
   const { data: announcements, isLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/admin/announcements"],
     refetchInterval: 30000,
+    onSuccess: (data) => {
+      console.log("[Admin] Fetched announcements:", data?.map(a => ({ id: a.id, title: a.title, audiences: a.audiences })));
+    },
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { title: string; message: string; audiences: string[] }) =>
-      apiRequest("POST", "/api/admin/announcements", data),
+    mutationFn: (data: { title: string; message: string; audiences: string[] }) => {
+      console.log("[Admin] Sending to API:", data);
+      return apiRequest("POST", "/api/admin/announcements", data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
       toast({ title: "✅ Announcement created successfully" });
@@ -151,6 +156,7 @@ export default function AdminAnnouncements() {
       });
       return;
     }
+    console.log("Creating announcement with audiences:", newAnnouncement.audiences);
     createMutation.mutate(newAnnouncement);
   };
 
@@ -299,6 +305,10 @@ export default function AdminAnnouncements() {
                   <div className="space-y-3 md:space-y-4">
                     {activeAnnouncements.map((announcement) => (
                       <div key={announcement.id} className="border rounded-lg p-3 md:p-4">
+                        {/* Debug info */}
+                        <div className="text-xs text-muted-foreground mb-2 font-mono">
+                          Raw audiences: {JSON.stringify(announcement.audiences)}
+                        </div>
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-sm md:text-base leading-tight break-words">{announcement.title}</h3>

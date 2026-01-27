@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage.js";
 import { db } from "./db.js";
-import { sql, and, eq, or, gte, lte } from "drizzle-orm";
+import { sql, and, eq, or, gte, lte, desc } from "drizzle-orm";
 import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
@@ -5205,6 +5205,7 @@ export async function registerRoutes(
   app.post("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { title, message, audiences } = req.body;
+      console.log("Received announcement request:", { title, message, audiences });
       if (!title || !message) {
         return res.status(400).json({ error: "Title and message are required" });
       }
@@ -5213,6 +5214,7 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
       const audienceArray = Array.isArray(audiences) && audiences.length > 0 ? audiences : ["all"];
+      console.log("Saving audiences as:", audienceArray, "JSON:", JSON.stringify(audienceArray));
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
         message: message.trim(),
@@ -5220,6 +5222,7 @@ export async function registerRoutes(
         isActive: true,
         createdBy: dbUser.name || dbUser.email,
       });
+      console.log("Created announcement:", announcement);
       res.json(announcement);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to create announcement" });
@@ -6351,7 +6354,8 @@ export async function registerRoutes(
         completedAt: transaction.completedAt,
         phoneNumbers: phoneNumbers, // For bulk orders
         isBulkOrder: transaction.isBulkOrder,
-      });
+          apiResponse: transaction.apiResponse, // Include SkyTech status
+        });
     } catch (error: any) {
       console.error('Order tracking error:', error);
       res.status(500).json({ error: "Failed to track order" });
@@ -7757,18 +7761,251 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/admin/external-order/:ref", requireAuth, requireAdmin, async (req, res) => {
+  // Refresh order status from SkyTech (for any user to track their order)
+  app.get("/api/order-status/:id", async (req, res) => {
     try {
-      const { ref } = req.params;
-      const { providerId } = req.query;
-      const result = await getExternalOrderStatus(ref, providerId as string);
-      if (result.success) {
-        res.json(result);
+      const { id } = req.params;
+      
+      const transaction = await storage.getTransaction(id);
+      if (!transaction) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      console.log(`[OrderStatus API] Fetching status for transaction ${transaction.reference}`);
+
+      // Parse SkyTech reference from API response
+      let skytechRef = null;
+      if (transaction.apiResponse) {
+        try {
+          const apiResponse = JSON.parse(transaction.apiResponse);
+          if (apiResponse.results && apiResponse.results.length > 0) {
+            skytechRef = apiResponse.results[0].ref;
+          }
+        } catch (e) {
+          console.warn(`Failed to parse API response for transaction ${id}`);
+        }
+      }
+
+      if (!skytechRef) {
+        console.log(`[OrderStatus API] No SkyTech ref - returning cached status: ${transaction.deliveryStatus}`);
+        // Return current cached status if no SkyTech reference
+        return res.json({
+          id: transaction.id,
+          reference: transaction.reference,
+          status: transaction.status,
+          deliveryStatus: transaction.deliveryStatus,
+          productName: transaction.productName,
+          amount: transaction.amount,
+          customerPhone: transaction.customerPhone,
+          createdAt: transaction.createdAt,
+          completedAt: transaction.completedAt,
+          isSkyTechOrder: false,
+          cached: true
+        });
+      }
+
+      // Fetch fresh status from SkyTech
+      const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? undefined);
+
+      if (statusResult.success && statusResult.order) {
+        const orderData = statusResult.order;
+        const skytechStatus = orderData.status?.toLowerCase();
+        console.log(`[OrderStatus API] SkyTech returned status: ${skytechStatus} (raw: ${orderData.status})`);
+
+        // Map SkyTech status to internal status
+        let newStatus = transaction.status;
+        let newDeliveryStatus = transaction.deliveryStatus;
+
+        switch (skytechStatus) {
+          case 'completed':
+          case 'delivered':
+          case 'success':
+            newStatus = TransactionStatus.COMPLETED;
+            newDeliveryStatus = 'delivered';
+            console.log(`[OrderStatus API] Mapping to DELIVERED`);
+            break;
+          case 'failed':
+          case 'error':
+            newStatus = TransactionStatus.FAILED;
+            newDeliveryStatus = 'failed';
+            console.log(`[OrderStatus API] Mapping to FAILED`);
+            break;
+          case 'processing':
+            newStatus = TransactionStatus.PENDING;
+            newDeliveryStatus = 'processing';
+            console.log(`[OrderStatus API] Mapping to PROCESSING`);
+            break;
+          case 'pending':
+          case 'queued':
+            newStatus = TransactionStatus.PENDING;
+            newDeliveryStatus = 'processing';
+            console.log(`[OrderStatus API] Mapping PENDING/QUEUED to PROCESSING`);
+            break;
+        }
+
+        // Update if status changed
+        if (newStatus !== transaction.status || newDeliveryStatus !== transaction.deliveryStatus) {
+          console.log(`[OrderStatus API] Updating transaction: ${transaction.deliveryStatus} -> ${newDeliveryStatus}`);
+          await storage.updateTransaction(id, {
+            status: newStatus,
+            deliveryStatus: newDeliveryStatus,
+            completedAt: (newStatus === TransactionStatus.COMPLETED) ? new Date() : transaction.completedAt
+          });
+        }
+
+        return res.json({
+          id: transaction.id,
+          reference: transaction.reference,
+          status: newStatus,
+          deliveryStatus: newDeliveryStatus,
+          productName: transaction.productName,
+          amount: transaction.amount,
+          customerPhone: transaction.customerPhone,
+          createdAt: transaction.createdAt,
+          completedAt: transaction.completedAt || (newStatus === TransactionStatus.COMPLETED ? new Date() : null),
+          isSkyTechOrder: true,
+          skytechStatus: skytechStatus,
+          skytechData: orderData
+        });
       } else {
-        res.status(500).json({ error: result.error });
+        console.warn(`[OrderStatus API] SkyTech fetch failed: ${statusResult.error}`);
+        // Return cached status if SkyTech fetch failed
+        return res.json({
+          id: transaction.id,
+          reference: transaction.reference,
+          status: transaction.status,
+          deliveryStatus: transaction.deliveryStatus,
+          productName: transaction.productName,
+          amount: transaction.amount,
+          customerPhone: transaction.customerPhone,
+          createdAt: transaction.createdAt,
+          completedAt: transaction.completedAt,
+          isSkyTechOrder: true,
+          cached: true,
+          error: statusResult.error
+        });
       }
     } catch (error: any) {
-      res.status(500).json({ error: error.message || "Failed to get external order status" });
+      res.status(500).json({ error: error.message || "Failed to fetch order status" });
+    }
+  });
+
+  // Admin endpoint to manually refresh specific order status from SkyTech
+  app.post("/api/admin/refresh-order-status/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const transaction = await storage.getTransaction(id);
+      if (!transaction) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      console.log(`[AdminRefresh] Refreshing order status for transaction ${transaction.reference}`);
+
+      // Parse SkyTech reference
+      let skytechRef = null;
+      if (transaction.apiResponse) {
+        try {
+          const apiResponse = JSON.parse(transaction.apiResponse);
+          if (apiResponse.results && apiResponse.results.length > 0) {
+            skytechRef = apiResponse.results[0].ref;
+          }
+        } catch (e) {
+          console.warn(`[AdminRefresh] Failed to parse API response for transaction ${id}`);
+        }
+      }
+
+      if (!skytechRef) {
+        return res.status(400).json({ error: "No SkyTech reference found for this order" });
+      }
+
+      console.log(`[AdminRefresh] Fetching SkyTech status for ref: ${skytechRef}`);
+
+      // Fetch from SkyTech
+      const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? undefined);
+
+      if (statusResult.success && statusResult.order) {
+        const orderData = statusResult.order;
+        const skytechStatus = orderData.status?.toLowerCase();
+        console.log(`[AdminRefresh] SkyTech returned: ${skytechStatus} (raw: ${orderData.status})`);
+
+        // Map status
+        let newStatus = transaction.status;
+        let newDeliveryStatus = transaction.deliveryStatus;
+        let completedAt = transaction.completedAt;
+
+        switch (skytechStatus) {
+          case 'completed':
+          case 'delivered':
+          case 'success':
+            newStatus = TransactionStatus.COMPLETED;
+            newDeliveryStatus = 'delivered';
+            if (!completedAt) completedAt = new Date();
+            console.log(`[AdminRefresh] Mapping to DELIVERED`);
+            break;
+          case 'failed':
+          case 'error':
+            newStatus = TransactionStatus.FAILED;
+            newDeliveryStatus = 'failed';
+            if (!completedAt) completedAt = new Date();
+            console.log(`[AdminRefresh] Mapping to FAILED`);
+            break;
+          case 'processing':
+            newStatus = TransactionStatus.PENDING;
+            newDeliveryStatus = 'processing';
+            console.log(`[AdminRefresh] Mapping to PROCESSING`);
+            break;
+          case 'pending':
+          case 'queued':
+            newStatus = TransactionStatus.PENDING;
+            newDeliveryStatus = 'processing';
+            console.log(`[AdminRefresh] Mapping PENDING/QUEUED to PROCESSING`);
+            break;
+        }
+
+        // Update transaction
+        console.log(`[AdminRefresh] Updating transaction: ${transaction.deliveryStatus} -> ${newDeliveryStatus}`);
+        await storage.updateTransaction(id, {
+          status: newStatus,
+          deliveryStatus: newDeliveryStatus,
+          completedAt
+        });
+
+        return res.json({
+          success: true,
+          message: `Order status updated to ${skytechStatus}`,
+          transaction: {
+            id: transaction.id,
+            reference: transaction.reference,
+            status: newStatus,
+            deliveryStatus: newDeliveryStatus,
+            skytechStatus: skytechStatus
+          }
+        });
+      } else {
+        console.error(`[AdminRefresh] SkyTech fetch failed: ${statusResult.error}`);
+        return res.status(500).json({ error: statusResult.error || "Failed to fetch SkyTech status" });
+      }
+    } catch (error: any) {
+      console.error(`[AdminRefresh] Error: ${error.message}`);
+      res.status(500).json({ error: error.message || "Failed to refresh order status" });
+    }
+  });
+
+  // User endpoint to get their own orders with live status
+  app.get("/api/my-orders", requireAuth, async (req, res) => {
+    try {
+      const user = req.user;
+      const customerOrders = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.customerEmail, user!.email))
+        .orderBy(desc(transactions.createdAt))
+        .limit(50);
+
+      res.json(customerOrders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || "Failed to fetch orders" });
     }
   });
 
@@ -8345,17 +8582,20 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
               // SkyTech confirmed delivery completed
               newStatus = TransactionStatus.COMPLETED;
               newDeliveryStatus = 'delivered';
+              console.log(`[Cron] ✅ Mapping to DELIVERED for transaction ${transaction.id}`);
               break;
             case 'failed':
             case 'error':
               // SkyTech reported failure
               newStatus = TransactionStatus.FAILED;
               newDeliveryStatus = 'failed';
+              console.log(`[Cron] ❌ Mapping to FAILED for transaction ${transaction.id}`);
               break;
             case 'processing':
               // SkyTech is actively processing the order
               newStatus = TransactionStatus.PENDING;
               newDeliveryStatus = 'processing';
+              console.log(`[Cron] 🔄 Mapping to PROCESSING for transaction ${transaction.id}`);
               break;
             case 'pending':
             case 'queued':
@@ -8363,9 +8603,10 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
               // This means it's been accepted by provider and is in their queue
               newStatus = TransactionStatus.PENDING;
               newDeliveryStatus = 'processing';
+              console.log(`[Cron] 🔄 Mapping PENDING/QUEUED to PROCESSING for transaction ${transaction.id}`);
               break;
             default:
-              console.log(`[Cron] Unknown SkyTech status: ${orderData.status}`);
+              console.log(`[Cron] ⚠️ Unknown SkyTech status for transaction ${transaction.id}: ${orderData.status}`);
               break;
           }
 

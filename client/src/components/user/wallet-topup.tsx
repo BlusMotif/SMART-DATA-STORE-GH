@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Form, FormControl, FormField, FormItem, FormLabel, FormLabelWithoutFor, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/api";
 import { Wallet, Plus, Loader2, CreditCard, CheckCircle } from "lucide-react";
 
@@ -29,7 +28,6 @@ export function WalletTopup() {
   const [open, setOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   const form = useForm<TopupFormData>({
     resolver: zodResolver(topupSchema),

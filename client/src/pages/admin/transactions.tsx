@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
+import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, RotateCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
@@ -61,7 +61,7 @@ export default function AdminTransactions() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
-  const { data: transactions, isLoading } = useQuery<Transaction[]>({
+  const { data: transactions, isLoading, refetch } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
     refetchInterval: 15000, // Refetch every 15 seconds for transactions
     refetchOnWindowFocus: true,
@@ -80,6 +80,20 @@ export default function AdminTransactions() {
     },
     onError: (error: any) => {
       toast({ title: "Failed to update delivery status", description: error?.message || 'Unknown error', variant: "destructive" });
+    },
+  });
+
+  // Refresh single order status from SkyTech
+  const refreshOrderStatusMutation = useMutation({
+    mutationFn: async (transactionId: string) => {
+      return apiRequest("POST", `/api/admin/refresh-order-status/${transactionId}`, {});
+    },
+    onSuccess: (data) => {
+      refetch(); // Refetch transactions list
+      toast({ title: "✅ Order status updated", description: data.message });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to refresh order status", description: error?.message || 'Unknown error', variant: "destructive" });
     },
   });
 
@@ -588,25 +602,55 @@ export default function AdminTransactions() {
                                   </div>
                                 ) : (
                                   <div className="flex flex-col gap-1">
-                                    <Badge
-                                      variant={
-                                        deliveryStatus === "delivered" ? "default" :
-                                        deliveryStatus === "processing" ? "secondary" :
-                                        deliveryStatus === "failed" ? "destructive" :
-                                        "outline"
-                                      }
-                                      className="cursor-pointer text-xs"
-                                      onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
-                                    >
-                                      {deliveryStatus}
-                                    </Badge>
                                     {(() => {
                                       const skytechStatus = getSkytechStatus(tx);
-                                      return skytechStatus ? (
-                                        <span className="text-[10px] text-muted-foreground" title="SkyTech Provider Status">
-                                          SkyTech: {skytechStatus}
-                                        </span>
-                                      ) : null;
+                                      const statusToDisplay = skytechStatus || deliveryStatus;
+                                      
+                                      // Determine badge variant based on SkyTech status
+                                      let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
+                                      let isProcessing = false;
+                                      
+                                      if (skytechStatus) {
+                                        const status = skytechStatus.toLowerCase();
+                                        if (status === 'completed' || status === 'delivered' || status === 'success') {
+                                          variant = "default";
+                                        } else if (status === 'processing' || status === 'pending' || status === 'queued') {
+                                          variant = "secondary";
+                                          isProcessing = true;
+                                        } else if (status === 'failed' || status === 'error') {
+                                          variant = "destructive";
+                                        }
+                                      } else {
+                                        // Fallback to internal delivery status styling
+                                        if (deliveryStatus === "delivered") {
+                                          variant = "default";
+                                        } else if (deliveryStatus === "processing") {
+                                          variant = "secondary";
+                                          isProcessing = true;
+                                        } else if (deliveryStatus === "failed") {
+                                          variant = "destructive";
+                                        }
+                                      }
+
+                                      return (
+                                        <>
+                                          <Badge
+                                            variant={variant}
+                                            className={`cursor-pointer text-xs ${
+                                              isProcessing ? "bg-blue-500 text-white hover:bg-blue-600 animate-pulse" : ""
+                                            }`}
+                                            onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
+                                            title={skytechStatus ? `SkyTech: ${skytechStatus} | Internal: ${deliveryStatus}` : `Click to change delivery status (Current: ${deliveryStatus})`}
+                                          >
+                                            {isProcessing ? "🔄 " : ""}{statusToDisplay.charAt(0).toUpperCase() + statusToDisplay.slice(1)}
+                                          </Badge>
+                                          {skytechStatus && (
+                                            <span className="text-[10px] text-muted-foreground">
+                                              From SkyTech
+                                            </span>
+                                          )}
+                                        </>
+                                      );
                                     })()}
                                   </div>
                                 )}
@@ -627,6 +671,18 @@ export default function AdminTransactions() {
                                       <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                                     </Button>
                                   )}
+                                  {tx.type === "data_bundle" && (tx.status === "pending" || tx.status === "confirmed") && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => refreshOrderStatusMutation.mutate(tx.id)}
+                                      disabled={refreshOrderStatusMutation.isPending}
+                                      className="h-6 w-6 p-0"
+                                      title="Refresh SkyTech status"
+                                    >
+                                      <RotateCw className={`h-3 w-3 ${refreshOrderStatusMutation.isPending ? 'animate-spin' : ''}`} />
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -642,7 +698,7 @@ export default function AdminTransactions() {
 
                             {/* Expanded row for result checker details */}
                             {isResultChecker && isExpanded && checkerData && (
-                              <TableRow key={`${tx.id}-expanded`}>
+                              <TableRow key={`${tx.id}-expanded-details`}>
                                 <TableCell colSpan={11} className="bg-muted/30 p-4">
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between">

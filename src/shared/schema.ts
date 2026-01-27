@@ -942,8 +942,9 @@ export const agentRegisterSchema = z.object({
 });
 
 export const purchaseSchema = z.object({
-  productId: z.string().optional(),
+  productId: z.string().optional(), // Optional - can use volume + network instead
   productType: z.enum(["data_bundle", "result_checker"]),
+  volume: z.string().optional(), // e.g., "1GB", "2GB", "5GB"
   customerPhone: z.string().optional(),
   customerEmail: z.union([z.string().email(), z.literal("")]).optional(),
   agentSlug: z.union([z.string(), z.null()]).optional(),
@@ -956,7 +957,7 @@ export const purchaseSchema = z.object({
     dataAmount: z.string(),
   })).optional(),
   isBulkOrder: z.boolean().optional(),
-  network: z.string().optional(),
+  network: z.string().optional(), // Required when using volume
   orderItems: z.array(z.object({
     phone: z.string(),
     bundleId: z.string(),
@@ -977,10 +978,12 @@ export const purchaseSchema = z.object({
 }).refine((data) => {
   // If orderItems exist, productId is not required
   if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) return true;
+  // If volume + network are provided, productId is not required
+  if (data.volume && data.network) return true;
   // Otherwise, productId is required
   return data.productId !== undefined;
 }, {
-  message: "productId is required when orderItems are not provided",
+  message: "Either productId, orderItems, or (volume + network) must be provided",
   path: ["productId"],
 });
 

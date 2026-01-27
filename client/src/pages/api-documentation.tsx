@@ -145,32 +145,32 @@ const ApiDocumentationPage: React.FC = () => {
                       <h3 className="text-lg font-semibold mb-3">What This API Does</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <h4 className="font-semibold mb-2 flex items-center gap-2 text-blue-900 dark:text-blue-100">
                             <Package className="w-4 h-4" />
                             Browse Offers
                           </h4>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
                             View data bundles from MTN, Vodafone, AirtelTigo with pricing per network
                           </p>
                         </div>
                         <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-900/20">
-                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <h4 className="font-semibold mb-2 flex items-center gap-2 text-green-900 dark:text-green-100">
                             <ShoppingCart className="w-4 h-4" />
                             Single Orders
                           </h4>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-green-800 dark:text-green-200">
                             Purchase one bundle at a time with phone number for delivery
                           </p>
                         </div>
                         <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-900/20">
-                          <h4 className="font-semibold mb-2">📦 Bulk Orders</h4>
-                          <p className="text-sm text-muted-foreground">
+                          <h4 className="font-semibold mb-2 text-purple-900 dark:text-purple-100">📦 Bulk Orders</h4>
+                          <p className="text-sm text-purple-800 dark:text-purple-200">
                             Buy multiple bundles in one transaction for different phone numbers
                           </p>
                         </div>
                         <div className="border rounded-lg p-4 bg-yellow-50 dark:bg-yellow-900/20">
-                          <h4 className="font-semibold mb-2">🏪 Agent Store Slug</h4>
-                          <p className="text-sm text-muted-foreground">
+                          <h4 className="font-semibold mb-2 text-yellow-900 dark:text-yellow-100">🏪 Agent Store Slug</h4>
+                          <p className="text-sm text-yellow-800 dark:text-yellow-200">
                             Use agent slugs to access custom pricing and track commissions
                           </p>
                         </div>
@@ -180,7 +180,7 @@ const ApiDocumentationPage: React.FC = () => {
                     <div className="border-t pt-6">
                       <h3 className="text-lg font-semibold mb-3">Key Concepts</h3>
                       <div className="space-y-4">
-                        <div className="p-4 bg-muted rounded-lg">
+                        <div className="p-4 bg-muted rounded-lg text-foreground">
                           <h4 className="font-medium mb-2">🔖 What is a Slug?</h4>
                           <p className="text-sm text-muted-foreground mb-2">
                             A slug is a unique identifier for an agent's storefront. Example: <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-blue-600 dark:text-blue-400">john-data-store</code>
@@ -190,7 +190,7 @@ const ApiDocumentationPage: React.FC = () => {
                           </p>
                         </div>
 
-                        <div className="p-4 bg-muted rounded-lg">
+                        <div className="p-4 bg-muted rounded-lg text-foreground">
                           <h4 className="font-medium mb-2">📱 Single vs Bulk Orders</h4>
                           <p className="text-sm text-muted-foreground mb-2">
                             <strong>Single:</strong> One bundle to one phone number
@@ -201,51 +201,51 @@ const ApiDocumentationPage: React.FC = () => {
                         </div>
 
                         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-500/50 rounded-lg">
-                          <h4 className="font-medium mb-3 flex items-center gap-2 text-blue-800 dark:text-blue-300">
+                          <h4 className="font-medium mb-3 flex items-center gap-2 text-blue-900 dark:text-white">
                             📞 Phone Number Requirements
                           </h4>
-                          <div className="space-y-2 text-sm">
+                          <div className="space-y-2 text-sm text-blue-900 dark:text-white">
                             <div className="flex items-start gap-2">
-                              <span className="text-blue-600 dark:text-blue-400 font-bold">•</span>
-                              <div>
+                              <span className="text-blue-600 dark:text-blue-300 font-bold">•</span>
+                              <div className="text-blue-900 dark:text-white">
                                 <strong>Format:</strong> Must be exactly 10 digits starting with 0<br/>
-                                <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs text-blue-600 dark:text-blue-400">0241234567, 0501234567, 0261234567</code>
+                                <code className="bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded text-xs text-blue-900 dark:text-white">0241234567, 0501234567, 0261234567</code>
                               </div>
                             </div>
                             <div className="flex items-start gap-2">
-                              <span className="text-blue-600 dark:text-blue-400 font-bold">•</span>
-                              <div>
+                              <span className="text-blue-600 dark:text-blue-300 font-bold">•</span>
+                              <div className="text-blue-900 dark:text-white">
                                 <strong>No Network Validation:</strong> Phone numbers are NOT validated against network prefixes<br/>
-                                <span className="text-xs text-muted-foreground">The API accepts any valid 10-digit phone regardless of network</span>
+                                <span className="text-xs text-blue-700 dark:text-blue-200">The API accepts any valid 10-digit phone regardless of network</span>
                               </div>
                             </div>
                             <div className="flex items-start gap-2">
-                              <span className="text-blue-600 dark:text-blue-400 font-bold">•</span>
-                              <div>
+                              <span className="text-blue-600 dark:text-blue-300 font-bold">•</span>
+                              <div className="text-blue-900 dark:text-white">
                                 <strong>Cooldown Period:</strong> 20-minute wait between orders for same phone number<br/>
-                                <span className="text-xs text-muted-foreground">Prevents duplicate orders and abuse</span>
+                                <span className="text-xs text-blue-700 dark:text-blue-200">Prevents duplicate orders and abuse</span>
                               </div>
                             </div>
                           </div>
                         </div>
 
                         <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-500/50 rounded-lg">
-                          <h4 className="font-medium mb-3 flex items-center gap-2 text-purple-800 dark:text-purple-300">
+                          <h4 className="font-medium mb-3 flex items-center gap-2 text-purple-900 dark:text-white">
                             🌐 Network-Specific Rules
                           </h4>
-                          <div className="space-y-3 text-sm">
-                            <div className="p-3 bg-background rounded border">
-                              <div className="font-semibold mb-1">MTN, Telecel, AT Bigtime</div>
-                              <div className="text-xs space-y-1 text-muted-foreground">
+                          <div className="space-y-3 text-sm text-purple-900 dark:text-white">
+                            <div className="p-3 bg-white dark:bg-purple-800/30 rounded border border-purple-200 dark:border-purple-700">
+                              <div className="font-semibold mb-1 text-purple-900 dark:text-white">MTN, Telecel, AT Bigtime</div>
+                              <div className="text-xs space-y-1 text-purple-800 dark:text-purple-100">
                                 <div>✅ Single orders supported</div>
                                 <div>✅ Bulk orders supported</div>
                                 <div>✅ Wallet payment supported</div>
                                 <div>✅ Paystack payment supported</div>
                               </div>
                             </div>
-                            <div className="p-3 bg-background rounded border border-red-300 dark:border-red-700">
-                              <div className="font-semibold mb-1 text-red-700 dark:text-red-400">AT iShare</div>
-                              <div className="text-xs space-y-1 text-muted-foreground">
+                            <div className="p-3 bg-white dark:bg-purple-800/30 rounded border border-red-300 dark:border-red-600">
+                              <div className="font-semibold mb-1 text-red-700 dark:text-red-300">AT iShare</div>
+                              <div className="text-xs space-y-1 text-purple-800 dark:text-purple-100">
                                 <div>✅ Single orders supported</div>
                                 <div>❌ Bulk orders NOT supported</div>
                                 <div>✅ Wallet payment supported</div>
@@ -312,13 +312,13 @@ Content-Type: application/json`}
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-500/50 rounded-lg">
-                      <Key className="w-5 h-5 text-blue-500 mt-0.5" />
+                    <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded-lg">
+                      <Key className="w-5 h-5 text-blue-500 dark:text-blue-300 mt-0.5" />
                       <div className="flex-1">
-                        <p className="font-medium text-blue-700 dark:text-blue-400 mb-2">
+                        <p className="font-medium text-blue-700 dark:text-white mb-2">
                           Get Your API Key
                         </p>
-                        <p className="text-sm text-blue-600 dark:text-blue-300 mb-3">
+                        <p className="text-sm text-blue-600 dark:text-white mb-3">
                           Generate your API key from the API Keys & Integrations page. Maximum 10 active keys per account.
                         </p>
                         <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/api-integrations')}>
@@ -361,7 +361,7 @@ Content-Type: application/json`}
                           
                           <div className="mb-3">
                             <p className="text-sm font-semibold mb-2">Query Parameters (Optional):</p>
-                            <div className="bg-muted p-3 rounded text-sm">
+                            <div className="bg-muted p-3 rounded text-sm text-foreground">
                               <div><code className="text-blue-600 dark:text-blue-400 font-semibold">network</code>: Filter by network (use: <code className="bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300 font-bold">mtn</code>, <code className="bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300 font-bold">telecel</code>, <code className="bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300 font-bold">at_bigtime</code>, or <code className="bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300 font-bold">at_ishare</code>)</div>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">Example: <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-blue-600 dark:text-blue-400">/api/products/data-bundles?network=mtn</code></p>
@@ -405,7 +405,7 @@ Content-Type: application/json`}
                           
                           <div className="mb-3">
                             <p className="text-sm font-semibold mb-2">Path Parameters:</p>
-                            <div className="bg-muted p-3 rounded text-sm">
+                            <div className="bg-muted p-3 rounded text-sm text-foreground">
                               <code className="text-primary">slug</code>: Agent's storefront slug (e.g., "john-data-store")
                             </div>
                           </div>
@@ -438,14 +438,14 @@ Content-Type: application/json`}
 
                     {/* Create Orders */}
                     <div>
-                      <h3 className="text-xl font-semibold mb-4 pb-2 border-b">2. Create Orders</h3>
+                      <h3 className="text-xl font-semibold mb-4 pb-2 border-b">2. Create Orders - Volume + Network Method</h3>
                       
                       {/* Network Names Notice */}
-                      <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-500 rounded-lg shadow-sm">
-                        <h4 className="font-bold mb-3 text-yellow-900 dark:text-yellow-200 text-base flex items-center gap-2">
+                      <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/30 border-2 border-yellow-500 rounded-lg shadow-sm">
+                        <h4 className="font-bold mb-3 text-yellow-900 dark:text-white text-base flex items-center gap-2">
                           <span className="text-2xl">⚠️</span> IMPORTANT: Use These Exact Network Names
                         </h4>
-                        <p className="text-sm mb-3 font-medium">When specifying the <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-blue-600 dark:text-blue-400 font-bold">network</code> parameter (for bulk orders or filtering), use these <strong className="text-yellow-900 dark:text-yellow-100">exact lowercase spellings</strong>:</p>
+                        <p className="text-sm mb-3 font-medium text-yellow-900 dark:text-white">When specifying the <code className="bg-yellow-100 dark:bg-yellow-800 px-2 py-1 rounded text-yellow-900 dark:text-white font-bold">network</code> parameter, use these <strong className="text-yellow-900 dark:text-white">exact lowercase spellings</strong>:</p>
                         <div className="grid grid-cols-2 gap-3 mb-4">
                           <div className="flex items-center gap-2 font-mono text-sm bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
                             <span className="text-green-600 dark:text-green-400 font-bold text-lg">✓</span> 
@@ -466,41 +466,53 @@ Content-Type: application/json`}
                         </div>
                         <div className="bg-white dark:bg-gray-800 p-3 rounded border border-yellow-400">
                           <p className="text-xs font-medium mb-2 text-gray-900 dark:text-gray-100">✅ All code examples in this documentation use these exact spellings</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">Note: While network names are case-insensitive (server converts to lowercase), we recommend using lowercase in your code</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-300">Note: While network names are case-insensitive (server converts to lowercase), we recommend using lowercase in your code</p>
                         </div>
                       </div>
                       
                       <div className="space-y-6">
-                        <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-900/20">
+                        {/* Single Order: Volume + Network */}
+                        <div className="border-2 border-green-500 rounded-lg p-4 bg-green-50 dark:bg-green-900/20">
                           <div className="flex items-center gap-3 mb-3">
                             <Badge className="bg-green-500 text-white">POST</Badge>
                             <code className="text-sm font-mono">/api/checkout/initialize</code>
+                            <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">SINGLE ORDER</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mb-4">
-                            <strong>Single Order:</strong> Purchase one data bundle for one phone number
+                            <strong>Single Order</strong> - Order one bundle for one phone number using volume and network
                           </p>
                           
                           <div className="mb-3">
                             <p className="text-sm font-semibold mb-2">Required Fields:</p>
-                            <div className="bg-muted p-3 rounded text-sm space-y-2 mb-3">
-                              <div><code className="text-primary">productId</code>: Bundle ID (string)</div>
+                            <div className="bg-muted p-3 rounded text-sm space-y-2 mb-3 text-foreground">
+                              <div><code className="text-primary">volume</code>: Bundle size (e.g., "1GB", "2GB", "5GB")</div>
+                              <div><code className="text-primary">network</code>: Network name ("mtn", "telecel", "at_bigtime", "at_ishare")</div>
                               <div><code className="text-primary">productType</code>: "data_bundle"</div>
                               <div><code className="text-primary">customerPhone</code>: Recipient's 10-digit phone (e.g., "0241234567")</div>
-                              <div><code className="text-primary">paymentMethod</code>: "paystack" or "wallet"</div>
+                              <div><code className="text-primary">paymentMethod</code>: "wallet" (API orders use wallet balance)</div>
                               <div><code className="text-primary">agentSlug</code>: Agent's storefront slug (optional)</div>
-                              <div><code className="text-primary">amount</code>: Total price (number, optional - validated server-side)</div>
                             </div>
-                            <p className="text-sm font-semibold mb-2">Request Body:</p>
+                            <p className="text-sm font-semibold mb-2">Request Body Example:</p>
                             <div className="bg-black p-3 rounded">
                               <pre className="text-green-400 text-xs">
 {`{
-  "productId": "123",
+  "volume": "1GB",
+  "network": "mtn",
   "productType": "data_bundle",
   "customerPhone": "0241234567",
-  "agentSlug": "john-data-store",
-  "amount": 5.00
+  "paymentMethod": "wallet",
+  "agentSlug": "john-data-store"
 }`}
                               </pre>
+                            </div>
+                            <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/40 border border-green-500/50 rounded">
+                              <p className="text-sm font-semibold text-green-800 dark:text-white mb-1">✅ Why Use This Method:</p>
+                              <ul className="text-xs text-green-700 dark:text-green-100 space-y-1 ml-4 list-disc">
+                                <li>No need to look up bundle IDs - just specify volume and network</li>
+                                <li>Automatic price calculation based on user role</li>
+                                <li>System finds the matching bundle automatically</li>
+                                <li>Perfect for simple integrations</li>
+                              </ul>
                             </div>
                           </div>
 
@@ -510,72 +522,73 @@ Content-Type: application/json`}
                               <pre className="text-green-400 text-xs">
 {`{
   "success": true,
-  "reference": "CLEC-ABC123",
-  "authorizationUrl": "https://checkout.paystack.com/xyz",
-  "message": "Order created successfully"
+  "message": "Order created successfully. Amount deducted from wallet.",
+  "transaction": {
+    "id": "67131c28-21e2-4cfa-ab4e-ef9716ce5ee6",
+    "reference": "CLEC-MKVUPCNI-4438D1BC",
+    "amount": "4.70",
+    "status": "confirmed",
+    "productName": "MTN 1GB - Non Expiry"
+  },
+  "wallet": {
+    "previousBalance": "50.00",
+    "amountDeducted": "4.70",
+    "newBalance": "45.30"
+  }
 }`}
                               </pre>
                             </div>
                           </div>
                         </div>
 
+                        {/* Bulk Order: Volume + Network */}
                         <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-900/20">
                           <div className="flex items-center gap-3 mb-3">
-                            <Badge className="bg-green-500 text-white">POST</Badge>
+                            <Badge className="bg-purple-500 text-white">POST</Badge>
                             <code className="text-sm font-mono">/api/checkout/initialize</code>
+                            <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">BULK ORDER</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mb-4">
-                            <strong>Bulk Order:</strong> Purchase multiple bundles for different phone numbers
+                            <strong>Bulk Order:</strong> Send the same bundle to multiple phone numbers using volume and network
                           </p>
                           
                           <div className="mb-3">
                             <p className="text-sm font-semibold mb-2">Required Fields:</p>
-                            <div className="bg-muted p-3 rounded text-sm space-y-2 mb-3">
-                              <div><code className="text-primary">orderItems</code>: Array of order objects</div>
-                              <div className="ml-4">• <code className="text-primary">bundleId</code>: Bundle ID (string)</div>
-                              <div className="ml-4">• <code className="text-primary">phone</code>: Recipient's 10-digit phone</div>
-                              <div className="ml-4">• <code className="text-primary">bundleName</code>: Bundle display name</div>
+                            <div className="bg-muted p-3 rounded text-sm space-y-2 mb-3 text-foreground">
+                              <div><code className="text-primary">volume</code>: Bundle size (e.g., "1GB", "2GB", "5GB")</div>
+                              <div><code className="text-primary">network</code>: Network name ("mtn", "telecel", "at_bigtime", "at_ishare")</div>
                               <div><code className="text-primary">productType</code>: "data_bundle"</div>
-                              <div><code className="text-primary">paymentMethod</code>: "paystack" or "wallet"</div>
-                              <div><code className="text-primary">network</code>: "mtn", "telecel", "at_bigtime" (optional)</div>
+                              <div><code className="text-primary">customerPhones</code>: Array of 10-digit phone numbers</div>
+                              <div><code className="text-primary">paymentMethod</code>: "wallet" (API orders use wallet balance)</div>
                               <div><code className="text-primary">agentSlug</code>: Agent's storefront slug (optional)</div>
-                              <div><code className="text-primary">isBulkOrder</code>: true (automatically detected)</div>
+                              <div><code className="text-primary">isBulkOrder</code>: true (automatically detected when using customerPhones array)</div>
                             </div>
                             <p className="text-sm font-semibold mb-2">Request Body:</p>
                             <div className="bg-black p-3 rounded">
                               <pre className="text-green-400 text-xs">
 {`{
-  "orderItems": [
-    {
-      "bundleId": "123",
-      "phone": "0241234567",
-      "bundleName": "MTN 1GB Daily"
-    },
-    {
-      "bundleId": "124",
-      "phone": "0207654321",
-      "bundleName": "MTN 2GB Weekly"
-    },
-    {
-      "bundleId": "125",
-      "phone": "0551122334",
-      "bundleName": "MTN 5GB Monthly"
-    }
-  ],
-  "productType": "data_bundle",
+  "volume": "1GB",
   "network": "mtn",
+  "productType": "data_bundle",
+  "customerPhones": [
+    "0241234567",
+    "0207654321",
+    "0551122334"
+  ],
+  "paymentMethod": "wallet",
   "agentSlug": "john-data-store",
   "isBulkOrder": true
 }`}
                               </pre>
                             </div>
-                            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500/50 rounded">
-                              <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-1">⚠️ Important Notes:</p>
-                              <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1 ml-4 list-disc">
+                            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-500/50 rounded">
+                              <p className="text-sm font-semibold text-yellow-800 dark:text-white mb-1">⚠️ Important Notes:</p>
+                              <ul className="text-xs text-yellow-700 dark:text-yellow-100 space-y-1 ml-4 list-disc">
                                 <li>All phones must be 10 digits starting with 0</li>
                                 <li>Phone numbers are validated server-side</li>
                                 <li>No duplicate phones allowed in one bulk order</li>
                                 <li>20-minute cooldown per phone number enforced</li>
+                                <li>Same volume and network sent to all recipients</li>
                                 <li>Bulk orders NOT supported for AT iShare network</li>
                               </ul>
                             </div>
@@ -587,10 +600,24 @@ Content-Type: application/json`}
                               <pre className="text-green-400 text-xs">
 {`{
   "success": true,
-  "reference": "CLEC-BULK-XYZ789",
-  "authorizationUrl": "https://checkout.paystack.com/abc",
-  "message": "Bulk order created - 3 bundles",
-  "totalAmount": 30.00
+  "message": "Bulk order created successfully. Amount deducted from wallet.",
+  "transaction": {
+    "id": "67131c28-21e2-4cfa-ab4e-ef9716ce5ee6",
+    "reference": "CLEC-BULK-XYZ789",
+    "amount": "14.10",
+    "status": "confirmed",
+    "productName": "MTN 1GB - Bulk Order (3 recipients)"
+  },
+  "wallet": {
+    "previousBalance": "50.00",
+    "amountDeducted": "14.10",
+    "newBalance": "35.90"
+  },
+  "recipients": [
+    {"phone": "0241234567", "bundleName": "MTN 1GB - Non Expiry", "dataAmount": "1GB"},
+    {"phone": "0207654321", "bundleName": "MTN 1GB - Non Expiry", "dataAmount": "1GB"},
+    {"phone": "0551122334", "bundleName": "MTN 1GB - Non Expiry", "dataAmount": "1GB"}
+  ]
 }`}
                               </pre>
                             </div>
@@ -599,21 +626,33 @@ Content-Type: application/json`}
 
                         <div className="border-l-4 border-red-500 pl-4 py-2 bg-red-50 dark:bg-red-900/20">
                           <p className="font-semibold text-sm mb-2 text-red-700 dark:text-red-400">
-                            ❌ Error Response (400):
+                            ❌ Error Responses:
                           </p>
                           <div className="bg-black p-3 rounded">
                             <pre className="text-red-400 text-xs">
-{`{
-  "error": "Invalid phone number",
-  "message": "Phone must be 10 digits starting with 0"
+{`// 400 - Invalid Phone
+{
+  "error": "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)"
 }
 
-// OR
-
+// 400 - Insufficient Balance (Wallet Payment)
 {
   "error": "Insufficient wallet balance",
-  "required": 50.00,
-  "available": 20.00
+  "balance": "20.00",
+  "required": "50.00"
+}
+
+// 429 - Cooldown Active
+{
+  "error": "Please wait 15 minute(s) before purchasing another bundle for 0241234567.",
+  "cooldownMinutes": 15,
+  "phone": "0241234567"
+}
+
+// 404 - Bundle Not Found (Volume+Network)
+{
+  "error": "No 1GB bundle found for mtn network",
+  "hint": "Available volumes can be fetched from /api/products/data-bundles?network=mtn"
 }`}
                             </pre>
                           </div>
@@ -625,11 +664,11 @@ Content-Type: application/json`}
                     <div>
                       <h3 className="text-xl font-semibold mb-4 pb-2 border-b">3. Network-Specific Order Examples</h3>
                       
-                      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-500 rounded-lg shadow-sm">
-                        <h4 className="font-bold mb-3 text-blue-900 dark:text-blue-200 text-base flex items-center gap-2">
+                      <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-500 rounded-lg shadow-sm">
+                        <h4 className="font-bold mb-3 text-blue-900 dark:text-white text-base flex items-center gap-2">
                           <span className="text-2xl">📡</span> Use These Exact Network Names in Your Code
                         </h4>
-                        <p className="text-sm mb-3 font-medium">All examples below use these exact network spellings:</p>
+                        <p className="text-sm mb-3 font-medium text-blue-900 dark:text-white">All examples below use these exact network spellings:</p>
                         <div className="grid grid-cols-2 gap-3 mb-3">
                           <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
                             <code className="text-blue-600 dark:text-blue-400 font-bold text-base">"mtn"</code>
@@ -662,11 +701,12 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "productId": "123",
+  "volume": "1GB",
+  "network": "mtn",
   "productType": "data_bundle",
   "customerPhone": "0241234567",
-  "agentSlug": "john-data-store",
-  "amount": 5.00
+  "paymentMethod": "wallet",
+  "agentSlug": "john-data-store"
 }`}
                                 </pre>
                               </div>
@@ -677,20 +717,14 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "orderItems": [
-    {
-      "bundleId": "123",
-      "phone": "0241234567",
-      "bundleName": "MTN 1GB Daily"
-    },
-    {
-      "bundleId": "124",
-      "phone": "0254567890",
-      "bundleName": "MTN 5GB Weekly"
-    }
-  ],
-  "productType": "data_bundle",
+  "volume": "1GB",
   "network": "mtn",
+  "productType": "data_bundle",
+  "customerPhones": [
+    "0241234567",
+    "0254567890"
+  ],
+  "paymentMethod": "wallet",
   "agentSlug": "john-data-store",
   "isBulkOrder": true
 }`}
@@ -710,10 +744,11 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "productId": "456",
+  "volume": "2GB",
+  "network": "telecel",
   "productType": "data_bundle",
   "customerPhone": "0201234567",
-  "amount": 4.50
+  "paymentMethod": "wallet"
 }`}
                                 </pre>
                               </div>
@@ -724,20 +759,14 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "orderItems": [
-    {
-      "bundleId": "456",
-      "phone": "0201234567",
-      "bundleName": "Telecel 2GB Weekly"
-    },
-    {
-      "bundleId": "457",
-      "phone": "0501234567",
-      "bundleName": "Telecel 10GB Monthly"
-    }
-  ],
-  "productType": "data_bundle",
+  "volume": "2GB",
   "network": "telecel",
+  "productType": "data_bundle",
+  "customerPhones": [
+    "0201234567",
+    "0501234567"
+  ],
+  "paymentMethod": "wallet",
   "isBulkOrder": true
 }`}
                                 </pre>
@@ -756,10 +785,11 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "productId": "789",
+  "volume": "1.5GB",
+  "network": "at_bigtime",
   "productType": "data_bundle",
   "customerPhone": "0261234567",
-  "amount": 6.00
+  "paymentMethod": "wallet"
 }`}
                                 </pre>
                               </div>
@@ -770,20 +800,14 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "orderItems": [
-    {
-      "bundleId": "789",
-      "phone": "0261234567",
-      "bundleName": "AT Bigtime 1.5GB Daily"
-    },
-    {
-      "bundleId": "790",
-      "phone": "0271234567",
-      "bundleName": "AT Bigtime 3GB Weekly"
-    }
-  ],
-  "productType": "data_bundle",
+  "volume": "1.5GB",
   "network": "at_bigtime",
+  "productType": "data_bundle",
+  "customerPhones": [
+    "0261234567",
+    "0271234567"
+  ],
+  "paymentMethod": "wallet",
   "isBulkOrder": true
 }`}
                                 </pre>
@@ -802,10 +826,11 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "productId": "999",
+  "volume": "1GB",
+  "network": "at_ishare",
   "productType": "data_bundle",
   "customerPhone": "0561234567",
-  "amount": 3.50
+  "paymentMethod": "wallet"
 }`}
                                 </pre>
                               </div>
@@ -845,7 +870,7 @@ Content-Type: application/json`}
                           
                           <div className="mb-3">
                             <p className="text-sm font-semibold mb-2">Path Parameters:</p>
-                            <div className="bg-muted p-3 rounded text-sm">
+                            <div className="bg-muted p-3 rounded text-sm text-foreground">
                               <code className="text-primary">reference</code>: Transaction reference (e.g., "CLEC-ABC123")
                             </div>
                           </div>
@@ -882,9 +907,9 @@ Content-Type: application/json`}
                     <div>
                       <h3 className="text-xl font-semibold mb-4 pb-2 border-b">5. Webhooks - Automatic Status Updates</h3>
                       
-                      <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-500 rounded-lg">
-                        <h4 className="font-bold mb-2 text-green-900 dark:text-green-200">🔔 Automatic Notifications</h4>
-                        <p className="text-sm">Instead of constantly checking order status, provide a webhook URL when creating orders. Our system will automatically notify you when the order status changes (paid, processing, completed, failed).</p>
+                      <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/30 border-2 border-green-500 rounded-lg">
+                        <h4 className="font-bold mb-2 text-green-900 dark:text-white">🔔 Automatic Notifications</h4>
+                        <p className="text-sm text-green-900 dark:text-white">Instead of constantly checking order status, provide a webhook URL when creating orders. Our system will automatically notify you when the order status changes (paid, processing, completed, failed).</p>
                       </div>
 
                       <div className="space-y-6">
@@ -898,10 +923,11 @@ Content-Type: application/json`}
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`{
-  "productId": "123",
+  "volume": "1GB",
+  "network": "mtn",
   "productType": "data_bundle",
   "customerPhone": "0241234567",
-  "amount": 5.00,
+  "paymentMethod": "wallet",
   "webhookUrl": "https://yoursite.com/api/webhook"
 }`}
                                 </pre>
@@ -914,25 +940,32 @@ Content-Type: application/json`}
                                 <pre className="text-green-400 text-xs">
 {`POST https://yoursite.com/api/webhook
 Content-Type: application/json
+User-Agent: Resellers-Hub-Webhook/1.0
+X-Webhook-Signature: [base64_signature]
 
 {
   "event": "order.status_updated",
   "reference": "CLEC-ABC123",
   "status": "completed",
-  "timestamp": "2026-01-26T10:30:00Z",
+  "deliveryStatus": "delivered",
+  "timestamp": "2026-01-27T00:30:00.000Z",
   "order": {
-    "id": 789,
+    "id": "67131c28-21e2-4cfa-ab4e-ef9716ce5ee6",
     "reference": "CLEC-ABC123",
-    "amount": 5.00,
+    "amount": 4.70,
+    "customerEmail": null,
+    "isBulkOrder": false,
+    "createdAt": "2026-01-27T00:21:19.578Z",
+    "completedAt": "2026-01-27T00:30:00.000Z",
     "previousStatus": "processing",
     "currentStatus": "completed"
   },
   "products": [
     {
-      "type": "data_bundle",
-      "network": "mtn",
-      "volume": "1GB",
-      "phone": "0241234567"
+      "bundleId": "9706a8cb-c33c-445b-9569-83d07799b7ca",
+      "bundleName": "MTN 1GB - Non Expiry",
+      "phone": "0241234567",
+      "network": "mtn"
     }
   ]
 }`}
@@ -943,26 +976,26 @@ Content-Type: application/json
                         </div>
 
                         {/* Order Status Flow */}
-                        <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-900/20">
-                          <h4 className="font-semibold mb-3 text-lg">Order Status Flow</h4>
-                          <div className="space-y-2 text-sm">
+                        <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-900/30">
+                          <h4 className="font-semibold mb-3 text-lg text-blue-900 dark:text-white">Order Status Flow</h4>
+                          <div className="space-y-2 text-sm text-blue-900 dark:text-white">
                             <div className="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded">
                               <span className="font-mono font-bold text-yellow-600">pending</span>
                               <span>→</span>
                               <span className="text-muted-foreground">Order created, awaiting payment</span>
                             </div>
                             <div className="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded">
-                              <span className="font-mono font-bold text-blue-600">paid</span>
+                              <span className="font-mono font-bold text-blue-600">confirmed</span>
                               <span>→</span>
-                              <span className="text-muted-foreground">Payment confirmed, order queued</span>
+                              <span className="text-muted-foreground">Payment confirmed (paid), order queued for processing</span>
                             </div>
                             <div className="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded">
-                              <span className="font-mono font-bold text-purple-600">processing</span>
+                              <span className="font-mono font-bold text-purple-600">pending (deliveryStatus: processing)</span>
                               <span>→</span>
-                              <span className="text-muted-foreground">Bundle being sent to network</span>
+                              <span className="text-muted-foreground">Bundle being sent to network provider</span>
                             </div>
                             <div className="flex items-center gap-3 p-2 bg-white dark:bg-gray-800 rounded">
-                              <span className="font-mono font-bold text-green-600">completed</span>
+                              <span className="font-mono font-bold text-green-600">completed (deliveryStatus: delivered)</span>
                               <span>→</span>
                               <span className="text-muted-foreground">Bundle delivered successfully ✅</span>
                             </div>
@@ -971,6 +1004,10 @@ Content-Type: application/json
                               <span>→</span>
                               <span className="text-muted-foreground">Delivery failed, will auto-refund ❌</span>
                             </div>
+                          </div>
+                          <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-800/40 border border-blue-500/50 rounded">
+                            <p className="text-sm font-semibold text-blue-800 dark:text-white mb-1">📝 Note:</p>
+                            <p className="text-xs text-blue-700 dark:text-blue-100">Webhooks are sent when <strong>status</strong> or <strong>deliveryStatus</strong> changes. Monitor both fields to track the complete order lifecycle.</p>
                           </div>
                         </div>
 
@@ -984,51 +1021,89 @@ Content-Type: application/json
                               <div className="bg-black p-3 rounded">
                                 <pre className="text-green-400 text-xs">
 {`app.post('/api/webhook', express.json(), (req, res) => {
-  const { event, reference, status, order, products } = req.body;
+  const { event, reference, status, deliveryStatus, order, products } = req.body;
   
-  console.log(\`Order \${reference} status: \${status}\`);
+  console.log(\`Webhook received: \${event}\`);
+  console.log(\`Order \${reference}: status=\${status}, delivery=\${deliveryStatus}\`);
   
-  // Update your database
-  if (status === 'completed') {
-    // Mark order as successful in your system
+  // Verify webhook signature (recommended for production)
+  const signature = req.headers['x-webhook-signature'];
+  // if (!verifySignature(req.body, signature)) {
+  //   return res.status(401).json({ error: 'Invalid signature' });
+  // }
+  
+  // Update your database based on status
+  if (status === 'completed' && deliveryStatus === 'delivered') {
+    // Bundle successfully delivered
     database.updateOrder(reference, { 
       status: 'completed',
-      deliveredAt: new Date() 
+      deliveredAt: order.completedAt
     });
     
-    // Notify your customer
-    sendSMS(products[0].phone, 'Your data bundle has been delivered!');
+    // Notify customer(s)
+    products.forEach(product => {
+      sendSMS(product.phone, 
+        \`Your \${product.bundleName} has been delivered!\`
+      );
+    });
+    
   } else if (status === 'failed') {
-    // Handle failed delivery
-    database.updateOrder(reference, { status: 'failed' });
-    notifyAdmin(\`Order \${reference} failed\`);
+    // Delivery failed - handle refund if needed
+    database.updateOrder(reference, { 
+      status: 'failed',
+      refundProcessed: true 
+    });
+    
+    // Notify admin
+    notifyAdmin(\`Order \${reference} failed - check logs\`);
+    
+  } else if (status === 'confirmed') {
+    // Payment confirmed, order being processed
+    database.updateOrder(reference, { status: 'paid' });
   }
   
-  // IMPORTANT: Always respond with 200 OK
+  // CRITICAL: Always respond with 200 OK within 10 seconds
   res.status(200).json({ received: true });
 });`}
                                 </pre>
                               </div>
                             </div>
 
-                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500/50 rounded p-3">
-                              <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-300 mb-2">⚠️ Important Webhook Requirements:</p>
-                              <ul className="text-xs text-yellow-700 dark:text-yellow-400 space-y-1 ml-4 list-disc">
-                                <li>Your webhook endpoint MUST return HTTP 200 within 10 seconds</li>
-                                <li>Process webhook data asynchronously if needed</li>
-                                <li>Handle duplicate webhooks (same status may be sent multiple times)</li>
-                                <li>Use HTTPS for your webhook URL in production</li>
-                                <li>We'll retry failed webhooks up to 3 times with exponential backoff</li>
+                            <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-500/50 rounded p-3">
+                              <p className="text-sm font-semibold text-yellow-800 dark:text-white mb-2">⚠️ Important Webhook Requirements:</p>
+                              <ul className="text-xs text-yellow-700 dark:text-yellow-100 space-y-1 ml-4 list-disc">
+                                <li><strong>Response Time:</strong> Your endpoint MUST return HTTP 200 within 10 seconds (timeout enforced)</li>
+                                <li><strong>Retry Logic:</strong> Failed webhooks are retried up to 3 times with exponential backoff (1s, 2s, 4s)</li>
+                                <li><strong>Idempotency:</strong> Handle duplicate webhooks gracefully - same status may be sent multiple times</li>
+                                <li><strong>Async Processing:</strong> If processing takes &gt;5s, respond 200 immediately and process async</li>
+                                <li><strong>Security:</strong> Use HTTPS for production webhook URLs</li>
+                                <li><strong>Signature Verification:</strong> Check X-Webhook-Signature header to verify authenticity</li>
+                                <li><strong>Status Transitions:</strong> pending → confirmed → pending(processing) → completed(delivered) or failed</li>
                               </ul>
+                            </div>
+                            
+                            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-500/50 rounded">
+                              <p className="text-sm font-semibold text-blue-800 dark:text-white mb-2">🔐 Webhook Security (Optional):</p>
+                              <p className="text-xs text-blue-700 dark:text-blue-100 mb-2">Each webhook includes an <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-blue-900 dark:text-white">X-Webhook-Signature</code> header for verification. While optional, it's recommended for production to prevent unauthorized webhook calls.</p>
+                              <div className="bg-black p-2 rounded mt-2">
+                                <pre className="text-green-400 text-xs">
+{`// Verify webhook signature (optional but recommended)
+const signature = req.headers['x-webhook-signature'];
+const isValid = verifyWebhookSignature(req.body, signature);
+if (!isValid) {
+  return res.status(401).json({ error: 'Invalid signature' });
+}`}
+                                </pre>
+                              </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Testing Webhooks */}
-                        <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-900/20">
-                          <h4 className="font-semibold mb-3 text-lg text-purple-800 dark:text-purple-300">🧪 Testing Webhooks</h4>
-                          <p className="text-sm mb-3">Use these services to test your webhook before going live:</p>
-                          <div className="space-y-2 text-sm">
+                        <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-900/30">
+                          <h4 className="font-semibold mb-3 text-lg text-purple-800 dark:text-white">🧪 Testing Webhooks</h4>
+                          <p className="text-sm mb-3 text-purple-900 dark:text-white">Use these services to test your webhook before going live:</p>
+                          <div className="space-y-2 text-sm text-purple-900 dark:text-white">
                             <div className="flex items-center gap-2">
                               <code className="bg-white dark:bg-gray-800 px-2 py-1 rounded text-blue-600 dark:text-blue-400">webhook.site</code>
                               <span className="text-muted-foreground">Get a temporary webhook URL and see incoming requests</span>
@@ -1055,8 +1130,8 @@ Content-Type: application/json
                     </CardTitle>
                     <CardDescription>
                       Complete examples for browsing offers and creating single/bulk orders
-                      <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500/50 rounded inline-block">
-                        <p className="text-xs font-semibold mb-1 text-gray-900 dark:text-gray-100">📌 Network names in all examples:</p>
+                      <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-500/50 rounded inline-block">
+                        <p className="text-xs font-semibold mb-1 text-yellow-900 dark:text-white">📌 Network names in all examples:</p>
                         <code className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">mtn</code> | <code className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">telecel</code> | <code className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">at_bigtime</code> | <code className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">at_ishare</code>
                       </div>
                     </CardDescription>
@@ -1154,11 +1229,47 @@ getAgentStore('john-data-store');`}
 
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium">3. Create Single Order</h4>
+                            <h4 className="font-medium">3. Create Order (Volume + Network - SIMPLEST ⭐)</h4>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => copyToClipboard('js3-code', 'js3')}
+                              onClick={() => copyToClipboard(`async function createOrder(volume, network, phone, agentSlug = null) {
+  const response = await fetch(\`\${BASE_URL}/checkout/initialize\`, {
+    method: 'POST',
+    headers: {
+      'Authorization': \`Bearer \${API_KEY}\`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      volume: volume,           // \"1GB\", \"2GB\", \"5GB\", etc.
+      network: network,         // \"mtn\", \"telecel\", \"at_bigtime\", \"at_ishare\"
+      productType: 'data_bundle',
+      customerPhone: phone,     // 10-digit phone: \"0241234567\"
+      paymentMethod: 'paystack',
+      agentSlug: agentSlug      // Optional agent slug
+    })
+  });
+  
+  const result = await response.json();
+  
+  if (result.paymentUrl) {
+    console.log('Order created!');
+    console.log('Reference:', result.transaction.reference);
+    console.log('Amount:', result.transaction.amount);
+    console.log('Redirect to:', result.paymentUrl);
+    // Redirect user to complete payment
+    window.location.href = result.paymentUrl;
+    return result;
+  } else {
+    console.error('Order failed:', result.error);
+    throw new Error(result.error);
+  }
+}
+
+// Examples:
+createOrder('1GB', 'mtn', '0241234567', 'john-data-store');
+createOrder('5GB', 'telecel', '0501234567');
+createOrder('2GB', 'at_bigtime', '0261234567');`, 'js3')}
                             >
                               {copiedCode === 'js3' ? (
                                 <><Check className="w-4 h-4 mr-2 text-green-500" />Copied!</>
@@ -1169,7 +1280,7 @@ getAgentStore('john-data-store');`}
                           </div>
                           <div className="bg-black rounded-lg overflow-x-auto">
                             <pre className="p-4 text-sm text-green-400">
-{`async function createSingleOrder(bundleId, phone, agentSlug, amount) {
+{`async function createOrder(volume, network, phone, agentSlug = null) {
   const response = await fetch(\`\${BASE_URL}/checkout/initialize\`, {
     method: 'POST',
     headers: {
@@ -1177,19 +1288,24 @@ getAgentStore('john-data-store');`}
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      productId: bundleId.toString(),
+      volume: volume,           // \"1GB\", \"2GB\", \"5GB\", etc.
+      network: network,         // \"mtn\", \"telecel\", \"at_bigtime\", \"at_ishare\"
       productType: 'data_bundle',
-      customerPhone: phone,
-      agentSlug: agentSlug,
-      amount: amount
+      customerPhone: phone,     // 10-digit phone: \"0241234567\"
+      paymentMethod: 'paystack',
+      agentSlug: agentSlug      // Optional agent slug
     })
   });
   
   const result = await response.json();
   
-  if (response.ok) {
-    console.log('Order created:', result.reference);
-    console.log('Payment URL:', result.authorizationUrl);
+  if (result.paymentUrl) {
+    console.log('Order created!');
+    console.log('Reference:', result.transaction.reference);
+    console.log('Amount:', result.transaction.amount);
+    console.log('Redirect to:', result.paymentUrl);
+    // Redirect user to complete payment
+    window.location.href = result.paymentUrl;
     return result;
   } else {
     console.error('Order failed:', result.error);
@@ -1197,8 +1313,10 @@ getAgentStore('john-data-store');`}
   }
 }
 
-// Buy 1GB MTN for 0241234567 via john-data-store
-createSingleOrder('123', '0241234567', 'john-data-store', 5.00);`}
+// Examples:
+createOrder('1GB', 'mtn', '0241234567', 'john-data-store');
+createOrder('5GB', 'telecel', '0501234567');
+createOrder('2GB', 'at_bigtime', '0261234567');`}
                             </pre>
                           </div>
                         </div>
@@ -1220,13 +1338,7 @@ createSingleOrder('123', '0241234567', 'john-data-store', 5.00);`}
                           </div>
                           <div className="bg-black rounded-lg overflow-x-auto">
                             <pre className="p-4 text-sm text-green-400">
-{`async function createBulkOrder(orders, agentSlug, network) {
-  const orderItems = orders.map(order => ({
-    bundleId: order.bundleId.toString(),
-    phone: order.phone,
-    bundleName: order.bundleName
-  }));
-  
+{`async function createBulkOrder(orders, network, agentSlug = null) {
   const response = await fetch(\`\${BASE_URL}/checkout/initialize\`, {
     method: 'POST',
     headers: {
@@ -1234,9 +1346,14 @@ createSingleOrder('123', '0241234567', 'john-data-store', 5.00);`}
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      orderItems: orderItems,
+      orderItems: orders.map(order => ({
+        bundleId: order.bundleId,
+        phone: order.phone,
+        bundleName: order.bundleName
+      })),
       productType: 'data_bundle',
-      network: network,
+      network: network,  // \"mtn\", \"telecel\", \"at_bigtime\" (NOT at_ishare)
+      paymentMethod: 'paystack',
       agentSlug: agentSlug,
       isBulkOrder: true
     })
@@ -1244,10 +1361,12 @@ createSingleOrder('123', '0241234567', 'john-data-store', 5.00);`}
   
   const result = await response.json();
   
-  if (response.ok) {
-    console.log(\`Bulk order created: \${orderItems.length} bundles\`);
-    console.log('Total:', result.totalAmount);
-    console.log('Reference:', result.reference);
+  if (result.paymentUrl) {
+    console.log(\`Bulk order created: \${orders.length} bundles\`);
+    console.log('Reference:', result.transaction.reference);
+    console.log('Total:', result.debug.totalAmount);
+    console.log('Recipients:', result.debug.numberOfRecipients);
+    window.location.href = result.paymentUrl;
     return result;
   } else {
     console.error('Bulk order failed:', result.error);
@@ -1255,14 +1374,14 @@ createSingleOrder('123', '0241234567', 'john-data-store', 5.00);`}
   }
 }
 
-// Buy 3 different MTN bundles for 3 phone numbers
+// Example: 3 MTN bundles for different phones
 const bulkOrders = [
   { bundleId: '123', phone: '0241234567', bundleName: 'MTN 1GB Daily' },
   { bundleId: '124', phone: '0207654321', bundleName: 'MTN 2GB Weekly' },
   { bundleId: '125', phone: '0551122334', bundleName: 'MTN 5GB Monthly' }
 ];
 
-createBulkOrder(bulkOrders, 'john-data-store', 'mtn');`}
+createBulkOrder(bulkOrders, 'mtn', 'john-data-store');`}
                             </pre>
                           </div>
                         </div>

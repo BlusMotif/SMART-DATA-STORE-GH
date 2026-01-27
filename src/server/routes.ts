@@ -1880,6 +1880,9 @@ export async function registerRoutes(
       console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(data.phoneNumbers));
       console.log("[Checkout] data.phoneNumbers:", data.phoneNumbers);
       console.log("[Checkout] data.isBulkOrder:", data.isBulkOrder);
+      console.log("[Checkout] data.volume:", data.volume);
+      console.log("[Checkout] data.network:", data.network);
+      console.log("[Checkout] data.amount:", data.amount);
       console.log("[Checkout] ================================================");
       // Normalize and validate phone number format (only if provided)
       let normalizedPhone: string | undefined;
@@ -2018,6 +2021,128 @@ export async function registerRoutes(
         console.log("[Checkout] Bulk order total amount (from orderItems):", amount);
         console.log("[Checkout] Bulk order total cost price:", costPrice);
         productName = `Bulk Order - ${data.orderItems.length} items`;
+      } else if (!data.productId && data.volume && data.network && data.productType === ProductType.DATA_BUNDLE) {
+        // NEW: Order by volume + network without productId
+        console.log(`[Checkout] Looking up product by volume: ${data.volume}, network: ${data.network}`);
+        const normalizedNetwork = data.network.toLowerCase();
+        const bundles = await storage.getDataBundles({ network: normalizedNetwork, isActive: true });
+        product = bundles.find(b => b.dataAmount?.toLowerCase() === data.volume.toLowerCase());
+        
+        if (!product) {
+          console.error(`[Checkout] No ${data.volume} bundle found for ${data.network}`);
+          return res.status(404).json({ 
+            error: `No ${data.volume} bundle found for ${data.network} network`,
+            hint: "Available volumes can be fetched from /api/products/data-bundles?network=" + data.network
+          });
+        }
+        
+        console.log(`[Checkout] Found product: ${product.id} - ${product.name}`);
+        
+        // Validate phone network match
+        if (normalizedPhone && !validatePhoneNetwork(normalizedPhone, product.network)) {
+          const errorMsg = getNetworkMismatchError(normalizedPhone, product.network);
+          return res.status(400).json({ error: errorMsg });
+        }
+        
+        // Enforce 20-minute cooldown
+        if (normalizedPhone) {
+          console.log(`[Checkout] Checking cooldown for volume+network purchase: ${normalizedPhone}`);
+          const cooldown = await enforcePhoneCooldown(normalizedPhone);
+          if (cooldown.blocked) {
+            console.log(`[Checkout] COOLDOWN BLOCKED for ${normalizedPhone}: ${cooldown.remainingMinutes} minutes remaining`);
+            return res.status(429).json({
+              error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${normalizedPhone}.`,
+              cooldownMinutes: cooldown.remainingMinutes,
+              phone: normalizedPhone,
+            });
+          }
+        }
+        
+        // Calculate price based on user role/agent
+        let userRole = 'guest';
+        
+        if (data.agentSlug) {
+          const agent = await storage.getAgentBySlug(data.agentSlug);
+          if (agent && agent.isApproved) {
+            userRole = 'agent';
+            agentId = agent.id;
+            const resolvedPrice = await storage.getResolvedPrice(product.id, agent.id, 'agent');
+            if (!resolvedPrice) {
+              return res.status(400).json({ error: "No pricing available for this product" });
+            }
+            amount = parseFloat(resolvedPrice);
+            const adminBasePrice = await storage.getAdminBasePrice(product.id);
+            const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
+            agentProfit = Math.max(0, amount - basePrice);
+          } else {
+            amount = parseFloat(product.adminPrice || product.basePrice || '0');
+          }
+        } else {
+          // Check authenticated user
+          let dbUser: any = null;
+          try {
+            const authHeader = req.headers.authorization;
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+              const token = authHeader.substring(7);
+              const supabaseServer = getSupabase();
+              if (supabaseServer) {
+                const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+                if (!error && user && user.email) {
+                  dbUser = await storage.getUserByEmail(user.email);
+                  if (dbUser) {
+                    userRole = dbUser.role;
+                    if (userRole === 'agent' || userRole === 'dealer' || userRole === 'super_dealer' || userRole === 'master') {
+                      const agent = await storage.getAgentByUserId(dbUser.id);
+                      if (agent && agent.isApproved) {
+                        agentId = agent.id;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (authError) {
+            // Ignore auth errors, treat as guest
+          }
+          
+          if (userRole !== 'guest' && dbUser) {
+            const resolvedPrice = await storage.getResolvedPrice(product.id, dbUser.id, userRole);
+            if (resolvedPrice) {
+              amount = parseFloat(resolvedPrice);
+            } else {
+              amount = parseFloat(product.adminPrice || product.basePrice || '0');
+            }
+            if (agentId) {
+              const adminBasePrice = await storage.getAdminBasePrice(product.id);
+              const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
+              agentProfit = Math.max(0, amount - basePrice);
+            }
+          } else {
+            amount = parseFloat(product.basePrice || '0');
+          }
+        }
+        
+        productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
+        costPrice = 0;
+        network = product.network?.toLowerCase();
+        
+        // If amount was provided in request, validate it matches calculated amount
+        const expectedAmount = amount;
+        if (data.amount) {
+          const frontendAmount = parseFloat(data.amount);
+          console.log("[Checkout] Frontend provided amount:", frontendAmount);
+          console.log("[Checkout] Backend calculated amount:", expectedAmount);
+          if (Math.abs(frontendAmount - expectedAmount) > 0.01) {
+            return res.status(400).json({ error: "Price mismatch. Please refresh and try again." });
+          }
+        } else {
+          console.log("[Checkout] No amount provided, using calculated price:", expectedAmount);
+        }
+        
+        console.log("[Checkout] Volume+Network purchase pricing:");
+        console.log("[Checkout] product:", product.name);
+        console.log("[Checkout] user_role:", userRole);
+        console.log("[Checkout] final_amount:", amount);
       } else if (data.productId && data.productType === ProductType.DATA_BUNDLE) {
         product = await storage.getDataBundle(data.productId);
         if (!product || !product.isActive) {
@@ -2113,7 +2238,7 @@ export async function registerRoutes(
         productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
         costPrice = 0; // Cost price removed from schema
         network = product.network?.toLowerCase();
-        // Validate amount from frontend
+        // Validate amount from frontend (if provided) or use calculated amount
         const expectedAmount = amount;
         if (data.amount) {
           const frontendAmount = parseFloat(data.amount);
@@ -2123,6 +2248,10 @@ export async function registerRoutes(
             return res.status(400).json({ error: "Price mismatch. Please refresh and try again." });
           }
           amount = frontendAmount; // Use frontend amount if validation passes
+        } else {
+          // Amount not provided - use calculated price from database
+          console.log("[Checkout] No amount provided, using calculated price:", expectedAmount);
+          amount = expectedAmount;
         }
         console.log("[Checkout] Single purchase pricing:");
         console.log("[Checkout] admin_price:", product.adminPrice);
@@ -2292,17 +2421,33 @@ export async function registerRoutes(
       // Handle wallet payments immediately
       if (data.paymentMethod === 'wallet') {
         console.log("[Checkout] Processing wallet payment for reference:", reference);
-        // Get authenticated user
+        // Get authenticated user (support both Supabase auth and API keys)
         let dbUser: any = null;
         try {
           const authHeader = req.headers.authorization;
           if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.substring(7);
-            const supabaseServer = getSupabase();
-            if (supabaseServer) {
-              const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-              if (!error && user && user.email) {
-                dbUser = await storage.getUserByEmail(user.email);
+            
+            // First, check if it's an API key (starts with 'sk_')
+            if (token.startsWith('sk_')) {
+              console.log("[Checkout] API key authentication detected");
+              const apiKey = await storage.getApiKeyByKey(token);
+              if (apiKey && apiKey.isActive) {
+                dbUser = await storage.getUser(apiKey.userId);
+                console.log("[Checkout] User authenticated via API key:", dbUser?.email);
+              } else {
+                console.log("[Checkout] Invalid or inactive API key");
+              }
+            } else {
+              // Try Supabase authentication
+              console.log("[Checkout] Supabase token authentication detected");
+              const supabaseServer = getSupabase();
+              if (supabaseServer) {
+                const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+                if (!error && user && user.email) {
+                  dbUser = await storage.getUserByEmail(user.email);
+                  console.log("[Checkout] User authenticated via Supabase:", dbUser?.email);
+                }
               }
             }
           }
@@ -2311,7 +2456,7 @@ export async function registerRoutes(
           return res.status(401).json({ error: "Authentication required for wallet payments" });
         }
         if (!dbUser) {
-          return res.status(401).json({ error: "User not found" });
+          return res.status(401).json({ error: "User not found or invalid API key" });
         }
         // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
         const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);

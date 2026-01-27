@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 import { X, Bell, Megaphone, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card.js";
@@ -11,7 +13,35 @@ interface Announcement {
   title: string;
   message: string;
   isActive: boolean;
+  audiences?: string[] | string; // Support both old string format and new array format
+  audience?: string; // Legacy field for backwards compatibility
   createdAt: string;
+}
+
+// Helper function to safely parse audiences
+function getAudiencesArray(announcement: Announcement): string[] {
+  // If audiences exists and is already an array, return it
+  if (Array.isArray(announcement.audiences)) {
+    return announcement.audiences;
+  }
+  
+  // If audiences is a JSON string, parse it
+  if (typeof announcement.audiences === 'string') {
+    try {
+      const parsed = JSON.parse(announcement.audiences);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return [announcement.audiences];
+    }
+  }
+  
+  // Fallback to legacy audience field
+  if (announcement.audience) {
+    return [announcement.audience];
+  }
+  
+  // Default to "all"
+  return ["all"];
 }
 
 // Function to parse URLs from text and create clickable links
@@ -42,6 +72,8 @@ function parseMessageWithLinks(text: string) {
 }
 
 export function AnnouncementPopup() {
+  const { user } = useAuth();
+  const [pathname] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
 
@@ -61,15 +93,45 @@ export function AnnouncementPopup() {
     refetchOnWindowFocus: false, // Don't refetch on tab focus
   });
 
+  // Filter announcements based on user audience
+  const getFilteredAnnouncements = (announcements: Announcement[]) => {
+    const isStorefrontView = pathname?.startsWith("/store/") ?? false;
+    const userRole = user?.role?.toLowerCase();
+    const isLoggedIn = !!user;
+
+    return announcements.filter((announcement) => {
+      const audiences = getAudiencesArray(announcement).map((a) => a.toLowerCase());
+
+      // If "all" is in the audiences, show to everyone
+      if (audiences.includes("all")) return true;
+
+      // "guest" is only shown to non-logged-in users
+      if (audiences.includes("guest") && !isLoggedIn) return true;
+
+      // "loggedIn" is only shown to logged-in users
+      if (audiences.includes("loggedin") && isLoggedIn) return true;
+
+      // "agent" is only shown to agents
+      if (audiences.includes("agent") && userRole === "agent") return true;
+
+      // "storefront" is only shown on storefront pages (guests or agents viewing the store)
+      if (audiences.includes("storefront") && isStorefrontView) return true;
+
+      return false;
+    });
+  };
+
+  const filteredAnnouncements = getFilteredAnnouncements(announcements);
+
   // Check if there are any active announcements that haven't been dismissed
   useEffect(() => {
-    if (announcements.length > 0) {
-      const hasUndismissed = announcements.some((announcement) =>
+    if (filteredAnnouncements.length > 0) {
+      const hasUndismissed = filteredAnnouncements.some((announcement) =>
         !dismissedAnnouncements.includes(announcement.id)
       );
       setIsOpen(hasUndismissed);
     }
-  }, [announcements, dismissedAnnouncements]);
+  }, [filteredAnnouncements, dismissedAnnouncements]);
 
   const handleDismiss = (announcementId: string) => {
     const newDismissed = [...dismissedAnnouncements, announcementId];
@@ -79,16 +141,16 @@ export function AnnouncementPopup() {
 
   const handleClose = () => {
     // Dismiss all current announcements
-    const newDismissed = [...dismissedAnnouncements, ...announcements.map((a) => a.id)];
+    const newDismissed = [...dismissedAnnouncements, ...filteredAnnouncements.map((a) => a.id)];
     setDismissedAnnouncements(newDismissed);
     localStorage.setItem('dismissedAnnouncements', JSON.stringify(newDismissed));
     setIsOpen(false);
   };
 
-  if (!isOpen || announcements.length === 0) return null;
+  if (!isOpen || filteredAnnouncements.length === 0) return null;
 
   // Show only undismissed announcements
-  const undismissedAnnouncements = announcements.filter((announcement) =>
+  const undismissedAnnouncements = filteredAnnouncements.filter((announcement) =>
     !dismissedAnnouncements.includes(announcement.id)
   );
 
@@ -137,7 +199,7 @@ export function AnnouncementPopup() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1 md:mb-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm md:text-base truncate">
+                        <h3 className="font-semibold text-gray-900 text-sm md:text-base break-words">
                           {announcement.title}
                         </h3>
                         <Badge variant="secondary" className="text-xs md:text-sm bg-blue-100 text-blue-700 border-blue-200 px-1.5 py-0.5 flex-shrink-0">
@@ -154,7 +216,7 @@ export function AnnouncementPopup() {
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
-                    <div className="text-sm md:text-base text-gray-700 leading-relaxed whitespace-pre-wrap">
+                    <div className="text-sm md:text-base text-gray-700 leading-relaxed break-words overflow-wrap-anywhere">
                       {parseMessageWithLinks(announcement.message)}
                     </div>
                     <div className="mt-2 md:mt-3 text-xs md:text-sm text-gray-500">

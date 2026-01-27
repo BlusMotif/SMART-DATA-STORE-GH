@@ -405,6 +405,7 @@ export const announcements = pgTable("announcements", {
   title: text("title").notNull(),
   message: text("message").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  audiences: text("audiences").notNull().default('["all"]'), // JSON array: 'all', 'guest', 'loggedIn', 'agent', 'storefront'
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -429,6 +430,23 @@ export const walletTopupTransactions = pgTable("wallet_topup_transactions", {
   adminIdx: index("wallet_topup_transactions_admin_idx").on(table.adminId),
   transactionIdx: index("wallet_topup_transactions_transaction_idx").on(table.transactionId),
 }));
+
+  // ============================================
+  // WALLET DEDUCTION TRANSACTIONS TABLE
+  // ============================================
+  export const walletDeductionTransactions = pgTable("wallet_deduction_transactions", {
+    id: text("id").primaryKey().$defaultFn(() => randomUUID()),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+    adminId: text("admin_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+    amount: text("amount").notNull(),
+    reason: text("reason"),
+    transactionId: text("transaction_id").references(() => transactions.id, { onDelete: 'set null' }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  }, (table) => ({
+    userIdx: index("wallet_deduction_transactions_user_idx").on(table.userId),
+    adminIdx: index("wallet_deduction_transactions_admin_idx").on(table.adminId),
+    transactionIdx: index("wallet_deduction_transactions_transaction_idx").on(table.transactionId),
+  }));
 
 // ============================================
 // SETTINGS TABLE
@@ -810,6 +828,14 @@ export const insertWalletTopupTransactionSchema = z.object({
   agentId: z.string().optional(),
 });
 
+  export const insertWalletDeductionTransactionSchema = z.object({
+    userId: z.string(),
+    adminId: z.string(),
+    amount: z.string(),
+    reason: z.string().optional(),
+    transactionId: z.string().optional(),
+  });
+
 export const insertSettingsSchema = z.object({
   key: z.string(),
   value: z.string(),
@@ -914,6 +940,9 @@ export type ExternalApiProvider = typeof externalApiProviders.$inferSelect;
 
 export type InsertWalletTopupTransaction = z.infer<typeof insertWalletTopupTransactionSchema>;
 export type WalletTopupTransaction = typeof walletTopupTransactions.$inferSelect;
+
+export type InsertWalletDeductionTransaction = z.infer<typeof insertWalletDeductionTransactionSchema>;
+export type WalletDeductionTransaction = typeof walletDeductionTransactions.$inferSelect;
 
 // ============================================
 // VALIDATION SCHEMAS

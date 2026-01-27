@@ -29,6 +29,22 @@ type BundleWithPrice = DataBundle & {
   description?: string;
 };
 
+// Helper function to extract numeric value from bundle name
+const extractDataAmount = (bundleName: string): number => {
+  const match = bundleName.match(/(\d+(?:\.\d+)?)\s*(GB|MB)/);
+  if (!match) return 0;
+  const value = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+  // Convert to GB for consistent sorting
+  return unit === 'MB' ? value / 1024 : value;
+};
+
+// Helper function to sort bundles by data amount
+const sortBundlesByDataAmount = (bundles: BundleWithPrice[] | undefined): BundleWithPrice[] => {
+  if (!bundles) return [];
+  return [...bundles].sort((a, b) => extractDataAmount(a.name) - extractDataAmount(b.name));
+};
+
 interface UserStats {
   walletBalance: string;
 }
@@ -441,11 +457,12 @@ export default function UserBundlesPage() {
     // Bulk orders can use wallet or Paystack
     const payload = {
       productType: 'data_bundle',
+      productName: `Bulk Order - ${orderItems.length} bundles`,
       network: network,
+      amount: totalAmount.toFixed(2),
       customerPhone: orderItems[0]?.phone,
       isBulkOrder: true,
       orderItems,
-      totalAmount: totalAmount,
       agentSlug: undefined,
       paymentMethod: bulkPaymentMethod,
     };
@@ -524,6 +541,12 @@ export default function UserBundlesPage() {
               </CardContent>
             </Card>
 
+            {/* Warning Message */}
+            <div className="text-sm text-orange-600 flex items-start gap-2">
+              <span className="text-lg">⚠️</span>
+              <span>Please double-check your beneficiary number before completing purchase</span>
+            </div>
+
             <Tabs defaultValue="single" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="single" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">
@@ -572,7 +595,7 @@ export default function UserBundlesPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {bundles && bundles.length > 0 ? (
-                              bundles.map((bundle) => (
+                              sortBundlesByDataAmount(bundles).map((bundle) => (
                                 <SelectItem key={bundle.id} value={bundle.id}>
                                   {bundle.name} - {bundle.validity} - GH₵{bundle.basePrice}
                                 </SelectItem>
@@ -599,6 +622,7 @@ export default function UserBundlesPage() {
                         <p className="text-2xl font-bold text-white mt-2">GH₵{selectedBundle.basePrice}</p>
                       </div>
                     )}
+
 
                     <div className="space-y-2">
                       <Label htmlFor="phone">Beneficiary Number</Label>

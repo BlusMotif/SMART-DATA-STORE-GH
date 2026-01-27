@@ -95,7 +95,14 @@ export async function apiRequest<T = unknown>(
     throw new Error(message);
   }
 
-  return res.json();
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return res.json();
+  }
+
+  // Fallback for unexpected HTML/text responses
+  const text = await res.text();
+  throw new Error(text || "Unexpected non-JSON response from server");
 }
 
 /* --------------------------------------------------
@@ -130,7 +137,13 @@ export const getQueryFn =
       throw new Error(message);
     }
 
-    return res.json();
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return res.json();
+    }
+
+    const text = await res.text();
+    throw new Error(text || "Unexpected non-JSON response from server");
   };
 
 /* --------------------------------------------------

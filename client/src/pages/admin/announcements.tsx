@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -18,8 +19,36 @@ interface Announcement {
   title: string;
   message: string;
   isActive: boolean;
+  audiences?: string[] | string; // Support both old string format and new array format
+  audience?: string; // Legacy field for backwards compatibility
   createdAt: string;
   createdBy: string;
+}
+
+// Helper function to safely parse audiences
+function getAudiencesArray(announcement: Announcement): string[] {
+  // If audiences exists and is already an array, return it
+  if (Array.isArray(announcement.audiences)) {
+    return announcement.audiences;
+  }
+  
+  // If audiences is a JSON string, parse it
+  if (typeof announcement.audiences === 'string') {
+    try {
+      const parsed = JSON.parse(announcement.audiences);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return [announcement.audiences];
+    }
+  }
+  
+  // Fallback to legacy audience field
+  if (announcement.audience) {
+    return [announcement.audience];
+  }
+  
+  // Default to "all"
+  return ["all"];
 }
 
 // Function to parse URLs from text and create clickable links
@@ -38,10 +67,10 @@ function parseMessageWithLinks(text: string) {
           href={part}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 underline inline-flex items-center gap-1"
+          className="text-blue-600 hover:text-blue-800 underline inline-flex items-start gap-1 flex-wrap break-words break-all overflow-wrap-anywhere whitespace-pre-wrap text-left"
         >
-          {part}
-          <ExternalLink className="h-3 w-3" />
+          <span className="min-w-0 break-words break-all overflow-wrap-anywhere whitespace-pre-wrap">{part}</span>
+          <ExternalLink className="h-3 w-3 flex-shrink-0" />
         </a>
       );
     }
@@ -55,6 +84,7 @@ export default function AdminAnnouncements() {
   const [newAnnouncement, setNewAnnouncement] = useState({
     title: "",
     message: "",
+    audiences: ["all"],
   });
   const [deleteAnnouncementId, setDeleteAnnouncementId] = useState<string | null>(null);
 
@@ -64,12 +94,12 @@ export default function AdminAnnouncements() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { title: string; message: string }) =>
+    mutationFn: (data: { title: string; message: string; audiences: string[] }) =>
       apiRequest("POST", "/api/admin/announcements", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
       toast({ title: "✅ Announcement created successfully" });
-      setNewAnnouncement({ title: "", message: "" });
+      setNewAnnouncement({ title: "", message: "", audiences: ["all"] });
     },
     onError: (error: Error) => {
       toast({
@@ -194,6 +224,55 @@ export default function AdminAnnouncements() {
                     rows={4}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Target Audiences (Select One or More)</Label>
+                  <div className="grid grid-cols-2 gap-3 border rounded-lg p-4">
+                    {[
+                      { value: "all", label: "Everyone" },
+                      { value: "guest", label: "Guests Only" },
+                      { value: "loggedIn", label: "Logged In Users" },
+                      { value: "agent", label: "Agents" },
+                      { value: "storefront", label: "Storefront Visitors" },
+                    ].map(({ value, label }) => (
+                      <label key={value} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newAnnouncement.audiences.includes(value)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              // If selecting "all", clear all others
+                              if (value === "all") {
+                                setNewAnnouncement({
+                                  ...newAnnouncement,
+                                  audiences: ["all"],
+                                });
+                              } else {
+                                // Remove "all" and add the selected value
+                                const updatedAudiences = newAnnouncement.audiences
+                                  .filter(a => a !== "all")
+                                  .concat(value);
+                                setNewAnnouncement({
+                                  ...newAnnouncement,
+                                  audiences: updatedAudiences,
+                                });
+                              }
+                            } else {
+                              // Remove the unchecked value
+                              const updatedAudiences = newAnnouncement.audiences.filter(a => a !== value);
+                              // If nothing is selected, default to "all"
+                              setNewAnnouncement({
+                                ...newAnnouncement,
+                                audiences: updatedAudiences.length > 0 ? updatedAudiences : ["all"],
+                              });
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <Button
                   onClick={handleCreate}
                   disabled={createMutation.isPending}
@@ -222,8 +301,8 @@ export default function AdminAnnouncements() {
                       <div key={announcement.id} className="border rounded-lg p-3 md:p-4">
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm md:text-base leading-tight">{announcement.title}</h3>
-                            <div className="text-muted-foreground mt-1 md:mt-2 text-xs md:text-sm leading-relaxed">
+                            <h3 className="font-semibold text-sm md:text-base leading-tight break-words">{announcement.title}</h3>
+                            <div className="text-muted-foreground mt-1 md:mt-2 text-xs md:text-sm leading-relaxed break-words overflow-wrap-anywhere whitespace-pre-wrap">
                               {parseMessageWithLinks(announcement.message)}
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 md:mt-3 text-xs md:text-sm text-muted-foreground">
@@ -231,6 +310,17 @@ export default function AdminAnnouncements() {
                               <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs w-fit">
                                 Active
                               </Badge>
+                              <div className="flex flex-wrap gap-2">
+                                {getAudiencesArray(announcement).map((aud) => (
+                                  <Badge key={aud} variant="outline" className="text-xs w-fit capitalize">
+                                    {aud === "all" ? "Everyone" : 
+                                     aud === "guest" ? "Guests" :
+                                     aud === "loggedIn" ? "Logged In" :
+                                     aud === "agent" ? "Agents" :
+                                     aud === "storefront" ? "Storefront" : aud}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                           </div>
                           <div className="flex gap-1 sm:gap-2 flex-shrink-0">
@@ -280,8 +370,8 @@ export default function AdminAnnouncements() {
                       <div key={announcement.id} className="border rounded-lg p-3 md:p-4 opacity-75">
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm md:text-base leading-tight">{announcement.title}</h3>
-                            <div className="text-muted-foreground mt-1 md:mt-2 text-xs md:text-sm leading-relaxed">
+                            <h3 className="font-semibold text-sm md:text-base leading-tight break-words">{announcement.title}</h3>
+                            <div className="text-muted-foreground mt-1 md:mt-2 text-xs md:text-sm leading-relaxed break-words overflow-wrap-anywhere whitespace-pre-wrap">
                               {parseMessageWithLinks(announcement.message)}
                             </div>
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 md:mt-3 text-xs md:text-sm text-muted-foreground">
@@ -289,6 +379,17 @@ export default function AdminAnnouncements() {
                               <Badge variant="outline" className="w-fit">
                                 Inactive
                               </Badge>
+                              <div className="flex flex-wrap gap-2">
+                                {getAudiencesArray(announcement).map((aud) => (
+                                  <Badge key={aud} variant="outline" className="text-xs w-fit capitalize">
+                                    {aud === "all" ? "Everyone" : 
+                                     aud === "guest" ? "Guests" :
+                                     aud === "loggedIn" ? "Logged In" :
+                                     aud === "agent" ? "Agents" :
+                                     aud === "storefront" ? "Storefront" : aud}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                           </div>
                           <div className="flex gap-1 sm:gap-2 flex-shrink-0">
@@ -338,7 +439,7 @@ export default function AdminAnnouncements() {
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteAnnouncementId} onOpenChange={(open) => !open && setDeleteAnnouncementId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white dark:bg-slate-900 text-white shadow-xl border border-border">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Announcement</AlertDialogTitle>
             <AlertDialogDescription>

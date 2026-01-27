@@ -92,11 +92,11 @@ export function OrderTracker() {
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-black dark:text-white">
           <Package className="h-5 w-5" />
           Track Your Order
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-black dark:text-white">
           Enter your transaction ID or beneficiary phone number to track your order status
         </CardDescription>
       </CardHeader>

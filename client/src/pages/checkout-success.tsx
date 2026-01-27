@@ -432,33 +432,69 @@ export default function CheckoutSuccessPage() {
                   </div>
 
                   {/* Bulk Order Phone Numbers */}
-                  {(transaction as any).isBulkOrder && (transaction as any).phoneNumbers && (
-                    <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-white flex items-center gap-2">
-                          <PhoneIcon className="h-4 w-4" />
-                          Bulk Order Recipients ({((transaction as any).phoneNumbers as string[]).length})
-                        </h4>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => copyToClipboard(((transaction as any).phoneNumbers as string[]).join('\n'))}
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copy All
-                        </Button>
+                  {(transaction as any).isBulkOrder && (transaction as any).phoneNumbers && (() => {
+                    // Parse phoneNumbers - it might be a JSON string or already an array
+                    // Items can be strings or objects {phone, bundleName, dataAmount}
+                    let phoneNumbersArray: any[] = [];
+                    try {
+                      const phoneNumbers = (transaction as any).phoneNumbers;
+                      if (typeof phoneNumbers === 'string') {
+                        phoneNumbersArray = JSON.parse(phoneNumbers);
+                      } else if (Array.isArray(phoneNumbers)) {
+                        phoneNumbersArray = phoneNumbers;
+                      }
+                    } catch (e) {
+                      console.error('Failed to parse phoneNumbers:', e);
+                      phoneNumbersArray = [];
+                    }
+
+                    if (phoneNumbersArray.length === 0) return null;
+
+                    // Helper to extract phone number from string or object
+                    const getPhone = (item: any) => typeof item === 'string' ? item : item?.phone || '';
+                    const getAllPhones = () => phoneNumbersArray.map(getPhone).filter(Boolean).join('\n');
+
+                    return (
+                      <div className="bg-green-500 dark:bg-green-600 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold text-white flex items-center gap-2">
+                            <PhoneIcon className="h-4 w-4" />
+                            Bulk Order Recipients ({phoneNumbersArray.length})
+                          </h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => copyToClipboard(getAllPhones())}
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy All
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                          {phoneNumbersArray.map((item: any, idx: number) => {
+                            const phone = getPhone(item);
+                            const isObject = typeof item === 'object' && item !== null;
+                            
+                            return (
+                              <div key={idx} className="flex items-center gap-2 text-sm text-green-900 dark:text-white bg-white dark:bg-green-700 rounded px-3 py-2">
+                                <span className="text-xs text-muted-foreground">{idx + 1}.</span>
+                                <div className="flex-1">
+                                  <code className="font-mono font-semibold">{phone}</code>
+                                  {isObject && (item.bundleName || item.dataAmount) && (
+                                    <div className="text-xs text-green-600 dark:text-green-200 mt-1">
+                                      {item.bundleName && <span>{item.bundleName}</span>}
+                                      {item.dataAmount && <span className="ml-2">({item.dataAmount})</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                        {((transaction as any).phoneNumbers as string[]).map((phone: string, idx: number) => (
-                          <div key={idx} className="flex items-center gap-2 text-sm text-blue-900 dark:text-white bg-white dark:bg-blue-700 rounded px-2 py-1">
-                            <span className="text-xs text-muted-foreground">{idx + 1}.</span>
-                            <code className="font-mono">{phone}</code>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {transaction.status === "completed" && transaction.type === "result_checker" && (
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">

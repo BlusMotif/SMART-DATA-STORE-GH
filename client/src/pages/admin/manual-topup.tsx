@@ -31,7 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/constants";
-import { Wallet, Menu, Search, Plus, User, Users } from "lucide-react";
+import { Wallet, Menu, Search, Plus, User, Users, Minus } from "lucide-react";
 
 interface UserOrAgent {
   id: string;
@@ -57,6 +57,20 @@ interface TopupResponse {
   transaction: any;
 }
 
+interface DeductionData {
+  userId: string;
+  amount: number;
+  reason: string;
+}
+
+interface DeductionResponse {
+  success: boolean;
+  userName: string;
+  amount: number;
+  newBalance: number;
+  walletDeductionRecord: any;
+}
+
 export default function AdminManualTopup() {
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -66,6 +80,12 @@ export default function AdminManualTopup() {
   const [topupReason, setTopupReason] = useState("");
   const [showTopupDialog, setShowTopupDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  
+  // Deduction states
+  const [deductAmount, setDeductAmount] = useState("");
+  const [deductReason, setDeductReason] = useState("");
+  const [showDeductDialog, setShowDeductDialog] = useState(false);
+  const [showDeductConfirmDialog, setShowDeductConfirmDialog] = useState(false);
 
   const { data: usersAndAgents, isLoading } = useQuery<UserOrAgent[]>({
     queryKey: ["/api/admin/users-agents"],
@@ -90,6 +110,30 @@ export default function AdminManualTopup() {
     onError: (error: Error) => {
       toast({
         title: "Failed to process top-up",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  const deductMutation = useMutation<DeductionResponse, Error, DeductionData>({
+    mutationFn: (data: DeductionData) =>
+      apiRequest<DeductionResponse>("POST", "/api/admin/manual-deduct", data),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users-agents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      toast({
+        title: "✅ Deduction successful",
+        description: `${formatCurrency(data.amount)} deducted from ${data.userName}'s wallet`
+      });
+      setShowDeductDialog(false);
+      setSelectedUser(null);
+      setDeductAmount("");
+      setDeductReason("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to process deduction",
         description: error.message,
         variant: "destructive"
       });
@@ -134,6 +178,49 @@ export default function AdminManualTopup() {
       reason: topupReason
     });
     setShowConfirmDialog(false);
+  };
+
+  const handleDeduction = () => {
+    if (!selectedUser || !deductAmount || !deductReason) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const amount = parseFloat(deductAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid positive amount",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (amount > selectedUser.walletBalance) {
+      toast({
+        title: "Insufficient balance",
+        description: "Deduction amount exceeds user's wallet balance",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setShowDeductConfirmDialog(true);
+  };
+
+  const confirmDeduction = () => {
+    if (!selectedUser) return;
+
+    deductMutation.mutate({
+      userId: selectedUser.id,
+      amount: parseFloat(deductAmount),
+      reason: deductReason
+    });
+    setShowDeductConfirmDialog(false);
   };
 
   const getRoleIcon = (role: string) => {
@@ -194,8 +281,8 @@ export default function AdminManualTopup() {
               <Menu className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-lg font-semibold">Manual Top-up</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-base font-semibold">Manual Top-up</h1>
+              <p className="text-xs text-muted-foreground">
                 Manually add funds to user/agent wallets
               </p>
             </div>
@@ -247,54 +334,70 @@ export default function AdminManualTopup() {
                 {isLoading ? (
                   <TableSkeleton />
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Wallet Balance</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredUsers.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {getRoleIcon(user.role)}
-                              <div>
-                                <div className="font-medium">{user.name}</div>
-                                <div className="text-sm text-muted-foreground">{user.email}</div>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getRoleBadgeColor(user.role)}>
-                              {user.role.replace('_', ' ').toUpperCase()}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{user.phone || 'N/A'}</TableCell>
-                          <TableCell className="font-medium">
-                            {formatCurrency(user.walletBalance)}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setShowTopupDialog(true);
-                              }}
-                              className="flex items-center gap-2"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Top-up
-                            </Button>
-                          </TableCell>
+                  <div className="overflow-x-auto -mx-6 px-6 md:mx-0 md:px-0">
+                    <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">User</TableHead>
+                          <TableHead className="whitespace-nowrap">Role</TableHead>
+                          <TableHead className="whitespace-nowrap">Phone</TableHead>
+                          <TableHead className="whitespace-nowrap">Wallet Balance</TableHead>
+                          <TableHead className="whitespace-nowrap">Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredUsers.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getRoleIcon(user.role)}
+                                <div>
+                                  <div className="font-medium">{user.name}</div>
+                                  <div className="text-sm text-muted-foreground">{user.email}</div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getRoleBadgeColor(user.role)}>
+                                {user.role.replace('_', ' ').toUpperCase()}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">{user.phone || 'N/A'}</TableCell>
+                            <TableCell className="font-medium whitespace-nowrap">
+                              {formatCurrency(user.walletBalance)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setShowTopupDialog(true);
+                                  }}
+                                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 whitespace-nowrap"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Top-up
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setShowDeductDialog(true);
+                                  }}
+                                  className="flex items-center gap-2 whitespace-nowrap"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                  Deduct
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
 
                 {!isLoading && filteredUsers.length === 0 && (
@@ -383,6 +486,100 @@ export default function AdminManualTopup() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmTopup} className="bg-green-600 hover:bg-green-700">
               Confirm Top-up
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Deduction Dialog */}
+      <Dialog open={showDeductDialog} onOpenChange={setShowDeductDialog}>
+        <DialogContent className="bg-white dark:bg-gray-900 border-0 shadow-lg text-white dark:text-white">
+          <DialogHeader>
+            <DialogTitle>Manual Wallet Deduction</DialogTitle>
+            <DialogDescription>
+              Deduct funds from {selectedUser?.name}'s wallet
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="deduct-amount">Amount (GHS)</Label>
+              <Input
+                id="deduct-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                max={selectedUser?.walletBalance || 0}
+                placeholder="Enter amount to deduct"
+                value={deductAmount}
+                onChange={(e) => setDeductAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="deduct-reason">Reason</Label>
+              <Select value={deductReason} onValueChange={setDeductReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="correction">Balance Correction</SelectItem>
+                  <SelectItem value="penalty">Penalty</SelectItem>
+                  <SelectItem value="chargeback">Chargeback</SelectItem>
+                  <SelectItem value="fraud">Fraud Investigation</SelectItem>
+                  <SelectItem value="adjustment">Administrative Adjustment</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedUser && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div className="text-sm text-red-900 dark:text-red-100">
+                  <strong>Current Balance:</strong> {formatCurrency(selectedUser.walletBalance)}
+                </div>
+                <div className="text-sm text-red-900 dark:text-red-100">
+                  <strong>New Balance:</strong> {formatCurrency(Math.max(0, selectedUser.walletBalance - (parseFloat(deductAmount) || 0)))}
+                </div>
+                {parseFloat(deductAmount) > selectedUser.walletBalance && (
+                  <div className="text-xs text-red-600 dark:text-red-400 mt-2">
+                    ⚠️ Deduction exceeds available balance
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeductDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeduction} 
+              disabled={deductMutation.isPending}
+            >
+              {deductMutation.isPending ? "Processing..." : "Deduct from Wallet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deduction Confirmation Dialog */}
+      <AlertDialog open={showDeductConfirmDialog} onOpenChange={setShowDeductConfirmDialog}>
+        <AlertDialogContent className="bg-white dark:bg-gray-900 border-0 shadow-lg text-white dark:text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Confirm Wallet Deduction</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <div>Are you sure you want to deduct {formatCurrency(parseFloat(deductAmount) || 0)} from {selectedUser?.name}'s wallet?</div>
+                <div className="text-red-600 dark:text-red-400 font-semibold">
+                  This action cannot be undone!
+                </div>
+                <div><strong>Reason:</strong> {deductReason}</div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeduction} className="bg-red-600 hover:bg-red-700">
+              Confirm Deduction
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -747,6 +747,7 @@ export const insertChatMessageSchema = z.object({
 export const insertAnnouncementSchema = z.object({
     title: z.string(),
     message: z.string(),
+    audiences: z.string().optional(), // JSON string of audience array
     isActive: z.boolean().optional(),
     createdBy: z.string(),
     content: z.string().optional(),

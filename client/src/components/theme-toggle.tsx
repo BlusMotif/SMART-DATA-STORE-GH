@@ -1,8 +1,9 @@
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
+import { cn } from "@/lib/utils";
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
 
   const handleToggle = () => {
@@ -17,7 +18,7 @@ export function ThemeToggle() {
       size="sm"
       onClick={handleToggle}
       data-testid="button-theme-toggle"
-      className="h-8 w-8"
+      className={cn("h-8 w-8", className)}
     >
       {theme === "light" ? (
         <Sun className="h-4 w-4 transition-all" />

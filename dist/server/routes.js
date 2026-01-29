@@ -1,6 +1,6 @@
 import { storage } from "./storage.js";
 import { db } from "./db.js";
-import { sql, and, eq, or, gte, lte } from "drizzle-orm";
+import { sql, and, eq, or, gte, lte, desc } from "drizzle-orm";
 import { randomUUID, randomBytes } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
@@ -2002,9 +2002,6 @@ export async function registerRoutes(httpServer, app) {
             console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(data.phoneNumbers));
             console.log("[Checkout] data.phoneNumbers:", data.phoneNumbers);
             console.log("[Checkout] data.isBulkOrder:", data.isBulkOrder);
-            console.log("[Checkout] data.volume:", data.volume);
-            console.log("[Checkout] data.network:", data.network);
-            console.log("[Checkout] data.amount:", data.amount);
             console.log("[Checkout] ================================================");
             // Normalize and validate phone number format (only if provided)
             let normalizedPhone;
@@ -2184,125 +2181,6 @@ export async function registerRoutes(httpServer, app) {
                 console.log("[Checkout] Bulk order total cost price:", costPrice);
                 productName = `Bulk Order - ${data.orderItems.length} items`;
             }
-            else if (!data.productId && data.volume && data.network && data.productType === ProductType.DATA_BUNDLE) {
-                // NEW: Order by volume + network without productId
-                console.log(`[Checkout] Looking up product by volume: ${data.volume}, network: ${data.network}`);
-                const normalizedNetwork = data.network.toLowerCase();
-                const bundles = await storage.getDataBundles({ network: normalizedNetwork, isActive: true });
-                product = bundles.find(b => b.dataAmount?.toLowerCase() === data.volume.toLowerCase());
-                if (!product) {
-                    console.error(`[Checkout] No ${data.volume} bundle found for ${data.network}`);
-                    return res.status(404).json({
-                        error: `No ${data.volume} bundle found for ${data.network} network`,
-                        hint: "Available volumes can be fetched from /api/products/data-bundles?network=" + data.network
-                    });
-                }
-                console.log(`[Checkout] Found product: ${product.id} - ${product.name}`);
-                // Validate phone network match
-                if (normalizedPhone && !validatePhoneNetwork(normalizedPhone, product.network)) {
-                    const errorMsg = getNetworkMismatchError(normalizedPhone, product.network);
-                    return res.status(400).json({ error: errorMsg });
-                }
-                // Enforce 20-minute cooldown
-                if (normalizedPhone) {
-                    console.log(`[Checkout] Checking cooldown for volume+network purchase: ${normalizedPhone}`);
-                    const cooldown = await enforcePhoneCooldown(normalizedPhone);
-                    if (cooldown.blocked) {
-                        console.log(`[Checkout] COOLDOWN BLOCKED for ${normalizedPhone}: ${cooldown.remainingMinutes} minutes remaining`);
-                        return res.status(429).json({
-                            error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${normalizedPhone}.`,
-                            cooldownMinutes: cooldown.remainingMinutes,
-                            phone: normalizedPhone,
-                        });
-                    }
-                }
-                // Calculate price based on user role/agent
-                let userRole = 'guest';
-                if (data.agentSlug) {
-                    const agent = await storage.getAgentBySlug(data.agentSlug);
-                    if (agent && agent.isApproved) {
-                        userRole = 'agent';
-                        agentId = agent.id;
-                        const resolvedPrice = await storage.getResolvedPrice(product.id, agent.id, 'agent');
-                        if (!resolvedPrice) {
-                            return res.status(400).json({ error: "No pricing available for this product" });
-                        }
-                        amount = parseFloat(resolvedPrice);
-                        const adminBasePrice = await storage.getAdminBasePrice(product.id);
-                        const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
-                        agentProfit = Math.max(0, amount - basePrice);
-                    }
-                    else {
-                        amount = parseFloat(product.adminPrice || product.basePrice || '0');
-                    }
-                }
-                else {
-                    // Check authenticated user
-                    let dbUser = null;
-                    try {
-                        const authHeader = req.headers.authorization;
-                        if (authHeader && authHeader.startsWith('Bearer ')) {
-                            const token = authHeader.substring(7);
-                            const supabaseServer = getSupabase();
-                            if (supabaseServer) {
-                                const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-                                if (!error && user && user.email) {
-                                    dbUser = await storage.getUserByEmail(user.email);
-                                    if (dbUser) {
-                                        userRole = dbUser.role;
-                                        if (userRole === 'agent' || userRole === 'dealer' || userRole === 'super_dealer' || userRole === 'master') {
-                                            const agent = await storage.getAgentByUserId(dbUser.id);
-                                            if (agent && agent.isApproved) {
-                                                agentId = agent.id;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch (authError) {
-                        // Ignore auth errors, treat as guest
-                    }
-                    if (userRole !== 'guest' && dbUser) {
-                        const resolvedPrice = await storage.getResolvedPrice(product.id, dbUser.id, userRole);
-                        if (resolvedPrice) {
-                            amount = parseFloat(resolvedPrice);
-                        }
-                        else {
-                            amount = parseFloat(product.adminPrice || product.basePrice || '0');
-                        }
-                        if (agentId) {
-                            const adminBasePrice = await storage.getAdminBasePrice(product.id);
-                            const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
-                            agentProfit = Math.max(0, amount - basePrice);
-                        }
-                    }
-                    else {
-                        amount = parseFloat(product.basePrice || '0');
-                    }
-                }
-                productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
-                costPrice = 0;
-                network = product.network?.toLowerCase();
-                // If amount was provided in request, validate it matches calculated amount
-                const expectedAmount = amount;
-                if (data.amount) {
-                    const frontendAmount = parseFloat(data.amount);
-                    console.log("[Checkout] Frontend provided amount:", frontendAmount);
-                    console.log("[Checkout] Backend calculated amount:", expectedAmount);
-                    if (Math.abs(frontendAmount - expectedAmount) > 0.01) {
-                        return res.status(400).json({ error: "Price mismatch. Please refresh and try again." });
-                    }
-                }
-                else {
-                    console.log("[Checkout] No amount provided, using calculated price:", expectedAmount);
-                }
-                console.log("[Checkout] Volume+Network purchase pricing:");
-                console.log("[Checkout] product:", product.name);
-                console.log("[Checkout] user_role:", userRole);
-                console.log("[Checkout] final_amount:", amount);
-            }
             else if (data.productId && data.productType === ProductType.DATA_BUNDLE) {
                 product = await storage.getDataBundle(data.productId);
                 if (!product || !product.isActive) {
@@ -2401,7 +2279,7 @@ export async function registerRoutes(httpServer, app) {
                 productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
                 costPrice = 0; // Cost price removed from schema
                 network = product.network?.toLowerCase();
-                // Validate amount from frontend (if provided) or use calculated amount
+                // Validate amount from frontend
                 const expectedAmount = amount;
                 if (data.amount) {
                     const frontendAmount = parseFloat(data.amount);
@@ -2411,11 +2289,6 @@ export async function registerRoutes(httpServer, app) {
                         return res.status(400).json({ error: "Price mismatch. Please refresh and try again." });
                     }
                     amount = frontendAmount; // Use frontend amount if validation passes
-                }
-                else {
-                    // Amount not provided - use calculated price from database
-                    console.log("[Checkout] No amount provided, using calculated price:", expectedAmount);
-                    amount = expectedAmount;
                 }
                 console.log("[Checkout] Single purchase pricing:");
                 console.log("[Checkout] admin_price:", product.adminPrice);
@@ -2587,34 +2460,17 @@ export async function registerRoutes(httpServer, app) {
             // Handle wallet payments immediately
             if (data.paymentMethod === 'wallet') {
                 console.log("[Checkout] Processing wallet payment for reference:", reference);
-                // Get authenticated user (support both Supabase auth and API keys)
+                // Get authenticated user
                 let dbUser = null;
                 try {
                     const authHeader = req.headers.authorization;
                     if (authHeader && authHeader.startsWith('Bearer ')) {
                         const token = authHeader.substring(7);
-                        // First, check if it's an API key (starts with 'sk_')
-                        if (token.startsWith('sk_')) {
-                            console.log("[Checkout] API key authentication detected");
-                            const apiKey = await storage.getApiKeyByKey(token);
-                            if (apiKey && apiKey.isActive) {
-                                dbUser = await storage.getUser(apiKey.userId);
-                                console.log("[Checkout] User authenticated via API key:", dbUser?.email);
-                            }
-                            else {
-                                console.log("[Checkout] Invalid or inactive API key");
-                            }
-                        }
-                        else {
-                            // Try Supabase authentication
-                            console.log("[Checkout] Supabase token authentication detected");
-                            const supabaseServer = getSupabase();
-                            if (supabaseServer) {
-                                const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-                                if (!error && user && user.email) {
-                                    dbUser = await storage.getUserByEmail(user.email);
-                                    console.log("[Checkout] User authenticated via Supabase:", dbUser?.email);
-                                }
+                        const supabaseServer = getSupabase();
+                        if (supabaseServer) {
+                            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+                            if (!error && user && user.email) {
+                                dbUser = await storage.getUserByEmail(user.email);
                             }
                         }
                     }
@@ -2624,7 +2480,7 @@ export async function registerRoutes(httpServer, app) {
                     return res.status(401).json({ error: "Authentication required for wallet payments" });
                 }
                 if (!dbUser) {
-                    return res.status(401).json({ error: "User not found or invalid API key" });
+                    return res.status(401).json({ error: "User not found" });
                 }
                 // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
                 const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);
@@ -5274,6 +5130,7 @@ export async function registerRoutes(httpServer, app) {
     app.post("/api/admin/announcements", requireAuth, requireAdmin, async (req, res) => {
         try {
             const { title, message, audiences } = req.body;
+            console.log("Received announcement request:", { title, message, audiences });
             if (!title || !message) {
                 return res.status(400).json({ error: "Title and message are required" });
             }
@@ -5282,12 +5139,15 @@ export async function registerRoutes(httpServer, app) {
                 return res.status(404).json({ error: "User not found" });
             }
             const audienceArray = Array.isArray(audiences) && audiences.length > 0 ? audiences : ["all"];
+            console.log("Saving audiences as:", audienceArray, "JSON:", JSON.stringify(audienceArray));
             const announcement = await storage.createAnnouncement({
                 title: title.trim(),
                 message: message.trim(),
+                audiences: JSON.stringify(audienceArray),
                 isActive: true,
                 createdBy: dbUser.name || dbUser.email,
             });
+            console.log("Created announcement:", announcement);
             res.json(announcement);
         }
         catch (error) {
@@ -6442,6 +6302,7 @@ export async function registerRoutes(httpServer, app) {
                 completedAt: transaction.completedAt,
                 phoneNumbers: phoneNumbers, // For bulk orders
                 isBulkOrder: transaction.isBulkOrder,
+                apiResponse: transaction.apiResponse, // Include SkyTech status
             });
         }
         catch (error) {
@@ -7818,20 +7679,236 @@ export async function registerRoutes(httpServer, app) {
             res.status(500).json({ error: error.message || "Failed to get external prices" });
         }
     });
-    app.get("/api/admin/external-order/:ref", requireAuth, requireAdmin, async (req, res) => {
+    // Refresh order status from SkyTech (for any user to track their order)
+    app.get("/api/order-status/:id", async (req, res) => {
         try {
-            const { ref } = req.params;
-            const { providerId } = req.query;
-            const result = await getExternalOrderStatus(ref, providerId);
-            if (result.success) {
-                res.json(result);
+            const { id } = req.params;
+            const transaction = await storage.getTransaction(id);
+            if (!transaction) {
+                return res.status(404).json({ error: "Order not found" });
+            }
+            console.log(`[OrderStatus API] Fetching status for transaction ${transaction.reference}`);
+            // Parse SkyTech reference from API response
+            let skytechRef = null;
+            if (transaction.apiResponse) {
+                try {
+                    const apiResponse = JSON.parse(transaction.apiResponse);
+                    if (apiResponse.results && apiResponse.results.length > 0) {
+                        skytechRef = apiResponse.results[0].ref;
+                    }
+                }
+                catch (e) {
+                    console.warn(`Failed to parse API response for transaction ${id}`);
+                }
+            }
+            if (!skytechRef) {
+                console.log(`[OrderStatus API] No SkyTech ref - returning cached status: ${transaction.deliveryStatus}`);
+                // Return current cached status if no SkyTech reference
+                return res.json({
+                    id: transaction.id,
+                    reference: transaction.reference,
+                    status: transaction.status,
+                    deliveryStatus: transaction.deliveryStatus,
+                    productName: transaction.productName,
+                    amount: transaction.amount,
+                    customerPhone: transaction.customerPhone,
+                    createdAt: transaction.createdAt,
+                    completedAt: transaction.completedAt,
+                    isSkyTechOrder: false,
+                    cached: true
+                });
+            }
+            // Fetch fresh status from SkyTech
+            const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? undefined);
+            if (statusResult.success && statusResult.order) {
+                const orderData = statusResult.order;
+                const skytechStatus = orderData.status?.toLowerCase();
+                console.log(`[OrderStatus API] SkyTech returned status: ${skytechStatus} (raw: ${orderData.status})`);
+                // Map SkyTech status to internal status
+                let newStatus = transaction.status;
+                let newDeliveryStatus = transaction.deliveryStatus;
+                switch (skytechStatus) {
+                    case 'completed':
+                    case 'delivered':
+                    case 'success':
+                        newStatus = TransactionStatus.COMPLETED;
+                        newDeliveryStatus = 'delivered';
+                        console.log(`[OrderStatus API] Mapping to DELIVERED`);
+                        break;
+                    case 'failed':
+                    case 'error':
+                        newStatus = TransactionStatus.FAILED;
+                        newDeliveryStatus = 'failed';
+                        console.log(`[OrderStatus API] Mapping to FAILED`);
+                        break;
+                    case 'processing':
+                        newStatus = TransactionStatus.PENDING;
+                        newDeliveryStatus = 'processing';
+                        console.log(`[OrderStatus API] Mapping to PROCESSING`);
+                        break;
+                    case 'pending':
+                    case 'queued':
+                        newStatus = TransactionStatus.PENDING;
+                        newDeliveryStatus = 'processing';
+                        console.log(`[OrderStatus API] Mapping PENDING/QUEUED to PROCESSING`);
+                        break;
+                }
+                // Update if status changed
+                if (newStatus !== transaction.status || newDeliveryStatus !== transaction.deliveryStatus) {
+                    console.log(`[OrderStatus API] Updating transaction: ${transaction.deliveryStatus} -> ${newDeliveryStatus}`);
+                    await storage.updateTransaction(id, {
+                        status: newStatus,
+                        deliveryStatus: newDeliveryStatus,
+                        completedAt: (newStatus === TransactionStatus.COMPLETED) ? new Date() : transaction.completedAt
+                    });
+                }
+                return res.json({
+                    id: transaction.id,
+                    reference: transaction.reference,
+                    status: newStatus,
+                    deliveryStatus: newDeliveryStatus,
+                    productName: transaction.productName,
+                    amount: transaction.amount,
+                    customerPhone: transaction.customerPhone,
+                    createdAt: transaction.createdAt,
+                    completedAt: transaction.completedAt || (newStatus === TransactionStatus.COMPLETED ? new Date() : null),
+                    isSkyTechOrder: true,
+                    skytechStatus: skytechStatus,
+                    skytechData: orderData
+                });
             }
             else {
-                res.status(500).json({ error: result.error });
+                console.warn(`[OrderStatus API] SkyTech fetch failed: ${statusResult.error}`);
+                // Return cached status if SkyTech fetch failed
+                return res.json({
+                    id: transaction.id,
+                    reference: transaction.reference,
+                    status: transaction.status,
+                    deliveryStatus: transaction.deliveryStatus,
+                    productName: transaction.productName,
+                    amount: transaction.amount,
+                    customerPhone: transaction.customerPhone,
+                    createdAt: transaction.createdAt,
+                    completedAt: transaction.completedAt,
+                    isSkyTechOrder: true,
+                    cached: true,
+                    error: statusResult.error
+                });
             }
         }
         catch (error) {
-            res.status(500).json({ error: error.message || "Failed to get external order status" });
+            res.status(500).json({ error: error.message || "Failed to fetch order status" });
+        }
+    });
+    // Admin endpoint to manually refresh specific order status from SkyTech
+    app.post("/api/admin/refresh-order-status/:id", requireAuth, requireAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const transaction = await storage.getTransaction(id);
+            if (!transaction) {
+                return res.status(404).json({ error: "Order not found" });
+            }
+            console.log(`[AdminRefresh] Refreshing order status for transaction ${transaction.reference}`);
+            // Parse SkyTech reference
+            let skytechRef = null;
+            if (transaction.apiResponse) {
+                try {
+                    const apiResponse = JSON.parse(transaction.apiResponse);
+                    if (apiResponse.results && apiResponse.results.length > 0) {
+                        skytechRef = apiResponse.results[0].ref;
+                    }
+                }
+                catch (e) {
+                    console.warn(`[AdminRefresh] Failed to parse API response for transaction ${id}`);
+                }
+            }
+            if (!skytechRef) {
+                return res.status(400).json({ error: "No SkyTech reference found for this order" });
+            }
+            console.log(`[AdminRefresh] Fetching SkyTech status for ref: ${skytechRef}`);
+            // Fetch from SkyTech
+            const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? undefined);
+            if (statusResult.success && statusResult.order) {
+                const orderData = statusResult.order;
+                const skytechStatus = orderData.status?.toLowerCase();
+                console.log(`[AdminRefresh] SkyTech returned: ${skytechStatus} (raw: ${orderData.status})`);
+                // Map status
+                let newStatus = transaction.status;
+                let newDeliveryStatus = transaction.deliveryStatus;
+                let completedAt = transaction.completedAt;
+                switch (skytechStatus) {
+                    case 'completed':
+                    case 'delivered':
+                    case 'success':
+                        newStatus = TransactionStatus.COMPLETED;
+                        newDeliveryStatus = 'delivered';
+                        if (!completedAt)
+                            completedAt = new Date();
+                        console.log(`[AdminRefresh] Mapping to DELIVERED`);
+                        break;
+                    case 'failed':
+                    case 'error':
+                        newStatus = TransactionStatus.FAILED;
+                        newDeliveryStatus = 'failed';
+                        if (!completedAt)
+                            completedAt = new Date();
+                        console.log(`[AdminRefresh] Mapping to FAILED`);
+                        break;
+                    case 'processing':
+                        newStatus = TransactionStatus.PENDING;
+                        newDeliveryStatus = 'processing';
+                        console.log(`[AdminRefresh] Mapping to PROCESSING`);
+                        break;
+                    case 'pending':
+                    case 'queued':
+                        newStatus = TransactionStatus.PENDING;
+                        newDeliveryStatus = 'processing';
+                        console.log(`[AdminRefresh] Mapping PENDING/QUEUED to PROCESSING`);
+                        break;
+                }
+                // Update transaction
+                console.log(`[AdminRefresh] Updating transaction: ${transaction.deliveryStatus} -> ${newDeliveryStatus}`);
+                await storage.updateTransaction(id, {
+                    status: newStatus,
+                    deliveryStatus: newDeliveryStatus,
+                    completedAt
+                });
+                return res.json({
+                    success: true,
+                    message: `Order status updated to ${skytechStatus}`,
+                    transaction: {
+                        id: transaction.id,
+                        reference: transaction.reference,
+                        status: newStatus,
+                        deliveryStatus: newDeliveryStatus,
+                        skytechStatus: skytechStatus
+                    }
+                });
+            }
+            else {
+                console.error(`[AdminRefresh] SkyTech fetch failed: ${statusResult.error}`);
+                return res.status(500).json({ error: statusResult.error || "Failed to fetch SkyTech status" });
+            }
+        }
+        catch (error) {
+            console.error(`[AdminRefresh] Error: ${error.message}`);
+            res.status(500).json({ error: error.message || "Failed to refresh order status" });
+        }
+    });
+    // User endpoint to get their own orders with live status
+    app.get("/api/my-orders", requireAuth, async (req, res) => {
+        try {
+            const user = req.user;
+            const customerOrders = await db
+                .select()
+                .from(transactions)
+                .where(eq(transactions.customerEmail, user.email))
+                .orderBy(desc(transactions.createdAt))
+                .limit(50);
+            res.json(customerOrders);
+        }
+        catch (error) {
+            res.status(500).json({ error: error.message || "Failed to fetch orders" });
         }
     });
     // External API Providers management routes
@@ -8345,17 +8422,20 @@ export async function registerRoutes(httpServer, app) {
                                 // SkyTech confirmed delivery completed
                                 newStatus = TransactionStatus.COMPLETED;
                                 newDeliveryStatus = 'delivered';
+                                console.log(`[Cron] ✅ Mapping to DELIVERED for transaction ${transaction.id}`);
                                 break;
                             case 'failed':
                             case 'error':
                                 // SkyTech reported failure
                                 newStatus = TransactionStatus.FAILED;
                                 newDeliveryStatus = 'failed';
+                                console.log(`[Cron] ❌ Mapping to FAILED for transaction ${transaction.id}`);
                                 break;
                             case 'processing':
                                 // SkyTech is actively processing the order
                                 newStatus = TransactionStatus.PENDING;
                                 newDeliveryStatus = 'processing';
+                                console.log(`[Cron] 🔄 Mapping to PROCESSING for transaction ${transaction.id}`);
                                 break;
                             case 'pending':
                             case 'queued':
@@ -8363,9 +8443,10 @@ export async function registerRoutes(httpServer, app) {
                                 // This means it's been accepted by provider and is in their queue
                                 newStatus = TransactionStatus.PENDING;
                                 newDeliveryStatus = 'processing';
+                                console.log(`[Cron] 🔄 Mapping PENDING/QUEUED to PROCESSING for transaction ${transaction.id}`);
                                 break;
                             default:
-                                console.log(`[Cron] Unknown SkyTech status: ${orderData.status}`);
+                                console.log(`[Cron] ⚠️ Unknown SkyTech status for transaction ${transaction.id}: ${orderData.status}`);
                                 break;
                         }
                         // Update transaction if status changed

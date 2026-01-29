@@ -1023,9 +1023,6 @@ X-Webhook-Signature: [base64_signature]
 {`app.post('/api/webhook', express.json(), (req, res) => {
   const { event, reference, status, deliveryStatus, order, products } = req.body;
   
-  console.log(\`Webhook received: \${event}\`);
-  console.log(\`Order \${reference}: status=\${status}, delivery=\${deliveryStatus}\`);
-  
   // Verify webhook signature (recommended for production)
   const signature = req.headers['x-webhook-signature'];
   // if (!verifySignature(req.body, signature)) {
@@ -1174,7 +1171,6 @@ async function getBundleOffers(network = 'MTN') {
   );
   
   const bundles = await response.json();
-  console.log('Available offers:', bundles);
   return bundles;
 }
 
@@ -1212,13 +1208,10 @@ getBundleOffers('MTN');`}
   );
   
   if (!response.ok) {
-    console.error('Store not found:', slug);
     return null;
   }
   
   const store = await response.json();
-  console.log('Store:', store.agent.businessName);
-  console.log('Bundles:', store.bundles);
   return store;
 }
 
@@ -1253,15 +1246,10 @@ getAgentStore('john-data-store');`}
   const result = await response.json();
   
   if (result.paymentUrl) {
-    console.log('Order created!');
-    console.log('Reference:', result.transaction.reference);
-    console.log('Amount:', result.transaction.amount);
-    console.log('Redirect to:', result.paymentUrl);
     // Redirect user to complete payment
     window.location.href = result.paymentUrl;
     return result;
   } else {
-    console.error('Order failed:', result.error);
     throw new Error(result.error);
   }
 }
@@ -1300,15 +1288,10 @@ createOrder('2GB', 'at_bigtime', '0261234567');`, 'js3')}
   const result = await response.json();
   
   if (result.paymentUrl) {
-    console.log('Order created!');
-    console.log('Reference:', result.transaction.reference);
-    console.log('Amount:', result.transaction.amount);
-    console.log('Redirect to:', result.paymentUrl);
     // Redirect user to complete payment
     window.location.href = result.paymentUrl;
     return result;
   } else {
-    console.error('Order failed:', result.error);
     throw new Error(result.error);
   }
 }
@@ -1362,14 +1345,9 @@ createOrder('2GB', 'at_bigtime', '0261234567');`}
   const result = await response.json();
   
   if (result.paymentUrl) {
-    console.log(\`Bulk order created: \${orders.length} bundles\`);
-    console.log('Reference:', result.transaction.reference);
-    console.log('Total:', result.debug.totalAmount);
-    console.log('Recipients:', result.debug.numberOfRecipients);
     window.location.href = result.paymentUrl;
     return result;
   } else {
-    console.error('Bulk order failed:', result.error);
     throw new Error(result.error);
   }
 }
@@ -1415,17 +1393,6 @@ createBulkOrder(bulkOrders, 'mtn', 'john-data-store');`}
   );
   
   const result = await response.json();
-  
-  if (result.status === 'success') {
-    console.log('✅ Order completed!');
-    console.log('Products delivered:', result.products);
-    return result;
-  } else if (result.status === 'pending') {
-    console.log('⏳ Payment processing...');
-  } else {
-    console.error('❌ Order failed');
-  }
-  
   return result;
 }
 
@@ -1445,64 +1412,65 @@ verifyOrder('CLEC-ABC123');`}
 
 // MTN Network (Single & Bulk Supported)
 const mtnSingle = {
-  productId: '123',
+  volume: '1GB',
+  network: 'mtn',
   productType: 'data_bundle',
   customerPhone: '0241234567',
-  amount: 5.00
+  paymentMethod: 'wallet'
 };
 
 const mtnBulk = {
-  orderItems: [
-    { bundleId: '123', phone: '0241234567', bundleName: 'MTN 1GB' },
-    { bundleId: '124', phone: '0254567890', bundleName: 'MTN 5GB' }
-  ],
-  productType: 'data_bundle',
+  volume: '1GB',
   network: 'mtn',
+  productType: 'data_bundle',
+  customerPhones: ['0241234567', '0254567890'],
+  paymentMethod: 'wallet',
   isBulkOrder: true
 };
 
 // Telecel Network (Single & Bulk Supported)
 const telecelSingle = {
-  productId: '456',
+  volume: '2GB',
+  network: 'telecel',
   productType: 'data_bundle',
   customerPhone: '0201234567',
-  amount: 4.50
+  paymentMethod: 'wallet'
 };
 
 const telecelBulk = {
-  orderItems: [
-    { bundleId: '456', phone: '0201234567', bundleName: 'Telecel 2GB' },
-    { bundleId: '457', phone: '0501234567', bundleName: 'Telecel 10GB' }
-  ],
-  productType: 'data_bundle',
+  volume: '2GB',
   network: 'telecel',
+  productType: 'data_bundle',
+  customerPhones: ['0201234567', '0501234567'],
+  paymentMethod: 'wallet',
   isBulkOrder: true
 };
 
 // AT Bigtime Network (Single & Bulk Supported)
 const atBigtimeSingle = {
-  productId: '789',
+  volume: '1.5GB',
+  network: 'at_bigtime',
   productType: 'data_bundle',
   customerPhone: '0261234567',
-  amount: 6.00
+  paymentMethod: 'wallet'
 };
 
 const atBigtimeBulk = {
-  orderItems: [
-    { bundleId: '789', phone: '0261234567', bundleName: 'AT Bigtime 1.5GB' },
-    { bundleId: '790', phone: '0271234567', bundleName: 'AT Bigtime 3GB' }
-  ],
-  productType: 'data_bundle',
+  volume: '1.5GB',
   network: 'at_bigtime',
+  productType: 'data_bundle',
+  customerPhones: ['0261234567', '0271234567'],
+  paymentMethod: 'wallet',
   isBulkOrder: true
 };
 
 // AT iShare Network (ONLY Single Supported - NO BULK)
 const atIshareSingle = {
-  productId: '999',
+  volume: '1GB',
+  network: 'at_ishare',
   productType: 'data_bundle',
   customerPhone: '0561234567',
-  amount: 3.50
+  paymentMethod: 'wallet'
 };
 
 // ❌ AT iShare Bulk NOT SUPPORTED - Will return error
@@ -1514,17 +1482,17 @@ const atIshareBulk = {
   isBulkOrder: true
 };
 
-// Usage examples for all networks
-await createSingleOrder('123', '0241234567', 'agent-slug', 5.00);    // MTN
-await createSingleOrder('456', '0201234567', 'agent-slug', 4.50);    // Telecel
-await createSingleOrder('789', '0261234567', 'agent-slug', 6.00);    // AT Bigtime
-await createSingleOrder('999', '0561234567', 'agent-slug', 3.50);    // AT iShare
+// Usage examples for all networks - using volume + network
+await createOrder('1GB', 'mtn', '0241234567', 'agent-slug');        // MTN
+await createOrder('2GB', 'telecel', '0201234567', 'agent-slug');    // Telecel
+await createOrder('1.5GB', 'at_bigtime', '0261234567', 'agent-slug'); // AT Bigtime
+await createOrder('1GB', 'at_ishare', '0561234567', 'agent-slug');  // AT iShare
 
-// Bulk orders (NOT for at_ishare)
-await createBulkOrder(mtnOrders, 'agent-slug', 'mtn');           // ✅ Works
-await createBulkOrder(telecelOrders, 'agent-slug', 'telecel');   // ✅ Works
-await createBulkOrder(atBigOrders, 'agent-slug', 'at_bigtime');  // ✅ Works
-// await createBulkOrder(orders, 'agent-slug', 'at_ishare');     // ❌ Will fail`}
+// Bulk orders (NOT for at_ishare) - using volume + network
+await createBulkOrder('1GB', 'mtn', ['0241234567', '0254567890'], 'agent-slug');      // ✅ Works
+await createBulkOrder('2GB', 'telecel', ['0201234567', '0501234567'], 'agent-slug'); // ✅ Works
+await createBulkOrder('1.5GB', 'at_bigtime', ['0261234567', '0271234567'], 'agent-slug'); // ✅ Works
+// await createBulkOrder('1GB', 'at_ishare', [...phones], 'agent-slug');  // ❌ Will fail`}
                             </pre>
                           </div>
                         </div>
@@ -1569,18 +1537,17 @@ def get_bundles(network='mtn'):
         headers=headers
     )
     bundles = response.json()
-    for b in bundles:
-        print(f"{b['network']} {b['volume']} - GHS {b['price']}")
     return bundles
 
-def create_single_order(bundle_id, phone, agent_slug, amount):
-    """Create single order"""
+def create_single_order(volume, network, phone, agent_slug):
+    """Create single order using volume + network"""
     payload = {
-        'productId': str(bundle_id),
+        'volume': volume,
+        'network': network,
         'productType': 'data_bundle',
         'customerPhone': phone,
         'agentSlug': agent_slug,
-        'amount': amount
+        'paymentMethod': 'wallet'
     }
     
     response = requests.post(
@@ -1591,14 +1558,13 @@ def create_single_order(bundle_id, phone, agent_slug, amount):
     
     result = response.json()
     if response.status_code == 200:
-        print(f"✅ Order: {result['reference']}")
         return result
     else:
-        print(f"❌ Error: {result.get('error')}")
+        raise Exception(result.get('error'))
 
 # Usage
 bundles = get_bundles('mtn')
-create_single_order('123', '0241234567', 'john-data-store', 5.00)`}
+create_single_order('1GB', 'mtn', '0241234567', 'john-data-store')`}
                             </pre>
                           </div>
                         </div>
@@ -1620,22 +1586,15 @@ create_single_order('123', '0241234567', 'john-data-store', 5.00)`}
                           </div>
                           <div className="bg-black rounded-lg overflow-x-auto">
                             <pre className="p-4 text-sm text-green-400">
-{`def create_bulk_order(orders, agent_slug, network):
-    """Create bulk order for multiple recipients"""
-    order_items = [
-        {
-            'bundleId': str(order['bundleId']),
-            'phone': order['phone'],
-            'bundleName': order['bundleName']
-        }
-        for order in orders
-    ]
-    
+{`def create_bulk_order(volume, network, phones, agent_slug):
+    """Create bulk order for multiple recipients using volume + network"""
     payload = {
-        'orderItems': order_items,
-        'productType': 'data_bundle',
+        'volume': volume,
         'network': network,
+        'productType': 'data_bundle',
+        'customerPhones': phones,
         'agentSlug': agent_slug,
+        'paymentMethod': 'wallet',
         'isBulkOrder': True
     }
     
@@ -1647,21 +1606,14 @@ create_single_order('123', '0241234567', 'john-data-store', 5.00)`}
     
     result = response.json()
     if response.status_code == 200:
-        print(f"✅ Bulk order: {len(order_items)} bundles")
-        print(f"Total: GHS {result['totalAmount']}")
-        print(f"Reference: {result['reference']}")
         return result
     else:
-        print(f"❌ Error: {result.get('error')}")
+        raise Exception(result.get('error'))
 
-# Buy 3 MTN bundles for 3 different phones
-bulk_orders = [
-    {'bundleId': '123', 'phone': '0241234567', 'bundleName': 'MTN 1GB Daily'},
-    {'bundleId': '124', 'phone': '0207654321', 'bundleName': 'MTN 2GB Weekly'},
-    {'bundleId': '125', 'phone': '0551122334', 'bundleName': 'MTN 5GB Monthly'}
-]
+# Buy 1GB MTN bundle for 3 different phones
+bulk_phones = ['0241234567', '0207654321', '0551122334']
 
-create_bulk_order(bulk_orders, 'john-data-store', 'mtn')`}
+create_bulk_order('1GB', 'mtn', bulk_phones, 'john-data-store')`}
                             </pre>
                           </div>
                         </div>
@@ -1676,49 +1628,33 @@ create_bulk_order(bulk_orders, 'john-data-store', 'mtn')`}
 # ============================================
 
 # MTN Network (Single & Bulk)
-mtn_single = create_single_order('123', '0241234567', 'agent-slug', 5.00)
+mtn_single = create_single_order('1GB', 'mtn', '0241234567', 'agent-slug')
 
-mtn_bulk = [
-    {'bundleId': '123', 'phone': '0241234567', 'bundleName': 'MTN 1GB'},
-    {'bundleId': '124', 'phone': '0254567890', 'bundleName': 'MTN 5GB'}
-]
-create_bulk_order(mtn_bulk, 'agent-slug', 'mtn')
+mtn_bulk_phones = ['0241234567', '0254567890']
+create_bulk_order('1GB', 'mtn', mtn_bulk_phones, 'agent-slug')
 
 # Telecel Network (Single & Bulk)
-telecel_single = create_single_order('456', '0201234567', 'agent-slug', 4.50)
+telecel_single = create_single_order('2GB', 'telecel', '0201234567', 'agent-slug')
 
-telecel_bulk = [
-    {'bundleId': '456', 'phone': '0201234567', 'bundleName': 'Telecel 2GB'},
-    {'bundleId': '457', 'phone': '0501234567', 'bundleName': 'Telecel 10GB'}
-]
-create_bulk_order(telecel_bulk, 'agent-slug', 'telecel')
+telecel_bulk_phones = ['0201234567', '0501234567']
+create_bulk_order('2GB', 'telecel', telecel_bulk_phones, 'agent-slug')
 
 # AT Bigtime Network (Single & Bulk)
-at_bigtime_single = create_single_order('789', '0261234567', 'agent-slug', 6.00)
+at_bigtime_single = create_single_order('1.5GB', 'at_bigtime', '0261234567', 'agent-slug')
 
-at_bigtime_bulk = [
-    {'bundleId': '789', 'phone': '0261234567', 'bundleName': 'AT Bigtime 1.5GB'},
-    {'bundleId': '790', 'phone': '0271234567', 'bundleName': 'AT Bigtime 3GB'}
-]
-create_bulk_order(at_bigtime_bulk, 'agent-slug', 'at_bigtime')
+at_bigtime_bulk_phones = ['0261234567', '0271234567']
+create_bulk_order('1.5GB', 'at_bigtime', at_bigtime_bulk_phones, 'agent-slug')
 
 # AT iShare Network (ONLY Single - NO BULK)
-at_ishare_single = create_single_order('999', '0561234567', 'agent-slug', 3.50)
+at_ishare_single = create_single_order('1GB', 'at_ishare', '0561234567', 'agent-slug')
 
 # ❌ AT iShare Bulk NOT SUPPORTED
-# create_bulk_order(orders, 'agent-slug', 'at_ishare')  # This will fail!
-
-# Summary of usage
-print("Single orders for all networks:")
-get_bundles('mtn')      # Browse MTN offers
-get_bundles('telecel')  # Browse Telecel offers
-get_bundles('at_bigtime')  # Browse AT Bigtime offers
-get_bundles('at_ishare')   # Browse AT iShare offers
+# create_bulk_order('1GB', 'at_ishare', [...phones], 'agent-slug')  # This will fail!
 
 # Bulk orders (MTN, Telecel, AT Bigtime only)
-create_bulk_order(mtn_bulk, 'agent-slug', 'mtn')         # ✅ Works
-create_bulk_order(telecel_bulk, 'agent-slug', 'telecel') # ✅ Works
-create_bulk_order(at_big_bulk, 'agent-slug', 'at_bigtime')  # ✅ Works`}
+create_bulk_order('1GB', 'mtn', mtn_bulk_phones, 'agent-slug')         # ✅ Works
+create_bulk_order('2GB', 'telecel', telecel_bulk_phones, 'agent-slug') # ✅ Works
+create_bulk_order('1.5GB', 'at_bigtime', at_bigtime_bulk_phones, 'agent-slug')  # ✅ Works`}
                             </pre>
                           </div>
                         </div>
@@ -1753,51 +1689,42 @@ create_bulk_order(at_big_bulk, 'agent-slug', 'at_bigtime')  # ✅ Works`}
                         </div>
 
                         <div>
-                          <h4 className="font-medium mb-2">Single Order</h4>
+                          <h4 className="font-medium mb-2">Single Order (Volume + Network)</h4>
                           <div className="bg-black rounded-lg overflow-x-auto">
                             <pre className="p-4 text-sm text-green-400">
 {`curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "productId": "123",
+    "volume": "1GB",
+    "network": "mtn",
     "productType": "data_bundle",
     "customerPhone": "0241234567",
     "agentSlug": "john-data-store",
-    "amount": 5.00
+    "paymentMethod": "wallet"
   }'`}
                             </pre>
                           </div>
                         </div>
 
                         <div>
-                          <h4 className="font-medium mb-2">Bulk Order</h4>
+                          <h4 className="font-medium mb-2">Bulk Order (Volume + Network)</h4>
                           <div className="bg-black rounded-lg overflow-x-auto">
                             <pre className="p-4 text-sm text-green-400">
 {`curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "orderItems": [
-      {
-        "bundleId": "123",
-        "phone": "0241234567",
-        "bundleName": "MTN 1GB Daily"
-      },
-      {
-        "bundleId": "124",
-        "phone": "0207654321",
-        "bundleName": "MTN 2GB Weekly"
-      },
-      {
-        "bundleId": "125",
-        "phone": "0551122334",
-        "bundleName": "MTN 5GB Monthly"
-      }
-    ],
-    "productType": "data_bundle",
+    "volume": "1GB",
     "network": "mtn",
+    "productType": "data_bundle",
+    "customerPhones": [
+      "0241234567",
+      "0207654321",
+      "0551122334"
+    ],
     "agentSlug": "john-data-store",
+    "paymentMethod": "wallet",
     "isBulkOrder": true
   }'`}
                             </pre>
@@ -1818,10 +1745,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "productId": "123",
+    "volume": "1GB",
+    "network": "mtn",
     "productType": "data_bundle",
     "customerPhone": "0241234567",
-    "amount": 5.00
+    "paymentMethod": "wallet"
   }'
 
 # MTN Bulk Order
@@ -1829,12 +1757,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "orderItems": [
-      {"bundleId": "123", "phone": "0241234567", "bundleName": "MTN 1GB"},
-      {"bundleId": "124", "phone": "0254567890", "bundleName": "MTN 5GB"}
-    ],
-    "productType": "data_bundle",
+    "volume": "1GB",
     "network": "mtn",
+    "productType": "data_bundle",
+    "customerPhones": ["0241234567", "0254567890"],
+    "paymentMethod": "wallet",
     "isBulkOrder": true
   }'`}
                               </pre>
@@ -1851,10 +1778,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "productId": "456",
+    "volume": "2GB",
+    "network": "telecel",
     "productType": "data_bundle",
     "customerPhone": "0201234567",
-    "amount": 4.50
+    "paymentMethod": "wallet"
   }'
 
 # Telecel Bulk Order
@@ -1862,12 +1790,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "orderItems": [
-      {"bundleId": "456", "phone": "0201234567", "bundleName": "Telecel 2GB"},
-      {"bundleId": "457", "phone": "0501234567", "bundleName": "Telecel 10GB"}
-    ],
-    "productType": "data_bundle",
+    "volume": "2GB",
     "network": "telecel",
+    "productType": "data_bundle",
+    "customerPhones": ["0201234567", "0501234567"],
+    "paymentMethod": "wallet",
     "isBulkOrder": true
   }'`}
                               </pre>
@@ -1884,10 +1811,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "productId": "789",
+    "volume": "1.5GB",
+    "network": "at_bigtime",
     "productType": "data_bundle",
     "customerPhone": "0261234567",
-    "amount": 6.00
+    "paymentMethod": "wallet"
   }'
 
 # AT Bigtime Bulk Order
@@ -1895,12 +1823,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "orderItems": [
-      {"bundleId": "789", "phone": "0261234567", "bundleName": "AT Bigtime 1.5GB"},
-      {"bundleId": "790", "phone": "0271234567", "bundleName": "AT Bigtime 3GB"}
-    ],
-    "productType": "data_bundle",
+    "volume": "1.5GB",
     "network": "at_bigtime",
+    "productType": "data_bundle",
+    "customerPhones": ["0261234567", "0271234567"],
+    "paymentMethod": "wallet",
     "isBulkOrder": true
   }'`}
                               </pre>
@@ -1917,10 +1844,11 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "productId": "999",
+    "volume": "1GB",
+    "network": "at_ishare",
     "productType": "data_bundle",
     "customerPhone": "0561234567",
-    "amount": 3.50
+    "paymentMethod": "wallet"
   }'
 
 # AT iShare Bulk Order (❌ NOT SUPPORTED - Will Fail)
@@ -1928,8 +1856,9 @@ curl -X POST "${baseUrl}/api/checkout/initialize" \\
   -H "Authorization: Bearer sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "orderItems": [...],
+    "volume": "1GB",
     "network": "at_ishare",
+    "customerPhones": [...],
     "isBulkOrder": true
   }'
 # Error response:

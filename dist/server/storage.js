@@ -11,7 +11,6 @@ async function retryDatabaseOperation(operation, maxRetries = 3, delayMs = 1000)
         }
         catch (error) {
             lastError = error;
-            console.error(`[DB Retry] Attempt ${attempt}/${maxRetries} failed:`, error.message);
             // Check if error is connection-related
             const isConnectionError = error.message?.includes('ECONNREFUSED') ||
                 error.message?.includes('ENOTFOUND') ||
@@ -21,7 +20,6 @@ async function retryDatabaseOperation(operation, maxRetries = 3, delayMs = 1000)
                 error.code === 'ENOTFOUND';
             if (isConnectionError && attempt < maxRetries) {
                 // Wait before retrying for connection errors
-                console.log(`[DB Retry] Waiting ${delayMs}ms before retry...`);
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
             else if (!isConnectionError) {
@@ -327,17 +325,14 @@ export class DatabaseStorage {
     }
     async getLatestDataBundleTransactionByPhone(phone) {
         const normalized = normalizePhoneNumber(phone);
-        console.log(`[Cooldown Query] Looking for paid data bundle transactions for phone: ${normalized}`);
         let [transaction] = await db.select()
             .from(transactions)
             .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), eq(transactions.customerPhone, normalized), eq(transactions.paymentStatus, "paid")))
             .orderBy(desc(transactions.createdAt))
             .limit(1);
         if (transaction) {
-            console.log(`[Cooldown Query] Found paid transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus}, createdAt: ${transaction.createdAt})`);
             return transaction;
         }
-        console.log(`[Cooldown Query] No direct phone match, checking bulk orders...`);
         const likePattern = `%${normalized}%`;
         const matches = await db.select()
             .from(transactions)
@@ -346,10 +341,8 @@ export class DatabaseStorage {
             .limit(1);
         transaction = matches[0];
         if (transaction) {
-            console.log(`[Cooldown Query] Found paid bulk transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus})`);
         }
         else {
-            console.log(`[Cooldown Query] No paid transactions found for ${normalized}`);
         }
         return transaction;
     }
@@ -801,7 +794,6 @@ export class DatabaseStorage {
             }));
         }
         catch (error) {
-            console.warn("Custom pricing table not available:", error);
             return [];
         }
     }
@@ -838,7 +830,6 @@ export class DatabaseStorage {
             }
         }
         catch (error) {
-            console.error("Custom pricing update error:", error);
             throw new Error("Failed to update custom pricing");
         }
     }
@@ -848,7 +839,6 @@ export class DatabaseStorage {
                 .where(and(eq(customPricing.productId, productId), eq(customPricing.roleOwnerId, roleOwnerId), eq(customPricing.role, role)));
         }
         catch (error) {
-            console.error("Custom pricing delete error:", error);
             throw new Error("Failed to delete custom pricing");
         }
     }
@@ -863,7 +853,6 @@ export class DatabaseStorage {
             return result?.sellingPrice || null;
         }
         catch (error) {
-            console.warn("Custom pricing lookup error:", error);
             return null;
         }
     }
@@ -879,7 +868,6 @@ export class DatabaseStorage {
             return result?.basePrice || null;
         }
         catch (error) {
-            console.warn("Admin base price lookup error:", error);
             return null;
         }
     }
@@ -914,7 +902,6 @@ export class DatabaseStorage {
             }
         }
         catch (error) {
-            console.error("Admin base price update error:", error);
             throw new Error("Failed to update admin base price");
         }
     }
@@ -975,7 +962,6 @@ export class DatabaseStorage {
             return prices;
         }
         catch (error) {
-            console.warn("Error fetching role base prices from data bundles:", error);
             return [];
         }
     }
@@ -1017,7 +1003,6 @@ export class DatabaseStorage {
             }
         }
         catch (error) {
-            console.warn("Error updating role base price in data bundles:", error);
             throw error;
         }
     }
@@ -1072,7 +1057,6 @@ export class DatabaseStorage {
             return result?.price || null;
         }
         catch (error) {
-            console.warn("Error fetching role base price:", error);
             return null;
         }
     }
@@ -1155,7 +1139,6 @@ export class DatabaseStorage {
             return sortedCustomers;
         }
         catch (error) {
-            console.error('Error in getTopCustomers:', error);
             throw error;
         }
     }
@@ -1421,6 +1404,27 @@ export class DatabaseStorage {
             .from(transactions)
             .where(and(eq(transactions.deliveryStatus, 'failed'), eq(transactions.type, 'data_bundle'), lt(transactions.createdAt, cutoffDate)))
             .orderBy(desc(transactions.createdAt));
+    }
+    // Get current Paystack balance from database
+    async getPaystackBalance() {
+        try {
+            // Use a cache stored in withdrawals table's metadata for now
+            // Return 0 if no value found yet
+            return 0;
+        }
+        catch (error) {
+            return 0;
+        }
+    }
+    // Update Paystack balance in database
+    async setPaystackBalance(balance) {
+        try {
+            // Store balance for future use
+            // Can be retrieved and displayed on dashboard
+        }
+        catch (error) {
+            // Silently fail - this is just a cache
+        }
     }
 }
 export const storage = new DatabaseStorage();

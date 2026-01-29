@@ -74,6 +74,7 @@ function parseMessageWithLinks(text: string) {
 export function AnnouncementPopup() {
   const { user } = useAuth();
   const [pathname] = useLocation();
+  const isStorefrontView = pathname?.startsWith("/store/") ?? false;
   const [isOpen, setIsOpen] = useState(false);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<string[]>([]);
 
@@ -88,14 +89,13 @@ export function AnnouncementPopup() {
   const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ['announcements'],
     queryFn: () => apiRequest('GET', '/api/announcements/active'),
-    enabled: true,
+    enabled: !isStorefrontView,
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
     refetchOnWindowFocus: false, // Don't refetch on tab focus
   });
 
   // Filter announcements based on user audience
   const getFilteredAnnouncements = (announcements: Announcement[]) => {
-    const isStorefrontView = pathname?.startsWith("/store/") ?? false;
     const userRole = user?.role?.toLowerCase();
     const isLoggedIn = !!user;
 
@@ -173,6 +173,7 @@ export function AnnouncementPopup() {
     setIsOpen(false);
   };
 
+  if (isStorefrontView) return null;
   if (!isOpen || filteredAnnouncements.length === 0) return null;
 
   // Show only undismissed announcements

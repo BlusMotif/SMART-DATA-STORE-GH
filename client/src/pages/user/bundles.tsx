@@ -299,13 +299,7 @@ export default function UserBundlesPage() {
   };
 
   const handleBulkPurchase = () => {
-    console.log("[DEBUG] handleBulkPurchase called");
-    console.log("[DEBUG] bulkPhoneNumbers:", bulkPhoneNumbers);
-    console.log("[DEBUG] bulkPaymentMethod:", bulkPaymentMethod);
-    console.log("[DEBUG] bundles:", bundles);
-    
     if (!bulkPhoneNumbers.trim()) {
-      console.log("[DEBUG] No phone numbers entered");
       toast({
         title: "Missing Information",
         description: "Please enter phone numbers with GB amounts",
@@ -338,14 +332,12 @@ export default function UserBundlesPage() {
     // Parse phone numbers with GB amounts
     // Format: "0546591622 1" or "233546591622 2"
     const lines = bulkPhoneNumbers.split('\n').filter(line => line.trim());
-    console.log("[DEBUG] Parsed lines:", lines);
     
     const parsedData: Array<{ phone: string; gb: number }> = [];
     
     for (const line of lines) {
       const parts = line.trim().split(/\s+/);
       if (parts.length !== 2) {
-        console.log("[DEBUG] Invalid format for line:", line);
         toast({
           title: "❌ Invalid Format",
           description: `Line "${line}" must have format: phone_number GB_amount (e.g., "0241234567 2")`,
@@ -359,7 +351,6 @@ export default function UserBundlesPage() {
       const gbAmount = parseFloat(parts[1]);
 
       if (isNaN(gbAmount) || gbAmount <= 0) {
-        console.log("[DEBUG] Invalid GB amount:", parts[1]);
         toast({
           title: "❌ Invalid GB Amount",
           description: `GB amount "${parts[1]}" must be a positive number`,
@@ -379,12 +370,10 @@ export default function UserBundlesPage() {
 
       // Normalize the phone number
       const normalizedPhone = normalizePhoneNumber(phoneStr);
-      console.log("[DEBUG] Normalized phone:", normalizedPhone, "from:", phoneStr);
 
       // Validate phone number for the selected network
       const validation = validatePhoneNetwork(normalizedPhone, network);
       if (!validation.isValid) {
-        console.log("[DEBUG] Phone validation failed:", validation);
         const prefixes = getNetworkPrefixes(network);
         toast({
           title: "❌ Phone Number Mismatch",
@@ -398,10 +387,7 @@ export default function UserBundlesPage() {
       parsedData.push({ phone: normalizedPhone, gb: gbAmount });
     }
 
-    console.log("[DEBUG] Parsed data:", parsedData);
-
     if (parsedData.length === 0) {
-      console.log("[DEBUG] No valid data parsed");
       toast({
         title: "No Data",
         description: "Please enter at least one phone number with GB amount",
@@ -415,7 +401,6 @@ export default function UserBundlesPage() {
     let totalAmount = 0;
 
     for (const item of parsedData) {
-      console.log("[DEBUG] Finding bundle for GB:", item.gb);
       // Find a bundle that matches the GB amount (looking for bundles with the GB in dataAmount)
       const matchingBundle = bundles?.find(b => {
         const dataAmount = b.dataAmount || b.name; // Fall back to name if dataAmount doesn't exist
@@ -430,7 +415,6 @@ export default function UserBundlesPage() {
       });
 
       if (!matchingBundle) {
-        console.log("[DEBUG] No matching bundle found for GB:", item.gb);
         toast({
           title: "❌ Bundle Not Found",
           description: `No ${item.gb}GB bundle available for ${networkInfo?.name}. Please check available bundles.`,
@@ -440,7 +424,6 @@ export default function UserBundlesPage() {
         return;
       }
 
-      console.log("[DEBUG] Found matching bundle:", matchingBundle.name);
       orderItems.push({
         phone: item.phone,
         bundleId: matchingBundle.id,
@@ -450,9 +433,6 @@ export default function UserBundlesPage() {
 
       totalAmount += parseFloat(matchingBundle.effective_price);
     }
-
-    console.log("[DEBUG] Order items:", orderItems);
-    console.log("[DEBUG] Total amount:", totalAmount);
 
     // Bulk orders can use wallet or Paystack
     const payload = {

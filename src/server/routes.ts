@@ -67,7 +67,6 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
           return res.status(401).json({ error: 'Invalid token' });
         }
       } catch (jwtError) {
-        console.error('JWT processing error:', jwtError);
         return res.status(401).json({ error: 'Invalid token' });
       }
     } else {
@@ -101,7 +100,6 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
           isActive: true,
         });
       } catch (creationError) {
-        console.error('Failed to auto-create user during requireAuth:', creationError);
       }
     }
 
@@ -112,7 +110,6 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
     req.user = dbUser;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 }
@@ -206,7 +203,6 @@ const requireAuthJWT = async (req: Request, res: Response, next: NextFunction) =
           return res.status(401).json({ error: "Unauthorized" });
         }
       } catch (jwtError) {
-        console.error('JWT processing error:', jwtError);
         return res.status(401).json({ error: "Unauthorized" });
       }
     } else {
@@ -240,7 +236,6 @@ const requireAuthJWT = async (req: Request, res: Response, next: NextFunction) =
           isActive: true,
         });
       } catch (creationError) {
-        console.error('Failed to auto-create user during requireAuthJWT:', creationError);
       }
     }
 
@@ -251,7 +246,6 @@ const requireAuthJWT = async (req: Request, res: Response, next: NextFunction) =
     req.user = dbUser;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
     res.status(401).json({ error: "Unauthorized" });
   }
 };
@@ -264,12 +258,10 @@ const requireAdminJWT = async (req: Request, res: Response, next: NextFunction) 
     }
     // Check role from req.user (already set by requireAuth middleware)
     if (req.user.role !== UserRole.ADMIN) {
-      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Admin access required" });
     }
     next();
   } catch (error) {
-    console.error('Admin auth error:', error);
     res.status(403).json({ error: "Admin access required" });
   }
 };
@@ -283,12 +275,10 @@ const requireAgent = async (req: Request, res: Response, next: NextFunction) => 
     // Check if user has agent-level access or higher (agent, dealer, super_dealer, master, admin)
     const agentRoles = [UserRole.AGENT, UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !agentRoles.includes(req.user.role as typeof UserRole.AGENT)) {
-      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Agent access required" });
     }
     next();
   } catch (error) {
-    console.error('Agent auth error:', error);
     res.status(403).json({ error: "Agent access required" });
   }
 };
@@ -301,12 +291,10 @@ const requireSupport = async (req: Request, res: Response, next: NextFunction) =
     }
     // Check role from req.user (already set by requireAuth middleware)
     if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.AGENT) {
-      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Support access required" });
     }
     next();
   } catch (error) {
-    console.error('Support auth error:', error);
     res.status(403).json({ error: "Support access required" });
   }
 };
@@ -327,7 +315,6 @@ const requireApiKey = async (req: Request, res: Response, next: NextFunction) =>
     req.apiKey = apiKey;
     next();
   } catch (error) {
-    console.error('API key auth error:', error);
     res.status(401).json({ error: "Invalid API key" });
   }
 };
@@ -341,12 +328,10 @@ const requireDealer = async (req: Request, res: Response, next: NextFunction) =>
     // Check if user has dealer-level access or higher (dealer, super_dealer, master, admin)
     const dealerRoles = [UserRole.DEALER, UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !dealerRoles.includes(req.user.role as typeof UserRole.DEALER)) {
-      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Dealer access required" });
     }
     next();
   } catch (error) {
-    console.error('Dealer auth error:', error);
     res.status(403).json({ error: "Dealer access required" });
   }
 };
@@ -360,12 +345,10 @@ const requireSuperDealer = async (req: Request, res: Response, next: NextFunctio
     // Check if user has super-dealer-level access or higher (super_dealer, master, admin)
     const superDealerRoles = [UserRole.SUPER_DEALER, UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !superDealerRoles.includes(req.user.role as typeof UserRole.SUPER_DEALER)) {
-      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Super Dealer access required" });
     }
     next();
   } catch (error) {
-    console.error('Super Dealer auth error:', error);
     res.status(403).json({ error: "Super Dealer access required" });
   }
 };
@@ -379,12 +362,10 @@ const requireMaster = async (req: Request, res: Response, next: NextFunction) =>
     // Check if user has master-level access or higher (master, admin)
     const masterRoles = [UserRole.MASTER, UserRole.ADMIN];
     if (!req.user.role || !masterRoles.includes(req.user.role as typeof UserRole.MASTER)) {
-      console.log(`Access denied for user ${req.user.email} with role: ${req.user.role}`);
       return res.status(403).json({ error: "Master access required" });
     }
     next();
   } catch (error) {
-    console.error('Master auth error:', error);
     res.status(403).json({ error: "Master access required" });
   }
 };
@@ -410,7 +391,6 @@ const ROLE_LABELS = {
 async function processWebhookEvent(event: any) {
   const webhookStatus = event?.data?.status;
   const webhookReference = event?.data?.reference;
-  console.log("[Webhook] Received event:", event?.event, "status:", webhookStatus, "ref:", webhookReference);
   if (event.event === "charge.success") {
     const data = event.data;
     const reference = data.reference;
@@ -419,10 +399,8 @@ async function processWebhookEvent(event: any) {
     if (metadata && metadata.purpose === "agent_activation") {
       // Handle new flow - pending registration (account not created yet)
       if (metadata.pending_registration && metadata.registration_data) {
-        console.log("Processing pending agent registration via webhook:", reference);
         const supabaseServer = getSupabase();
         if (!supabaseServer) {
-          console.error("Supabase not initialized for webhook");
           return;
         }
         const regData = metadata.registration_data;
@@ -430,7 +408,6 @@ async function processWebhookEvent(event: any) {
           // Check if agent already exists
           const existingAgent = await storage.getAgentBySlug(regData.storefrontSlug);
           if (existingAgent) {
-            console.log("Agent already exists for slug:", regData.storefrontSlug);
             return;
           }
           // Create user in Supabase Auth
@@ -445,11 +422,9 @@ async function processWebhookEvent(event: any) {
             email_confirm: true
           });
           if (authError) {
-            console.error("Failed to create auth user in webhook:", authError);
             return;
           }
           const userId = authData.user.id;
-          console.log("User created via webhook:", userId);
           // Check if user already exists in local database
           const existingUser = await storage.getUser(userId);
           if (!existingUser) {
@@ -472,7 +447,6 @@ async function processWebhookEvent(event: any) {
             isApproved: true,
             paymentPending: false,
           });
-          console.log("Agent created via webhook:", agent.id);
           // Check if transaction already exists
           const existingTransaction = await storage.getTransactionByReference(reference);
           if (!existingTransaction) {
@@ -495,15 +469,12 @@ async function processWebhookEvent(event: any) {
               agentProfit: "0.00",
             });
           }
-          console.log("Agent registration completed via webhook");
         } catch (createError: any) {
-          console.error("Error creating account in webhook:", createError);
         }
         return;
       }
       // Handle old flow - agent already exists
       if (metadata.agent_id) {
-        console.log("Processing agent activation payment (old flow):", reference);
         try {
           // Update transaction status
           if (metadata.transaction_id) {
@@ -530,7 +501,6 @@ async function processWebhookEvent(event: any) {
             }
           }
         } catch (oldFlowError: any) {
-          console.error("Error processing old flow webhook:", oldFlowError);
         }
         return;
       }
@@ -576,7 +546,6 @@ async function processWebhookEvent(event: any) {
       if (transaction.type === ProductType.DATA_BUNDLE) {
         // Check if already fulfilled to prevent duplicate processing
         if (transaction.apiResponse || transaction.paymentStatus === "paid") {
-          console.log("Data bundle transaction already fulfilled, skipping duplicate processing:", reference);
           return;
         }
         const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
@@ -623,7 +592,6 @@ async function processWebhookEvent(event: any) {
               });
             }
           } catch (err: any) {
-            console.error("Fulfillment error:", err);
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.FAILED,
               deliveryStatus: "failed",
@@ -655,7 +623,6 @@ async function processWebhookEvent(event: any) {
       }
       // Credit agent if applicable
       if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
-        console.log(`[Webhook] Crediting agent ${transaction.agentId} with profit: ${transaction.agentProfit}`);
         await storage.updateAgentBalance(transaction.agentId, parseFloat(transaction.agentProfit || "0"), true);
         // Also credit agent's profit wallet for withdrawals
         const agent = await storage.getAgent(transaction.agentId);
@@ -678,9 +645,7 @@ async function processWebhookEvent(event: any) {
           });
         }
       }
-      console.log("Payment processed via webhook:", reference);
     } catch (transactionError: any) {
-      console.error("Error processing transaction webhook:", transactionError);
     }
   } else if (event.event === "charge.failed" || event.event === "charge.abandoned") {
     // Handle failed/abandoned/cancelled Paystack payments
@@ -691,27 +656,21 @@ async function processWebhookEvent(event: any) {
     try {
       const transaction = await storage.getTransactionByReference(reference);
       if (!transaction) {
-        console.log(`[Webhook] Transaction not found for failed payment: ${reference}`);
         return;
       }
       
       // Mark transaction as failed/cancelled - NOT as paid
       const paymentStatus = event.event === "charge.abandoned" ? "cancelled" : "failed";
-      console.log(`[Webhook] Marking transaction ${transaction.id} as ${paymentStatus}`);
       
       await storage.updateTransaction(transaction.id, {
         paymentStatus: paymentStatus,
         status: TransactionStatus.FAILED,
         failureReason: event.event === "charge.abandoned" ? "Payment cancelled by user" : "Payment failed",
       });
-      
-      console.log(`[Webhook] Payment marked as ${paymentStatus}: ${reference}`);
     } catch (err: any) {
-      console.error(`[Webhook] Error processing failed payment: ${reference}`, err);
     }
   }
   // Handle other Paystack webhooks if needed
-  console.log(`Unhandled webhook event: ${event.event} status: ${webhookStatus}`);
 }
 export async function registerRoutes(
   httpServer: Server,
@@ -782,7 +741,6 @@ export async function registerRoutes(
           refresh_token: supabaseData.session?.refresh_token,
         });
       } catch (dbError) {
-        console.error("Database error creating user:", dbError);
         // If database creation fails, delete the Supabase user to maintain consistency
         try {
           await supabaseServer.auth.admin.deleteUser(supabaseData.user.id);
@@ -792,7 +750,6 @@ export async function registerRoutes(
         return res.status(500).json({ error: "Failed to create user in database" });
       }
     } catch (error: any) {
-      console.error("Registration error:", error);
       res.status(500).json({ error: "Registration failed" });
     }
   });
@@ -829,9 +786,7 @@ export async function registerRoutes(
             user_metadata: { ...data.user.user_metadata, role: 'admin' },
             app_metadata: { ...data.user.app_metadata, role: 'admin' }
           });
-          console.log('✅ Admin role set for:', email);
         } catch (updateError) {
-          console.error('Failed to set admin role:', updateError);
         }
       }
       // Get user role from database (required for proper role management)
@@ -852,7 +807,6 @@ export async function registerRoutes(
           role = 'user'; // Default to user role
         }
       } catch (dbError) {
-        console.error("Database error getting user data:", dbError);
         // If database is down, we can't determine role safely
         return res.status(500).json({ error: "Database connection failed" });
       }
@@ -892,7 +846,6 @@ export async function registerRoutes(
       }
       res.json({ success: true });
     } catch (error: any) {
-      console.error("Logout error:", error);
       res.status(500).json({ error: "Logout failed" });
     }
   });
@@ -905,19 +858,16 @@ export async function registerRoutes(
       const token = authHeader.substring(7);
       const supabaseServer = getSupabase();
       if (!supabaseServer) {
-        console.error("Supabase not configured");
         return res.status(500).json({ error: "Supabase not configured" });
       }
       const { data: userData, error } = await supabaseServer.auth.getUser(token);
       if (error || !userData?.user || !userData.user.email) {
-        console.log("Standard auth failed, trying admin API fallback...");
         // Try to decode JWT to get user ID for admin API fallback
         try {
           const decoded = jwt.decode(token) as any;
           if (decoded?.sub) {
             const { data: adminData, error: adminError } = await supabaseServer.auth.admin.getUserById(decoded.sub);
             if (adminError || !adminData?.user) {
-              console.error("Admin API fallback also failed:", adminError);
               return res.json({ user: null });
             }
             var user = adminData.user;
@@ -925,13 +875,11 @@ export async function registerRoutes(
             return res.json({ user: null });
           }
         } catch (jwtError) {
-          console.error("JWT processing error:", jwtError);
           return res.json({ user: null });
         }
       } else {
         var user = userData.user;
       }
-      console.log("Final user object:", { id: user.id, email: user.email });
       // TEMPORARY: Override role for specific admin email
       let role = user.email === 'eleblununana@gmail.com' ? 'admin' :
                  (user.user_metadata?.role || user.app_metadata?.role || 'user');
@@ -947,8 +895,7 @@ export async function registerRoutes(
           }
         } else {
           // User exists in Supabase but not in our database - create them
-          console.log("Creating user in database:", user.email, "with role:", role);
-          try {
+            try {
             const newUser = await storage.createUser({
               id: user.id, // Persist Supabase user ID to avoid FK mismatches
               email: user.email!,
@@ -960,18 +907,13 @@ export async function registerRoutes(
             });
             dbUser = newUser;
             role = newUser.role;
-            console.log("User created in database with role:", role);
           } catch (createError) {
-            console.error("Failed to create user in database:", createError);
             // Continue with default role from metadata if DB creation fails
           }
         }
       } catch (dbError) {
-        console.error("Database error getting user data:", dbError);
         // If database is down, use role from Supabase metadata
-        console.log("Using role from Supabase metadata due to DB error:", role);
       }
-      console.log("Final user data:", { id: user.id, email: user.email, role, hasAgent: !!agent });
       res.json({
         user: {
           id: user.id,
@@ -992,7 +934,6 @@ export async function registerRoutes(
         } : null,
       });
     } catch (error: any) {
-      console.error("Auth check error:", error);
       res.json({ user: null });
     }
   });
@@ -1003,7 +944,6 @@ export async function registerRoutes(
     try {
       const supabaseServer = getSupabase();
       if (!supabaseServer) {
-        console.error('Supabase server client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.');
         return res.status(500).json({ error: "Server configuration error" });
       }
       // Validate input
@@ -1023,14 +963,12 @@ export async function registerRoutes(
       if (!isValidPhone(data.phone)) {
         return res.status(400).json({ error: "Invalid phone number format" });
       }
-      console.log("Agent registration data:", data);
       // Check if storefront slug is taken
       const existingSlug = await storage.getAgentBySlug(data.storefrontSlug);
       if (existingSlug) {
         return res.status(400).json({ error: "Storefront URL already taken" });
       }
       // Check if user already exists with this email
-      console.log("Checking if user exists");
       const { data: existingUsers } = await supabaseServer.auth.admin.listUsers();
       const existingAuthUser = (existingUsers?.users as any[])?.find((u: any) => u.email === data.email);
       if (existingAuthUser) {
@@ -1049,7 +987,6 @@ export async function registerRoutes(
       // Create a temporary reference for payment tracking
       const activationFee = 60.00; // GHC 60.00
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      console.log("Initializing payment without creating account");
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
       // Initialize Paystack payment for agent activation
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
@@ -1082,10 +1019,8 @@ export async function registerRoutes(
       });
       const paystackData = await paystackResponse.json() as any;
       if (!paystackData.status) {
-        console.error("Paystack initialization failed:", paystackData);
         return res.status(500).json({ error: "Payment initialization failed" });
       }
-      console.log("Payment initialized. Account will be created after successful payment:", paystackData.data.reference);
       res.json({
         message: "Please complete payment to activate your agent account",
         paymentUrl: paystackData.data.authorization_url,
@@ -4502,7 +4437,32 @@ export async function registerRoutes(
   app.get("/api/admin/stats", requireAuth, requireAdmin, async (req, res) => {
     try {
       const stats = await storage.getAdminStats();
-      res.json(stats);
+      
+      // Fetch real-time Paystack balance directly from API
+      let paystackBalance = 0;
+      const paystackMode = process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_") ? "test" : "live";
+      if (process.env.PAYSTACK_SECRET_KEY) {
+        try {
+          const balanceResponse = await fetch("https://api.paystack.co/balance", {
+            headers: {
+              Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+            },
+          });
+          const balanceData = await balanceResponse.json() as any;
+          if (balanceData.status && Array.isArray(balanceData.data)) {
+            // Filter for GHS currency only and sum up all balances (in pesewas, convert to cedis)
+            paystackBalance = balanceData.data
+              .filter((balance: any) => balance.currency === 'GHS')
+              .reduce((sum: number, balance: any) => {
+                return sum + (balance.balance || 0);
+              }, 0) / 100; // Convert from pesewas to cedis
+          }
+        } catch (err) {
+          // Silently fail - don't break dashboard if Paystack is down
+        }
+      }
+      
+      res.json({ ...stats, paystackBalance, paystackMode });
     } catch (error: any) {
       res.status(500).json({ error: "Failed to load stats" });
     }

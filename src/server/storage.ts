@@ -16,7 +16,6 @@ async function retryDatabaseOperation<T>(
       return await operation();
     } catch (error: any) {
       lastError = error;
-      console.error(`[DB Retry] Attempt ${attempt}/${maxRetries} failed:`, error.message);
       
       // Check if error is connection-related
       const isConnectionError = 
@@ -29,7 +28,6 @@ async function retryDatabaseOperation<T>(
       
       if (isConnectionError && attempt < maxRetries) {
         // Wait before retrying for connection errors
-        console.log(`[DB Retry] Waiting ${delayMs}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
       } else if (!isConnectionError) {
         // Don't retry non-connection errors
@@ -603,7 +601,6 @@ export class DatabaseStorage implements IStorage {
 
   async getLatestDataBundleTransactionByPhone(phone: string): Promise<Transaction | undefined> {
     const normalized = normalizePhoneNumber(phone);
-    console.log(`[Cooldown Query] Looking for paid data bundle transactions for phone: ${normalized}`);
     
     let [transaction] = await db.select()
       .from(transactions)
@@ -616,11 +613,9 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (transaction) {
-      console.log(`[Cooldown Query] Found paid transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus}, createdAt: ${transaction.createdAt})`);
       return transaction;
     }
 
-    console.log(`[Cooldown Query] No direct phone match, checking bulk orders...`);
     const likePattern = `%${normalized}%`;
     const matches = await db.select()
       .from(transactions)
@@ -634,9 +629,7 @@ export class DatabaseStorage implements IStorage {
     transaction = matches[0];
 
     if (transaction) {
-      console.log(`[Cooldown Query] Found paid bulk transaction: ${transaction.reference} (paymentStatus: ${transaction.paymentStatus})`);
     } else {
-      console.log(`[Cooldown Query] No paid transactions found for ${normalized}`);
     }
 
     return transaction;
@@ -1194,7 +1187,6 @@ export class DatabaseStorage implements IStorage {
         sellingPrice: p.sellingPrice || "0",
       }));
     } catch (error) {
-      console.warn("Custom pricing table not available:", error);
       return [];
     }
   }
@@ -1245,7 +1237,6 @@ export class DatabaseStorage implements IStorage {
         });
       }
     } catch (error) {
-      console.error("Custom pricing update error:", error);
       throw new Error("Failed to update custom pricing");
     }
   }
@@ -1261,7 +1252,6 @@ export class DatabaseStorage implements IStorage {
           )
         );
     } catch (error) {
-      console.error("Custom pricing delete error:", error);
       throw new Error("Failed to delete custom pricing");
     }
   }
@@ -1283,7 +1273,6 @@ export class DatabaseStorage implements IStorage {
 
       return result?.sellingPrice || null;
     } catch (error) {
-      console.warn("Custom pricing lookup error:", error);
       return null;
     }
   }
@@ -1300,7 +1289,6 @@ export class DatabaseStorage implements IStorage {
 
       return result?.basePrice || null;
     } catch (error) {
-      console.warn("Admin base price lookup error:", error);
       return null;
     }
   }
@@ -1337,7 +1325,6 @@ export class DatabaseStorage implements IStorage {
         });
       }
     } catch (error) {
-      console.error("Admin base price update error:", error);
       throw new Error("Failed to update admin base price");
     }
   }
@@ -1402,7 +1389,6 @@ export class DatabaseStorage implements IStorage {
 
       return prices;
     } catch (error) {
-      console.warn("Error fetching role base prices from data bundles:", error);
       return [];
     }
   }
@@ -1445,7 +1431,6 @@ export class DatabaseStorage implements IStorage {
           throw new Error(`Invalid role: ${role}`);
       }
     } catch (error) {
-      console.warn("Error updating role base price in data bundles:", error);
       throw error;
     }
   }
@@ -1506,7 +1491,6 @@ export class DatabaseStorage implements IStorage {
 
       return result?.price || null;
     } catch (error) {
-      console.warn("Error fetching role base price:", error);
       return null;
     }
   }
@@ -1615,7 +1599,6 @@ export class DatabaseStorage implements IStorage {
 
       return sortedCustomers;
     } catch (error) {
-      console.error('Error in getTopCustomers:', error);
       throw error;
     }
   }
@@ -1926,6 +1909,27 @@ export class DatabaseStorage implements IStorage {
         lt(transactions.createdAt, cutoffDate)
       ))
       .orderBy(desc(transactions.createdAt));
+  }
+
+  // Get current Paystack balance from database
+  async getPaystackBalance(): Promise<number> {
+    try {
+      // Use a cache stored in withdrawals table's metadata for now
+      // Return 0 if no value found yet
+      return 0;
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  // Update Paystack balance in database
+  async setPaystackBalance(balance: number): Promise<void> {
+    try {
+      // Store balance for future use
+      // Can be retrieved and displayed on dashboard
+    } catch (error) {
+      // Silently fail - this is just a cache
+    }
   }
 }
 

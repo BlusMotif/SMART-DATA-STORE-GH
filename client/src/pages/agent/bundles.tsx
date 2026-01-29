@@ -169,10 +169,6 @@ export default function AgentBundlesPage() {
       const agentPrice = parseFloat(bundle.effective_price);
       const isBulk = false;
 
-      console.log("[Frontend] Single order payment initialization");
-      console.log("[Frontend] Phone numbers:", phoneNumbers);
-      console.log("[Frontend] Is bulk:", isBulk);
-
       if (data.paymentMethod === "wallet") {
         const payload = {
           productType: "data_bundle",
@@ -185,8 +181,6 @@ export default function AgentBundlesPage() {
           isBulkOrder: isBulk,
         };
         
-        console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
-        
         const response = await apiRequest("POST", "/api/wallet/pay", payload);
         return response as MutationResponse;
       } else {
@@ -198,8 +192,6 @@ export default function AgentBundlesPage() {
           isBulkOrder: isBulk,
           customerEmail: user?.email || undefined,
         };
-        
-        console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
         
         const response = await apiRequest("POST", "/api/checkout/initialize", payload);
         return response as MutationResponse;
@@ -251,11 +243,6 @@ export default function AgentBundlesPage() {
         const phoneNumbers = data.orderItems.map(item => item.phone);
         const totalAmount = data.totalAmount;
 
-        console.log("[Frontend] ========== NEW BULK FORMAT PAYMENT ==========");
-        console.log("[Frontend] Order items:", data.orderItems);
-        console.log("[Frontend] Total amount:", totalAmount);
-        console.log("[Frontend] ================================================");
-
         if (data.paymentMethod === "wallet") {
           const payload = {
             productType: "data_bundle",
@@ -266,8 +253,6 @@ export default function AgentBundlesPage() {
             isBulkOrder: isBulk,
             orderItems: data.orderItems,
           };
-
-          console.log("[Frontend] Wallet payload:", JSON.stringify(payload, null, 2));
 
           const response = await apiRequest("POST", "/api/wallet/pay", payload);
           return response as MutationResponse;
@@ -282,13 +267,7 @@ export default function AgentBundlesPage() {
             customerEmail: user?.email || undefined,
           };
 
-          console.log("[Frontend] Paystack payload:", JSON.stringify(payload, null, 2));
-
           const response = await apiRequest("POST", "/api/checkout/initialize", payload);
-
-          console.log("[Frontend] ===== SERVER RESPONSE =====");
-          console.log("[Frontend] Result:", response);
-          console.log("[Frontend] ================================");
 
           return response as MutationResponse;
         }
@@ -302,11 +281,6 @@ export default function AgentBundlesPage() {
         const markup = agentData?.profile?.markupPercentage || 0;
         const agentPrice = basePrice + (basePrice * markup / 100);
         const totalAmount = agentPrice * phoneNumbers.length;
-
-        console.log("[Frontend] ========== LEGACY BULK FORMAT ==========");
-        console.log("[Frontend] Phone numbers:", phoneNumbers);
-        console.log("[Frontend] Total amount:", totalAmount);
-        console.log("[Frontend] ================================================");
 
         if (data.paymentMethod === "wallet") {
           const payload = {

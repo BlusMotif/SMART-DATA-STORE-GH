@@ -27,6 +27,7 @@ interface DashboardStats {
   todayRevenue: number;
   todayTransactions: number;
   totalAgentProfits: number;
+  paystackMode?: "test" | "live";
 }
 
 interface TopCustomer {
@@ -162,8 +163,8 @@ export default function AdminDashboard() {
             </Card>
 
             {statsLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                {Array.from({ length: 4 }).map((_, i) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
+                {Array.from({ length: 5 }).map((_, i) => (
                   <Card key={i} className="animate-pulse">
                     <CardContent className="pt-4 lg:pt-6">
                       <div className="h-4 bg-muted rounded w-1/2 mb-4" />
@@ -199,12 +200,35 @@ export default function AdminDashboard() {
                   description="Combined agent earnings"
                 />
                 <StatCard
-                  title="Pending Withdrawals"
-                  value={stats?.pendingWithdrawals || 0}
+                  title="Paystack Balance"
+                  value={formatCurrency((stats as any)?.paystackBalance || 0)}
                   icon={Wallet}
-                  description="Awaiting approval"
+                  description={stats?.paystackMode === "test" ? "Paystack Test Mode" : "Available in Paystack"}
                 />
               </div>
+            )}
+
+            {statsLoading ? null : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wallet className="h-5 w-5 text-amber-500" />
+                    Account Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">Pending Withdrawals</p>
+                      <p className="text-2xl font-bold">{stats?.pendingWithdrawals || 0}</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">Today's Revenue</p>
+                      <p className="text-2xl font-bold text-green-600">{formatCurrency(stats?.todayRevenue || 0)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Analytics Chart */}

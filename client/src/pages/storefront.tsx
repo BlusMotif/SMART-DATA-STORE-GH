@@ -59,7 +59,6 @@ export default function StorefrontPage() {
 
   // Handle product navigation
   const navigateToProduct = (network: string) => {
-    console.log(`Navigating to: /store/${role}/${slug}/${network}`);
     setLocation(`/store/${role}/${slug}/${network}`);
   };
 

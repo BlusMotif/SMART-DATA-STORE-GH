@@ -18,7 +18,7 @@ import type { Agent } from "../../../../src/shared/schema";
 
 const storefrontSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters"),
-  businessDescription: z.string().optional(),
+  businessDescription: z.string().min(10, "Business description must be at least 10 characters"),
   whatsappSupportLink: z.string().url("Please enter a valid WhatsApp link").optional().or(z.literal("")),
   whatsappChannelLink: z.string().url("Please enter a valid WhatsApp Channel link").optional().or(z.literal("")),
 });

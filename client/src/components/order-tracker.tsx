@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Package, Clock, CheckCircle, XCircle, AlertCircle, RotateCw } from "lucide-react";
+import { Search, Package, Clock, CheckCircle, XCircle, AlertCircle, RotateCw, Layers } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface TrackedOrder {
@@ -116,7 +116,7 @@ export function OrderTracker() {
     } else if (status === 'failed' || status === 'error') {
       return <XCircle className="h-5 w-5 text-red-500" />;
     } else if (status === 'processing' || status === 'pending' || status === 'queued') {
-      return <Clock className="h-5 w-5 text-yellow-500" />;
+      return <Layers className="h-5 w-5 text-blue-500" />;
     } else {
       return <Package className="h-5 w-5 text-blue-500" />;
     }
@@ -129,10 +129,10 @@ export function OrderTracker() {
       return <Badge variant="default" className="bg-green-500 text-white">✅ {statusToDisplay}</Badge>;
     } else if (statusLower === 'failed' || statusLower === 'error') {
       return <Badge variant="destructive" className="bg-red-500 text-white">❌ {statusToDisplay}</Badge>;
-    } else if (statusLower === 'processing') {
-      return <Badge variant="secondary" className="bg-blue-500 text-white animate-pulse">🔄 {statusToDisplay}</Badge>;
-    } else if (statusLower === 'pending' || statusLower === 'queued') {
-      return <Badge variant="secondary" className="bg-yellow-500 text-white">⏳ {statusToDisplay}</Badge>;
+    } else if (statusLower === 'processing' || statusLower === 'pending') {
+      return <Badge variant="secondary" className="bg-blue-500 text-white animate-pulse">🔄 Processing</Badge>;
+    } else if (statusLower === 'queued') {
+      return <Badge variant="secondary" className="bg-blue-500 text-white">⏳ {statusToDisplay}</Badge>;
     } else {
       return <Badge variant="outline" className="bg-gray-500 text-white">⏳ {statusToDisplay}</Badge>;
     }

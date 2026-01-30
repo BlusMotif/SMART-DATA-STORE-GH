@@ -325,25 +325,23 @@ export class DatabaseStorage {
     }
     async getLatestDataBundleTransactionByPhone(phone) {
         const normalized = normalizePhoneNumber(phone);
+        // Check for ANY recent transaction (paid, pending, or processing) to prevent cooldown bypass
         let [transaction] = await db.select()
             .from(transactions)
-            .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), eq(transactions.customerPhone, normalized), eq(transactions.paymentStatus, "paid")))
+            .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), eq(transactions.customerPhone, normalized)))
             .orderBy(desc(transactions.createdAt))
             .limit(1);
         if (transaction) {
             return transaction;
         }
+        // Also check in phoneNumbers JSON field for bulk orders
         const likePattern = `%${normalized}%`;
         const matches = await db.select()
             .from(transactions)
-            .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), sql `${transactions.phoneNumbers} LIKE ${likePattern}`, eq(transactions.paymentStatus, "paid")))
+            .where(and(eq(transactions.type, ProductType.DATA_BUNDLE), sql `${transactions.phoneNumbers} LIKE ${likePattern}`))
             .orderBy(desc(transactions.createdAt))
             .limit(1);
         transaction = matches[0];
-        if (transaction) {
-        }
-        else {
-        }
         return transaction;
     }
     async getTransactions(filters) {
@@ -417,6 +415,10 @@ export class DatabaseStorage {
     async updateTransaction(id, data) {
         const [transaction] = await db.update(transactions).set(data).where(eq(transactions.id, id)).returning();
         return transaction;
+    }
+    async deleteTransaction(id) {
+        const result = await db.delete(transactions).where(eq(transactions.id, id));
+        return true;
     }
     async updateTransactionDeliveryStatus(id, deliveryStatus) {
         const [transaction] = await db.update(transactions).set({ deliveryStatus }).where(eq(transactions.id, id)).returning();
@@ -785,6 +787,7 @@ export class DatabaseStorage {
             const pricing = await db.select({
                 productId: customPricing.productId,
                 sellingPrice: customPricing.sellingPrice,
+                profit: customPricing.profit,
             })
                 .from(customPricing)
                 .where(and(eq(customPricing.roleOwnerId, roleOwnerId), eq(customPricing.role, role)));
@@ -797,7 +800,7 @@ export class DatabaseStorage {
             return [];
         }
     }
-    async setCustomPricing(productId, roleOwnerId, role, sellingPrice) {
+    async setCustomPricing(productId, roleOwnerId, role, sellingPrice, profit) {
         const priceNum = parseFloat(sellingPrice);
         if (isNaN(priceNum) || priceNum < 0) {
             throw new Error('Invalid selling price');
@@ -813,6 +816,7 @@ export class DatabaseStorage {
                 await db.update(customPricing)
                     .set({
                     sellingPrice: sellingPrice,
+                    profit: profit || null,
                     updatedAt: new Date()
                 })
                     .where(and(eq(customPricing.productId, productId), eq(customPricing.roleOwnerId, roleOwnerId), eq(customPricing.role, role)));
@@ -824,6 +828,7 @@ export class DatabaseStorage {
                     roleOwnerId,
                     role,
                     sellingPrice: sellingPrice,
+                    profit: profit || null,
                     createdAt: new Date(),
                     updatedAt: new Date(),
                 });
@@ -842,17 +847,32 @@ export class DatabaseStorage {
             throw new Error("Failed to delete custom pricing");
         }
     }
+    async getStoredProfit(productId, roleOwnerId, role) {
+        try {
+            const [result] = await db.select({ profit: customPricing.profit })
+                .from(customPricing)
+                .where(and(eq(customPricing.productId, productId), eq(customPricing.roleOwnerId, roleOwnerId), eq(customPricing.role, role)))
+                .limit(1);
+            return result?.profit || null;
+        }
+        catch (error) {
+            return null;
+        }
+    }
     async getCustomPrice(productId, roleOwnerId, role) {
         try {
+            console.log(`[Storage] getCustomPrice called: productId=${productId}, roleOwnerId=${roleOwnerId}, role=${role}`);
             const [result] = await db.select({
                 sellingPrice: customPricing.sellingPrice,
             })
                 .from(customPricing)
                 .where(and(eq(customPricing.productId, productId), eq(customPricing.roleOwnerId, roleOwnerId), eq(customPricing.role, role)))
                 .limit(1);
+            console.log(`[Storage] getCustomPrice result: ${result?.sellingPrice || null}`);
             return result?.sellingPrice || null;
         }
         catch (error) {
+            console.log(`[Storage] getCustomPrice error: ${error}`);
             return null;
         }
     }

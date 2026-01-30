@@ -23,7 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate } from "@/lib/constants";
-import { UserCircle, Trash2, ShoppingBag, Menu, Search } from "lucide-react";
+import { UserCircle, Trash2, ShoppingBag, Menu, Search, Download } from "lucide-react";
 
 interface UserWithLastPurchase {
   id: string;
@@ -50,6 +50,7 @@ export default function AdminUsers() {
   const [deleteInactiveDays, setDeleteInactiveDays] = useState<number | null>(null);
   const [showDeleteInactiveDialog, setShowDeleteInactiveDialog] = useState(false);
   const [editedRoles, setEditedRoles] = useState<Record<string, string>>({});
+  const [exportMode, setExportMode] = useState<string>("phone");
 
   const { data: users, isLoading } = useQuery<UserWithLastPurchase[]>({
     queryKey: ["/api/admin/users"],
@@ -139,6 +140,63 @@ export default function AdminUsers() {
       superDealers: users?.filter((u) => u.role === "super_dealer").length || 0,
       masters: users?.filter((u) => u.role === "master").length || 0,
     admins: users?.filter((u) => u.role === "admin").length || 0,
+  };
+
+  const formatExportPhone = (value: string | null) => {
+    if (!value) return "";
+    const digits = value.replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.startsWith("0")) return digits;
+    if (digits.startsWith("233") && digits.length > 3) {
+      return `0${digits.slice(3)}`;
+    }
+    if (digits.length === 9) {
+      return `0${digits}`;
+    }
+    return `0${digits}`;
+  };
+
+  const formatExportPhoneCell = (value: string | null) => {
+    const phone = formatExportPhone(value);
+    return phone ? `="${phone}"` : "";
+  };
+
+  const handleExportUsers = () => {
+    if (!users || users.length === 0) {
+      toast({ title: "No users to export", variant: "destructive" });
+      return;
+    }
+
+    const headers = exportMode === "phone"
+      ? ["Phone"]
+      : exportMode === "phone_email"
+        ? ["Phone", "Email"]
+        : ["Phone", "Username"];
+
+    const rows = users.map((user) => {
+      const phone = formatExportPhoneCell(user.phone);
+      if (exportMode === "phone") {
+        return [phone];
+      }
+      if (exportMode === "phone_email") {
+        return [phone, user.email || ""];
+      }
+      return [phone, user.name || ""];
+    });
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `users-export-${exportMode}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -235,6 +293,22 @@ export default function AdminUsers() {
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Select value={exportMode} onValueChange={setExportMode}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Export format" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 text-black dark:text-white">
+                        <SelectItem value="phone">Phone only</SelectItem>
+                        <SelectItem value="phone_email">Phone + Email</SelectItem>
+                        <SelectItem value="phone_username">Phone + Username</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button size="sm" variant="outline" onClick={handleExportUsers}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Input
                       type="number"
@@ -404,10 +478,10 @@ export default function AdminUsers() {
 
       {/* Delete inactive users confirmation dialog */}
       <AlertDialog open={showDeleteInactiveDialog} onOpenChange={setShowDeleteInactiveDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white dark:bg-slate-950 text-white dark:text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Inactive Users</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white">Delete Inactive Users</AlertDialogTitle>
+            <AlertDialogDescription className="text-white">
               Are you sure you want to delete all users who haven't made a purchase in the last {deleteInactiveDays} days? 
               This action cannot be undone. All user data and transactions will be permanently removed.
             </AlertDialogDescription>
@@ -432,10 +506,10 @@ export default function AdminUsers() {
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white dark:bg-slate-950 text-white dark:text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white">Delete User</AlertDialogTitle>
+            <AlertDialogDescription className="text-white">
               Are you sure you want to delete this user? This action cannot be undone.
               All user data and transactions will be permanently removed.
             </AlertDialogDescription>

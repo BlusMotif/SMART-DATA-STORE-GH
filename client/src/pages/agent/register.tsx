@@ -37,7 +37,7 @@ const agentRegisterSchema = z.object({
   storefrontSlug: z.string()
     .min(3, "URL must be at least 3 characters")
     .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens"),
-  businessDescription: z.string().optional(),
+  businessDescription: z.string().min(10, "Business description must be at least 10 characters"),
   agreedToTerms: z.boolean().refine((val) => val === true, {
     message: "You must agree to the terms and conditions",
   }),
@@ -361,7 +361,7 @@ export default function AgentRegisterPage() {
                 name="businessDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Business Description (optional)</FormLabel>
+                    <FormLabel>Business Description</FormLabel>
                     <FormControl>
                       <Textarea placeholder="Tell customers about your business..." className="resize-none" data-testid="input-description" {...field} />
                     </FormControl>

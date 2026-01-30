@@ -215,14 +215,17 @@ export default function AgentBundlesPage() {
     onError: (error: any) => {
       const errorMessage = error.message || "Unable to process payment";
       const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
+      const isCooldown = errorMessage.includes("wait") && errorMessage.includes("minute");
       
       toast({
-        title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
-        description: isInsufficientBalance 
-          ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
-          : `${errorMessage}. Please try again or contact support if the problem persists.`,
+        title: isCooldown ? "⏳ Purchase Limit" : isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
+        description: isCooldown
+          ? errorMessage
+          : isInsufficientBalance 
+            ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
+            : `${errorMessage}. Please try again or contact support if the problem persists.`,
         variant: "destructive",
-        duration: 6000,
+        duration: isCooldown ? 8000 : 6000,
       });
     },
   });
@@ -327,15 +330,14 @@ export default function AgentBundlesPage() {
     },
     onError: (error: any) => {
       const errorMessage = error.message || "Unable to process payment";
+      const isCooldown = errorMessage.includes("wait") && errorMessage.includes("minute");
       const isInsufficientBalance = errorMessage.toLowerCase().includes("insufficient");
       
       toast({
-        title: isInsufficientBalance ? "⚠️ Insufficient Wallet Balance" : "❌ Payment Failed",
-        description: isInsufficientBalance 
-          ? "Your wallet balance is too low for this purchase. Please top up your wallet or use Paystack."
-          : `${errorMessage}. Please try again or contact support if the problem persists.`,
+        title: isCooldown ? "⏳ Purchase Limit" : isInsufficientBalance ? "⚠️ Insufficient Balance" : "❌ Payment Error",
+        description: errorMessage,
         variant: "destructive",
-        duration: 6000,
+        duration: isCooldown ? 8000 : 6000,
       });
     },
   });

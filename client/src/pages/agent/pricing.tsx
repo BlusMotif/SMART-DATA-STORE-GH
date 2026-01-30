@@ -77,7 +77,7 @@ export default function AgentPricingPage() {
     const numValue = parseFloat(value) || 0;
 
     if (field === 'agentPrice') {
-      // When agent price changes, calculate profit
+      // When agent price changes, auto-calculate profit
       const basePrice = parseFloat(current.adminBasePrice);
       const profit = Math.max(0, numValue - basePrice);
       setPriceChanges(prev => ({
@@ -87,18 +87,8 @@ export default function AgentPricingPage() {
           agentProfit: profit.toFixed(2),
         }
       }));
-    } else {
-      // When profit changes, calculate selling price
-      const basePrice = parseFloat(current.adminBasePrice);
-      const sellingPrice = basePrice + numValue;
-      setPriceChanges(prev => ({
-        ...prev,
-        [bundleId]: {
-          agentPrice: sellingPrice.toFixed(2),
-          agentProfit: value,
-        }
-      }));
     }
+    // Profit field is now read-only - no direct editing allowed
   };
 
   const handleSave = () => {
@@ -211,9 +201,9 @@ export default function AgentPricingPage() {
                                 type="number"
                                 step="0.01"
                                 value={current.agentProfit}
-                                onChange={(e) => handlePriceChange(price.bundleId, 'agentProfit', e.target.value)}
-                                className="w-24 tabular-nums"
-                                min="0"
+                                readOnly
+                                disabled
+                                className="w-24 tabular-nums bg-gray-100 cursor-not-allowed"
                               />
                             </TableCell>
                           </TableRow>

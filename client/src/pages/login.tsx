@@ -64,7 +64,7 @@ export default function LoginPage() {
       } else if (user.role === "master") {
         console.log("Redirecting master to /master/dashboard");
         setLocation("/master/dashboard");
-      } else if (user.role === "user") {
+      } else if (user.role === "user" || user.role === "guest") {
         console.log("Redirecting user to /user/dashboard");
         setLocation("/user/dashboard");
       } else {

@@ -136,33 +136,65 @@ export function useAuth() {
     email,
     password,
     name,
+    phone,
   }: {
     email: string;
     password: string;
     name: string;
+    phone?: string;
   }) => {
     setIsRegisterLoading(true);
     setRegisterError(null);
 
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { name: name.trim() },
-      },
-    });
+    try {
+      console.log("[AUTH-REGISTER] Attempting registration:", { email, name, phone });
+      
+      // Call backend register endpoint instead of Supabase directly
+      // This ensures phone is saved to local database
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+          phone: phone?.trim() || null,
+        }),
+      });
 
-    if (error) {
-      setRegisterError(error.message);
+      const data = await response.json();
+      console.log("[AUTH-REGISTER] Response status:", response.status, "Data:", data);
+
+      if (!response.ok) {
+        const errorMsg = data.error || "Registration failed";
+        console.error("[AUTH-REGISTER] Error:", errorMsg);
+        setRegisterError(errorMsg);
+        setIsRegisterLoading(false);
+        return { error: errorMsg };
+      }
+
+      console.log("[AUTH-REGISTER] Setting Supabase session with tokens");
+      // Set the session in Supabase with returned tokens
+      if (data.access_token && data.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+      }
+
+      // Invalidate user query to immediately fetch user data and trigger navigation
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+
       setIsRegisterLoading(false);
-      return { error: error.message };
+      console.log("[AUTH-REGISTER] Registration successful");
+      return { success: true };
+    } catch (error: any) {
+      const errorMessage = error.message || "Registration failed";
+      console.error("[AUTH-REGISTER] Exception:", errorMessage);
+      setRegisterError(errorMessage);
+      setIsRegisterLoading(false);
+      return { error: errorMessage };
     }
-
-    // Invalidate user query to immediately fetch user data and trigger navigation
-    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-
-    setIsRegisterLoading(false);
-    return { success: true };
   };
 
   const logout = async () => {

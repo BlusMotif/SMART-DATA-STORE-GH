@@ -105,7 +105,7 @@ export default function UserDashboard() {
                           <span className="text-xs font-medium">Live Dashboard</span>
                         </div>
                         <div className="flex items-center gap-1 text-white/90">
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:0.5s]"></div>
                           <span className="text-xs font-medium">Real-time Updates</span>
                         </div>
                       </div>

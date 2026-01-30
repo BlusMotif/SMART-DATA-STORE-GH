@@ -108,6 +108,7 @@ export interface IStorage {
   getTransactions(filters?: { customerEmail?: string; agentId?: string; status?: string; type?: string; limit?: number; offset?: number }): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined>;
+  deleteTransaction(id: string): Promise<boolean>;
   updateTransactionDeliveryStatus(id: string, deliveryStatus: string): Promise<Transaction | undefined>;
   getTransactionsForExport(paymentStatusFilter?: string[]): Promise<Pick<Transaction, "id" | "reference" | "productName" | "network" | "customerPhone" | "customerEmail" | "phoneNumbers" | "amount" | "profit" | "paymentStatus" | "deliveryStatus" | "createdAt" | "completedAt" | "isBulkOrder">[]>;
   getTransactionStats(agentId?: string): Promise<{ total: number; completed: number; pending: number; revenue: number; profit: number }>;
@@ -171,10 +172,11 @@ export interface IStorage {
 
 
   // Custom Pricing (Unified for all roles)
-  getCustomPricing(roleOwnerId: string, role: string): Promise<Array<{ productId: string; sellingPrice: string }>>;
-  setCustomPricing(productId: string, roleOwnerId: string, role: string, sellingPrice: string): Promise<void>;
+  getCustomPricing(roleOwnerId: string, role: string): Promise<Array<{ productId: string; sellingPrice: string; profit?: string | null }>>;
+  setCustomPricing(productId: string, roleOwnerId: string, role: string, sellingPrice: string, profit?: string): Promise<void>;
   deleteCustomPricing(productId: string, roleOwnerId: string, role: string): Promise<void>;
   getCustomPrice(productId: string, roleOwnerId: string, role: string): Promise<string | null>;
+  getStoredProfit(productId: string, roleOwnerId: string, role: string): Promise<string | null>;
 
   // Admin Base Prices
   getAdminBasePrice(productId: string): Promise<string | null>;
@@ -602,12 +604,12 @@ export class DatabaseStorage implements IStorage {
   async getLatestDataBundleTransactionByPhone(phone: string): Promise<Transaction | undefined> {
     const normalized = normalizePhoneNumber(phone);
     
+    // Check for ANY recent transaction (paid, pending, or processing) to prevent cooldown bypass
     let [transaction] = await db.select()
       .from(transactions)
       .where(and(
         eq(transactions.type, ProductType.DATA_BUNDLE),
-        eq(transactions.customerPhone, normalized),
-        eq(transactions.paymentStatus, "paid")
+        eq(transactions.customerPhone, normalized)
       ))
       .orderBy(desc(transactions.createdAt))
       .limit(1);
@@ -616,21 +618,17 @@ export class DatabaseStorage implements IStorage {
       return transaction;
     }
 
+    // Also check in phoneNumbers JSON field for bulk orders
     const likePattern = `%${normalized}%`;
     const matches = await db.select()
       .from(transactions)
       .where(and(
         eq(transactions.type, ProductType.DATA_BUNDLE),
-        sql`${transactions.phoneNumbers} LIKE ${likePattern}`,
-        eq(transactions.paymentStatus, "paid")
+        sql`${transactions.phoneNumbers} LIKE ${likePattern}`
       ))
       .orderBy(desc(transactions.createdAt))
       .limit(1);
     transaction = matches[0];
-
-    if (transaction) {
-    } else {
-    }
 
     return transaction;
   }
@@ -702,6 +700,11 @@ export class DatabaseStorage implements IStorage {
   async updateTransaction(id: string, data: Partial<Transaction>): Promise<Transaction | undefined> {
     const [transaction] = await db.update(transactions).set(data).where(eq(transactions.id, id)).returning();
     return transaction;
+  }
+
+  async deleteTransaction(id: string): Promise<boolean> {
+    const result = await db.delete(transactions).where(eq(transactions.id, id));
+    return true;
   }
 
   async updateTransactionDeliveryStatus(id: string, deliveryStatus: string): Promise<Transaction | undefined> {
@@ -1168,11 +1171,12 @@ export class DatabaseStorage implements IStorage {
 
   // Agent Pricing Methods
   // Custom Pricing (Unified for all roles)
-  async getCustomPricing(roleOwnerId: string, role: string): Promise<Array<{ productId: string; sellingPrice: string }>> {
+  async getCustomPricing(roleOwnerId: string, role: string): Promise<Array<{ productId: string; sellingPrice: string; profit?: string | null }>> {
     try {
       const pricing = await db.select({
         productId: customPricing.productId,
         sellingPrice: customPricing.sellingPrice,
+        profit: customPricing.profit,
       })
         .from(customPricing)
         .where(
@@ -1191,7 +1195,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async setCustomPricing(productId: string, roleOwnerId: string, role: string, sellingPrice: string): Promise<void> {
+  async setCustomPricing(productId: string, roleOwnerId: string, role: string, sellingPrice: string, profit?: string): Promise<void> {
     const priceNum = parseFloat(sellingPrice);
     if (isNaN(priceNum) || priceNum < 0) {
       throw new Error('Invalid selling price');
@@ -1215,6 +1219,7 @@ export class DatabaseStorage implements IStorage {
         await db.update(customPricing)
           .set({
             sellingPrice: sellingPrice,
+            profit: profit || null,
             updatedAt: new Date()
           })
           .where(
@@ -1227,11 +1232,11 @@ export class DatabaseStorage implements IStorage {
       } else {
         // Insert new
         await db.insert(customPricing).values({
-          
           productId,
           roleOwnerId,
           role,
           sellingPrice: sellingPrice,
+          profit: profit || null,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -1256,8 +1261,27 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getStoredProfit(productId: string, roleOwnerId: string, role: string): Promise<string | null> {
+    try {
+      const [result] = await db.select({ profit: customPricing.profit })
+        .from(customPricing)
+        .where(
+          and(
+            eq(customPricing.productId, productId),
+            eq(customPricing.roleOwnerId, roleOwnerId),
+            eq(customPricing.role, role)
+          )
+        )
+        .limit(1);
+      return result?.profit || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   async getCustomPrice(productId: string, roleOwnerId: string, role: string): Promise<string | null> {
     try {
+      console.log(`[Storage] getCustomPrice called: productId=${productId}, roleOwnerId=${roleOwnerId}, role=${role}`);
       const [result] = await db.select({
         sellingPrice: customPricing.sellingPrice,
       })
@@ -1271,8 +1295,10 @@ export class DatabaseStorage implements IStorage {
         )
         .limit(1);
 
+      console.log(`[Storage] getCustomPrice result: ${result?.sellingPrice || null}`);
       return result?.sellingPrice || null;
     } catch (error) {
+      console.log(`[Storage] getCustomPrice error: ${error}`);
       return null;
     }
   }

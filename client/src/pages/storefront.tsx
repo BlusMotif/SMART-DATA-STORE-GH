@@ -121,7 +121,12 @@ export default function StorefrontPage() {
       <header className="border-b sticky top-0 z-50 bg-blue-100 dark:bg-blue-200">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
-            <h1 className="font-semibold text-lg text-black">{store.businessName}</h1>
+            <div>
+              <h1 className="font-semibold text-lg text-black">{store.businessName}</h1>
+              {store.businessDescription && (
+                <p className="text-sm text-black/70">{store.businessDescription}</p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="text-black" onClick={() => {

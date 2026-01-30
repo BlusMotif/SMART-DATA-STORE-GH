@@ -554,7 +554,7 @@ async function processWebhookEvent(event) {
                     // Manual processing - just mark as completed, delivery pending
                     await storage.updateTransaction(transaction.id, {
                         status: TransactionStatus.COMPLETED,
-                        deliveryStatus: "pending",
+                        deliveryStatus: "processing",
                         completedAt: new Date(),
                         paymentReference: data.reference,
                         paymentStatus: "paid",
@@ -633,6 +633,7 @@ export async function registerRoutes(httpServer, app) {
                 return res.status(400).json({ error: "Invalid request body" });
             }
             const data = registerSchema.parse(req.body);
+            console.log("[REGISTER] Received registration data:", { email: data.email, name: data.name, phone: data.phone });
             // Validate password strength
             const passwordValidation = validatePasswordStrength(data.password);
             if (!passwordValidation.valid) {
@@ -664,7 +665,7 @@ export async function registerRoutes(httpServer, app) {
                 options: {
                     data: {
                         name: data.name,
-                        role: UserRole.GUEST,
+                        role: UserRole.USER,
                         phone: data.phone || null,
                     }
                 }
@@ -675,14 +676,16 @@ export async function registerRoutes(httpServer, app) {
             // Create user in local database with Supabase user ID
             try {
                 const hashedPassword = await bcrypt.hash(data.password, 10);
+                console.log("[REGISTER] Creating user in database:", { email: data.email, phone: data.phone });
                 const user = await storage.createUser({
                     id: supabaseData.user.id, // Use Supabase user ID
                     email: data.email,
                     password: hashedPassword,
                     name: data.name,
                     phone: data.phone,
-                    role: UserRole.GUEST,
+                    role: UserRole.USER,
                 });
+                console.log("[REGISTER] User created successfully:", { id: user.id, email: user.email, phone: user.phone });
                 res.status(201).json({
                     user: { id: user.id, email: user.email, name: user.name, role: user.role },
                     access_token: supabaseData.session?.access_token,
@@ -861,7 +864,7 @@ export async function registerRoutes(httpServer, app) {
                             email: user.email,
                             password: "", // Password not needed since auth is handled by Supabase
                             name: user.user_metadata?.name || user.email.split('@')[0],
-                            phone: user.phone || null,
+                            phone: user.user_metadata?.phone || user.phone || null,
                             role: role, // Preserve the role determined above (including admin for specific email)
                             isActive: true,
                         });
@@ -882,7 +885,7 @@ export async function registerRoutes(httpServer, app) {
                     email: user.email,
                     name: user.user_metadata?.name || user.email.split('@')[0],
                     role: role,
-                    phone: user.phone || null,
+                    phone: dbUser?.phone || user.user_metadata?.phone || null,
                     walletBalance: dbUser?.walletBalance || '0.00'
                 },
                 agent: agent ? {
@@ -1084,7 +1087,7 @@ export async function registerRoutes(httpServer, app) {
                 customerPhone: user.phone || "",
                 customerEmail: user.email || null,
                 paymentMethod: "paystack",
-                status: TransactionStatus.PENDING,
+                status: TransactionStatus.PROCESSING,
                 paymentReference: null,
                 agentId: agent.id,
                 agentProfit: "0.00",
@@ -1235,21 +1238,62 @@ export async function registerRoutes(httpServer, app) {
                     let profitMargin = '0.00';
                     let adminBasePriceValue = parseFloat(bundle.basePrice || '0');
                     if (userRole !== 'guest' && userId) {
-                        // Get resolved price (custom selling price or role base price fallback)
-                        const resolvedPrice = await storage.getResolvedPrice(bundle.id, userId, userRole);
-                        const roleBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
-                        if (resolvedPrice) {
-                            effectivePrice = parseFloat(resolvedPrice);
-                            // Calculate profit margin (selling price - role base price)
-                            if (roleBasePrice) {
-                                adminBasePriceValue = parseFloat(roleBasePrice);
-                                profitMargin = (effectivePrice - adminBasePriceValue).toFixed(2);
+                        // For AGENTS: Use agent role base price as their cost (set by admin for agent role)
+                        if (userRole === 'agent') {
+                            console.log(`[Pricing] Agent pricing for bundle ${bundle.id} (${bundle.name})`);
+                            // Get agent role base price (admin sets this specifically for agents)
+                            const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+                            console.log(`[Pricing] Agent role base price from DB: ${agentRoleBasePrice}`);
+                            if (agentRoleBasePrice) {
+                                adminBasePriceValue = parseFloat(agentRoleBasePrice);
+                                console.log(`[Pricing] Using agent role base price: ${adminBasePriceValue}`);
                             }
+                            else {
+                                // Fallback to admin base price if no agent role price set
+                                const adminPrice = await storage.getAdminBasePrice(bundle.id);
+                                adminBasePriceValue = adminPrice ? parseFloat(adminPrice) : parseFloat(bundle.basePrice || '0');
+                                console.log(`[Pricing] No agent role price found, using admin base price: ${adminBasePriceValue}`);
+                            }
+                            // Check if agent has custom selling price set by admin
+                            const agent = await storage.getAgentByUserId(userId);
+                            if (agent) {
+                                console.log(`[Pricing] Found agent: ${agent.id}`);
+                                const customPrice = await storage.getResolvedPrice(bundle.id, agent.id, 'agent');
+                                console.log(`[Pricing] Custom selling price: ${customPrice}`);
+                                if (customPrice) {
+                                    effectivePrice = parseFloat(customPrice);
+                                    console.log(`[Pricing] Using custom selling price: ${effectivePrice}`);
+                                }
+                                else {
+                                    // No custom price, use agent role base price as selling price
+                                    effectivePrice = adminBasePriceValue;
+                                    console.log(`[Pricing] No custom price, using agent role base price as selling price: ${effectivePrice}`);
+                                }
+                            }
+                            else {
+                                effectivePrice = adminBasePriceValue;
+                                console.log(`[Pricing] No agent found, using base price: ${effectivePrice}`);
+                            }
+                            profitMargin = (effectivePrice - adminBasePriceValue).toFixed(2);
+                            console.log(`[Pricing] Final: basePrice=${adminBasePriceValue}, effectivePrice=${effectivePrice}, profit=${profitMargin}`);
                         }
-                        else if (roleBasePrice) {
-                            // Use role base price if no resolved price
-                            effectivePrice = parseFloat(roleBasePrice);
-                            adminBasePriceValue = effectivePrice;
+                        else {
+                            // For other roles (user, etc.): Use resolved price or role base price
+                            const resolvedPrice = await storage.getResolvedPrice(bundle.id, userId, userRole);
+                            const roleBasePrice = await storage.getRoleBasePrice(bundle.id, userRole);
+                            if (resolvedPrice) {
+                                effectivePrice = parseFloat(resolvedPrice);
+                                // Calculate profit margin (selling price - role base price)
+                                if (roleBasePrice) {
+                                    adminBasePriceValue = parseFloat(roleBasePrice);
+                                    profitMargin = (effectivePrice - adminBasePriceValue).toFixed(2);
+                                }
+                            }
+                            else if (roleBasePrice) {
+                                // Use role base price if no resolved price
+                                effectivePrice = parseFloat(roleBasePrice);
+                                adminBasePriceValue = effectivePrice;
+                            }
                         }
                     }
                     else {
@@ -1731,8 +1775,28 @@ export async function registerRoutes(httpServer, app) {
                         return res.status(400).json({ error: `No pricing available for bundle ${bundle.name} (${bundle.id}).` });
                     }
                     itemPrice = parseFloat(resolvedPrice);
-                    const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-                    adminPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
+                    // Get the stored profit from custom_pricing table
+                    const agent = await storage.getAgentByUserId(user.id);
+                    if (agent) {
+                        const storedProfit = await storage.getStoredProfit(bundle.id, agent.id, 'agent');
+                        if (storedProfit) {
+                            // Use the stored profit value set by the agent
+                            const profitValue = parseFloat(storedProfit);
+                            computedAgentProfit += Math.max(0, profitValue);
+                        }
+                        else {
+                            // Fallback: calculate profit if not stored
+                            const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+                            if (agentRoleBasePrice) {
+                                adminPrice = parseFloat(agentRoleBasePrice);
+                            }
+                            else {
+                                const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+                                adminPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
+                            }
+                            computedAgentProfit += Math.max(0, itemPrice - adminPrice);
+                        }
+                    }
                 }
                 else if (user.role === 'dealer') {
                     const resolvedPrice = await storage.getResolvedPrice(bundle.id, user.id, 'dealer');
@@ -1802,7 +1866,7 @@ export async function registerRoutes(httpServer, app) {
                 customerEmail: user.email,
                 phoneNumbers: JSON.stringify(processedOrderItems),
                 isBulkOrder: true,
-                status: "pending",
+                status: "processing",
                 agentId: user.role === 'agent' ? user.id : undefined,
                 agentProfit: user.role === 'agent' ? computedAgentProfit.toFixed(2) : "0.00",
                 providerId,
@@ -1820,7 +1884,7 @@ export async function registerRoutes(httpServer, app) {
             }
             // Mark transaction payment as completed for wallet payments
             await storage.updateTransaction(transaction.id, {
-                status: "pending", // Set to pending until SkyTech confirms delivery
+                status: "processing", // Set to processing until SkyTech confirms delivery
                 completedAt: new Date(),
                 paymentReference: "wallet",
                 paymentStatus: "paid",
@@ -1953,18 +2017,18 @@ export async function registerRoutes(httpServer, app) {
             const ENFORCE_COOLDOWN_MINUTES = 20;
             const enforcePhoneCooldown = async (phone) => {
                 const lastTx = await storage.getLatestDataBundleTransactionByPhone(phone);
-                if (lastTx && lastTx.paymentStatus === "paid" && lastTx.createdAt) {
+                if (lastTx && lastTx.createdAt) {
                     const lastTime = new Date(lastTx.createdAt).getTime();
                     const cooldownMs = ENFORCE_COOLDOWN_MINUTES * 60 * 1000;
                     const elapsed = Date.now() - lastTime;
-                    console.log(`[Cooldown] Phone: ${phone}, Last paid TX: ${lastTx.reference}, Elapsed: ${Math.round(elapsed / 1000)}s, Cooldown: ${ENFORCE_COOLDOWN_MINUTES * 60}s`);
+                    console.log(`[Cooldown] Phone: ${phone}, Last TX: ${lastTx.reference} (${lastTx.paymentStatus}), Elapsed: ${Math.round(elapsed / 1000)}s, Cooldown: ${ENFORCE_COOLDOWN_MINUTES * 60}s`);
                     if (elapsed < cooldownMs) {
                         const remainingMinutes = Math.ceil((cooldownMs - elapsed) / 60000);
                         console.log(`[Cooldown] BLOCKED: ${phone} must wait ${remainingMinutes} minute(s)`);
                         return { blocked: true, remainingMinutes, lastReference: lastTx.reference };
                     }
                 }
-                console.log(`[Cooldown] ALLOWED: ${phone} (no recent paid transactions)`);
+                console.log(`[Cooldown] ALLOWED: ${phone} (no recent transactions or cooldown expired)`);
                 return { blocked: false, remainingMinutes: 0 };
             };
             // Get authenticated user's email and update phone if provided
@@ -2020,6 +2084,7 @@ export async function registerRoutes(httpServer, app) {
             let agentProfit = 0;
             let agentId;
             let network = null;
+            let authenticatedAgentId;
             // Handle new bulk format with orderItems
             if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
                 console.log("[Checkout] ========== NEW BULK FORMAT DETECTED ==========");
@@ -2084,6 +2149,13 @@ export async function registerRoutes(httpServer, app) {
                         return res.status(400).json({ error: "Invalid agent storefront" });
                     }
                 }
+                // If authenticated user is an agent (direct purchase), use their custom pricing too
+                if (!storefrontAgent && authenticatedUserId) {
+                    const authAgent = await storage.getAgentByUserId(authenticatedUserId);
+                    if (authAgent) {
+                        authenticatedAgentId = authAgent.id;
+                    }
+                }
                 for (const item of data.orderItems) {
                     const bundle = await storage.getDataBundle(item.bundleId);
                     if (!bundle) {
@@ -2099,17 +2171,46 @@ export async function registerRoutes(httpServer, app) {
                         }
                         itemPrice = parseFloat(resolvedPrice);
                     }
+                    else if (authenticatedAgentId) {
+                        const customPrice = await storage.getCustomPrice(bundle.id, authenticatedAgentId, 'agent');
+                        if (customPrice) {
+                            itemPrice = parseFloat(customPrice);
+                        }
+                        else {
+                            const roleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+                            itemPrice = roleBasePrice ? parseFloat(roleBasePrice) : parseFloat(bundle.basePrice || '0');
+                        }
+                    }
                     else {
                         // For non-agent purchases, use admin base price
                         const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
                         itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
                     }
                     amount += itemPrice;
-                    // Calculate profit as selling price - admin base price for agents, or admin base price for others
-                    const basePriceValue = await storage.getAdminBasePrice(bundle.id);
-                    const basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || '0');
-                    const profit = itemPrice - basePrice;
-                    computedAgentProfit += Math.max(0, profit); // Profit is 0 if using admin price
+                    // Calculate profit - use stored profit from custom_pricing if available
+                    if (storefrontAgent || authenticatedAgentId) {
+                        const profitOwnerId = storefrontAgent ? storefrontAgent.id : authenticatedAgentId;
+                        const storedProfit = await storage.getStoredProfit(bundle.id, profitOwnerId, 'agent');
+                        if (storedProfit) {
+                            // Use the stored profit value
+                            const profitValue = parseFloat(storedProfit);
+                            computedAgentProfit += Math.max(0, profitValue);
+                        }
+                        else {
+                            // Fallback: calculate profit if not stored
+                            const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+                            let basePrice;
+                            if (agentRoleBasePrice) {
+                                basePrice = parseFloat(agentRoleBasePrice);
+                            }
+                            else {
+                                const basePriceValue = await storage.getAdminBasePrice(bundle.id);
+                                basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || '0');
+                            }
+                            const profit = itemPrice - basePrice;
+                            computedAgentProfit += Math.max(0, profit);
+                        }
+                    }
                 }
                 // store computed agent profit for later use
                 agentProfit = computedAgentProfit;
@@ -2142,75 +2243,81 @@ export async function registerRoutes(httpServer, app) {
                 }
                 // Apply role-based pricing for single purchases
                 let userRole = 'guest';
-                // Check for agent storefront
-                if (data.agentSlug) {
-                    const agent = await storage.getAgentBySlug(data.agentSlug);
-                    if (agent && agent.isApproved) {
-                        userRole = 'agent';
-                        agentId = agent.id;
-                        // Use resolved price for agent storefront
-                        const resolvedPrice = await storage.getResolvedPrice(data.productId, agent.id, 'agent');
-                        if (!resolvedPrice) {
-                            return res.status(400).json({ error: "No pricing available for this product" });
-                        }
-                        amount = parseFloat(resolvedPrice);
-                        // Calculate profit as selling price - admin base price
-                        const adminBasePrice = await storage.getAdminBasePrice(data.productId);
-                        const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
-                        agentProfit = Math.max(0, amount - basePrice); // Profit is 0 if using admin price
-                    }
-                    else {
-                        amount = parseFloat(product.adminPrice || product.basePrice || '0');
-                    }
-                }
-                else {
-                    // Check authenticated user role
-                    let dbUser = null;
-                    try {
-                        const authHeader = req.headers.authorization;
-                        if (authHeader && authHeader.startsWith('Bearer ')) {
-                            const token = authHeader.substring(7);
-                            const supabaseServer = getSupabase();
-                            if (supabaseServer) {
-                                const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-                                if (!error && user && user.email) {
-                                    dbUser = await storage.getUserByEmail(user.email);
-                                    if (dbUser) {
-                                        userRole = dbUser.role;
-                                        // Set agentId for agent users making direct purchases
-                                        if (userRole === 'agent' || userRole === 'dealer' || userRole === 'super_dealer' || userRole === 'master') {
-                                            const agent = await storage.getAgentByUserId(dbUser.id);
-                                            if (agent && agent.isApproved) {
-                                                agentId = agent.id;
-                                            }
-                                        }
+                let authenticatedAgentId;
+                // FIRST: Check if user is authenticated and is an agent
+                try {
+                    const authHeader = req.headers.authorization;
+                    if (authHeader && authHeader.startsWith('Bearer ')) {
+                        const token = authHeader.substring(7);
+                        const supabaseServer = getSupabase();
+                        if (supabaseServer) {
+                            const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+                            if (!error && user && user.email) {
+                                const dbUser = await storage.getUserByEmail(user.email);
+                                console.log(`[Checkout] Authenticated user: ${user.email}, dbUser found: ${!!dbUser}`);
+                                if (dbUser) {
+                                    const agent = await storage.getAgentByUserId(dbUser.id);
+                                    if (agent) {
+                                        authenticatedAgentId = agent.id;
+                                        console.log(`[Checkout] Authenticated agent detected: ${agent.id}`);
                                     }
                                 }
                             }
                         }
                     }
-                    catch (authError) {
-                        // Ignore auth errors, treat as guest
+                }
+                catch (authError) {
+                    console.log(`[Checkout] Auth check error: ${authError}`);
+                }
+                // SECOND: Check for agent storefront OR authenticated agent
+                console.log(`[Checkout] SINGLE PURCHASE: Starting pricing logic...`);
+                console.log(`[Checkout] Single purchase - agentSlug provided: ${data.agentSlug}`);
+                console.log(`[Checkout] Single purchase - authenticatedAgentId: ${authenticatedAgentId}`);
+                let agentIdForPricing;
+                if (data.agentSlug) {
+                    const agent = await storage.getAgentBySlug(data.agentSlug);
+                    if (agent && agent.isApproved) {
+                        agentIdForPricing = agent.id;
                     }
-                    // Apply role-based pricing for direct purchases
-                    if (userRole !== 'guest' && dbUser) {
-                        const resolvedPrice = await storage.getResolvedPrice(data.productId, dbUser.id, userRole);
-                        if (resolvedPrice) {
-                            amount = parseFloat(resolvedPrice);
-                        }
-                        else {
-                            amount = parseFloat(product.adminPrice || product.basePrice || '0');
-                        }
-                        // Calculate agent profit for agent users making direct purchases
-                        if (agentId) {
-                            const adminBasePrice = await storage.getAdminBasePrice(data.productId);
-                            const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
-                            agentProfit = Math.max(0, amount - basePrice);
-                        }
+                }
+                else if (authenticatedAgentId) {
+                    agentIdForPricing = authenticatedAgentId;
+                }
+                if (agentIdForPricing) {
+                    // Agent pricing path (storefront or authenticated direct)
+                    userRole = 'agent';
+                    agentId = agentIdForPricing;
+                    const resolvedPrice = await storage.getResolvedPrice(data.productId, agentIdForPricing, 'agent');
+                    console.log(`[Checkout] Agent detected: agentId: ${agentIdForPricing}, Resolved price: ${resolvedPrice}`);
+                    if (!resolvedPrice) {
+                        return res.status(400).json({ error: "No pricing available for this product" });
+                    }
+                    amount = parseFloat(resolvedPrice);
+                    console.log(`[Checkout] Agent pricing - resolved amount: GHS ${amount}`);
+                    // Use stored profit from custom_pricing table
+                    const storedProfit = await storage.getStoredProfit(data.productId, agentIdForPricing, 'agent');
+                    if (storedProfit) {
+                        agentProfit = Math.max(0, parseFloat(storedProfit));
+                        console.log(`[Checkout] Stored profit: GHS ${agentProfit}`);
                     }
                     else {
-                        amount = parseFloat(product.basePrice || '0');
+                        // Fallback: calculate profit if not stored
+                        const agentRoleBasePrice = await storage.getRoleBasePrice(data.productId, 'agent');
+                        let basePrice;
+                        if (agentRoleBasePrice) {
+                            basePrice = parseFloat(agentRoleBasePrice);
+                        }
+                        else {
+                            const adminBasePrice = await storage.getAdminBasePrice(data.productId);
+                            basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product.basePrice || '0');
+                        }
+                        agentProfit = Math.max(0, amount - basePrice);
                     }
+                }
+                else {
+                    // Non-agent customer (guest or non-agent user)
+                    console.log(`[Checkout] Non-agent customer, using admin base price`);
+                    amount = parseFloat(product.adminPrice || product.basePrice || '0');
                 }
                 productName = `${product.network.toUpperCase()} ${product.dataAmount} - ${product.validity}`;
                 costPrice = 0; // Cost price removed from schema
@@ -2359,6 +2466,38 @@ export async function registerRoutes(httpServer, app) {
             console.log("[Checkout] Total profit:", totalProfit);
             console.log("[Checkout] Total agent profit:", totalAgentProfit);
             console.log("[Checkout] ================================================");
+            // CRITICAL: For wallet payments, check cooldown BEFORE creating transaction
+            if (data.paymentMethod === 'wallet' && data.productType === ProductType.DATA_BUNDLE && normalizedPhone) {
+                if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
+                    // Check cooldown for each unique phone in bulk order
+                    const uniquePhones = [...new Set(data.orderItems.map((item) => normalizePhoneNumber(item.phone)))];
+                    console.log(`[Checkout-Wallet-PreCheck] Checking cooldown for ${uniquePhones.length} unique phones in bulk order`);
+                    for (const phone of uniquePhones) {
+                        const cooldown = await enforcePhoneCooldown(phone);
+                        if (cooldown.blocked) {
+                            console.log(`[Checkout-Wallet-PreCheck] COOLDOWN BLOCKED for ${phone}: ${cooldown.remainingMinutes} minutes remaining`);
+                            return res.status(429).json({
+                                error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${phone}.`,
+                                cooldownMinutes: cooldown.remainingMinutes,
+                                phone,
+                            });
+                        }
+                    }
+                }
+                else {
+                    // Check cooldown for single purchase
+                    console.log(`[Checkout-Wallet-PreCheck] Checking cooldown for single purchase: ${normalizedPhone}`);
+                    const cooldown = await enforcePhoneCooldown(normalizedPhone);
+                    if (cooldown.blocked) {
+                        console.log(`[Checkout-Wallet-PreCheck] COOLDOWN BLOCKED for ${normalizedPhone}: ${cooldown.remainingMinutes} minutes remaining`);
+                        return res.status(429).json({
+                            error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${normalizedPhone}.`,
+                            cooldownMinutes: cooldown.remainingMinutes,
+                            phone: normalizedPhone,
+                        });
+                    }
+                }
+            }
             // Get provider for data bundle transactions
             let providerId;
             if (data.productType === ProductType.DATA_BUNDLE && network) {
@@ -4028,16 +4167,25 @@ export async function registerRoutes(httpServer, app) {
                 return res.status(404).json({ error: "Agent not found" });
             }
             const pricing = await storage.getCustomPricing(agent.id, 'agent');
-            // Get admin base prices for display
+            // Get agent role base prices (set by admin specifically for agent role)
             const bundles = await storage.getDataBundles({ isActive: true });
             const result = await Promise.all(bundles.map(async (bundle) => {
                 const customPrice = pricing.find(p => p.productId === bundle.id);
-                const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+                // Get agent role base price (the GHC 7.00 set for agents)
+                const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+                let basePrice = agentRoleBasePrice;
+                // Fallback to admin base price if no agent role price set
+                if (!basePrice) {
+                    const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+                    basePrice = adminBasePrice || bundle.basePrice;
+                }
+                // Profit is always calculated as: selling price - agent base price
+                const profit = customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(basePrice || "0")).toFixed(2) : "0";
                 return {
                     bundleId: bundle.id,
                     agentPrice: customPrice?.sellingPrice || "",
-                    adminBasePrice: adminBasePrice || bundle.basePrice,
-                    agentProfit: customPrice ? (parseFloat(customPrice.sellingPrice) - parseFloat(adminBasePrice || bundle.basePrice)).toFixed(2) : "0"
+                    adminBasePrice: basePrice,
+                    agentProfit: profit
                 };
             }));
             res.json(result);
@@ -4069,8 +4217,16 @@ export async function registerRoutes(httpServer, app) {
                     await storage.deleteCustomPricing(bundleId, agent.id, 'agent');
                 }
                 else {
-                    // Set custom selling price
-                    await storage.setCustomPricing(bundleId, agent.id, 'agent', priceObj.agentPrice);
+                    // Get the base price to calculate profit correctly
+                    const bundle = await storage.getDataBundle(bundleId);
+                    const agentRoleBasePrice = await storage.getRoleBasePrice(bundleId, 'agent');
+                    const basePrice = agentRoleBasePrice || (await storage.getAdminBasePrice(bundleId)) || bundle?.basePrice || '0';
+                    // Calculate profit as: selling price - agent base price
+                    const sellingPrice = parseFloat(priceObj.agentPrice);
+                    const basePriceNum = parseFloat(basePrice);
+                    const calculatedProfit = Math.max(0, sellingPrice - basePriceNum).toFixed(2);
+                    // Set custom selling price with auto-calculated profit
+                    await storage.setCustomPricing(bundleId, agent.id, 'agent', priceObj.agentPrice, calculatedProfit);
                 }
             }
             // Return updated pricing
@@ -6546,6 +6702,16 @@ export async function registerRoutes(httpServer, app) {
                 console.error("Missing required fields:", { productType, productName: effectiveProductName, amount, customerPhone });
                 return res.status(400).json({ error: "Missing required fields" });
             }
+            // Normalize and validate phone number
+            let normalizedPhone;
+            if (customerPhone) {
+                normalizedPhone = normalizePhoneNumber(customerPhone);
+                if (!isValidPhoneLength(normalizedPhone)) {
+                    return res.status(400).json({
+                        error: "Invalid phone number length. Phone number must be exactly 10 digits including the prefix (e.g., 0241234567)"
+                    });
+                }
+            }
             const dbUser = await storage.getUserByEmail(req.user.email);
             if (!dbUser) {
                 return res.status(404).json({ error: "User not found" });
@@ -6560,6 +6726,68 @@ export async function registerRoutes(httpServer, app) {
                     balance: (walletBalanceCents / 100).toFixed(2),
                     required: (purchaseAmountCents / 100).toFixed(2),
                 });
+            }
+            // Helper function to enforce cooldown (matches Paystack implementation)
+            const ENFORCE_COOLDOWN_MINUTES = 20;
+            const enforcePhoneCooldown = async (phone) => {
+                const lastTx = await storage.getLatestDataBundleTransactionByPhone(phone);
+                if (lastTx && lastTx.createdAt) {
+                    const lastTime = new Date(lastTx.createdAt).getTime();
+                    const cooldownMs = ENFORCE_COOLDOWN_MINUTES * 60 * 1000;
+                    const elapsed = Date.now() - lastTime;
+                    console.log(`[Wallet-Cooldown] Phone: ${phone}, Last TX: ${lastTx.reference} (${lastTx.paymentStatus}), Elapsed: ${Math.round(elapsed / 1000)}s, Cooldown: ${ENFORCE_COOLDOWN_MINUTES * 60}s`);
+                    if (elapsed < cooldownMs) {
+                        const remainingMinutes = Math.ceil((cooldownMs - elapsed) / 60000);
+                        console.log(`[Wallet-Cooldown] BLOCKED: ${phone} must wait ${remainingMinutes} minute(s)`);
+                        return { blocked: true, remainingMinutes, lastReference: lastTx.reference };
+                    }
+                }
+                console.log(`[Wallet-Cooldown] ALLOWED: ${phone} (no recent transactions or cooldown expired)`);
+                return { blocked: false, remainingMinutes: 0 };
+            };
+            // CRITICAL: Check cooldown BEFORE creating transaction to prevent race conditions
+            if (productType === ProductType.DATA_BUNDLE && normalizedPhone) {
+                console.log(`[Wallet] ===================== COOLDOWN CHECK START =====================`);
+                console.log(`[Wallet] Product Type: ${productType}`);
+                console.log(`[Wallet] Normalized Phone: ${normalizedPhone}`);
+                console.log(`[Wallet] Is Bulk Order: ${isBulkOrder}`);
+                console.log(`[Wallet] Order Items:`, orderItems);
+                if (isBulkOrder && orderItems && Array.isArray(orderItems)) {
+                    // Check cooldown for each unique phone in bulk order
+                    const uniquePhones = [...new Set(orderItems.map((item) => normalizePhoneNumber(item.phone)))];
+                    console.log(`[Wallet] Checking cooldown for ${uniquePhones.length} unique phones in bulk order`);
+                    for (const phone of uniquePhones) {
+                        console.log(`[Wallet] Checking phone: ${phone}`);
+                        const cooldown = await enforcePhoneCooldown(phone);
+                        console.log(`[Wallet] Cooldown result for ${phone}:`, cooldown);
+                        if (cooldown.blocked) {
+                            console.log(`[Wallet] ❌ COOLDOWN BLOCKED for ${phone}: ${cooldown.remainingMinutes} minutes remaining`);
+                            return res.status(429).json({
+                                error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${phone}.`,
+                                cooldownMinutes: cooldown.remainingMinutes,
+                                phone,
+                            });
+                        }
+                    }
+                }
+                else {
+                    // Check cooldown for single purchase
+                    console.log(`[Wallet] Checking cooldown for single purchase: ${normalizedPhone}`);
+                    const cooldown = await enforcePhoneCooldown(normalizedPhone);
+                    console.log(`[Wallet] Cooldown result:`, cooldown);
+                    if (cooldown.blocked) {
+                        console.log(`[Wallet] ❌ COOLDOWN BLOCKED for ${normalizedPhone}: ${cooldown.remainingMinutes} minutes remaining`);
+                        return res.status(429).json({
+                            error: `Please wait ${cooldown.remainingMinutes} minute(s) before purchasing another bundle for ${normalizedPhone}.`,
+                            cooldownMinutes: cooldown.remainingMinutes,
+                            phone: normalizedPhone,
+                        });
+                    }
+                }
+                console.log(`[Wallet] ===================== COOLDOWN CHECK PASSED =====================`);
+            }
+            else {
+                console.log(`[Wallet] ⚠️ COOLDOWN CHECK SKIPPED - productType: ${productType}, normalizedPhone: ${normalizedPhone}`);
             }
             // Get product pricing
             let product;
@@ -6615,16 +6843,21 @@ export async function registerRoutes(httpServer, app) {
             // Store full order items with GB info for bulk orders, or just phone numbers for simple orders
             const phoneNumbersData = orderItems
                 ? orderItems.map((item) => ({
-                    phone: item.phone,
+                    phone: normalizePhoneNumber(item.phone),
                     bundleName: item.bundleName,
                     dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
                 }))
-                : (phoneNumbers ? phoneNumbers.map((phone) => ({ phone })) : undefined);
+                : (phoneNumbers ? phoneNumbers.map((phone) => ({ phone: normalizePhoneNumber(phone) })) : undefined);
             console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
             console.log("[Wallet] orderItems:", orderItems);
             console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
             console.log("[Wallet] phoneNumbersData:", phoneNumbersData);
             console.log("[Wallet] ===================================================");
+            console.log("[Wallet] ==================== CREATING TRANSACTION ====================");
+            console.log("[Wallet] customerPhone (normalized):", normalizedPhone || customerPhone);
+            console.log("[Wallet] paymentStatus: paid (cooldown already checked)");
+            console.log("[Wallet] type:", productType);
+            console.log("[Wallet] =================================================================");
             const transaction = await storage.createTransaction({
                 reference,
                 type: productType,
@@ -6633,7 +6866,7 @@ export async function registerRoutes(httpServer, app) {
                 network,
                 amount: purchaseAmount.toFixed(2),
                 profit: profit.toFixed(2),
-                customerPhone,
+                customerPhone: normalizedPhone || customerPhone,
                 customerEmail: dbUser.email,
                 phoneNumbers: (isBulkOrder || (orderItems && orderItems.length > 0)) && phoneNumbersData ? JSON.stringify(phoneNumbersData) : undefined,
                 isBulkOrder: isBulkOrder || (orderItems && orderItems.length > 0) || false,
@@ -6643,6 +6876,7 @@ export async function registerRoutes(httpServer, app) {
                 agentId,
                 agentProfit: agentProfit > 0 ? agentProfit.toFixed(2) : undefined,
             });
+            console.log("[Wallet] Transaction created:", transaction.id);
             // Deduct from wallet (use same precision handling as balance check)
             const newBalanceCents = walletBalanceCents - purchaseAmountCents;
             const newBalance = newBalanceCents / 100;
@@ -6657,7 +6891,7 @@ export async function registerRoutes(httpServer, app) {
                 let checker = await storage.getAvailableResultChecker(type, year);
                 if (checker) {
                     // Use pre-generated checker
-                    await storage.markResultCheckerSold(checker.id, transaction.id, customerPhone);
+                    await storage.markResultCheckerSold(checker.id, transaction.id, normalizedPhone || customerPhone);
                     deliveredPin = checker.pin;
                     deliveredSerial = checker.serialNumber;
                 }

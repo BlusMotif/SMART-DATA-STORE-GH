@@ -18,7 +18,7 @@ import logoDark from "@assets/darkmode-icon.png";
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  phone: z.string().optional(),
+  phone: z.string().min(10, "Phone number must be at least 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -62,7 +62,7 @@ export default function RegisterPage() {
         setLocation("/admin");
       } else if (role === "agent") {
         setLocation("/agent");
-      } else if (role === "user") {
+      } else if (role === "user" || role === "guest") {
         // Regular users should go to user dashboard
         setLocation("/user/dashboard");
       } else {
@@ -74,8 +74,28 @@ export default function RegisterPage() {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      const result = await register({ email: data.email, password: data.password, name: data.name });
+      console.log("[REGISTER-FORM] Submitting with data:", { email: data.email, name: data.name, phone: data.phone });
       
+      if (!data.phone || data.phone.length < 10) {
+        toast({
+          title: "Phone number required",
+          description: "Please provide a valid phone number with at least 10 digits",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const result = await register({ email: data.email, password: data.password, name: data.name, phone: data.phone });
+      
+      if (result?.error) {
+        toast({
+          title: "Registration failed",
+          description: result.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (result?.error === "Email confirmation required") {
         toast({
           title: "Check your email",
@@ -112,7 +132,7 @@ export default function RegisterPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white dark:bg-black text-black dark:text-white rounded-xl p-8" style={{ backgroundColor: theme === 'dark' ? '#000000' : undefined }}>
+        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white dark:bg-black text-black dark:text-white rounded-xl p-8">
           <div className="text-center space-y-2">
             <div className="flex justify-center mb-4">
               <img
@@ -181,7 +201,7 @@ export default function RegisterPage() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number (optional)</FormLabel>
+                    <FormLabel>Phone Number</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground dark:text-gray-400" />

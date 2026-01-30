@@ -260,7 +260,7 @@ export default function AgentDashboard() {
                           <span className="text-xs font-medium">Live Dashboard</span>
                         </div>
                         <div className="flex items-center gap-1 text-white/90">
-                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:0.5s]"></div>
                           <span className="text-xs font-medium">Real-time Updates</span>
                         </div>
                       </div>

@@ -19,6 +19,7 @@ export const UserRole = {
 // Transaction status enum
 export const TransactionStatus = {
   PENDING: "pending",
+  PROCESSING: "processing",
   CONFIRMED: "confirmed",
   COMPLETED: "completed",
   DELIVERED: "delivered",
@@ -207,8 +208,8 @@ export const transactions = pgTable("transactions", {
   phoneNumbers: text("phone_numbers"), // Array of phone numbers for bulk orders
   isBulkOrder: boolean("is_bulk_order").default(false),
   paymentMethod: text("payment_method").notNull().default("paystack"), // "paystack" or "wallet"
-  status: text("status").notNull().default("pending"),
-  deliveryStatus: text("delivery_status").notNull().default("pending"),
+  status: text("status").notNull().default("processing"),
+  deliveryStatus: text("delivery_status").notNull().default("processing"),
   paymentReference: text("payment_reference"),
   paymentStatus: text("payment_status").notNull().default("pending"),
   agentId: text("agent_id"),
@@ -305,6 +306,7 @@ export const customPricing = pgTable("custom_pricing", {
   roleOwnerId: text("role_owner_id").notNull(), // Agent ID, Dealer User ID, etc.
   role: text("role").notNull(), // agent, dealer, super_dealer, master
   sellingPrice: text("selling_price").notNull(), // Final selling price
+  profit: text("profit"), // Agent-defined profit margin
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
@@ -632,7 +634,7 @@ export const insertAgentSchema = z.object({
   userId: z.string(),
   storefrontSlug: z.string(),
   businessName: z.string(),
-  businessDescription: z.string().optional(),
+  businessDescription: z.string(),
   customPricingMarkup: z.string().optional(),
   isApproved: z.boolean().optional(),
   paymentPending: z.boolean().optional(),
@@ -957,7 +959,7 @@ export const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().optional(),
+  phone: z.string().min(10, "Phone must be at least 10 characters"),
 });
 
 export const agentRegisterSchema = z.object({
@@ -968,7 +970,7 @@ export const agentRegisterSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters"),
   storefrontSlug: z.string().min(3, "Storefront URL must be at least 3 characters")
     .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed"),
-  businessDescription: z.string().optional(),
+  businessDescription: z.string().min(10, "Business description must be at least 10 characters"),
 });
 
 export const purchaseSchema = z.object({

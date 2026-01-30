@@ -9,7 +9,7 @@ interface StatusBadgeProps {
 }
 
 const defaultStatusConfig: Record<string, { label: string; color: string; icon?: typeof CheckCircle }> = {
-  pending: { label: "Pending", color: "bg-amber-500 text-white", icon: Clock },
+  pending: { label: "Processing", color: "bg-blue-500 text-white", icon: Layers },
   processing: { label: "Processing", color: "bg-blue-500 text-white", icon: Layers },
   confirmed: { label: "Confirmed", color: "bg-blue-600 text-white", icon: CheckCircle },
   completed: { label: "Completed", color: "bg-green-500 text-white", icon: CheckCircle },

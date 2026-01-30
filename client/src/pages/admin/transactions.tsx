@@ -171,7 +171,7 @@ export default function AdminTransactions() {
   const stats = {
     total: transactions?.length || 0,
     completed: transactions?.filter((t) => t.status === "completed").length || 0,
-    pending: transactions?.filter((t) => t.status === "pending").length || 0,
+    processing: transactions?.filter((t) => t.status === "processing").length || 0,
     failed: transactions?.filter((t) => t.status === "failed").length || 0,
   };
 
@@ -385,7 +385,7 @@ export default function AdminTransactions() {
                       <SelectContent>
                         <SelectItem value="all">All Payments</SelectItem>
                         <SelectItem value="paid">Paid Only</SelectItem>
-                        <SelectItem value="pending">Pending Only</SelectItem>
+                        <SelectItem value="processing">Processing Only</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
@@ -417,7 +417,7 @@ export default function AdminTransactions() {
                       <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
                         <SelectItem value="failed">Failed</SelectItem>
                         <SelectItem value="refunded">Refunded</SelectItem>
                       </SelectContent>
@@ -577,7 +577,6 @@ export default function AdminTransactions() {
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="pending">Pending</SelectItem>
                                         <SelectItem value="processing">Processing</SelectItem>
                                         <SelectItem value="delivered">Delivered</SelectItem>
                                         <SelectItem value="failed">Failed</SelectItem>
@@ -642,13 +641,16 @@ export default function AdminTransactions() {
                                             onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
                                             title={skytechStatus ? `SkyTech: ${skytechStatus} | Internal: ${deliveryStatus}` : `Click to change delivery status (Current: ${deliveryStatus})`}
                                           >
-                                            {isProcessing ? "🔄 " : ""}{statusToDisplay.charAt(0).toUpperCase() + statusToDisplay.slice(1)}
+                                            {isProcessing ? "🔄 Processing" : statusToDisplay.charAt(0).toUpperCase() + statusToDisplay.slice(1)}
                                           </Badge>
                                           {skytechStatus && (
                                             <span className="text-[10px] text-muted-foreground">
                                               From SkyTech
                                             </span>
                                           )}
+                                          <span className="text-[10px] text-muted-foreground">
+                                            {formatDate(tx.createdAt)}
+                                          </span>
                                         </>
                                       );
                                     })()}

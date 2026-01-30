@@ -298,7 +298,7 @@ export default function AdminUsers() {
                       <SelectTrigger className="w-48">
                         <SelectValue placeholder="Export format" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 text-black dark:text-white">
+                      <SelectContent>
                         <SelectItem value="phone">Phone only</SelectItem>
                         <SelectItem value="phone_email">Phone + Email</SelectItem>
                         <SelectItem value="phone_username">Phone + Username</SelectItem>
@@ -339,7 +339,7 @@ export default function AdminUsers() {
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Role" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-600 text-black dark:text-white">
+                    <SelectContent>
                       <SelectItem value="all">All Users</SelectItem>
                       <SelectItem value="guest">Guests</SelectItem>
                       <SelectItem value="user">Users</SelectItem>

@@ -105,10 +105,8 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
   if (error) {
     return (
-      <div className={`flex h-full w-64 flex-col border-r text-sidebar-foreground relative ${
-        onClose ? 'bg-white' : 'bg-sidebar'
-      }`}>
-        <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''}`}>
+      <div className="flex h-full w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground relative">
+        <div className={`flex h-16 items-center justify-center border-b border-border px-6 ${onClose ? 'pr-4' : ''}`}>
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
             {user?.name?.charAt(0).toUpperCase() || 'A'}
           </div>
@@ -126,7 +124,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                     size="sm"
                     variant={isActive ? "default" : "ghost"}
                     className={cn(
-                      "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative",
+                      "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative text-sidebar-foreground hover:bg-sidebar-accent",
                       isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                     )}
                     onClick={() => onClose && onClose()}
@@ -160,15 +158,13 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
   }
 
   return (
-    <div className={`flex h-full w-64 flex-col border-r text-sidebar-foreground relative ${
-      onClose ? 'bg-white dark:bg-black dark:text-white' : 'bg-sidebar dark:bg-black dark:text-white'
-    }`}>
-      <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''} dark:border-gray-700`}>
+    <div className="flex h-full w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground relative">
+      <div className={`flex h-16 items-center justify-center border-b border-border px-6 ${onClose ? 'pr-4' : ''}`}>
         <div className="flex flex-col items-center text-center w-full">
           <div className="flex items-center justify-center gap-4 mb-1 w-full">
             <div className="flex flex-col items-center">
-              <p className="text-sm font-medium dark:text-white">{user?.name || 'Agent'}</p>
-              <p className="text-xs text-muted-foreground dark:text-gray-300">{user?.email}</p>
+              <p className="text-sm font-medium text-sidebar-foreground">{user?.name || 'Agent'}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
             {rankData && (
               <div className="flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white border border-green-600 dark:bg-green-600 dark:border-green-700">
@@ -183,8 +179,8 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
       </div>
 
       {agent && (
-        <div className="border-b p-3 dark:border-gray-700">
-          <div className="rounded-lg bg-green-500 p-3 dark:bg-green-600">
+        <div className="border-b border-border p-3">
+          <div className="rounded-lg bg-green-500 p-3">
             <p className="text-xs text-white mb-1">Profit Balance</p>
             <p className="text-xl font-bold tabular-nums text-white" data-testid="text-agent-profit-balance">{formatCurrency(agent.profitBalance)}</p>
             <p className="text-xs text-white mt-1">Wallet Balance: {formatCurrency(agent.walletBalance)}</p>
@@ -203,8 +199,8 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 font-normal relative dark:text-white dark:hover:bg-gray-700",
-                    isActive && "bg-yellow-500 text-white font-medium shadow-sm dark:bg-yellow-600"
+                    "w-full justify-start gap-3 font-normal relative text-sidebar-foreground hover:bg-sidebar-accent",
+                    isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   onClick={() => onClose && onClose()}

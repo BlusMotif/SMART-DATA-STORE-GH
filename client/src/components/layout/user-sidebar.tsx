@@ -46,15 +46,13 @@ export function UserSidebar({ onClose }: { onClose?: () => void } = {}) {
   });
 
   return (
-    <div className={`flex h-full w-64 flex-col border-r text-sidebar-foreground relative ${
-      onClose ? 'bg-white dark:bg-black dark:text-white' : 'bg-sidebar dark:bg-black dark:text-white'
-    }`}>
-      <div className={`flex h-16 items-center justify-center border-b px-6 ${onClose ? 'pr-4' : ''} dark:border-gray-700`}>
+    <div className="flex h-full w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground relative">
+      <div className={`flex h-16 items-center justify-center border-b border-border px-6 ${onClose ? 'pr-4' : ''}`}>
         <div className="flex flex-col items-center text-center w-full">
           <div className="flex items-center justify-center gap-4 mb-1 w-full">
             <div className="flex flex-col items-center">
-              <p className="text-sm font-medium dark:text-white">{user?.name || 'User'}</p>
-              <p className="text-xs text-muted-foreground dark:text-gray-300">{user?.email}</p>
+              <p className="text-sm font-medium text-sidebar-foreground">{user?.name || 'User'}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
             {rankData && (
               <div className="flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white border border-green-600 dark:bg-green-600 dark:border-green-700">

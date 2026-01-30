@@ -118,7 +118,7 @@ export default function AgentPublicStorefront() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="border-b bg-white shadow-sm">
+      <header className="border-b border-border bg-card text-card-foreground shadow-sm">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <Store className="h-6 w-6" />

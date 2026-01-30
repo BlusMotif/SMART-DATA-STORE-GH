@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@/components/theme-toggle";
+import "./storefront.css";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { OrderTracker } from "@/components/order-tracker";
@@ -72,7 +73,7 @@ export default function StorefrontPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        <header className="border-b bg-white">
+        <header className="border-b border-border bg-card text-card-foreground">
           <div className="container mx-auto flex items-center justify-between h-16 px-4">
             <div className="flex items-center gap-2">
               <Store className="h-6 w-6" />
@@ -118,24 +119,24 @@ export default function StorefrontPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Storefront Header - Simple, no navigation to main app */}
-      <header className="border-b sticky top-0 z-50 bg-blue-100 dark:bg-blue-200">
+      <header className="border-b sticky top-0 z-50 bg-background shadow-sm">
         <div className="container mx-auto flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <div>
-              <h1 className="font-semibold text-lg text-black">{store.businessName}</h1>
+              <h1 className="font-semibold text-lg text-foreground">{store.businessName}</h1>
               {store.businessDescription && (
-                <p className="text-sm text-black/70">{store.businessDescription}</p>
+                <p className="text-sm text-muted-foreground">{store.businessDescription}</p>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="text-black" onClick={() => {
+            <Button variant="outline" size="sm" onClick={() => {
               document.getElementById('track-orders')?.scrollIntoView({ behavior: 'smooth' });
             }}>
               <Search className="h-4 w-4 mr-2" />
               Track Orders
             </Button>
-            <ThemeToggle className="text-black" />
+            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -159,12 +160,19 @@ export default function StorefrontPage() {
             
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="container mx-auto max-w-6xl text-center px-4">
-                <p className="text-lg md:text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
-                  {store.businessDescription || `Welcome to our store. Browse our selection of data bundles and result checkers.`}
-                </p>
-                <div className="flex items-center justify-center gap-2 mt-6 text-sm">
-                  <Shield className="h-5 w-5 text-green-400" />
-                  <span className="font-medium text-white/90">Secure payments powered by Paystack</span>
+                <div className="space-y-4">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold text-center hero-title-text">
+                    <span className="font-extrabold text-white block">
+                      {store.businessDescription || "Welcome to our store."}
+                    </span>
+                    <span className="text-blue-400 font-extrabold block">Browse our selection of data bundles.</span>
+                  </h2>
+                  <div className="flex items-center justify-center gap-2 text-base sm:text-lg">
+                    <Shield className="h-5 w-5 text-blue-400" />
+                    <span className="font-semibold text-white/90 hero-title-text">
+                      Secure payments powered by <span className="text-blue-400">Paystack</span>
+                    </span>
+                  </div>
                 </div>
 
                 {/* WhatsApp Support Links */}
@@ -175,7 +183,7 @@ export default function StorefrontPage() {
                         href={store.whatsappSupportLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                       >
                         <MessageCircle className="h-4 w-4" />
                         <span className="text-sm font-medium">WhatsApp Support</span>
@@ -186,7 +194,7 @@ export default function StorefrontPage() {
                         href={store.whatsappChannelLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                       >
                         <MessageCircle className="h-4 w-4" />
                         <span className="text-sm font-medium">WhatsApp Channel</span>
@@ -203,7 +211,7 @@ export default function StorefrontPage() {
                   key={index}
                   onClick={() => setCurrentBanner(index)}
                   className={`w-3 h-3 rounded-full transition-colors ${
-                    index === currentBanner ? "bg-white" : "bg-white/50"
+                    index === currentBanner ? "bg-primary" : "bg-muted"
                   }`}
                   aria-label={`Go to banner ${index + 1}`}
                   data-testid={`button-banner-dot-${index + 1}`}
@@ -221,7 +229,7 @@ export default function StorefrontPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {/* MTN Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 border border-border"
                 onClick={() => navigateToProduct('mtn')}
               >
                 <img
@@ -237,7 +245,7 @@ export default function StorefrontPage() {
 
               {/* Telecel Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 border border-border"
                 onClick={() => navigateToProduct('telecel')}
               >
                 <img
@@ -253,7 +261,7 @@ export default function StorefrontPage() {
 
               {/* AT BIG TIME Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 border border-border"
                 onClick={() => navigateToProduct('at_bigtime')}
               >
                 <img
@@ -269,7 +277,7 @@ export default function StorefrontPage() {
 
               {/* AT iShare Logo */}
               <Card 
-                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 dark:border-2 dark:border-white"
+                className="p-4 hover-elevate cursor-pointer transition-all aspect-square flex flex-col items-center justify-center gap-3 border border-border"
                 onClick={() => navigateToProduct('at_ishare')}
               >
                 <img
@@ -287,12 +295,12 @@ export default function StorefrontPage() {
         </section>
 
         {/* Track Orders Section */}
-        <section id="track-orders" className="py-12 px-4 bg-blue-100 dark:bg-blue-950/40 border-y">
+        <section id="track-orders" className="py-12 px-4 bg-muted border-y">
           <div className="container mx-auto max-w-4xl">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-2 text-blue-600 dark:text-blue-400">Track Orders</h2>
-              <h3 className="text-xl text-black dark:text-white mb-4">Never Lose Track</h3>
-              <p className="text-lg text-black dark:text-white max-w-2xl mx-auto">
+              <h2 className="text-3xl font-bold mb-2 text-foreground">Track Orders</h2>
+              <h3 className="text-xl text-foreground mb-4">Never Lose Track</h3>
+              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
                 Easily track your data bundle and result checker orders using your transaction ID or beneficiary phone number.
               </p>
             </div>

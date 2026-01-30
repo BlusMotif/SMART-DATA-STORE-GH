@@ -134,7 +134,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div 
-      className={`flex h-screen w-64 flex-col border-r text-white relative overflow-hidden bg-black`}
+      className="flex h-screen w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground relative overflow-hidden"
     >
       {onClose && (
         <div className="absolute top-4 right-4 md:hidden">
@@ -143,10 +143,10 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
           </Button>
         </div>
       )}
-      <div className={`flex h-16 items-center gap-2 border-b px-6 bg-black ${onClose ? 'pr-16' : ''}`}>
+      <div className={`flex h-16 items-center gap-2 border-b border-border px-6 ${onClose ? 'pr-16' : ''}`}>
         <div className="flex flex-col">
-          <span className="font-semibold text-sm text-white">{user?.name || 'Admin'}</span>
-          <span className="text-xs text-gray-400">Admin Panel</span>
+          <span className="font-semibold text-sm text-sidebar-foreground">{user?.name || 'Admin'}</span>
+          <span className="text-xs text-muted-foreground">Admin Panel</span>
         </div>
       </div>
 
@@ -160,7 +160,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative",
+                    "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative text-sidebar-foreground hover:bg-sidebar-accent",
                     isActive && "bg-yellow-500 text-white font-medium shadow-sm"
                   )}
                   onClick={onClose}
@@ -180,10 +180,10 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
         </nav>
       </ScrollArea>
 
-      <div className="border-t p-3">
+      <div className="border-t border-border p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-2 px-2 py-1.5 text-xs bg-black text-red-500 hover:bg-gray-800"
+          className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10"
           onClick={() => logout()}
           disabled={isLoggingOut}
           data-testid="button-admin-logout"

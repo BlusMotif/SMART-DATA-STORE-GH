@@ -4,6 +4,31 @@
 
 /* Custom animations and utilities */
 @layer utilities {
+
+  /* Sidebar theme utilities to ensure solid backgrounds */
+  .bg-sidebar {
+    background-color: hsl(var(--sidebar));
+  }
+
+  .text-sidebar-foreground {
+    color: hsl(var(--sidebar-foreground));
+  }
+
+  .border-sidebar {
+    border-color: hsl(var(--sidebar-border));
+  }
+
+  .bg-sidebar-accent {
+    background-color: hsl(var(--sidebar-accent));
+  }
+
+  .text-sidebar-accent-foreground {
+    color: hsl(var(--sidebar-accent-foreground));
+  }
+
+  .ring-sidebar {
+    --tw-ring-color: hsl(var(--sidebar-ring));
+  }
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
@@ -54,6 +79,47 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  /* Enforce solid backgrounds across the app */
+  [class*="bg-"] {
+    --tw-bg-opacity: 1;
+  }
+
+  [class*="from-"] {
+    --tw-gradient-from-opacity: 1;
+  }
+
+  [class*="via-"] {
+    --tw-gradient-via-opacity: 1;
+  }
+
+  [class*="to-"] {
+    --tw-gradient-to-opacity: 1;
+  }
+
+  /* Ensure Radix UI Select dropdown has solid background */
+  [data-radix-select-content] {
+    background-color: hsl(var(--background)) !important;
+    opacity: 1 !important;
+  }
+
+  /* Ensure Radix UI Select items have solid backgrounds */
+  [data-radix-select-viewport] {
+    background-color: hsl(var(--background)) !important;
+  }
+
+  /* Ensure Radix UI Dialog has solid background */
+  [data-radix-dialog-content],
+  [data-radix-portal] [role="dialog"] {
+    background-color: hsl(var(--card)) !important;
+    opacity: 1 !important;
+  }
+
+  /* Ensure Radix UI Popover has solid background */
+  [data-radix-popover-content] {
+    background-color: hsl(var(--popover)) !important;
+    opacity: 1 !important;
+  }
 }
 
 @keyframes fadeIn {
@@ -91,6 +157,16 @@
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
+}
+
+/* Force light color scheme by default, prevent system theme interference */
+:root {
+  color-scheme: light;
+}
+
+/* Only apply dark color scheme when .dark class is explicitly set */
+.dark {
+  color-scheme: dark;
 }
 
 /* Better focus styles */
@@ -309,6 +385,7 @@ html {
     -moz-osx-font-smoothing: grayscale;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 }
 

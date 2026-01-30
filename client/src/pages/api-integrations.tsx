@@ -263,16 +263,16 @@ const ApiKeysPage: React.FC = () => {
               Create API Key
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-black text-white border border-gray-800">
+          <DialogContent className="bg-card text-card-foreground border-border" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
             <DialogHeader>
-              <DialogTitle className="text-white font-bold text-lg">Create New API Key</DialogTitle>
-              <DialogDescription className="text-gray-200">
+              <DialogTitle className="font-bold text-lg">Create New API Key</DialogTitle>
+              <DialogDescription>
                 Create a new API key to access our services programmatically.
               </DialogDescription>
             </DialogHeader>
-            <div className="mt-3 p-3 bg-yellow-900/40 border border-yellow-600/60 rounded-md">
-              <p className="text-yellow-300 text-sm font-semibold mb-1">⚠️ Security Notice</p>
-              <ul className="text-yellow-200 text-xs space-y-1 ml-4 list-disc">
+            <div className="mt-3 p-3 bg-muted border border-border rounded-md">
+              <p className="text-foreground text-sm font-semibold mb-1">⚠️ Security Notice</p>
+              <ul className="text-muted-foreground text-xs space-y-1 ml-4 list-disc">
                 <li>Maximum 10 active keys per account</li>
                 <li>Maximum 5 key creations per hour</li>
                 <li>Keys are shown only once - save immediately!</li>
@@ -281,22 +281,21 @@ const ApiKeysPage: React.FC = () => {
             </div>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="keyName" className="text-white font-semibold">API Key Name</Label>
+                <Label htmlFor="keyName" className="font-semibold">API Key Name</Label>
                 <Input
                   id="keyName"
                   placeholder="e.g., Production App, Development"
                   value={newKeyName}
                   onChange={(e) => setNewKeyName(e.target.value)}
                   maxLength={100}
-                  className="bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-500"
                 />
-                <p className="text-xs text-gray-400 mt-1">{newKeyName.length}/100 characters</p>
+                <p className="text-xs text-muted-foreground mt-1">{newKeyName.length}/100 characters</p>
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)} className="border-gray-700 text-white hover:bg-gray-900 hover:text-white">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={createApiKey} disabled={creating} className="bg-yellow-500 text-black hover:bg-yellow-600 font-semibold">
+                <Button onClick={createApiKey} disabled={creating} className="font-semibold">
                   {creating ? 'Creating...' : 'Create Key'}
                 </Button>
               </div>
@@ -307,18 +306,18 @@ const ApiKeysPage: React.FC = () => {
 
       {/* Created Key Dialog */}
       <Dialog open={showCreatedKey} onOpenChange={setShowCreatedKey}>
-        <DialogContent className="max-w-2xl bg-gray-900 border-gray-700">
+        <DialogContent className="max-w-2xl bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl text-white">
-              <Key className="w-6 h-6 text-yellow-500" />
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Key className="w-6 h-6 text-primary" />
               API Key Created Successfully!
             </DialogTitle>
           </DialogHeader>
-          <div className="p-4 bg-red-900/30 border-2 border-red-600 rounded-lg mt-4">
-            <p className="text-red-300 font-bold text-sm mb-2">
+          <div className="p-4 bg-destructive/10 border-2 border-destructive rounded-lg mt-4">
+            <p className="text-destructive font-bold text-sm mb-2">
               🔐 CRITICAL: Save Your API Key Now!
             </p>
-            <ul className="text-red-300 text-xs space-y-1 ml-4 list-disc">
+            <ul className="text-destructive text-xs space-y-1 ml-4 list-disc">
               <li>This is the ONLY time you'll see this key in full</li>
               <li>Copy and store it securely (e.g., password manager)</li>
               <li>Once you close this dialog, the key will be masked forever</li>
@@ -326,9 +325,9 @@ const ApiKeysPage: React.FC = () => {
             </ul>
           </div>
           <div className="space-y-4">
-            <div className="p-4 bg-gray-800 rounded-lg border-2 border-yellow-500">
-              <Label className="text-sm font-semibold mb-2 block text-white">Your API Key:</Label>
-              <code className="text-sm break-all block p-3 bg-black text-green-400 rounded font-mono">
+            <div className="p-4 bg-muted rounded-lg border-2 border-primary">
+              <Label className="text-sm font-semibold mb-2 block">Your API Key:</Label>
+              <code className="text-sm break-all block p-3 bg-background text-primary rounded font-mono">
                 {createdKey}
               </code>
             </div>
@@ -349,7 +348,7 @@ const ApiKeysPage: React.FC = () => {
                   setShowCreatedKey(false);
                   toast.info('API key dialog closed. The key is now masked in your list.');
                 }}
-                className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold"
+                className="font-semibold"
               >
                 I've Saved It Securely
               </Button>
@@ -360,10 +359,10 @@ const ApiKeysPage: React.FC = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="keys" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">API Keys</TabsTrigger>
-          <TabsTrigger value="integrations" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Integrations</TabsTrigger>
-          <TabsTrigger value="webhooks" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Webhooks</TabsTrigger>
-          <TabsTrigger value="docs" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-white">Documentation</TabsTrigger>
+          <TabsTrigger value="keys" className="data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400">API Keys</TabsTrigger>
+          <TabsTrigger value="integrations" className="data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400">Integrations</TabsTrigger>
+          <TabsTrigger value="webhooks" className="data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400">Webhooks</TabsTrigger>
+          <TabsTrigger value="docs" className="data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400">Documentation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="keys" className="space-y-6">
@@ -443,15 +442,15 @@ const ApiKeysPage: React.FC = () => {
                                 Revoke Key
                               </Button>
                             </AlertDialogTrigger>
-                            <AlertDialogContent className="bg-gray-900 border-gray-700">
+                            <AlertDialogContent className="bg-card border-border" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
                               <AlertDialogHeader>
-                                <AlertDialogTitle className="text-white">Revoke API Key</AlertDialogTitle>
-                                <AlertDialogDescription className="text-gray-300">
+                                <AlertDialogTitle>Revoke API Key</AlertDialogTitle>
+                                <AlertDialogDescription>
                                   Are you sure you want to revoke this API key? This action cannot be undone and any applications using this key will immediately lose access.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction 
                                   onClick={() => deleteApiKey(apiKey.id)}
                                   className="bg-red-600 hover:bg-red-700"
@@ -541,12 +540,12 @@ const ApiKeysPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">💡 How to Use Webhooks</h4>
-                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                    Include the <code className="bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded text-xs">webhookUrl</code> parameter when creating orders via API:
+                <div className="p-4 bg-muted border border-border rounded-lg">
+                  <h4 className="font-semibold mb-2">💡 How to Use Webhooks</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Include the <code className="bg-muted px-2 py-0.5 rounded text-xs">webhookUrl</code> parameter when creating orders via API:
                   </p>
-                  <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto">
+                  <pre className="bg-muted p-3 rounded text-xs overflow-x-auto border">
 {`{
   "productId": "mtn-1gb",
   "customerPhone": "0241234567",
@@ -554,7 +553,7 @@ const ApiKeysPage: React.FC = () => {
   "webhookUrl": "https://your-app.com/webhooks/order-status"
 }`}
                   </pre>
-                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-3">
+                  <p className="text-xs text-muted-foreground mt-3">
                     When the order status changes (pending → completed/failed), we'll send a POST request to your webhook URL with the updated order details.
                   </p>
                 </div>
@@ -565,7 +564,7 @@ const ApiKeysPage: React.FC = () => {
                     <p className="text-sm text-muted-foreground mb-2">
                       Here's what you'll receive when an order status updates:
                     </p>
-                    <pre className="bg-gray-900 text-green-400 p-4 rounded text-xs overflow-x-auto">
+                    <pre className="bg-muted p-4 rounded text-xs overflow-x-auto border">
 {`{
   "event": "order.status_updated",
   "reference": "TXN_1234567890",

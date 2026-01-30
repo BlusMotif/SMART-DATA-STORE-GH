@@ -134,9 +134,9 @@ export default function AdminRoleBasePrices() {
                   Set Base Price
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white text-blue-800">
+              <DialogContent className="bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
                 <DialogHeader>
-                  <DialogTitle className="text-blue-800">Set Role Base Price</DialogTitle>
+                  <DialogTitle>Set Role Base Price</DialogTitle>
                 </DialogHeader>
                 <PriceForm
                   onSubmit={(data) => createMutation.mutate(data)}
@@ -277,17 +277,17 @@ function PriceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label className="text-blue-800">Data Bundle</Label>
+        <Label>Data Bundle</Label>
         <Select
           value={formData.bundleId}
           onValueChange={(value) => setFormData({ ...formData, bundleId: value })}
         >
-          <SelectTrigger className="text-blue-800">
+          <SelectTrigger>
             <SelectValue placeholder="Select a data bundle" />
           </SelectTrigger>
           <SelectContent>
             {bundles?.map((bundle) => (
-              <SelectItem key={bundle.id} value={bundle.id} className="text-blue-800">
+              <SelectItem key={bundle.id} value={bundle.id}>
                 {bundle.network.toUpperCase()} {bundle.dataAmount} - {bundle.validity}
               </SelectItem>
             ))}
@@ -296,32 +296,31 @@ function PriceForm({
       </div>
 
       <div className="space-y-2">
-        <Label className="text-blue-800">Role</Label>
+        <Label>Role</Label>
         <Select
           value={formData.role}
           onValueChange={(value) => setFormData({ ...formData, role: value })}
         >
-          <SelectTrigger className="text-blue-800">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="agent" className="text-blue-800">Agent</SelectItem>
-            <SelectItem value="dealer" className="text-blue-800">Dealer</SelectItem>
-            <SelectItem value="super_dealer" className="text-blue-800">Super Dealer</SelectItem>
-            <SelectItem value="master" className="text-blue-800">Master</SelectItem>
+            <SelectItem value="agent">Agent</SelectItem>
+            <SelectItem value="dealer">Dealer</SelectItem>
+            <SelectItem value="super_dealer">Super Dealer</SelectItem>
+            <SelectItem value="master">Master</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="basePrice" className="text-blue-800">Base Price (GHS)</Label>
+        <Label htmlFor="basePrice">Base Price (GHS)</Label>
         <Input
           id="basePrice"
           type="number"
           step="0.01"
           value={formData.basePrice}
           onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
-          className="text-blue-800 placeholder-blue-400"
           placeholder="0.00"
           required
         />

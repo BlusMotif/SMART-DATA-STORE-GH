@@ -1,0 +1,5 @@
+/* Progress bar styling for result checkers */
+.progress-bar-dynamic {
+  transition: width 0.3s ease;
+}
+

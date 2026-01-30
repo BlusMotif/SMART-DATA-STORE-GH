@@ -128,7 +128,7 @@ export default function AgentTransactions() {
               />
             </div>
 
-            <Card className="bg-white text-black border-gray-200 md:col-span-2 lg:col-span-3">
+            <Card className="bg-card text-card-foreground border-border md:col-span-2 lg:col-span-3">
               <CardHeader className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 md:pb-6">
                 <div className="flex-1 min-w-0">
                   <CardTitle className="flex items-center gap-2 text-base md:text-lg text-black">

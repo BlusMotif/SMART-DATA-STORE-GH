@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabaseClient";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import "./result-checkers.css";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -197,9 +198,9 @@ export default function AdminResultCheckers() {
                   Bulk Add
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg bg-black">
+              <DialogContent className="max-w-lg bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
                 <DialogHeader>
-                  <DialogTitle className="text-white">Bulk Add Result Checkers</DialogTitle>
+                  <DialogTitle>Bulk Add Result Checkers</DialogTitle>
                 </DialogHeader>
                 <BulkAddForm
                   onSubmit={(data) => bulkAddMutation.mutate(data)}
@@ -264,8 +265,8 @@ export default function AdminResultCheckers() {
                       </div>
                       <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-primary transition-all progress-bar-fill"
-                          style={{ '--progress-width': `${Math.min((item.available / item.total) * 100, 100)}%` } as React.CSSProperties}
+                          className="h-full bg-primary transition-all progress-bar-dynamic"
+                          style={{ width: `${Math.min((item.available / item.total) * 100, 100)}%` } as React.CSSProperties}
                         />
                       </div>
                     </CardContent>
@@ -442,7 +443,7 @@ function BulkAddForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label className="text-white">Type</Label>
+          <Label>Type</Label>
           <Select
             value={formData.type}
             onValueChange={(value) => setFormData({ ...formData, type: value })}
@@ -460,7 +461,7 @@ function BulkAddForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label className="text-white">Year</Label>
+          <Label>Year</Label>
           <Select
             value={formData.year}
             onValueChange={(value) => setFormData({ ...formData, year: value })}
@@ -481,7 +482,7 @@ function BulkAddForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="costPrice" className="text-white">Cost Price (GHS)</Label>
+          <Label htmlFor="costPrice">Cost Price (GHS)</Label>
           <Input
             id="costPrice"
             type="number"
@@ -494,7 +495,7 @@ function BulkAddForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="basePrice" className="text-white">Selling Price (GHS)</Label>
+          <Label htmlFor="basePrice">Selling Price (GHS)</Label>
           <Input
             id="basePrice"
             type="number"
@@ -509,7 +510,7 @@ function BulkAddForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="checkers" className="text-white">PIN/Serial Pairs</Label>
+        <Label htmlFor="checkers">PIN/Serial Pairs</Label>
         <Textarea
           id="checkers"
           value={formData.checkers}
@@ -520,13 +521,13 @@ function BulkAddForm({
           disabled={!!uploadedFile}
           data-testid="input-checker-pairs"
         />
-        <p className="text-xs text-gray-300">
+        <p className="text-xs text-muted-foreground">
           Format: SERIAL,PIN (one per line) - OR upload a CSV file below
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="file" className="text-white">Upload CSV File (Optional)</Label>
+        <Label htmlFor="file">Upload CSV File (Optional)</Label>
         <Input
           id="file"
           type="file"
@@ -534,11 +535,11 @@ function BulkAddForm({
           onChange={handleFileChange}
           data-testid="input-checker-file"
         />
-        <p className="text-xs text-gray-300">
+        <p className="text-xs text-muted-foreground">
           CSV format: SERIAL,PIN (one pair per line, no headers)
         </p>
         {uploadedFile && (
-          <p className="text-sm text-green-400">
+          <p className="text-sm text-primary">
             File selected: {uploadedFile.name}
           </p>
         )}

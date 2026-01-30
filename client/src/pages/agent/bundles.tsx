@@ -788,7 +788,7 @@ export default function AgentBundlesPage() {
                     </div>
 
                     {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.effective_price) > walletBalance && (
-                      <Alert variant="default" className="border-destructive bg-white text-destructive">
+                      <Alert variant="default" className="border-destructive bg-background text-destructive dark:bg-red-900/20">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
                           <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBundle.effective_price) - walletBalance).toFixed(2)} more.
@@ -929,7 +929,7 @@ export default function AgentBundlesPage() {
 
                     {/* Insufficient Balance Alert for Bulk */}
                     {bulkTotal && bulkPaymentMethod === "wallet" && walletBalance < bulkTotal.total && (
-                      <Alert variant="default" className="border-destructive bg-white text-destructive">
+                      <Alert variant="default" className="border-destructive bg-background text-destructive dark:bg-red-900/20">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
                           <strong>Insufficient Balance:</strong> You need GH₵{(bulkTotal.total - walletBalance).toFixed(2)} more.

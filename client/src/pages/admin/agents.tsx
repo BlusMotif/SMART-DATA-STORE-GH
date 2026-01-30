@@ -315,7 +315,7 @@ export default function AdminAgents() {
 
       {/* Edit WhatsApp Links Dialog */}
       <Dialog open={!!editAgentId} onOpenChange={(open) => !open && setEditAgentId(null)}>
-        <DialogContent>
+        <DialogContent className="bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
           <DialogHeader>
             <DialogTitle>Edit WhatsApp Links</DialogTitle>
           </DialogHeader>

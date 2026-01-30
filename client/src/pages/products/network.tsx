@@ -91,14 +91,14 @@ export default function NetworkProductsPage() {
               </div>
             </Card>
 
-            <Card className="p-6 border-red-200 bg-white text-black dark:bg-black dark:text-white dark:border-red-600">
+            <Card className="p-6 border-destructive/30 bg-destructive/10 text-card-foreground">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-lg mb-2 text-red-900 dark:text-red-100">
+                  <h3 className="font-semibold text-lg mb-2 text-foreground">
                     Our DATA REQUEST DOES NOT support:
                   </h3>
-                  <ul className="text-red-800 dark:text-red-200 space-y-1 ml-4 opacity-90">
+                  <ul className="text-foreground/90 space-y-1 ml-4">
                     <li>• Turbonet SIM</li>
                     <li>• Merchant SIM</li>
                     <li>• EVD SIM</li>
@@ -109,21 +109,21 @@ export default function NetworkProductsPage() {
                     <li>• Wrong Number</li>
                     <li>• Inactive Number</li>
                   </ul>
-                  <p className="text-red-800 dark:text-red-200 font-medium mt-3 opacity-95">
+                  <p className="text-foreground font-medium mt-3">
                     Important Notice: Any data transferred to the above SIM types is burnt and irreversible.
                   </p>
                 </div>
               </div>
             </Card>
 
-            <Card className="p-6 border-amber-200 bg-white text-black dark:bg-black dark:text-white dark:border-amber-600">
+            <Card className="p-6 border-amber-500/30 bg-amber-500/10 text-card-foreground">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h3 className="font-semibold text-lg mb-2 text-amber-900 dark:text-amber-100">
+                  <h3 className="font-semibold text-lg mb-2 text-foreground">
                     Complaint Resolution Policy
                   </h3>
-                  <div className="text-amber-800 dark:text-amber-200 space-y-2">
+                  <div className="text-foreground/90 space-y-2">
                     <p>Complaints can only be resolved within 24 hours.</p>
                     <p>If you purchase data and do not receive it, kindly report the issue within 24 hours.</p>
                     <p className="font-medium">Reports made after 24 hours will not be attended to.</p>

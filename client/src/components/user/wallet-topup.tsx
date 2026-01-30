@@ -86,7 +86,7 @@ export function WalletTopup() {
           Top Up Wallet
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md bg-white text-black">
+      <DialogContent className="sm:max-w-md bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wallet className="w-5 h-5" />
@@ -126,27 +126,27 @@ export function WalletTopup() {
               name="paymentMethod"
               render={({ field }) => (
                 <FormItem className="space-y-3">
-                  <FormLabelWithoutFor className="text-green-700">Payment Method</FormLabelWithoutFor>
+                  <FormLabelWithoutFor>Payment Method</FormLabelWithoutFor>
                   <FormControl>
                     <RadioGroup
                       onValueChange={field.onChange}
                       value={field.value}
                       className="grid gap-3"
                     >
-                      <div className="flex items-center space-x-3 p-4 rounded-lg border-2 border-black !bg-white hover:border-green-500 hover:shadow-md cursor-pointer transition-all">
+                      <div className="flex items-center space-x-3 p-4 rounded-lg border-2 border-border bg-background hover:border-primary hover:shadow-md cursor-pointer transition-all">
                         <RadioGroupItem value="paystack" id="paystack" />
                         <div className="flex items-center justify-between flex-1">
                           <div className="flex items-center gap-3">
-                            <CreditCard className="h-5 w-5 text-green-600" />
+                            <CreditCard className="h-5 w-5 text-primary" />
                             <div>
-                              <div className="font-medium text-green-700">Pay with MoMo</div>
-                              <div className="text-sm text-green-600">
+                              <div className="font-medium text-foreground">Pay with MoMo</div>
+                              <div className="text-sm text-muted-foreground">
                                 Secure payment via Paystack
                               </div>
                             </div>
                           </div>
                           {field.value === "paystack" && (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <CheckCircle className="h-5 w-5 text-primary" />
                           )}
                         </div>
                       </div>

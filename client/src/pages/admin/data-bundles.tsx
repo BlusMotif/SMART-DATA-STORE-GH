@@ -118,9 +118,9 @@ export default function AdminDataBundles() {
                   Add Bundle
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white text-blue-800">
+              <DialogContent className="bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
                 <DialogHeader>
-                  <DialogTitle className="text-blue-800">Create Data Bundle</DialogTitle>
+                  <DialogTitle>Create Data Bundle</DialogTitle>
                 </DialogHeader>
                 <BundleForm
                   onSubmit={(data) => createMutation.mutate(data)}
@@ -299,7 +299,7 @@ function BundleForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name" className="text-blue-800">Name</Label>
+          <Label htmlFor="name">Name</Label>
           <Input
             id="name"
             value={formData.name}
@@ -307,21 +307,20 @@ function BundleForm({
             placeholder="e.g., MTN 1GB Daily"
             required
             data-testid="input-bundle-name"
-            className="text-blue-800 placeholder-blue-400"
           />
         </div>
         <div className="space-y-2">
-          <Label className="text-blue-800">Network</Label>
+          <Label>Network</Label>
           <Select
             value={formData.network}
             onValueChange={(value) => setFormData({ ...formData, network: value })}
           >
-            <SelectTrigger data-testid="select-bundle-network" className="text-blue-800">
+            <SelectTrigger data-testid="select-bundle-network">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {NETWORKS.map((n) => (
-                <SelectItem key={n.id} value={n.id} className="text-blue-800">
+                <SelectItem key={n.id} value={n.id}>
                   {n.name}
                 </SelectItem>
               ))}
@@ -332,7 +331,7 @@ function BundleForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="dataAmount" className="text-blue-800">Data Amount</Label>
+          <Label htmlFor="dataAmount">Data Amount</Label>
           <Input
             id="dataAmount"
             value={formData.dataAmount}
@@ -340,11 +339,10 @@ function BundleForm({
             placeholder="e.g., 1GB, 500MB"
             required
             data-testid="input-bundle-data"
-            className="text-blue-800 placeholder-blue-400"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="validity" className="text-blue-800">Validity</Label>
+          <Label htmlFor="validity">Validity</Label>
           <Input
             id="validity"
             value={formData.validity}
@@ -352,14 +350,13 @@ function BundleForm({
             placeholder="e.g., 1 Day, 30 Days"
             required
             data-testid="input-bundle-validity"
-            className="text-blue-800 placeholder-blue-400"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="basePrice" className="text-blue-800">Base Price (GHS)</Label>
+          <Label htmlFor="basePrice">Base Price (GHS)</Label>
           <Input
             id="basePrice"
             type="number"
@@ -369,11 +366,10 @@ function BundleForm({
             placeholder="0.00"
             required
             data-testid="input-bundle-price"
-            className="text-blue-800 placeholder-blue-400"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="adminPrice" className="text-blue-800">Admin Price (GHS)</Label>
+          <Label htmlFor="adminPrice">Admin Price (GHS)</Label>
           <Input
             id="adminPrice"
             type="number"
@@ -382,18 +378,17 @@ function BundleForm({
             onChange={(e) => setFormData({ ...formData, adminPrice: e.target.value })}
             placeholder="0.00"
             data-testid="input-bundle-admin-price"
-            className="text-blue-800 placeholder-blue-400"
           />
         </div>
       </div>
 
       {user?.role === 'admin' && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="p-4 bg-muted border border-border rounded-lg">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <AlertTriangle className="h-5 w-5 text-primary mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-blue-900">Role-Based Pricing System</p>
-              <p className="text-blue-700 mt-1">
+              <p className="font-medium text-foreground">Role-Based Pricing System</p>
+              <p className="text-muted-foreground mt-1">
                 Role-specific base prices are now managed separately. Use the "Role Base Prices" section
                 in the admin panel to set minimum prices for each role (agent, dealer, super_dealer, master).
                 Roles can then set their own profit margins above these base prices.
@@ -407,7 +402,7 @@ function BundleForm({
 
       {(formData.network && formData.dataAmount && formData.validity && formData.basePrice) && (
         <div className="p-4 bg-muted rounded-lg border">
-          <Label className="text-sm font-medium text-blue-800 mb-2 block">Preview (How users will see this bundle)</Label>
+          <Label className="text-sm font-medium mb-2 block">Preview (How users will see this bundle)</Label>
           <div className="text-sm font-medium">
             {formData.network.toUpperCase()} {formData.dataAmount} - {formData.validity} - GH₵{formData.basePrice}
           </div>
@@ -423,7 +418,7 @@ function BundleForm({
             data-testid="switch-bundle-active"
             className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 [&_[data-radix-switch-thumb]]:bg-white"
           />
-          <Label className="text-blue-800">Active</Label>
+          <Label>Active</Label>
         </div>
         <Button type="submit" disabled={isLoading} data-testid="button-submit-bundle">
           {isLoading ? "Saving..." : bundle ? "Update Bundle" : "Create Bundle"}

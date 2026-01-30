@@ -87,7 +87,7 @@ export default function MasterDashboard() {
       {/* Main content */}
       <div className="flex">
         {/* Desktop sidebar */}
-        <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-white border-r">
+        <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-card dark:bg-card border-r border-border">
           <div className="flex flex-col flex-grow pt-5 pb-4 overflow-y-auto">
             <div className="flex items-center flex-shrink-0 px-4">
               <div className="flex items-center">
@@ -128,7 +128,7 @@ export default function MasterDashboard() {
 
         {/* Main content area */}
         <div className="md:pl-64 flex flex-col flex-1">
-          <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-white shadow md:hidden">
+          <div className="sticky top-0 z-10 flex-shrink-0 flex h-16 bg-card text-card-foreground shadow dark:shadow-lg md:hidden">
             <button
               type="button"
               className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 md:hidden"
@@ -248,7 +248,7 @@ export default function MasterDashboard() {
 
                 {/* Recent Transactions */}
                 <div className="mt-8">
-                  <div className="bg-white shadow overflow-hidden sm:rounded-md">
+                  <div className="bg-card text-card-foreground shadow dark:shadow-lg overflow-hidden sm:rounded-md">
                     <div className="px-4 py-5 sm:px-6">
                       <h3 className="text-lg leading-6 font-medium text-gray-900">Recent Transactions</h3>
                       <p className="mt-1 max-w-2xl text-sm text-gray-500">Your latest transaction activity</p>

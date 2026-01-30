@@ -99,7 +99,7 @@ export default function AgentActivationCompletePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background px-4 py-6">
       <div className="flex-1 flex items-center justify-center">
-        <Card className="w-full max-w-lg shadow-xl border-2 bg-white dark:bg-black border-gray-200">
+        <Card className="w-full max-w-lg shadow-xl border-2 bg-card dark:bg-card border-border">
           <CardHeader className="text-center space-y-2">
             <div className="flex justify-center mb-4">
               <img src={theme === 'dark' ? logoDark : logoLight} alt="ResellersHub Pro" className="h-12 w-auto" />

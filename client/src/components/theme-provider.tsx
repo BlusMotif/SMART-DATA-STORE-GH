@@ -50,6 +50,15 @@ export function ThemeProvider({
     root.classList.remove("light", "dark");
     root.classList.add(theme);
     
+    // Update color-scheme meta tag to prevent system theme interference
+    let metaColorScheme = document.querySelector('meta[name="color-scheme"]');
+    if (!metaColorScheme) {
+      metaColorScheme = document.createElement('meta');
+      metaColorScheme.setAttribute('name', 'color-scheme');
+      document.head.appendChild(metaColorScheme);
+    }
+    metaColorScheme.setAttribute('content', theme);
+    
     console.log("Applied theme:", theme, "Classes on root:", root.classList.toString());
   }, [theme]);
 

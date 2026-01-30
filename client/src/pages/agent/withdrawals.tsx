@@ -172,7 +172,7 @@ export default function AgentWithdrawals() {
                   Request Withdrawal
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white">
+              <DialogContent className="bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
                 <DialogHeader>
                   <DialogTitle>Request Profit Withdrawal</DialogTitle>
                   <DialogDescription>

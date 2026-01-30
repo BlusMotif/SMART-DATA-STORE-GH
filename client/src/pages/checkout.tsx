@@ -273,7 +273,7 @@ export default function CheckoutPage() {
                                     className="peer sr-only"
                                   />
                                   <Label
-                                    className="flex items-center justify-between rounded-lg border-2 border-muted !bg-white p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 cursor-pointer transition-all"
+                                    className="flex items-center justify-between rounded-lg border-2 border-muted bg-background dark:bg-card p-4 hover:border-green-500 peer-data-[state=checked]:border-green-500 peer-data-[state=checked]:bg-green-50 dark:peer-data-[state=checked]:bg-green-900/20 cursor-pointer transition-all"
                                   >
                                     <div className="flex items-center gap-3">
                                       <CreditCard className="h-5 w-5 text-green-600" />
@@ -297,7 +297,7 @@ export default function CheckoutPage() {
                       />
 
                       {hasInsufficientBalance && form.watch("paymentMethod") === "wallet" && (
-                        <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
+                        <Alert variant="default" className="border-destructive/50 bg-background text-destructive dark:bg-red-900/20">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-sm">
                             <strong>Insufficient Balance:</strong> You need GH₵{(price - walletBalance).toFixed(2)} more. 

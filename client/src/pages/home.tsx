@@ -4,6 +4,7 @@ import { Footer } from "@/components/layout/footer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Hero } from "@/components/ui/hero";
+import "./home.css";
 import { Stats } from "@/components/ui/stats";
 import { Features } from "@/components/ui/features";
 import { CTA } from "@/components/ui/cta";
@@ -186,7 +187,7 @@ export default function HomePage() {
         {/* Hero Section */}
         <Hero
           title={
-            <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-center block" style={{ fontFamily: "'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif" }}>
+            <span className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold text-center block hero-title-text">
               <span className="font-extrabold">Your Trusted Platform for Digital</span>{" "}
               <span className="text-blue-600 font-extrabold">Products</span>
             </span>

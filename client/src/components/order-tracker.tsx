@@ -139,13 +139,13 @@ export function OrderTracker() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+    <Card className="w-full max-w-2xl mx-auto bg-card text-card-foreground border border-border">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+        <CardTitle className="flex items-center gap-2 text-foreground">
           <Package className="h-5 w-5" />
           Track Your Order
         </CardTitle>
-        <CardDescription className="text-gray-700 dark:text-gray-300">
+        <CardDescription className="text-muted-foreground">
           Enter your transaction ID or beneficiary phone number to track your order status
         </CardDescription>
       </CardHeader>
@@ -156,8 +156,7 @@ export function OrderTracker() {
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearch()}
-            className="flex-1 placeholder:text-gray-500 dark:placeholder:text-gray-400"
-            style={{ color: 'black' }}
+            className="flex-1"
           />
           <Button onClick={handleSearch} disabled={isLoading}>
             {isLoading ? (
@@ -180,7 +179,7 @@ export function OrderTracker() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {getStatusIcon(displayStatus)}
-                  <CardTitle className="text-lg text-gray-900 dark:text-white">{order.productName}</CardTitle>
+                  <CardTitle className="text-lg text-foreground">{order.productName}</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
                   {getStatusBadge(displayStatus)}
@@ -195,7 +194,7 @@ export function OrderTracker() {
                   </Button>
                 </div>
               </div>
-              <CardDescription className="text-gray-700 dark:text-gray-300">
+              <CardDescription className="text-muted-foreground">
                 Order #{order.reference}
                 {refreshedAt && (
                   <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">

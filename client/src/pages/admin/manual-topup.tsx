@@ -413,7 +413,7 @@ export default function AdminManualTopup() {
 
       {/* Top-up Dialog */}
       <Dialog open={showTopupDialog} onOpenChange={setShowTopupDialog}>
-        <DialogContent className="bg-white dark:bg-gray-900 border-0 shadow-lg text-white dark:text-white">
+        <DialogContent className="bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
           <DialogHeader>
             <DialogTitle>Manual Wallet Top-up</DialogTitle>
             <DialogDescription>
@@ -493,7 +493,7 @@ export default function AdminManualTopup() {
 
       {/* Deduction Dialog */}
       <Dialog open={showDeductDialog} onOpenChange={setShowDeductDialog}>
-        <DialogContent className="bg-white dark:bg-gray-900 border-0 shadow-lg text-white dark:text-white">
+        <DialogContent className="bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
           <DialogHeader>
             <DialogTitle>Manual Wallet Deduction</DialogTitle>
             <DialogDescription>
@@ -531,15 +531,15 @@ export default function AdminManualTopup() {
               </Select>
             </div>
             {selectedUser && (
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <div className="text-sm text-red-900 dark:text-red-100">
+              <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
+                <div className="text-sm text-destructive">
                   <strong>Current Balance:</strong> {formatCurrency(selectedUser.walletBalance)}
                 </div>
-                <div className="text-sm text-red-900 dark:text-red-100">
+                <div className="text-sm text-destructive">
                   <strong>New Balance:</strong> {formatCurrency(Math.max(0, selectedUser.walletBalance - (parseFloat(deductAmount) || 0)))}
                 </div>
                 {parseFloat(deductAmount) > selectedUser.walletBalance && (
-                  <div className="text-xs text-red-600 dark:text-red-400 mt-2">
+                  <div className="text-xs text-destructive mt-2">
                     ⚠️ Deduction exceeds available balance
                   </div>
                 )}

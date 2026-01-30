@@ -133,7 +133,7 @@ export default function AgentPricingPage() {
           </div>
           <div className="flex items-center gap-4">
             {hasUnsavedChanges && (
-              <div className="flex items-center gap-2 text-sm text-orange-600">
+              <div className="flex items-center gap-2 text-sm text-destructive">
                 <AlertCircle className="h-4 w-4" />
                 Unsaved changes
               </div>
@@ -179,7 +179,7 @@ export default function AgentPricingPage() {
                         const hasChanges = priceChanges[price.bundleId];
 
                         return (
-                          <TableRow key={price.bundleId} className={hasChanges ? "bg-blue-50" : ""}>
+                          <TableRow key={price.bundleId} className={hasChanges ? "bg-muted" : ""}>
                             <TableCell className="font-medium">
                               {getBundleName(price.bundleId)}
                             </TableCell>
@@ -203,7 +203,7 @@ export default function AgentPricingPage() {
                                 value={current.agentProfit}
                                 readOnly
                                 disabled
-                                className="w-24 tabular-nums bg-gray-100 cursor-not-allowed"
+                                className="w-24 tabular-nums bg-muted cursor-not-allowed"
                               />
                             </TableCell>
                           </TableRow>

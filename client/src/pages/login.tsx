@@ -107,12 +107,12 @@ export default function LoginPage() {
       </nav>
       
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-white rounded-xl p-8">
+        <div className="w-full max-w-md shadow-xl border-2 border-yellow-400 bg-card text-card-foreground rounded-xl p-8 dark:border-yellow-500\">
             {isLoginLoading && (
               <div className="absolute inset-0 bg-background flex items-center justify-center z-10 rounded-lg">
                 <div className="flex flex-col items-center gap-2">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-black dark:text-black">Signing you in...</p>
+                  <p className="text-sm text-foreground">Signing you in...</p>
                 </div>
               </div>
             )}
@@ -124,8 +124,8 @@ export default function LoginPage() {
                 className="h-8 w-auto"
               />
             </div>
-            <h2 className="text-2xl font-bold text-black dark:text-black">Welcome back</h2>
-            <p className="text-black dark:text-black">
+            <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
+            <p className="text-foreground">
               Sign in to your {APP_NAME} account
             </p>
           </div>
@@ -137,7 +137,7 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-black dark:text-black">Email</FormLabel>
+                    <FormLabel className="text-foreground">Email</FormLabel>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <FormControl>
@@ -162,7 +162,7 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-black dark:text-black">Password</FormLabel>
+                    <FormLabel className="text-foreground">Password</FormLabel>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <FormControl>
@@ -215,14 +215,14 @@ export default function LoginPage() {
 
 
           <div className="mt-6 text-center text-sm">
-            <span className="text-black dark:text-black">Don't have an account? </span>
+            <span className="text-foreground">Don't have an account? </span>
             <Link href="/register" className="text-primary hover:underline font-medium" data-testid="link-register">
               Sign up
             </Link>
           </div>
 
           <div className="mt-4 text-center text-sm">
-            <span className="text-black dark:text-black">Want to become an agent? </span>
+            <span className="text-foreground">Want to become an agent? </span>
             <Link href="/agent/register" className="text-primary hover:underline font-medium" data-testid="link-agent-register">
               Register as Agent
             </Link>

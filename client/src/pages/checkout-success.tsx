@@ -361,9 +361,11 @@ export default function CheckoutSuccessPage() {
   const config = statusConfig[status];
   const StatusIcon = config.icon;
 
+  const isStorefront = isAgentStorefrontPurchase();
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <Header />
+      {!isStorefront && <Header />}
       
       <main className="flex-1 py-12 px-4 pt-16">
         <div className="container mx-auto max-w-lg">

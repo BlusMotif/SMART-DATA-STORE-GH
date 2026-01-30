@@ -6823,18 +6823,29 @@ export async function registerRoutes(httpServer, app) {
                     basePrice = parseFloat(product.basePrice);
                 }
             }
-            // Handle agent commission for storefront purchases
+            // Handle agent commission for storefront purchases AND agent's own purchases
             let agentId;
             let agentProfit = 0;
+            // Check if purchasing agent (even without agentSlug)
+            const purchasingAgent = await storage.getAgentByUserId(dbUser.id);
             if (agentSlug) {
+                // Customer purchasing from agent storefront
                 const agent = await storage.getAgentBySlug(agentSlug);
                 if (agent && agent.isApproved) {
                     agentId = agent.id;
                     // For agent storefront purchases, calculate profit as selling price - admin base price
                     const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
                     const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-                    agentProfit = Math.max(0, purchaseAmount - basePrice); // Profit is 0 if using admin price
+                    agentProfit = Math.max(0, purchaseAmount - basePrice);
                 }
+            }
+            else if (purchasingAgent && purchasingAgent.isApproved) {
+                // Agent purchasing for themselves (no storefront)
+                agentId = purchasingAgent.id;
+                // Calculate profit: agent's custom price - admin base price
+                const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
+                const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
+                agentProfit = Math.max(0, purchaseAmount - basePrice);
             }
             // Calculate total profit (selling price - admin base price, or 0 if using admin price)
             const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);

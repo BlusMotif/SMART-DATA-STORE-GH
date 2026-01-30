@@ -20,8 +20,7 @@ import {
   Code,
   BarChart3,
   Users,
-  Zap,
-  Award} from "lucide-react";
+  Zap} from "lucide-react";
 import { OrderTracker } from "@/components/order-tracker";
 import { ApiIntegrationsModal } from "@/components/api-integrations-modal";
 import { Agent, Transaction } from "@shared/schema";
@@ -300,10 +299,10 @@ export default function AgentDashboard() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
-                  title="Available Balance"
-                  value={formatCurrency(stats?.balance || 0)}
+                  title="Wallet Balance"
+                  value={formatCurrency(agent?.walletBalance || 0)}
                   icon={Wallet}
-                  description="Ready for withdrawal"
+                  description="Available for purchases"
                   trend="+12%"
                   trendLabel="vs last month"
                 />

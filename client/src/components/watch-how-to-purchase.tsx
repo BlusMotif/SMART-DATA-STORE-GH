@@ -148,42 +148,42 @@ export function WatchHowToPurchase({
       <Button
         variant={triggerVariant}
         size={triggerSize}
-        className={cn("bg-transparent border-2 border-yellow-500 text-yellow-500 hover:bg-transparent", className)}
+        className={cn("bg-transparent border-2 border-primary text-primary hover:bg-transparent", className)}
         onClick={() => setOpen(true)}
       >
-        <PlayCircle className="h-4 w-4 mr-2 text-yellow-500" />
+        <PlayCircle className="h-4 w-4 mr-2 text-primary" />
         {label}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl bg-black text-white md:rounded-none">
+        <DialogContent className="max-w-4xl bg-card text-card-foreground md:rounded-none" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-white">
+            <DialogTitle className="flex items-center gap-2">
               <Video className="h-5 w-5" />
               How to Use Resellers Data Hub Pro Gh
             </DialogTitle>
-            <DialogDescription className="text-white/80">
+            <DialogDescription>
               {description}
             </DialogDescription>
           </DialogHeader>
 
           <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as VideoCategory)}>
-            <TabsList className="grid grid-cols-3 w-full text-white gap-2">
+            <TabsList className="grid grid-cols-3 w-full gap-2">
               <TabsTrigger
                 value="guest"
-                className="text-white border-2 border-yellow-500 rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-yellow-500/10 data-[state=active]:bg-yellow-500 data-[state=active]:text-black data-[state=active]:border-yellow-600"
+                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary"
               >
                 Guest
               </TabsTrigger>
               <TabsTrigger
                 value="customer"
-                className="text-white border-2 border-yellow-500 rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-yellow-500/10 data-[state=active]:bg-yellow-500 data-[state=active]:text-black data-[state=active]:border-yellow-600"
+                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary"
               >
                 Customer
               </TabsTrigger>
               <TabsTrigger
                 value="agent"
-                className="text-white border-2 border-yellow-500 rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-yellow-500/10 data-[state=active]:bg-yellow-500 data-[state=active]:text-black data-[state=active]:border-yellow-600"
+                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary"
               >
                 Agent
               </TabsTrigger>
@@ -203,8 +203,8 @@ export function WatchHowToPurchase({
                             <Badge variant="secondary" className="capitalize">{guide.category}</Badge>
                             {currentGuide?.id === guide.id && <CheckCircle2 className="h-4 w-4 text-primary" />}
                           </div>
-                          <CardTitle className="text-base leading-tight text-white">{guide.title}</CardTitle>
-                          <CardDescription className="text-xs leading-snug text-white/80">{guide.description}</CardDescription>
+                          <CardTitle className="text-base leading-tight">{guide.title}</CardTitle>
+                          <CardDescription className="text-xs leading-snug">{guide.description}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           <Button
@@ -222,7 +222,7 @@ export function WatchHowToPurchase({
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium text-white">
+                    <div className="flex items-center gap-2 text-sm font-medium">
                       <Info className="h-4 w-4 text-primary" />
                       {currentGuide?.title || "Select a video"}
                     </div>

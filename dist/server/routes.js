@@ -2457,8 +2457,10 @@ export async function registerRoutes(httpServer, app) {
             const isResultChecker = data.productType === ProductType.RESULT_CHECKER || data.productType === "result_checker";
             const totalAmount = (data.orderItems || isResultChecker) ? amount : (amount * numberOfRecipients);
             const totalCostPrice = 0;
-            const totalProfit = agentProfit * numberOfRecipients; // Actual profit = selling_price - base_price
-            const totalAgentProfit = agentProfit * numberOfRecipients;
+            // For orderItems, agentProfit is already the total (computed in the loop above)
+            // For single/bulk without orderItems, agentProfit is per unit and needs to be multiplied
+            const totalProfit = (data.orderItems) ? agentProfit : (agentProfit * numberOfRecipients);
+            const totalAgentProfit = (data.orderItems) ? agentProfit : (agentProfit * numberOfRecipients);
             console.log("[Checkout] ========== CALCULATED TOTALS ==========");
             console.log("[Checkout] isResultChecker:", isResultChecker);
             console.log("[Checkout] Total amount (", amount, " * ", numberOfRecipients, "):", totalAmount);
@@ -3903,7 +3905,7 @@ export async function registerRoutes(httpServer, app) {
                     const availableBalance = Math.max(0, totalProfit - withdrawnTotal);
                     stats = {
                         balance: availableBalance, // Available profit balance (after withdrawals)
-                        totalProfit: availableBalance, // Total profit after withdrawals (shows net profit)
+                        totalProfit: totalProfit, // Total profit from all transactions (not affected by withdrawals)
                         totalSales: Number(agent.totalSales) || 0,
                         totalTransactions: completedTransactions.length,
                         todayProfit: Number(todayProfit.toFixed(2)), // Today's profit only (not affected by withdrawals)

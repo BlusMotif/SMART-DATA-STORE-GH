@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,7 @@ interface UserStats {
 interface MutationResponse {
   newBalance: string;
   paymentUrl: string;
+  reference?: string;
 }
 
 const NetworkInfo = {
@@ -78,6 +79,7 @@ const NetworkInfo = {
 };
 
 export default function UserBundlesPage() {
+  const [, setLocation] = useLocation();
   const { network } = useParams<{ network: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -159,9 +161,13 @@ export default function UserBundlesPage() {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
-          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
-          duration: 5000,
+          description: "Redirecting to live status...",
+          duration: 3000,
         });
+        if (data.reference) {
+          setLocation(`/checkout/success?reference=${data.reference}`);
+          return;
+        }
         setSelectedBundle(null);
         setPhoneNumber("");
         setPaymentMethod(undefined);
@@ -202,9 +208,13 @@ export default function UserBundlesPage() {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
-          description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
-          duration: 5000,
+          description: "Redirecting to live status...",
+          duration: 3000,
         });
+        if (data.reference) {
+          setLocation(`/checkout/success?reference=${data.reference}`);
+          return;
+        }
         setBulkPhoneNumbers("");
         setBulkPaymentMethod(undefined);
         queryClient.invalidateQueries({ queryKey: ["/api/user/stats"] });

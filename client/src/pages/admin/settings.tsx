@@ -10,12 +10,13 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2, ExternalLink, MessageCircle } from "lucide-react";
+import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2, ExternalLink, MessageCircle, CreditCard } from "lucide-react";
 
 interface Setting {
   key: string;
   value: string;
   description?: string;
+  isMasked?: boolean;
 }
 
 interface User {
@@ -107,7 +108,9 @@ export default function AdminSettings() {
   // Update setting mutation
   const updateSettingMutation = useMutation({
     mutationFn: async ({ key, value, description }: { key: string; value: string; description?: string }) => {
-      return apiRequest("PUT", `/api/admin/settings/${key}`, { value, description });
+      // URL encode the key to handle special characters like dots
+      const encodedKey = encodeURIComponent(key);
+      return apiRequest("PUT", `/api/admin/settings/${encodedKey}`, { value, description });
     },
     onMutate: async ({ key, value }) => {
       // Cancel any outgoing refetches
@@ -223,7 +226,13 @@ export default function AdminSettings() {
         data_bundle_auto_processing: "false", // Default to disabled
       };
       settingsData.forEach(setting => {
-        settingsMap[setting.key] = setting.value;
+        // Don't populate masked values into the form - keep them empty for security
+        if (!setting.isMasked) {
+          settingsMap[setting.key] = setting.value;
+        } else {
+          // For masked values, set empty string so user knows to enter a new value
+          settingsMap[setting.key] = "";
+        }
       });
       setSettings(settingsMap);
     }
@@ -446,6 +455,93 @@ export default function AdminSettings() {
                       disabled={updateSettingMutation.isPending}
                     >
                       <Save className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure payment gateway credentials
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="paystackSecretKey">Paystack Secret Key</Label>
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      id="paystackSecretKey"
+                      type="password"
+                      autoComplete="off"
+                      value={settings["paystack.secret_key"] || ""}
+                      onChange={(e) => handleSettingChange("paystack.secret_key", e.target.value)}
+                      placeholder={settingsData?.find(s => s.key === "paystack.secret_key")?.isMasked 
+                        ? "Current: " + settingsData.find(s => s.key === "paystack.secret_key")?.value + " (Enter new to update)" 
+                        : "sk_test_... or sk_live_..."}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {(() => {
+                        const existingSetting = settingsData?.find(s => s.key === "paystack.secret_key");
+                        if (existingSetting?.isMasked) {
+                          // Check the masked value pattern to determine mode
+                          const maskedValue = existingSetting.value;
+                          if (maskedValue.includes('sk_test')) {
+                            return "⚠️ Currently using TEST mode (key is set)";
+                          } else if (maskedValue.includes('sk_live')) {
+                            return "✅ Currently using LIVE mode (key is set)";
+                          }
+                          return "🔒 Key is configured (enter new value to update)";
+                        }
+                        if (settings["paystack.secret_key"]?.startsWith("sk_test_")) {
+                          return "⚠️ Currently using TEST mode";
+                        }
+                        if (settings["paystack.secret_key"]?.startsWith("sk_live_")) {
+                          return "✅ Currently using LIVE mode";
+                        }
+                        return "Enter your Paystack secret key";
+                      })()}
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("paystack.secret_key", "Paystack Secret Key for payment processing")}
+                      disabled={updateSettingMutation.isPending || !settings["paystack.secret_key"]}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Secret Key
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paystackPublicKey">Paystack Public Key</Label>
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      id="paystackPublicKey"
+                      autoComplete="off"
+                      value={settings["paystack.public_key"] || ""}
+                      onChange={(e) => handleSettingChange("paystack.public_key", e.target.value)}
+                      placeholder={settingsData?.find(s => s.key === "paystack.public_key")?.isMasked 
+                        ? "Current: " + settingsData.find(s => s.key === "paystack.public_key")?.value + " (Enter new to update)" 
+                        : "pk_test_... or pk_live_..."}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {settingsData?.find(s => s.key === "paystack.public_key")?.isMasked 
+                        ? "🔒 Public key is configured (enter new value to update)" 
+                        : "Public key for client-side payment initialization"}
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("paystack.public_key", "Paystack Public Key for client-side payment initialization")}
+                      disabled={updateSettingMutation.isPending || !settings["paystack.public_key"]}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Public Key
                     </Button>
                   </div>
                 </div>

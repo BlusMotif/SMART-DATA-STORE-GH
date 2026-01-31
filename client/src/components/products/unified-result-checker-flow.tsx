@@ -299,13 +299,17 @@ export function UnifiedResultCheckerFlow({ agentSlug }: UnifiedResultCheckerFlow
       setIsProcessing(false);
       
       if (variables.paymentMethod === "wallet") {
-        setSuccessData(data);
-        setPaymentSuccess(true);
         toast({
           title: "✅ Payment Successful!",
-          description: "Your result checker purchase is complete",
+          description: "Redirecting to live status...",
           duration: 3000,
         });
+        if (data?.reference) {
+          setLocation(`/checkout/success?reference=${data.reference}`);
+          return;
+        }
+        setSuccessData(data);
+        setPaymentSuccess(true);
       } else {
         // Paystack payment - redirect to authorization URL
         const authUrl = data.paymentUrl || data.authorizationUrl || data.authorization_url || data.data?.authorization_url;

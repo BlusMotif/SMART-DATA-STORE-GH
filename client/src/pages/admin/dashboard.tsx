@@ -46,7 +46,8 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 10000, // Refresh every 10 seconds for live Paystack balance
+    refetchOnWindowFocus: true,
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({

@@ -293,9 +293,13 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
           if (paymentMethod === "wallet") {
             toast({
               title: "✅ Payment Successful!",
-              description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Processing your order...`,
-              duration: 5000,
+              description: "Redirecting to live status...",
+              duration: 3000,
             });
+            if (data.reference) {
+              window.location.href = `/checkout/success?reference=${data.reference}`;
+              return;
+            }
           } else {
             if (data.paymentUrl) window.location.href = data.paymentUrl; else toast({ title: 'Payment init failed', variant: 'destructive' });
           }

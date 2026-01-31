@@ -1151,8 +1151,7 @@ export async function registerRoutes(
           }),
         });
         const paystackData = await paystackResponse.json() as any;
-        console.log("Paystack response status:", paystackData.status, "data:", paystackData);
-        console.log("Paystack response full:", JSON.stringify(paystackData, null, 2));
+        console.log("Paystack response status:", paystackData.status);
         if (!paystackData.status) {
           // cleanup
           try { await storage.deleteAgent(agent.id); } catch (_) {}
@@ -1160,8 +1159,7 @@ export async function registerRoutes(
           return res.status(500).json({ error: "Payment initialization failed" });
         }
         res.json({ paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
-        console.log("Returning payment URL:", paystackData.data.authorization_url);
-        console.log("Full response being sent:", { paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
+        console.log("Payment URL generated successfully");
       } catch (error: any) {
         console.error("Error during agent upgrade:", error.message);
         console.error("Full error:", error);
@@ -2001,12 +1999,7 @@ export async function registerRoutes(
       }
 
       console.log("[Checkout] ========== REQUEST PARSING ==========");
-      console.log("[Checkout] Raw request body:", JSON.stringify(req.body, null, 2));
-      console.log("[Checkout] req.body.phoneNumbers type:", typeof req.body.phoneNumbers);
-      console.log("[Checkout] req.body.phoneNumbers is array:", Array.isArray(req.body.phoneNumbers));
-      console.log("[Checkout] req.body.phoneNumbers value:", req.body.phoneNumbers);
       const data = purchaseSchema.parse(req.body);
-      console.log("[Checkout] Parsed data:", JSON.stringify(data, null, 2));
       console.log("[Checkout] data.phoneNumbers type:", typeof data.phoneNumbers);
       console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(data.phoneNumbers));
       console.log("[Checkout] data.phoneNumbers:", data.phoneNumbers);
@@ -2787,6 +2780,14 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Transaction not found" });
       }
       console.log("[Verify] Transaction status:", transaction.status);
+      if (transaction.paymentMethod === "wallet" || transaction.reference?.startsWith("WALLET-")) {
+        console.log("[Verify] Wallet payment detected, skipping Paystack verification");
+        clearTimeout(timeoutId);
+        return res.json({
+          success: true,
+          transaction,
+        });
+      }
       if (transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) {
         console.log("[Verify] Transaction already completed or fulfilled");
         // Return the full transaction record so the client has fields like id/type/customerPhone
@@ -4607,12 +4608,14 @@ export async function registerRoutes(
       
       // Fetch real-time Paystack balance directly from API
       let paystackBalance = 0;
-      const paystackMode = process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_") ? "test" : "live";
-      if (process.env.PAYSTACK_SECRET_KEY) {
+      // Get Paystack key from database settings or environment
+      const paystackSecretKey = (await storage.getSetting("paystack.secret_key")) || process.env.PAYSTACK_SECRET_KEY || "";
+      const paystackMode = paystackSecretKey.startsWith("sk_test_") ? "test" : "live";
+      if (paystackSecretKey) {
         try {
           const balanceResponse = await fetch("https://api.paystack.co/balance", {
             headers: {
-              Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+              Authorization: `Bearer ${paystackSecretKey}`,
             },
           });
           const balanceData = await balanceResponse.json() as any;
@@ -6802,7 +6805,6 @@ export async function registerRoutes(
   // Pay with wallet
   app.post("/api/wallet/pay", requireAuth, async (req, res) => {
     try {
-      console.log("Wallet pay request body:", req.body);
       const {
         productType,
         productId,
@@ -6976,55 +6978,9 @@ export async function registerRoutes(
           }
         }
       } else if (purchasingAgent && purchasingAgent.isApproved) {
-        // Agent purchasing for themselves (no storefront)
+        // Agent purchasing for themselves: use agent base price only, NO profit
         agentId = purchasingAgent.id;
-        
-        // For bulk orders with orderItems, calculate profit per item
-        if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
-          let computedAgentProfit = 0;
-          for (const item of orderItems) {
-            const bundle = await storage.getDataBundle(item.bundleId);
-            if (bundle) {
-              const storedProfit = await storage.getStoredProfit(bundle.id, purchasingAgent.id, 'agent');
-              if (storedProfit) {
-                // Use the stored profit value
-                const profitValue = parseFloat(storedProfit);
-                computedAgentProfit += Math.max(0, profitValue);
-              } else {
-                // Fallback: calculate profit using agent role base price
-                const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
-                let basePrice: number;
-                if (agentRoleBasePrice) {
-                  basePrice = parseFloat(agentRoleBasePrice);
-                } else {
-                  const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-                  basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
-                }
-                const itemPrice = parseFloat(item.price);
-                const profit = itemPrice - basePrice;
-                computedAgentProfit += Math.max(0, profit);
-              }
-            }
-          }
-          agentProfit = computedAgentProfit;
-        } else {
-          // For single purchases, use stored profit or calculate from price difference
-          const storedProfit = await storage.getStoredProfit(productId || orderItems?.[0]?.bundleId, purchasingAgent.id, 'agent');
-          if (storedProfit) {
-            agentProfit = Math.max(0, parseFloat(storedProfit));
-          } else {
-            // Fallback: calculate profit using agent role base price
-            const agentRoleBasePrice = await storage.getRoleBasePrice(productId || orderItems?.[0]?.bundleId, 'agent');
-            let basePrice: number;
-            if (agentRoleBasePrice) {
-              basePrice = parseFloat(agentRoleBasePrice);
-            } else {
-              const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems?.[0]?.bundleId);
-              basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-            }
-            agentProfit = Math.max(0, purchaseAmount - basePrice);
-          }
-        }
+        agentProfit = 0; // Agents pay agent base price with zero profit
       }
       // Create transaction
       const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
@@ -7122,7 +7078,7 @@ export async function registerRoutes(
           console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
           // Order failed to place, mark as failed
           await storage.updateTransaction(transaction.id, {
-            status: TransactionStatus.COMPLETED,
+            status: TransactionStatus.FAILED,
             deliveryStatus: "failed",
             completedAt: new Date(),
             failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
@@ -7353,7 +7309,38 @@ export async function registerRoutes(
   app.get("/api/admin/settings", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
       const settings = await storage.getAllSettings();
-      res.json(settings);
+      
+      // Mask sensitive values before sending to frontend
+      const sensitiveKeys = [
+        'paystack.secret_key',
+        'paystack.public_key',
+        'skitech.api_key',
+        'skitech.username',
+        'skitech.password'
+      ];
+      
+      const maskedSettings = settings.map(setting => {
+        if (sensitiveKeys.includes(setting.key) && setting.value) {
+          // Show only first 7 and last 4 characters for API keys
+          const value = setting.value;
+          if (value.length > 15) {
+            return {
+              ...setting,
+              value: `${value.substring(0, 7)}...${value.substring(value.length - 4)}`,
+              isMasked: true
+            };
+          }
+          // For shorter values, just mask everything
+          return {
+            ...setting,
+            value: '••••••••',
+            isMasked: true
+          };
+        }
+        return setting;
+      });
+      
+      res.json(maskedSettings);
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to load settings" });
     }
@@ -7361,12 +7348,14 @@ export async function registerRoutes(
   // Update setting
   app.put("/api/admin/settings/:key", requireAuth, requireAdmin, async (req: Request, res: Response) => {
     try {
+      // Decode the key in case it contains special characters like dots
       const { key } = req.params;
+      const decodedKey = decodeURIComponent(key);
       const { value, description } = req.body;
       if (!value) {
         return res.status(400).json({ error: "Value is required" });
       }
-      await storage.setSetting(key, value, description);
+      await storage.setSetting(decodedKey, value, description);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to update setting" });
@@ -7490,7 +7479,7 @@ export async function registerRoutes(
           if (supabaseUpdates.email) updatePayload.email = supabaseUpdates.email;
           if (supabaseUpdates.password) updatePayload.password = supabaseUpdates.password;
           
-          console.log(`[Credentials] Updating Supabase user ${userId} with fields:`, Object.keys(updatePayload));
+          console.log(`[Credentials] Updating Supabase user ${userId}`);
           const { data, error } = await supabaseServer.auth.admin.updateUserById(userId, updatePayload);
           if (error) {
             console.error(`[Credentials] Supabase Auth error for user ${userId}:`, JSON.stringify(error));
@@ -7504,7 +7493,7 @@ export async function registerRoutes(
       }
       
       // Update database record
-      console.log(`[Credentials] Updating database for user ${userId} with fields:`, Object.keys(updateData));
+      console.log(`[Credentials] Updating database for user ${userId}`);
       const updatedUser = await storage.updateUser(userId, updateData);
       if (!updatedUser) {
         console.error(`[Credentials] Failed to update user ${userId} in database - user not found`);

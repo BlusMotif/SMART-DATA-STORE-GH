@@ -99,11 +99,11 @@ export async function fulfillDataBundleTransaction(transaction, providerId) {
         }
         console.log("[Fulfill] transaction.phoneNumbers:", transaction.phoneNumbers);
         console.log("[Fulfill] phoneData length:", phoneData.length);
-        console.log("[Fulfill] phoneData:", phoneData);
+        console.log("[Fulfill] Processing phone data");
         if (phoneData.length === 0) {
             console.log("[Fulfill] phoneData is empty, using fallback for single order");
             phoneData = [{ phone: transaction.customerPhone, dataAmount: transaction.productName?.match(/(\d+(?:\.\d+)?)\s*(?:GB|MB)/i)?.[1] || '1' }];
-            console.log("[Fulfill] Fallback phoneData:", phoneData);
+            console.log("[Fulfill] Using fallback phone data");
         }
         console.log(`[Fulfill] Starting to process ${phoneData.length} items`);
         const results = [];
@@ -156,7 +156,6 @@ export async function fulfillDataBundleTransaction(transaction, providerId) {
                 });
                 console.log(`[Fulfill] API response status for ${phone}: ${resp.status}`);
                 const data = await resp.json().catch(() => ({ status: resp.ok ? 'success' : 'failed' }));
-                console.log(`[Fulfill] API response data for ${phone}:`, data);
                 // Check for success - PHP API should return success/queued status and a ref
                 if (resp.ok && (data.status === 'success' || data.status === 'queued') && data.ref) {
                     results.push({

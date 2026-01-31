@@ -13,6 +13,8 @@ dotenv.config();
 
 if (process.env.NODE_ENV === 'development') {
   dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env.development'), override: true });
+} else if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env.production'), override: true });
 }
 
 // ES module equivalent of __dirname

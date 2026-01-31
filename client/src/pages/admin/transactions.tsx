@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminSidebar } from "@/components/layout/admin-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -81,6 +81,7 @@ export default function AdminTransactions() {
   const [editingDeliveryStatus, setEditingDeliveryStatus] = useState<string | null>(null);
   const [deliveryStatusValue, setDeliveryStatusValue] = useState<string>("");
   const [exportPaymentStatus, setExportPaymentStatus] = useState<string>("all");
+  const [exportOrdersFilter, setExportOrdersFilter] = useState<string>("processing");
   const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [expandedResultCheckers, setExpandedResultCheckers] = useState<Set<string>>(new Set());
@@ -189,10 +190,34 @@ export default function AdminTransactions() {
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
+      const matchesOrderId = tx.id.toLowerCase().includes(term) ||
+        (tx.reference && tx.reference.toLowerCase().includes(term)) ||
+        ((tx as any).paymentReference && (tx as any).paymentReference.toLowerCase().includes(term));
+      const matchesCustomerPhone = !!tx.customerPhone && tx.customerPhone.includes(term);
+      const matchesBulkPhone = (() => {
+        const rawPhoneNumbers = (tx as any).phoneNumbers;
+        if (!rawPhoneNumbers) return false;
+        const parsed = typeof rawPhoneNumbers === "string"
+          ? (() => {
+              try {
+                return JSON.parse(rawPhoneNumbers);
+              } catch {
+                return [];
+              }
+            })()
+          : rawPhoneNumbers;
+        if (!Array.isArray(parsed)) return false;
+        return parsed.some((item) => {
+          const phone = typeof item === "string" ? item : item?.phone;
+          return typeof phone === "string" && phone.includes(term);
+        });
+      })();
+
       if (
-        !tx.id.toLowerCase().includes(term) &&
+        !matchesOrderId &&
         !tx.productName.toLowerCase().includes(term) &&
-        (!tx.customerPhone || !tx.customerPhone.includes(term))
+        !matchesCustomerPhone &&
+        !matchesBulkPhone
       ) {
         return false;
       }
@@ -268,14 +293,16 @@ export default function AdminTransactions() {
   );
 
   // Helper functions
-  const convertToCSV = (data: any[]) => {
+  const convertToCSV = (data: any[], includeHeaders: boolean = true) => {
     if (data.length === 0) return '';
 
     const headers = Object.keys(data[0]);
     const csvRows = [];
 
     // Add headers
-    csvRows.push(headers.join(','));
+    if (includeHeaders) {
+      csvRows.push(headers.join(','));
+    }
 
     // Add data rows
     for (const row of data) {
@@ -313,6 +340,102 @@ export default function AdminTransactions() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const getNetworkLabel = (networkId?: string) => {
+    if (!networkId) return 'Unknown';
+    return NETWORKS.find((n) => n.id === networkId)?.name || networkId.toUpperCase();
+  };
+
+  const formatExcelPhone = (value?: string) => {
+    if (!value) return '';
+    const cleaned = value.replace(/\s+/g, '');
+    let normalized = cleaned;
+    if (normalized.startsWith('+233')) {
+      normalized = `0${normalized.slice(4)}`;
+    } else if (normalized.startsWith('233')) {
+      normalized = `0${normalized.slice(3)}`;
+    } else if (/^\d{9}$/.test(normalized) && !normalized.startsWith('0')) {
+      normalized = `0${normalized}`;
+    }
+    return `="${normalized}"`;
+  };
+
+  const extractDataAmount = (value?: string) => {
+    if (!value) return '';
+    const match = value.match(/(\d+(?:\.\d+)?)\s*(GB|MB)?/i);
+    if (!match) return value;
+    const amount = match[1];
+    const unit = match[2]?.toUpperCase();
+    if (unit === 'MB') {
+      const mb = parseFloat(amount);
+      if (!Number.isNaN(mb)) {
+        return (mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 2);
+      }
+    }
+    return amount;
+  };
+
+  const buildBeneficiaryExportRows = () => {
+    const rows: Array<{ beneficiary: string; product: string }> = [];
+
+    const matchesExportFilter = (tx: any) => {
+      const providerStatus = getSkytechStatus(tx);
+      const effectiveStatus = providerStatus
+        ? mapProviderStatusToOrderStatus(providerStatus)
+        : tx.status;
+
+      if (exportOrdersFilter === 'processing') return effectiveStatus === 'processing';
+      if (exportOrdersFilter === 'failed') return effectiveStatus === 'failed';
+      if (exportOrdersFilter === 'pending_paid') {
+        return (effectiveStatus === 'pending' || effectiveStatus === 'confirmed') &&
+          String((tx as any).paymentStatus || '').toLowerCase() === 'paid';
+      }
+      return false;
+    };
+
+    const dataBundleTransactions = (transactions || [])
+      .filter((tx) => tx.type === 'data_bundle')
+      .filter(matchesExportFilter);
+
+    dataBundleTransactions.forEach((tx: any) => {
+      const networkLabel = getNetworkLabel(tx.network);
+      const phoneNumbersRaw = (tx as any).phoneNumbers;
+      const phoneNumbers = phoneNumbersRaw
+        ? (typeof phoneNumbersRaw === 'string'
+            ? (() => { try { return JSON.parse(phoneNumbersRaw); } catch { return []; } })()
+            : phoneNumbersRaw)
+        : undefined;
+
+      if (Array.isArray(phoneNumbers) && phoneNumbers.length > 0) {
+        phoneNumbers.forEach((item) => {
+          const phone = typeof item === 'string' ? item : item?.phone;
+          const dataAmount = typeof item === 'string' ? '' : item?.dataAmount;
+          if (!phone) return;
+          const amountLabel = extractDataAmount(dataAmount || tx.productName);
+          rows.push({ beneficiary: formatExcelPhone(phone), product: `${networkLabel} ${amountLabel}`.trim() });
+        });
+        return;
+      }
+
+      if (tx.customerPhone) {
+        const amountLabel = extractDataAmount(tx.productName);
+        rows.push({ beneficiary: formatExcelPhone(tx.customerPhone), product: `${networkLabel} ${amountLabel}`.trim() });
+      }
+    });
+
+    return rows;
+  };
+
+  const handleExportBeneficiaries = () => {
+    const rows = buildBeneficiaryExportRows();
+    if (rows.length === 0) {
+      toast({ title: "No matching orders", description: "No beneficiaries found for the selected export filter." });
+      return;
+    }
+    const csvContent = convertToCSV(rows, false);
+    const label = exportOrdersFilter.replace(/_/g, '-');
+    downloadCSV(csvContent, `beneficiaries-${label}-${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   const handleEditDeliveryStatus = (transactionId: string, currentStatus: string) => {
@@ -404,8 +527,8 @@ export default function AdminTransactions() {
                     View and track all customer orders
                   </CardDescription>
                 </div>
-                <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full lg:w-auto">
-                  <div className="flex gap-2">
+                <div className="flex flex-col gap-3 w-full lg:w-auto">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Select value={exportPaymentStatus} onValueChange={setExportPaymentStatus}>
                       <SelectTrigger className="w-full sm:w-36 md:w-40 text-xs md:text-sm" data-testid="export-payment-status">
                         <SelectValue placeholder="Export Filter" />
@@ -427,14 +550,35 @@ export default function AdminTransactions() {
                       {exportTransactionsMutation.isPending ? "Exporting..." : "Export CSV"}
                     </Button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select value={exportOrdersFilter} onValueChange={setExportOrdersFilter}>
+                      <SelectTrigger className="w-full sm:w-44 md:w-52 text-xs md:text-sm" data-testid="export-beneficiaries-filter">
+                        <SelectValue placeholder="Export Beneficiaries" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="processing">Processing Orders</SelectItem>
+                        <SelectItem value="failed">Failed Orders</SelectItem>
+                        <SelectItem value="pending_paid">Pending (Paid)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      onClick={handleExportBeneficiaries}
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-xs px-2 py-1 h-8"
+                    >
+                      <Download className="h-3 w-3 md:h-4 md:w-4" />
+                      Export Beneficiaries
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="relative flex-1 sm:flex-initial">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="Search..."
+                        placeholder="Search order ID or phone number..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-9 w-full sm:w-48 text-sm"
+                        className="pl-9 w-full sm:w-56 text-sm"
                         data-testid="input-search"
                       />
                     </div>
@@ -528,8 +672,8 @@ export default function AdminTransactions() {
                           const quantity = (tx as any).quantity || 1;
                           
                           return (
-                            <>
-                            <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
+                            <Fragment key={tx.id}>
+                            <TableRow data-testid={`row-transaction-${tx.id}`}>
                               <TableCell className="font-mono text-xs md:text-sm">{tx.id.slice(0,8)}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
                                 <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
@@ -777,7 +921,7 @@ export default function AdminTransactions() {
                                 </TableCell>
                               </TableRow>
                             )}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </TableBody>

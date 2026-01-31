@@ -148,10 +148,10 @@ export function WatchHowToPurchase({
       <Button
         variant={triggerVariant}
         size={triggerSize}
-        className={cn("bg-transparent border-2 border-primary text-primary hover:bg-transparent", className)}
+        className={cn("border-2 border-yellow-500 bg-yellow-500 text-black hover:bg-yellow-600 dark:hover:bg-yellow-600 transition-colors font-semibold", className)}
         onClick={() => setOpen(true)}
       >
-        <PlayCircle className="h-4 w-4 mr-2 text-primary" />
+        <PlayCircle className="h-4 w-4 mr-2" />
         {label}
       </Button>
 

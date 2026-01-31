@@ -28,7 +28,7 @@ if (usePostgreSQL) {
     pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         max: 20,
-        min: 2, // Keep minimum connections ready
+        min: 2, // Keep minimum connections ready ds
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
         statement_timeout: 30000, // 30s statement timeout

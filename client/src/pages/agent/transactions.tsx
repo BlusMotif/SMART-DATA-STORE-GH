@@ -20,6 +20,33 @@ import { Popover, PopoverContent, PopoverTrigger } from "@radix-ui/react-popover
 
 // Status display utility
 
+const mapProviderStatusToOrderStatus = (providerStatus: string): string => {
+  const normalized = providerStatus.toLowerCase();
+  if (normalized === "success" || normalized === "delivered") return "completed";
+  if (normalized === "failed" || normalized === "cancelled") return "failed";
+  if (normalized === "pending" || normalized === "processing") return "processing";
+  return normalized;
+};
+
+const getSkytechStatus = (transaction: any): string | null => {
+  try {
+    if (!transaction.apiResponse) return null;
+    const apiResponse = JSON.parse(transaction.apiResponse);
+
+    if (apiResponse.skytechStatus?.status) {
+      return apiResponse.skytechStatus.status;
+    }
+
+    if (apiResponse.results && apiResponse.results[0]?.status) {
+      return apiResponse.results[0].status;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 
 interface AgentTransactionStats {
   totalTransactions: number;
@@ -47,7 +74,12 @@ export default function AgentTransactions() {
   });
 
   const filteredTransactions = transactions?.filter((tx) => {
-    if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+    const providerStatus = getSkytechStatus(tx);
+    const effectiveStatus = providerStatus
+      ? mapProviderStatusToOrderStatus(providerStatus)
+      : tx.status;
+
+    if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -202,6 +234,10 @@ export default function AgentTransactions() {
                       <TableBody>
                         {filteredTransactions.slice(0, 20).map((tx) => {
                           const network = NETWORKS.find((n) => n.id === tx.network);
+                          const providerStatus = getSkytechStatus(tx);
+                          const effectiveStatus = providerStatus
+                            ? mapProviderStatusToOrderStatus(providerStatus)
+                            : tx.status;
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbersRaw = (tx as any).phoneNumbers;
                           const phoneNumbers = phoneNumbersRaw ? (typeof phoneNumbersRaw === 'string' ? JSON.parse(phoneNumbersRaw) : phoneNumbersRaw) as Array<{phone: string, bundleName: string, dataAmount: string}> : undefined;
@@ -312,7 +348,7 @@ export default function AgentTransactions() {
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                <StatusBadge status={tx.status} />
+                                <StatusBadge status={effectiveStatus} />
                               </TableCell>
                               <TableCell className="hidden md:table-cell text-muted-foreground text-xs md:text-sm">
                                 {formatDate(tx.createdAt)}

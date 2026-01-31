@@ -52,31 +52,14 @@ const getStatusConfig = (status: string) => {
         label: 'Completed'
       };
     case 'processing':
-      return {
-        variant: 'secondary' as const,
-        icon: Layers,
-        color: 'text-white',
-        bgColor: 'bg-blue-500',
-        borderColor: 'border-blue-400',
-        label: 'Processing'
-      };
-    case 'confirmed':
-      return {
-        variant: 'secondary' as const,
-        icon: CheckCircle,
-        color: 'text-white',
-        bgColor: 'bg-blue-600',
-        borderColor: 'border-blue-500',
-        label: 'Confirmed'
-      };
     case 'pending':
       return {
         variant: 'secondary' as const,
         icon: Clock,
         color: 'text-white',
-        bgColor: 'bg-amber-500',
-        borderColor: 'border-amber-400',
-        label: 'Pending'
+        bgColor: 'bg-blue-500',
+        borderColor: 'border-blue-400',
+        label: 'Processing'
       };
     case 'cancelled':
     case 'failed':

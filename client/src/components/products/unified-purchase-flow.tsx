@@ -261,6 +261,7 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
   interface PaymentResponse {
     paymentUrl?: string;
     newBalance?: string;
+    reference?: string;
   }
 
   const initializePaymentMutation = useMutation<PaymentResponse, Error, SingleOrderFormData | BulkOrderFormData>({
@@ -366,12 +367,16 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
-          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. Redirecting...`,
+          description: "Redirecting to live status...",
           duration: 3000,
         });
-        setTimeout(() => {
-          setLocation("/user/dashboard");
-        }, 1000);
+        if (data.reference) {
+          setLocation(`/checkout/success?reference=${data.reference}`);
+        } else {
+          setTimeout(() => {
+            setLocation("/user/dashboard");
+          }, 1000);
+        }
       } else {
         window.location.href = data.paymentUrl!;
       }

@@ -16,6 +16,33 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
 
+const mapProviderStatusToOrderStatus = (providerStatus: string): string => {
+  const normalized = providerStatus.toLowerCase();
+  if (normalized === "success" || normalized === "delivered") return "completed";
+  if (normalized === "failed" || normalized === "cancelled") return "failed";
+  if (normalized === "pending" || normalized === "processing") return "processing";
+  return normalized;
+};
+
+const getSkytechStatus = (transaction: any): string | null => {
+  try {
+    if (!transaction.apiResponse) return null;
+    const apiResponse = JSON.parse(transaction.apiResponse);
+
+    if (apiResponse.skytechStatus?.status) {
+      return apiResponse.skytechStatus.status;
+    }
+
+    if (apiResponse.results && apiResponse.results[0]?.status) {
+      return apiResponse.results[0].status;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 interface SortableTableHeadProps {
   field: string;
   children: React.ReactNode;
@@ -153,7 +180,12 @@ export default function AdminTransactions() {
   });
 
   const filteredTransactions = transactions?.filter((tx) => {
-    if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+    const providerStatus = getSkytechStatus(tx);
+    const effectiveStatus = providerStatus
+      ? mapProviderStatusToOrderStatus(providerStatus)
+      : tx.status;
+
+    if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -170,9 +202,27 @@ export default function AdminTransactions() {
 
   const stats = {
     total: transactions?.length || 0,
-    completed: transactions?.filter((t) => t.status === "completed").length || 0,
-    processing: transactions?.filter((t) => t.status === "processing").length || 0,
-    failed: transactions?.filter((t) => t.status === "failed").length || 0,
+    completed: transactions?.filter((t) => {
+      const providerStatus = getSkytechStatus(t);
+      const effectiveStatus = providerStatus
+        ? mapProviderStatusToOrderStatus(providerStatus)
+        : t.status;
+      return effectiveStatus === "completed";
+    }).length || 0,
+    processing: transactions?.filter((t) => {
+      const providerStatus = getSkytechStatus(t);
+      const effectiveStatus = providerStatus
+        ? mapProviderStatusToOrderStatus(providerStatus)
+        : t.status;
+      return effectiveStatus === "processing";
+    }).length || 0,
+    failed: transactions?.filter((t) => {
+      const providerStatus = getSkytechStatus(t);
+      const effectiveStatus = providerStatus
+        ? mapProviderStatusToOrderStatus(providerStatus)
+        : t.status;
+      return effectiveStatus === "failed";
+    }).length || 0,
   };
 
   // Sort handler
@@ -279,28 +329,6 @@ export default function AdminTransactions() {
   const handleCancelEdit = () => {
     setEditingDeliveryStatus(null);
     setDeliveryStatusValue("");
-  };
-
-  // Helper to extract SkyTech status from API response for real-time tracking
-  const getSkytechStatus = (transaction: Transaction): string | null => {
-    try {
-      if (!transaction.apiResponse) return null;
-      const apiResponse = JSON.parse(transaction.apiResponse as string);
-      
-      // Check for latest status check
-      if (apiResponse.skytechStatus?.status) {
-        return apiResponse.skytechStatus.status;
-      }
-      
-      // Check for initial response
-      if (apiResponse.results && apiResponse.results[0]?.status) {
-        return apiResponse.results[0].status;
-      }
-      
-      return null;
-    } catch (e) {
-      return null;
-    }
   };
 
   return (
@@ -468,6 +496,10 @@ export default function AdminTransactions() {
                         <TableBody>
                           {paginatedTransactions?.map((tx) => {
                           let network = NETWORKS.find((n) => n.id === tx.network);
+                          const providerStatus = getSkytechStatus(tx);
+                          const effectiveStatus = providerStatus
+                            ? mapProviderStatusToOrderStatus(providerStatus)
+                            : tx.status;
                           const isBulkOrder = (tx as any).isBulkOrder;
                           const phoneNumbersRaw = (tx as any).phoneNumbers;
                           const phoneNumbers = phoneNumbersRaw ? (typeof phoneNumbersRaw === 'string' ? (() => { try { return JSON.parse(phoneNumbersRaw); } catch (e) { console.error('Failed to parse phoneNumbers:', e, phoneNumbersRaw); return []; } })() : phoneNumbersRaw) as Array<{phone: string, bundleName: string, dataAmount: string}> : undefined;
@@ -567,7 +599,7 @@ export default function AdminTransactions() {
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                <StatusBadge status={tx.status} />
+                                <StatusBadge status={effectiveStatus} />
                               </TableCell>
                               <TableCell className="hidden md:table-cell">
                                 {editingDeliveryStatus === tx.id ? (

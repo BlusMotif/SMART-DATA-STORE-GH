@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +57,7 @@ interface AgentData {
 interface MutationResponse {
   newBalance: string;
   paymentUrl: string;
+  reference?: string;
 }
 
 const NetworkInfo = {
@@ -83,6 +84,7 @@ const NetworkInfo = {
 };
 
 export default function AgentBundlesPage() {
+  const [, setLocation] = useLocation();
   const { network } = useParams<{ network: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -148,7 +150,7 @@ export default function AgentBundlesPage() {
           });
           
           if (matchingBundle) {
-            const agentPrice = parseFloat(matchingBundle.effective_price);
+            const agentPrice = parseFloat(matchingBundle.basePrice);
             total += agentPrice;
             count++;
           }
@@ -166,7 +168,7 @@ export default function AgentBundlesPage() {
       if (!bundle) throw new Error("Bundle not found");
       
       const phoneNumbers = [data.phoneNumber];
-      const agentPrice = parseFloat(bundle.effective_price);
+      const agentPrice = parseFloat(bundle.basePrice);
       const isBulk = false;
 
       if (data.paymentMethod === "wallet") {
@@ -201,9 +203,13 @@ export default function AgentBundlesPage() {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
-          description: `Your purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
-          duration: 5000,
+          description: "Redirecting to live status...",
+          duration: 3000,
         });
+        if (data.reference) {
+          setLocation(`/checkout/success?reference=${data.reference}`);
+          return;
+        }
         setSelectedBundle(null);
         setPhoneNumber("");
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -318,9 +324,13 @@ export default function AgentBundlesPage() {
       if (variables.paymentMethod === "wallet") {
         toast({
           title: "✅ Payment Successful!",
-          description: `Your bulk purchase has been confirmed. New wallet balance: GH₵${data.newBalance}. View Order History to download your receipt.`,
-          duration: 5000,
+          description: "Redirecting to live status...",
+          duration: 3000,
         });
+        if (data.reference) {
+          setLocation(`/checkout/success?reference=${data.reference}`);
+          return;
+        }
         setBulkPhoneNumbers("");
         queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
         queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
@@ -345,7 +355,7 @@ export default function AgentBundlesPage() {
   const handleSinglePurchase = () => {
     if (!selectedBundle || !phoneNumber) return;
     
-    const agentPrice = parseFloat(selectedBundle.effective_price);
+    const agentPrice = parseFloat(selectedBundle.basePrice);
     
     if (paymentMethod === "wallet" && agentPrice > walletBalance) {
       toast({
@@ -666,10 +676,10 @@ export default function AgentBundlesPage() {
                           <SelectContent>
                             {bundles && bundles.length > 0 ? (
                               sortBundlesByDataAmount(bundles).map((bundle) => {
-                                const effectivePrice = parseFloat(bundle.effective_price);
+                                const basePrice = parseFloat(bundle.basePrice);
                                 return (
                                   <SelectItem key={bundle.id} value={bundle.id}>
-                                    {bundle.name} - {bundle.validity} - GH₵{effectivePrice.toFixed(2)}
+                                    {bundle.name} - {bundle.validity} - GH₵{basePrice.toFixed(2)}
                                   </SelectItem>
                                 );
                               })
@@ -694,7 +704,7 @@ export default function AgentBundlesPage() {
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <span className="text-2xl font-bold text-white">
-                            GH₵{parseFloat(selectedBundle.effective_price).toFixed(2)}
+                            GH₵{parseFloat(selectedBundle.basePrice).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -726,13 +736,13 @@ export default function AgentBundlesPage() {
                           <RadioGroupItem
                             value="wallet"
                             id="wallet-single"
-                            disabled={selectedBundle ? parseFloat(selectedBundle.effective_price) > walletBalance : false}
+                            disabled={selectedBundle ? parseFloat(selectedBundle.basePrice) > walletBalance : false}
                             className="peer sr-only"
                           />
                           <Label
                             htmlFor="wallet-single"
                             className={`flex items-center justify-between rounded-lg border-2 border-muted bg-white p-4 hover:border-green-500 hover:shadow-md peer-checked:border-green-500 peer-checked:bg-green-50 peer-checked:shadow-md cursor-pointer transition-all ${
-                              selectedBundle ? parseFloat(selectedBundle.effective_price) > walletBalance : false
+                              selectedBundle ? parseFloat(selectedBundle.basePrice) > walletBalance : false
                                 ? "opacity-50 cursor-not-allowed"
                                 : ""
                             }`}
@@ -750,7 +760,7 @@ export default function AgentBundlesPage() {
                               <CheckCircle className="h-5 w-5 text-green-600" />
                             )}
                           </Label>
-                          {selectedBundle ? parseFloat(selectedBundle.effective_price) > walletBalance : false && (
+                          {selectedBundle ? parseFloat(selectedBundle.basePrice) > walletBalance : false && (
                             <div className="absolute top-2 right-2">
                               <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded">
                                 Insufficient
@@ -787,11 +797,11 @@ export default function AgentBundlesPage() {
                       </RadioGroup>
                     </div>
 
-                    {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.effective_price) > walletBalance && (
+                    {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.basePrice) > walletBalance && (
                       <Alert variant="default" className="border-destructive bg-background text-destructive dark:bg-red-900/20">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription className="text-sm">
-                          <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBundle.effective_price) - walletBalance).toFixed(2)} more.
+                          <strong>Insufficient Balance:</strong> You need GH₵{(parseFloat(selectedBundle.basePrice) - walletBalance).toFixed(2)} more.
                           <a href="/agent/wallet" className="underline ml-1 font-medium hover:text-destructive-foreground">Top up wallet</a> or select Paystack.
                         </AlertDescription>
                       </Alert>
@@ -801,7 +811,7 @@ export default function AgentBundlesPage() {
                       className="w-full"
                       size="lg"
                       onClick={handleSinglePurchase}
-                      disabled={!selectedBundle || !phoneNumber || !paymentMethod || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && parseFloat(selectedBundle.effective_price) > walletBalance)}
+                      disabled={!selectedBundle || !phoneNumber || !paymentMethod || purchaseMutation.isPending || (paymentMethod === "wallet" && selectedBundle && parseFloat(selectedBundle.basePrice) > walletBalance)}
                     >
                       {purchaseMutation.isPending ? (
                         <>

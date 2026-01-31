@@ -1117,8 +1117,7 @@ export async function registerRoutes(httpServer, app) {
                 }),
             });
             const paystackData = await paystackResponse.json();
-            console.log("Paystack response status:", paystackData.status, "data:", paystackData);
-            console.log("Paystack response full:", JSON.stringify(paystackData, null, 2));
+            console.log("Paystack response status:", paystackData.status);
             if (!paystackData.status) {
                 // cleanup
                 try {
@@ -1132,8 +1131,7 @@ export async function registerRoutes(httpServer, app) {
                 return res.status(500).json({ error: "Payment initialization failed" });
             }
             res.json({ paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
-            console.log("Returning payment URL:", paystackData.data.authorization_url);
-            console.log("Full response being sent:", { paymentUrl: paystackData.data.authorization_url, paymentReference: paystackData.data.reference, amount: activationFee });
+            console.log("Payment URL generated successfully");
         }
         catch (error) {
             console.error("Error during agent upgrade:", error.message);
@@ -1775,7 +1773,7 @@ export async function registerRoutes(httpServer, app) {
                         return res.status(400).json({ error: `No pricing available for bundle ${bundle.name} (${bundle.id}).` });
                     }
                     itemPrice = parseFloat(resolvedPrice);
-                    // Get the stored profit from custom_pricing table
+                    // Calculate profit using same logic as Paystack (stored profit OR price difference)
                     const agent = await storage.getAgentByUserId(user.id);
                     if (agent) {
                         const storedProfit = await storage.getStoredProfit(bundle.id, agent.id, 'agent');
@@ -1785,16 +1783,18 @@ export async function registerRoutes(httpServer, app) {
                             computedAgentProfit += Math.max(0, profitValue);
                         }
                         else {
-                            // Fallback: calculate profit if not stored
+                            // Fallback: calculate profit as selling price - admin base price (matches Paystack)
                             const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
+                            let basePrice;
                             if (agentRoleBasePrice) {
-                                adminPrice = parseFloat(agentRoleBasePrice);
+                                basePrice = parseFloat(agentRoleBasePrice);
                             }
                             else {
                                 const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
-                                adminPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
+                                basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
                             }
-                            computedAgentProfit += Math.max(0, itemPrice - adminPrice);
+                            const profit = itemPrice - basePrice;
+                            computedAgentProfit += Math.max(0, profit);
                         }
                     }
                 }
@@ -1809,10 +1809,6 @@ export async function registerRoutes(httpServer, app) {
                 else if (user.role === 'master') {
                     const resolvedPrice = await storage.getResolvedPrice(bundle.id, user.id, 'master');
                     itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || '0');
-                }
-                // Compute agent commission per item (selling price - admin base price)
-                if (user.role === 'agent') {
-                    computedAgentProfit += Math.max(0, itemPrice - adminPrice);
                 }
                 processedOrderItems.push({
                     ...item,
@@ -1992,12 +1988,7 @@ export async function registerRoutes(httpServer, app) {
                 // No wallet payments allowed for agent storefronts
             }
             console.log("[Checkout] ========== REQUEST PARSING ==========");
-            console.log("[Checkout] Raw request body:", JSON.stringify(req.body, null, 2));
-            console.log("[Checkout] req.body.phoneNumbers type:", typeof req.body.phoneNumbers);
-            console.log("[Checkout] req.body.phoneNumbers is array:", Array.isArray(req.body.phoneNumbers));
-            console.log("[Checkout] req.body.phoneNumbers value:", req.body.phoneNumbers);
             const data = purchaseSchema.parse(req.body);
-            console.log("[Checkout] Parsed data:", JSON.stringify(data, null, 2));
             console.log("[Checkout] data.phoneNumbers type:", typeof data.phoneNumbers);
             console.log("[Checkout] data.phoneNumbers is array:", Array.isArray(data.phoneNumbers));
             console.log("[Checkout] data.phoneNumbers:", data.phoneNumbers);
@@ -2778,6 +2769,14 @@ export async function registerRoutes(httpServer, app) {
                 return res.status(404).json({ error: "Transaction not found" });
             }
             console.log("[Verify] Transaction status:", transaction.status);
+            if (transaction.paymentMethod === "wallet" || transaction.reference?.startsWith("WALLET-")) {
+                console.log("[Verify] Wallet payment detected, skipping Paystack verification");
+                clearTimeout(timeoutId);
+                return res.json({
+                    success: true,
+                    transaction,
+                });
+            }
             if (transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) {
                 console.log("[Verify] Transaction already completed or fulfilled");
                 // Return the full transaction record so the client has fields like id/type/customerPhone
@@ -4522,12 +4521,14 @@ export async function registerRoutes(httpServer, app) {
             const stats = await storage.getAdminStats();
             // Fetch real-time Paystack balance directly from API
             let paystackBalance = 0;
-            const paystackMode = process.env.PAYSTACK_SECRET_KEY?.startsWith("sk_test_") ? "test" : "live";
-            if (process.env.PAYSTACK_SECRET_KEY) {
+            // Get Paystack key from database settings or environment
+            const paystackSecretKey = (await storage.getSetting("paystack.secret_key")) || process.env.PAYSTACK_SECRET_KEY || "";
+            const paystackMode = paystackSecretKey.startsWith("sk_test_") ? "test" : "live";
+            if (paystackSecretKey) {
                 try {
                     const balanceResponse = await fetch("https://api.paystack.co/balance", {
                         headers: {
-                            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+                            Authorization: `Bearer ${paystackSecretKey}`,
                         },
                     });
                     const balanceData = await balanceResponse.json();
@@ -6741,7 +6742,6 @@ export async function registerRoutes(httpServer, app) {
     // Pay with wallet
     app.post("/api/wallet/pay", requireAuth, async (req, res) => {
         try {
-            console.log("Wallet pay request body:", req.body);
             const { productType, productId, productName, network, amount, customerPhone, phoneNumbers, isBulkOrder, agentSlug, quantity, orderItems, } = req.body;
             // For new bulk format, productName might be generated
             const effectiveProductName = productName || (orderItems ? `Bulk Order - ${orderItems.length} items` : null);
@@ -6878,24 +6878,31 @@ export async function registerRoutes(httpServer, app) {
                 const agent = await storage.getAgentBySlug(agentSlug);
                 if (agent && agent.isApproved) {
                     agentId = agent.id;
-                    // For agent storefront purchases, calculate profit as selling price - admin base price
-                    const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
-                    const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-                    agentProfit = Math.max(0, purchaseAmount - basePrice);
+                    // Use stored profit from custom_pricing table (matches Paystack logic)
+                    const storedProfit = await storage.getStoredProfit(productId || orderItems[0].bundleId, agent.id, 'agent');
+                    if (storedProfit) {
+                        agentProfit = Math.max(0, parseFloat(storedProfit));
+                    }
+                    else {
+                        // Fallback: calculate profit as selling price - admin base price
+                        const agentRoleBasePrice = await storage.getRoleBasePrice(productId || orderItems[0].bundleId, 'agent');
+                        let basePrice;
+                        if (agentRoleBasePrice) {
+                            basePrice = parseFloat(agentRoleBasePrice);
+                        }
+                        else {
+                            const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
+                            basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
+                        }
+                        agentProfit = Math.max(0, purchaseAmount - basePrice);
+                    }
                 }
             }
             else if (purchasingAgent && purchasingAgent.isApproved) {
-                // Agent purchasing for themselves (no storefront)
+                // Agent purchasing for themselves: use agent base price only, NO profit
                 agentId = purchasingAgent.id;
-                // Calculate profit: agent's custom price - admin base price
-                const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
-                const basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-                agentProfit = Math.max(0, purchaseAmount - basePrice);
+                agentProfit = 0; // Agents pay agent base price with zero profit
             }
-            // Calculate total profit (selling price - admin base price, or 0 if using admin price)
-            const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
-            const profitBasePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-            const profit = Math.max(0, purchaseAmount - profitBasePrice);
             // Create transaction
             const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
             // Store full order items with GB info for bulk orders, or just phone numbers for simple orders
@@ -6923,7 +6930,7 @@ export async function registerRoutes(httpServer, app) {
                 productName: effectiveProductName,
                 network,
                 amount: purchaseAmount.toFixed(2),
-                profit: profit.toFixed(2),
+                profit: agentProfit > 0 ? agentProfit.toFixed(2) : "0",
                 customerPhone: normalizedPhone || customerPhone,
                 customerEmail: dbUser.email,
                 phoneNumbers: (isBulkOrder || (orderItems && orderItems.length > 0)) && phoneNumbersData ? JSON.stringify(phoneNumbersData) : undefined,
@@ -6992,7 +6999,7 @@ export async function registerRoutes(httpServer, app) {
                     console.error("[Wallet] Data bundle API fulfillment failed:", fulfillmentResult.error);
                     // Order failed to place, mark as failed
                     await storage.updateTransaction(transaction.id, {
-                        status: TransactionStatus.COMPLETED,
+                        status: TransactionStatus.FAILED,
                         deliveryStatus: "failed",
                         completedAt: new Date(),
                         failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
@@ -7231,7 +7238,35 @@ export async function registerRoutes(httpServer, app) {
     app.get("/api/admin/settings", requireAuth, requireAdmin, async (req, res) => {
         try {
             const settings = await storage.getAllSettings();
-            res.json(settings);
+            // Mask sensitive values before sending to frontend
+            const sensitiveKeys = [
+                'paystack.secret_key',
+                'paystack.public_key',
+                'skitech.api_key',
+                'skitech.username',
+                'skitech.password'
+            ];
+            const maskedSettings = settings.map(setting => {
+                if (sensitiveKeys.includes(setting.key) && setting.value) {
+                    // Show only first 7 and last 4 characters for API keys
+                    const value = setting.value;
+                    if (value.length > 15) {
+                        return {
+                            ...setting,
+                            value: `${value.substring(0, 7)}...${value.substring(value.length - 4)}`,
+                            isMasked: true
+                        };
+                    }
+                    // For shorter values, just mask everything
+                    return {
+                        ...setting,
+                        value: '••••••••',
+                        isMasked: true
+                    };
+                }
+                return setting;
+            });
+            res.json(maskedSettings);
         }
         catch (error) {
             res.status(500).json({ error: error.message || "Failed to load settings" });
@@ -7240,12 +7275,14 @@ export async function registerRoutes(httpServer, app) {
     // Update setting
     app.put("/api/admin/settings/:key", requireAuth, requireAdmin, async (req, res) => {
         try {
+            // Decode the key in case it contains special characters like dots
             const { key } = req.params;
+            const decodedKey = decodeURIComponent(key);
             const { value, description } = req.body;
             if (!value) {
                 return res.status(400).json({ error: "Value is required" });
             }
-            await storage.setSetting(key, value, description);
+            await storage.setSetting(decodedKey, value, description);
             res.json({ success: true });
         }
         catch (error) {
@@ -7364,7 +7401,7 @@ export async function registerRoutes(httpServer, app) {
                         updatePayload.email = supabaseUpdates.email;
                     if (supabaseUpdates.password)
                         updatePayload.password = supabaseUpdates.password;
-                    console.log(`[Credentials] Updating Supabase user ${userId} with fields:`, Object.keys(updatePayload));
+                    console.log(`[Credentials] Updating Supabase user ${userId}`);
                     const { data, error } = await supabaseServer.auth.admin.updateUserById(userId, updatePayload);
                     if (error) {
                         console.error(`[Credentials] Supabase Auth error for user ${userId}:`, JSON.stringify(error));
@@ -7378,7 +7415,7 @@ export async function registerRoutes(httpServer, app) {
                 }
             }
             // Update database record
-            console.log(`[Credentials] Updating database for user ${userId} with fields:`, Object.keys(updateData));
+            console.log(`[Credentials] Updating database for user ${userId}`);
             const updatedUser = await storage.updateUser(userId, updateData);
             if (!updatedUser) {
                 console.error(`[Credentials] Failed to update user ${userId} in database - user not found`);

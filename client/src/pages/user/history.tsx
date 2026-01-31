@@ -61,6 +61,14 @@ const getStatusConfig = (status: string) => {
   }
 };
 
+const mapProviderStatusToOrderStatus = (providerStatus: string): string => {
+  const normalized = providerStatus.toLowerCase();
+  if (normalized === "success" || normalized === "delivered") return "completed";
+  if (normalized === "failed" || normalized === "cancelled") return "failed";
+  if (normalized === "pending" || normalized === "processing") return "processing";
+  return normalized;
+};
+
 export default function UserHistoryPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -109,7 +117,11 @@ export default function UserHistoryPage() {
       transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       transaction.id?.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesStatus = statusFilter === "all" || transaction.status === statusFilter;
+    const providerStatus = getSkytechStatus(transaction);
+    const effectiveStatus = providerStatus
+      ? mapProviderStatusToOrderStatus(providerStatus)
+      : transaction.status;
+    const matchesStatus = statusFilter === "all" || effectiveStatus === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
@@ -206,6 +218,10 @@ export default function UserHistoryPage() {
                   <div className="space-y-4">
                     {filteredTransactions.map((transaction: any) => {
                       const isWalletDeduction = transaction.type === 'wallet_deduction';
+                      const providerStatus = getSkytechStatus(transaction);
+                      const effectiveStatus = providerStatus
+                        ? mapProviderStatusToOrderStatus(providerStatus)
+                        : transaction.status;
                       const statusConfig = isWalletDeduction 
                         ? {
                             variant: 'destructive' as const,
@@ -215,7 +231,7 @@ export default function UserHistoryPage() {
                             borderColor: 'border-red-500',
                             label: 'Complete'
                           }
-                        : getStatusConfig(transaction.status);
+                        : getStatusConfig(effectiveStatus);
                       const StatusIcon = statusConfig.icon;
                       const isBulkOrder = transaction.isBulkOrder;
                       const phoneNumbers = transaction.phoneNumbers 

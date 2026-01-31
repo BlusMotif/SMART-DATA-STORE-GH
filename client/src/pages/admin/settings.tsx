@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2, ExternalLink } from "lucide-react";
+import { Settings, Bell, Smartphone, Save, X, Menu, Key, Plus, Trash2, ExternalLink, MessageCircle } from "lucide-react";
 
 interface Setting {
   key: string;
@@ -421,6 +421,28 @@ export default function AdminSettings() {
                     <Button
                       size="sm"
                       onClick={() => handleSaveSetting("support_phone", "Support phone number")}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="whatsappNumber">WhatsApp Support Number</Label>
+                  <div className="flex flex-col gap-2">
+                    <Input
+                      id="whatsappNumber"
+                      autoComplete="tel"
+                      value={settings.whatsapp_support_number || ""}
+                      onChange={(e) => handleSettingChange("whatsapp_support_number", e.target.value)}
+                      placeholder="+233 XX XXX XXXX"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the WhatsApp number for customer support. Format: +233XXXXXXXXX. When set, customers can contact you via WhatsApp.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveSetting("whatsapp_support_number", "WhatsApp support number for customer inquiries")}
                       disabled={updateSettingMutation.isPending}
                     >
                       <Save className="h-4 w-4" />

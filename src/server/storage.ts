@@ -98,6 +98,7 @@ export interface IStorage {
   createResultCheckersBulk(checkers: InsertResultChecker[]): Promise<ResultChecker[]>;
   updateResultChecker(id: string, data: Partial<InsertResultChecker>): Promise<ResultChecker | undefined>;
   deleteResultChecker(id: string): Promise<boolean>;
+  deleteSoldCheckers(): Promise<number>;
   markResultCheckerSold(id: string, transactionId: string, phone: string | null): Promise<ResultChecker | undefined>;
 
   // Transactions
@@ -558,6 +559,11 @@ export class DatabaseStorage implements IStorage {
   async deleteResultChecker(id: string): Promise<boolean> {
     const result = await db.delete(resultCheckers).where(eq(resultCheckers.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteSoldCheckers(): Promise<number> {
+    const result = await db.delete(resultCheckers).where(eq(resultCheckers.isSold, true));
+    return result.rowCount ?? 0;
   }
 
   async getResultCheckerSummary(): Promise<{ type: string; year: number; total: number; available: number; sold: number }[]> {

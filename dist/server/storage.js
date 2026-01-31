@@ -289,6 +289,10 @@ export class DatabaseStorage {
         const result = await db.delete(resultCheckers).where(eq(resultCheckers.id, id));
         return (result.rowCount ?? 0) > 0;
     }
+    async deleteSoldCheckers() {
+        const result = await db.delete(resultCheckers).where(eq(resultCheckers.isSold, true));
+        return result.rowCount ?? 0;
+    }
     async getResultCheckerSummary() {
         const result = await db.select({
             type: resultCheckers.type,

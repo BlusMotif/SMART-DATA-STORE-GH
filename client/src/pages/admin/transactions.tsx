@@ -455,8 +455,8 @@ export default function AdminTransactions() {
                             <SortableTableHead field="profit" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
                               <span className="text-xs md:text-sm">Profit</span>
                             </SortableTableHead>
-                            <TableHead className="hidden lg:table-cell text-xs md:text-sm">Customer</TableHead>
-                            <TableHead className="hidden xl:table-cell text-xs md:text-sm">Payment</TableHead>
+                            <TableHead className="text-xs md:text-sm">Customer</TableHead>
+                            <TableHead className="text-xs md:text-sm">Payment</TableHead>
                             <TableHead className="text-xs md:text-sm">Status</TableHead>
                             <TableHead className="hidden md:table-cell text-xs md:text-sm">Delivery</TableHead>
                             <SortableTableHead field="createdAt" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>
@@ -539,7 +539,7 @@ export default function AdminTransactions() {
                               <TableCell className="text-green-600 tabular-nums text-xs md:text-sm">
                                 {formatCurrency(tx.profit)}
                               </TableCell>
-                              <TableCell className="hidden lg:table-cell text-muted-foreground text-xs md:text-sm">
+                              <TableCell className="text-muted-foreground text-xs md:text-sm">
                                 {isBulkOrder && phoneNumbers ? (
                                   <div className="text-xs">
                                     <div className="font-semibold">
@@ -553,7 +553,7 @@ export default function AdminTransactions() {
                                   tx.customerPhone
                                 )}
                               </TableCell>
-                              <TableCell className="hidden xl:table-cell">
+                              <TableCell>
                                 <Badge
                                   variant={
                                     (tx as any).paymentStatus === "paid" ? "default" :

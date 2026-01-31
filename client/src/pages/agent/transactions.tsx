@@ -193,8 +193,8 @@ export default function AgentTransactions() {
                           <TableHead className="hidden sm:table-cell text-xs md:text-sm">Network</TableHead>
                           <TableHead className="text-xs md:text-sm">Amount</TableHead>
                           <TableHead className="hidden md:table-cell text-xs md:text-sm">My Profit</TableHead>
-                          <TableHead className="hidden lg:table-cell text-xs md:text-sm">Customer</TableHead>
-                          <TableHead className="hidden xl:table-cell text-xs md:text-sm">Payment</TableHead>
+                          <TableHead className="text-xs md:text-sm">Customer</TableHead>
+                          <TableHead className="text-xs md:text-sm">Payment</TableHead>
                           <TableHead className="text-xs md:text-sm">Status</TableHead>
                           <TableHead className="hidden md:table-cell text-xs md:text-sm">Date</TableHead>
                         </TableRow>
@@ -262,7 +262,7 @@ export default function AgentTransactions() {
                                   </div>
                                 )}
                               </TableCell>
-                              <TableCell className="hidden lg:table-cell text-muted-foreground text-xs md:text-sm">
+                              <TableCell className="text-muted-foreground text-xs md:text-sm">
                                 {isWalletTopup ? (
                                   <span className="text-muted-foreground">Self</span>
                                 ) : isBulkOrder && phoneNumbers ? (
@@ -298,7 +298,7 @@ export default function AgentTransactions() {
                                   tx.customerPhone
                                 )}
                               </TableCell>
-                              <TableCell className="hidden xl:table-cell">
+                              <TableCell>
                                 <Badge
                                   variant={
                                     (tx as any).paymentStatus === "paid" ? "default" :

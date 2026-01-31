@@ -5696,6 +5696,56 @@ export async function registerRoutes(
       res.status(400).json({ error: error.message || "Failed to create result checkers" });
     }
   });
+
+  // CSV file upload endpoint
+  app.post("/api/admin/result-checkers/bulk-upload", requireAuth, requireAdmin, multer({ storage: multer.memoryStorage() }).single('file'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+      const { type, year, basePrice, costPrice } = req.body;
+      if (!type || !year || !basePrice || !costPrice) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      // Parse CSV content
+      const csvContent = req.file.buffer.toString('utf-8');
+      const lines = csvContent.split('\n').filter((line: string) => line.trim());
+      
+      const checkersData = lines.map((line: string) => {
+        const [serialNumber, pin] = line.split(',').map((s: string) => s.trim());
+        return {
+          type,
+          year: parseInt(year),
+          serialNumber,
+          pin,
+          basePrice,
+        };
+      }).filter((c: any) => c.serialNumber && c.pin);
+      
+      if (checkersData.length === 0) {
+        return res.status(400).json({ error: "No valid checkers found in CSV" });
+      }
+      
+      const created = await storage.createResultCheckersBulk(checkersData);
+      res.json({ added: created.length });
+    } catch (error: any) {
+      console.error("CSV upload error:", error);
+      res.status(400).json({ error: error.message || "Failed to upload CSV" });
+    }
+  });
+
+  // Delete all sold result checkers
+  app.delete("/api/admin/result-checkers/sold", requireAuth, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const deleted = await storage.deleteSoldCheckers();
+      res.json({ deleted });
+    } catch (error: any) {
+      console.error("Delete sold checkers error:", error);
+      res.status(500).json({ error: error.message || "Failed to delete sold checkers" });
+    }
+  });
+
   app.get("/api/admin/result-checkers/summary", requireAuth, requireAdmin, async (req, res) => {
     try {
       const summary = await storage.getResultCheckerSummary();
@@ -7093,8 +7143,20 @@ export async function registerRoutes(
   app.post("/api/support/chat/create", requireAuth, async (req: Request, res: Response) => {
     try {
       const user = req.user!;
+      
+      // Check if user already has an open chat
+      const existingChats = await storage.getUserSupportChats(user.id);
+      const openChat = existingChats.find(c => c.status === "open");
+      
+      if (openChat) {
+        // Return existing open chat instead of creating a new one
+        console.log(`User ${user.id} already has open chat ${openChat.id}, returning existing chat`);
+        return res.json({ success: true, chatId: openChat.id });
+      }
+      
       const userName = user.user_metadata?.name || user.email.split('@')[0];
       const chatId = await storage.createSupportChat(user.id, user.email, userName);
+      console.log(`Created new support chat ${chatId} for user ${user.id}`);
       res.json({ success: true, chatId });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to create chat" });
@@ -7270,6 +7332,21 @@ export async function registerRoutes(
       res.status(500).json({ error: error.message || "Failed to get setting" });
     }
   });
+
+  // Public endpoint to get WhatsApp support number (for customers)
+  app.get("/api/public/whatsapp-support", async (req: Request, res: Response) => {
+    try {
+      const whatsappNumber = await storage.getSetting("whatsapp_support_number");
+      res.json({ 
+        whatsappNumber: whatsappNumber || "",
+        success: true 
+      });
+    } catch (error: any) {
+      console.error("Error fetching WhatsApp number:", error);
+      res.status(500).json({ error: error.message || "Failed to get WhatsApp number", whatsappNumber: "" });
+    }
+  });
+
   // ============================================
   // ADMIN CREDENTIAL MANAGEMENT
   // ============================================

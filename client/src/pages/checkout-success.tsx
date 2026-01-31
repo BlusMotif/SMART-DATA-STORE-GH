@@ -499,9 +499,9 @@ export default function CheckoutSuccessPage() {
                   })()}
 
                   {transaction.status === "completed" && transaction.type === "result_checker" && (
-                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                      <h4 className="font-semibold text-green-800 dark:text-green-300 mb-3">Download Your Result Checker</h4>
-                      <p className="text-sm text-green-700 dark:text-green-400 mb-3">
+                    <div className="bg-green-600 rounded-lg p-4">
+                      <h4 className="font-semibold text-white mb-3">Download Your Result Checker</h4>
+                      <p className="text-sm text-white mb-3">
                         Your result checker has been purchased successfully. Download your PDF credentials below.
                       </p>
                       <Button

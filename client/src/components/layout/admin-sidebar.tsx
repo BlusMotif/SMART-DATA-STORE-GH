@@ -134,16 +134,16 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div 
-      className="flex h-screen w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground relative overflow-hidden"
+      className="flex h-screen w-64 flex-col border-r border-border bg-sidebar text-sidebar-foreground relative overflow-hidden md:h-full"
     >
       {onClose && (
-        <div className="absolute top-4 right-4 md:hidden">
+        <div className="absolute top-4 right-4 md:hidden z-50">
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
       )}
-      <div className={`flex h-16 items-center gap-2 border-b border-border px-6 ${onClose ? 'pr-16' : ''}`}>
+      <div className={`flex h-16 items-center gap-2 border-b border-border px-6 flex-shrink-0 ${onClose ? 'pr-16' : ''}`}>
         <div className="flex flex-col">
           <span className="font-semibold text-sm text-sidebar-foreground">{user?.name || 'Admin'}</span>
           <span className="text-xs text-muted-foreground">Admin Panel</span>
@@ -180,7 +180,7 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
         </nav>
       </ScrollArea>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 flex-shrink-0">
         <Button
           variant="ghost"
           className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10"
@@ -191,6 +191,21 @@ export function AdminSidebar({ onClose }: { onClose?: () => void } = {}) {
           <LogOut className="h-4 w-4" />
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
+
+        {/* Developer Credit */}
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <p className="text-xs text-muted-foreground text-center">
+            Developed by{' '}
+            <a
+              href="https://bm-portfolio-up2x.onrender.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:text-primary/80 font-medium"
+            >
+              BlusMotif
+            </a>
+          </p>
+        </div>
       </div>
     </div>
   );

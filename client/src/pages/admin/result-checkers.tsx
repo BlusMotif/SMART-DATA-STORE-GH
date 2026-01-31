@@ -61,19 +61,19 @@ export default function AdminResultCheckers() {
         formData.append('costPrice', data.costPrice);
         formData.append('file', data.file);
 
+        // Get auth headers
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch('/api/admin/result-checkers/bulk-upload', {
           method: 'POST',
           body: formData,
           credentials: 'include',
-          headers: await(async () => {
-            const { data } = await supabase.auth.getSession();
-            const token = data.session?.access_token;
-            const headers: Record<string, string> = {};
-            if (token) {
-              headers['Authorization'] = `Bearer ${token}`;
-            }
-            return headers;
-          })(),
+          headers,
         });
 
         if (!response.ok) {
@@ -136,6 +136,20 @@ export default function AdminResultCheckers() {
     },
   });
 
+  const deleteSoldMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", "/api/admin/result-checkers/sold");
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/result-checkers/summary"] });
+      toast({ title: `${data.deleted || 0} sold checkers deleted successfully` });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to delete sold checkers", description: error.message, variant: "destructive" });
+    },
+  });
+
   const filteredCheckers = checkers?.filter((checker) => {
     if (selectedType !== "all" && checker.type !== selectedType) return false;
     if (selectedYear !== "all" && checker.year.toString() !== selectedYear) return false;
@@ -178,36 +192,19 @@ export default function AdminResultCheckers() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between gap-4 h-16 border-b px-4 lg:px-6">
-          <div className="flex items-center gap-4">
+        <header className="flex items-center justify-between gap-2 h-12 border-b px-3 lg:px-4">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               className="md:hidden"
               onClick={() => setSidebarOpen(true)}
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4" />
             </Button>
-            <h1 className="text-lg lg:text-xl font-semibold">Result Checkers</h1>
+            <h1 className="text-sm lg:text-base font-semibold">Result Checkers</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <Dialog open={isBulkAddOpen} onOpenChange={setIsBulkAddOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-bulk-add">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Bulk Add
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
-                <DialogHeader>
-                  <DialogTitle>Bulk Add Result Checkers</DialogTitle>
-                </DialogHeader>
-                <BulkAddForm
-                  onSubmit={(data) => bulkAddMutation.mutate(data)}
-                  isLoading={bulkAddMutation.isPending}
-                />
-              </DialogContent>
-            </Dialog>
+          <div className="flex items-center gap-1">
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
               <DialogContent className="max-w-lg">
                 <DialogHeader>
@@ -227,7 +224,7 @@ export default function AdminResultCheckers() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+          <div className="max-w-7xl mx-auto space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard
                 title="Total Stock"
@@ -247,6 +244,40 @@ export default function AdminResultCheckers() {
                 icon={AlertCircle}
                 description="Delivered to customers"
               />
+            </div>
+
+            <div className="flex flex-row items-center gap-2">
+              <Dialog open={isBulkAddOpen} onOpenChange={setIsBulkAddOpen}>
+                <DialogTrigger asChild>
+                  <Button data-testid="button-bulk-add" size="sm" className="w-auto text-xs whitespace-nowrap">
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg bg-card text-card-foreground" style={{ backgroundColor: 'hsl(var(--card))', opacity: 1 }}>
+                  <DialogHeader>
+                    <DialogTitle>Bulk Add Result Checkers</DialogTitle>
+                  </DialogHeader>
+                  <BulkAddForm
+                    onSubmit={(data) => bulkAddMutation.mutate(data)}
+                    isLoading={bulkAddMutation.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white w-auto text-xs whitespace-nowrap"
+                onClick={() => {
+                  if (confirm(`Are you sure you want to delete all ${soldStock} sold checkers? This action cannot be undone.`)) {
+                    deleteSoldMutation.mutate();
+                  }
+                }}
+                disabled={deleteSoldMutation.isPending || soldStock === 0}
+                data-testid="button-delete-sold"
+              >
+                Delete ({soldStock})
+              </Button>
             </div>
 
             {stockSummary && stockSummary.length > 0 && (

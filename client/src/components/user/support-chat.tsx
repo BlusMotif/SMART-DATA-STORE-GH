@@ -35,16 +35,55 @@ export function SupportChat() {
   const [chatId, setChatId] = useState<string | null>(null);
   const [activeSupport, setActiveSupport] = useState<"whatsapp" | "chat">("chat");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [whatsappNumber, setWhatsappNumber] = useState<string>("");
+  const [chatCreationAttempted, setChatCreationAttempted] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
+  // Fetch WhatsApp support number from public endpoint
+  const { data: whatsappData, isLoading: whatsappLoading, error: whatsappError } = useQuery({
+    queryKey: ["/api/public/whatsapp-support"],
+    queryFn: async () => {
+      try {
+        console.log("Fetching WhatsApp number...");
+        const response = await apiRequest("GET", "/api/public/whatsapp-support");
+        console.log("WhatsApp API Response:", response);
+        return response;
+      } catch (error) {
+        console.error("WhatsApp API Error:", error);
+        throw error;
+      }
+    },
+    retry: 3,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  });
+
+  // Update whatsappNumber state when data loads
+  useEffect(() => {
+    console.log("WhatsApp query state:", { whatsappData, whatsappLoading, whatsappError });
+    if (whatsappData?.whatsappNumber) {
+      setWhatsappNumber(whatsappData.whatsappNumber);
+      console.log("WhatsApp number set to:", whatsappData.whatsappNumber);
+    } else if (whatsappError) {
+      console.error("WhatsApp error:", whatsappError);
+    }
+  }, [whatsappData, whatsappError]);
+
   // Get or create chat session
-  const { data: chats, error: chatsError } = useQuery<SupportChat[]>({
+  const { data: chats, error: chatsError, isLoading: chatsLoading } = useQuery<SupportChat[]>({
     queryKey: ["/api/support/chats"],
     queryFn: async () => {
-      return await apiRequest("GET", "/api/support/chats");
+      console.log("Fetching chats...");
+      try {
+        const result = await apiRequest("GET", "/api/support/chats");
+        console.log("Chats fetched:", result);
+        return result;
+      } catch (error) {
+        console.error("Error fetching chats:", error);
+        throw error;
+      }
     },
     enabled: isAuthenticated && !authLoading,
     retry: false,
@@ -83,9 +122,9 @@ export function SupportChat() {
     retry: false,
   });
 
-  // Set chatId from existing chats (do not auto-create to avoid empty chats)
+  // Set chatId from existing chats or auto-create (only once)
   useEffect(() => {
-    if (!isAuthenticated || authLoading) {
+    if (!isAuthenticated || authLoading || chatsLoading) {
       return;
     }
 
@@ -93,13 +132,21 @@ export function SupportChat() {
       return; // query not ready yet
     }
 
+    console.log("Chat initialization logic - chats:", chats, "chatId:", chatId, "attempted:", chatCreationAttempted, "pending:", createChatMutation.isPending);
+
     if (!chatId && Array.isArray(chats)) {
       const openChat = chats.find(c => c.status === "open");
       if (openChat) {
+        console.log("Found existing open chat:", openChat.id);
         setChatId(openChat.id);
+      } else if (chats.length === 0 && !chatCreationAttempted && !createChatMutation.isPending) {
+        // Auto-create a chat only if none exists, we haven't tried yet, and no mutation is pending
+        console.log("No existing chats, auto-creating...");
+        setChatCreationAttempted(true);
+        createChatMutation.mutate();
       }
     }
-  }, [chats, chatId, isAuthenticated, authLoading]);
+  }, [chats, chatId, isAuthenticated, authLoading, chatsLoading, chatCreationAttempted]);
 
   // Surface auth errors clearly so users know to re-login
   useEffect(() => {
@@ -154,9 +201,38 @@ export function SupportChat() {
 
   const handleWhatsAppSupport = () => {
     setActiveSupport("whatsapp");
-    const phoneNumber = "+233501234567"; // Replace with actual support number
+    
+    console.log("WhatsApp number state:", whatsappNumber);
+    console.log("WhatsApp data:", whatsappData);
+
+    if (!whatsappNumber) {
+      console.warn("WhatsApp number not found");
+      toast({
+        title: "WhatsApp Support Unavailable",
+        description: "Admin has not configured WhatsApp support yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Remove any formatting characters (keep only digits)
+    const cleanNumber = whatsappNumber.replace(/\D/g, "");
+    
+    console.log("Cleaned WhatsApp number:", cleanNumber);
+    
+    if (!cleanNumber) {
+      toast({
+        title: "Invalid WhatsApp Number",
+        description: "The WhatsApp number is not properly configured.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const messageText = encodeURIComponent("Hi, I need help with my data bundle purchase.");
-    window.open(`https://wa.me/${phoneNumber}?text=${messageText}`, "_blank");
+    const whatsappUrl = `https://wa.me/${cleanNumber}?text=${messageText}`;
+    console.log("WhatsApp URL:", whatsappUrl);
+    window.open(whatsappUrl, "_blank");
   };
 
   const handleLiveChatSupport = () => {

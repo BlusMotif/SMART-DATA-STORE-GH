@@ -205,10 +205,10 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                   data-testid={`link-agent-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   onClick={() => onClose && onClose()}
                 >
-                  <item.icon className="h-4 w-4 dark:text-white" />
-                  <span className="flex-1 text-left dark:text-white">{item.title}</span>
+                  <item.icon className="h-4 w-4" />
+                  <span className="flex-1 text-left">{item.title}</span>
                   {isSupport && unreadCount > 0 && user?.role === 'admin' && (
-                    <Badge variant="destructive" className="ml-auto dark:bg-red-600 dark:text-white">{unreadCount}</Badge>
+                    <Badge variant="destructive" className="ml-auto">{unreadCount}</Badge>
                   )}
                 </Button>
               </Link>
@@ -217,7 +217,7 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
 
           {agent && (
             <a href={`/store/agent/${agent.storefrontSlug}`} target="_blank" rel="noopener noreferrer" className="mt-2">
-              <Button variant="outline" className="w-full justify-start gap-3 bg-green-600 hover:bg-green-700 text-white border-green-600 dark:border-green-600 dark:bg-green-600 dark:hover:bg-green-700" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
+              <Button variant="outline" className="w-full justify-start gap-3 bg-green-600 hover:bg-green-700 text-white border-green-600" data-testid="link-view-storefront" onClick={() => onClose && onClose()}>
                 <ExternalLink className="h-4 w-4" />
                 View Public Store
               </Button>
@@ -226,26 +226,26 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
         </nav>
       </ScrollArea>
 
-      <div className="border-t p-3 dark:border-gray-700">
+      <div className="border-t p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 dark:text-red-400 dark:hover:bg-red-900/20"
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
           onClick={() => { onClose && onClose(); logout(); }}
           disabled={isLoggingOut}
         >
-          <LogOut className="h-4 w-4 dark:text-red-400" />
+          <LogOut className="h-4 w-4" />
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
         
         {/* Developer Credit */}
-        <div className="mt-3 pt-3 border-t border-border/50 dark:border-gray-600">
-          <p className="text-xs text-muted-foreground text-center dark:text-gray-400">
+        <div className="mt-3 pt-3 border-t border-border/50">
+          <p className="text-xs text-muted-foreground text-center">
             Developed by{' '}
             <a
               href="https://bm-portfolio-up2x.onrender.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary hover:text-primary/80 font-medium dark:text-blue-400 dark:hover:text-blue-300"
+              className="text-primary hover:text-primary/80 font-medium"
             >
               BlusMotif
             </a>

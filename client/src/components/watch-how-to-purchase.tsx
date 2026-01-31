@@ -171,19 +171,19 @@ export function WatchHowToPurchase({
             <TabsList className="grid grid-cols-3 w-full gap-2">
               <TabsTrigger
                 value="guest"
-                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary"
+                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:text-green-500 data-[state=active]:border-primary data-[state=active]:font-semibold"
               >
                 Guest
               </TabsTrigger>
               <TabsTrigger
                 value="customer"
-                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary"
+                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:text-green-500 data-[state=active]:border-primary data-[state=active]:font-semibold"
               >
                 Customer
               </TabsTrigger>
               <TabsTrigger
                 value="agent"
-                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary"
+                className="border-2 border-primary rounded-md md:rounded-none px-3 py-2 transition-colors hover:bg-primary/10 data-[state=active]:text-green-500 data-[state=active]:border-primary data-[state=active]:font-semibold"
               >
                 Agent
               </TabsTrigger>

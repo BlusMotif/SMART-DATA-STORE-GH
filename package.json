@@ -14,7 +14,7 @@
     "build:server": "npx tsc --project . --skipLibCheck",
     "build:production": "npm install && npm run build:client && npx tsc --project . --skipLibCheck",
     "preview": "vite preview --host --port $PORT",
-    "start": "node server.js",
+    "start": "npm run build:server && node server.js",
     "heroku-postbuild": "npm run build:server",
     "check": "tsc",
     "test:skytech": "node test_skitech_api.js",

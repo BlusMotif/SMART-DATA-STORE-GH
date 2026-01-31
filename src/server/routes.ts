@@ -6840,11 +6840,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // For agents, validate and use their custom price if available
-      let finalAmount = parseFloat(amount);
-      
       // Check wallet balance (use integer arithmetic to avoid floating point precision issues)
-      const purchaseAmount = finalAmount;
+      const purchaseAmount = parseFloat(amount);
       const walletBalanceCents = Math.round(parseFloat(dbUser.walletBalance || "0") * 100);
       const purchaseAmountCents = Math.round(purchaseAmount * 100);
       if (walletBalanceCents < purchaseAmountCents) {
@@ -6982,79 +6979,21 @@ export async function registerRoutes(
         // Agent purchasing for themselves (no storefront)
         agentId = purchasingAgent.id;
         
-        // For single data bundle purchases, validate and use agent's resolved price
-        if (productType === ProductType.DATA_BUNDLE && productId && !orderItems) {
-          const resolvedPrice = await storage.getResolvedPrice(productId, purchasingAgent.id, 'agent');
-          if (resolvedPrice) {
-            const expectedAmount = parseFloat(resolvedPrice);
-            if (Math.abs(purchaseAmount - expectedAmount) > 0.01) {
-              console.log(`[Wallet] Price mismatch for agent: wallet=${purchaseAmount}, expected=${expectedAmount}`);
-              // Use expected amount for profit calculation
-              const baseAmount = expectedAmount;
-              const storedProfit = await storage.getStoredProfit(productId, purchasingAgent.id, 'agent');
-              if (storedProfit) {
-                agentProfit = Math.max(0, parseFloat(storedProfit));
-              } else {
-                const agentRoleBasePrice = await storage.getRoleBasePrice(productId, 'agent');
-                let basePrice: number;
-                if (agentRoleBasePrice) {
-                  basePrice = parseFloat(agentRoleBasePrice);
-                } else {
-                  const adminBasePrice = await storage.getAdminBasePrice(productId);
-                  basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-                }
-                agentProfit = Math.max(0, baseAmount - basePrice);
-              }
-            } else {
-              // Prices match, use stored profit
-              const storedProfit = await storage.getStoredProfit(productId, purchasingAgent.id, 'agent');
-              if (storedProfit) {
-                agentProfit = Math.max(0, parseFloat(storedProfit));
-              } else {
-                const agentRoleBasePrice = await storage.getRoleBasePrice(productId, 'agent');
-                let basePrice: number;
-                if (agentRoleBasePrice) {
-                  basePrice = parseFloat(agentRoleBasePrice);
-                } else {
-                  const adminBasePrice = await storage.getAdminBasePrice(productId);
-                  basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-                }
-                agentProfit = Math.max(0, purchaseAmount - basePrice);
-              }
-            }
-          } else {
-            // No resolved price, use standard profit calculation
-            const storedProfit = await storage.getStoredProfit(productId, purchasingAgent.id, 'agent');
-            if (storedProfit) {
-              agentProfit = Math.max(0, parseFloat(storedProfit));
-            } else {
-              const agentRoleBasePrice = await storage.getRoleBasePrice(productId, 'agent');
-              let basePrice: number;
-              if (agentRoleBasePrice) {
-                basePrice = parseFloat(agentRoleBasePrice);
-              } else {
-                const adminBasePrice = await storage.getAdminBasePrice(productId);
-                basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-              }
-              agentProfit = Math.max(0, purchaseAmount - basePrice);
-            }
-          }
+        // Use stored profit from custom_pricing table (matches Paystack logic)
+        const storedProfit = await storage.getStoredProfit(productId || orderItems?.[0]?.bundleId, purchasingAgent.id, 'agent');
+        if (storedProfit) {
+          agentProfit = Math.max(0, parseFloat(storedProfit));
         } else {
-          // For bulk orders or result checkers, use standard profit calculation
-          const storedProfit = await storage.getStoredProfit(productId || orderItems[0].bundleId, purchasingAgent.id, 'agent');
-          if (storedProfit) {
-            agentProfit = Math.max(0, parseFloat(storedProfit));
+          // Fallback: calculate profit using agent role base price
+          const agentRoleBasePrice = await storage.getRoleBasePrice(productId || orderItems?.[0]?.bundleId, 'agent');
+          let basePrice: number;
+          if (agentRoleBasePrice) {
+            basePrice = parseFloat(agentRoleBasePrice);
           } else {
-            const agentRoleBasePrice = await storage.getRoleBasePrice(productId || orderItems[0].bundleId, 'agent');
-            let basePrice: number;
-            if (agentRoleBasePrice) {
-              basePrice = parseFloat(agentRoleBasePrice);
-            } else {
-              const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems[0].bundleId);
-              basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
-            }
-            agentProfit = Math.max(0, purchaseAmount - basePrice);
+            const adminBasePrice = await storage.getAdminBasePrice(productId || orderItems?.[0]?.bundleId);
+            basePrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(product?.basePrice || '0');
           }
+          agentProfit = Math.max(0, purchaseAmount - basePrice);
         }
       }
       // Create transaction

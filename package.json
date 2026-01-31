@@ -13,6 +13,7 @@
     "build:client": "cd client && npm install && npm run build",
     "build:server": "npx tsc --project . --skipLibCheck",
     "build:production": "npm install && npm run build:client && npx tsc --project . --skipLibCheck",
+    "postinstall": "npm run build:server",
     "preview": "vite preview --host --port $PORT",
     "start": "node dist/server/index.js",
     "check": "tsc",

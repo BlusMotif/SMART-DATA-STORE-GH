@@ -922,19 +922,12 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { Pool } from "pg";
-import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 var __filename, __dirname, usePostgreSQL, db, pool;
 var init_db = __esm({
   "src/server/db.ts"() {
     init_schema();
-    dotenv.config();
-    if (process.env.NODE_ENV === "development") {
-      dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env.development"), override: true });
-    } else if (process.env.NODE_ENV === "production") {
-      dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.env.production"), override: true });
-    }
     __filename = fileURLToPath(import.meta.url);
     __dirname = path.dirname(__filename);
     usePostgreSQL = process.env.DATABASE_URL && (process.env.DATABASE_URL.startsWith("postgresql://") || process.env.DATABASE_URL.startsWith("postgres://"));
@@ -2734,7 +2727,7 @@ var init_vite = __esm({
 });
 
 // src/server/index.ts
-import dotenv2 from "dotenv";
+import dotenv from "dotenv";
 import path4 from "path";
 import { fileURLToPath as fileURLToPath4 } from "url";
 import { createClient } from "@supabase/supabase-js";
@@ -10537,9 +10530,9 @@ function loadEnvironment() {
     return;
   }
   const nodeEnv = process.env.NODE_ENV || "development";
-  dotenv2.config({ path: path4.join(rootDir, ".env") });
+  dotenv.config({ path: path4.join(rootDir, ".env") });
   const envFile = nodeEnv === "production" ? ".env.production" : ".env.development";
-  dotenv2.config({ path: path4.join(rootDir, envFile), override: true });
+  dotenv.config({ path: path4.join(rootDir, envFile), override: true });
   console.log(`[ENV] Loaded from .env files (${envFile})`);
 }
 loadEnvironment();

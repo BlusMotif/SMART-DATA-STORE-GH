@@ -4,18 +4,11 @@ import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 import { Pool } from 'pg';
 import * as schema from '../shared/schema.js';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Load environment variables with same logic as index.ts
-dotenv.config();
-
-if (process.env.NODE_ENV === 'development') {
-  dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env.development'), override: true });
-} else if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.env.production'), override: true });
-}
+// NOTE: Environment variables should already be loaded by index.ts or hosting provider
+// Do NOT load dotenv here - it causes issues when hosting providers inject env vars
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);

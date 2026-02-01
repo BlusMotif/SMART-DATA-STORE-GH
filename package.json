@@ -8,7 +8,7 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "NODE_ENV=production node dist/server/index.js",
+    "start": "node dist/server/index.js",
     "build": "npm run build:client && npm run build:server",
     "build:client": "cd client && npm install && npm run build",
     "build:server": "npx esbuild src/server/index.ts --bundle --platform=node --target=node20 --format=esm --outdir=dist/server --packages=external",

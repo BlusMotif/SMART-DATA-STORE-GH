@@ -10528,32 +10528,35 @@ import fs3 from "fs";
 var __serverFilename = fileURLToPath4(import.meta.url);
 var __serverDirname = path4.dirname(__serverFilename);
 var rootDir = path4.resolve(__serverDirname, "../..");
-var possibleEnvPaths = [
-  path4.join(rootDir, ".env"),
-  path4.join(rootDir, ".env.production"),
-  path4.join(process.cwd(), ".env"),
-  path4.join(process.cwd(), ".env.production")
-];
-dotenv2.config({ path: path4.join(rootDir, ".env") });
-if (process.env.NODE_ENV === "production") {
-  try {
-    dotenv2.config({ path: path4.join(rootDir, ".env.production"), override: true });
-  } catch (e) {
-    console.log("No .env.production file found, using environment variables from hosting panel");
+function loadEnvironment() {
+  const hasHostingEnvVars = Boolean(
+    process.env.DATABASE_URL || process.env.SUPABASE_URL
+  );
+  if (hasHostingEnvVars) {
+    console.log("[ENV] Using environment variables from hosting provider");
+    return;
   }
-} else if (process.env.NODE_ENV === "development") {
-  try {
-    dotenv2.config({ path: path4.join(rootDir, ".env.development"), override: true });
-  } catch (e) {
-    console.log("No .env.development file found");
+  const nodeEnv = process.env.NODE_ENV || "development";
+  dotenv2.config({ path: path4.join(rootDir, ".env") });
+  const envFile = nodeEnv === "production" ? ".env.production" : ".env.development";
+  dotenv2.config({ path: path4.join(rootDir, envFile), override: true });
+  console.log(`[ENV] Loaded from .env files (${envFile})`);
+}
+loadEnvironment();
+function validateEnv() {
+  const required = ["DATABASE_URL"];
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error(`[ENV] \u274C Missing required environment variables: ${missing.join(", ")}`);
   }
 }
-console.log("Server starting with configuration:", {
-  NODE_ENV: process.env.NODE_ENV || "not set",
-  PORT: process.env.PORT || "not set (will default to 10000)",
-  DATABASE_URL: process.env.DATABASE_URL ? "\u2705 configured" : "\u274C missing",
-  SUPABASE_URL: process.env.SUPABASE_URL ? "\u2705 configured" : "\u274C missing",
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "\u2705 configured" : "\u274C missing"
+validateEnv();
+console.log("[Server] Starting with configuration:", {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: process.env.PORT || "3000 (default)",
+  DATABASE_URL: process.env.DATABASE_URL ? "\u2705 set" : "\u274C missing",
+  SUPABASE_URL: process.env.SUPABASE_URL ? "\u2705 set" : "\u274C missing",
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "\u2705 set" : "\u274C missing"
 });
 var supabaseServerInstance = null;
 function initializeSupabase() {
@@ -10959,21 +10962,22 @@ app.use((req, res, next) => {
         socket.destroy();
       });
     });
-    const PORT = Number(process.env.PORT) || 1e4;
+    const PORT = Number(process.env.PORT) || 3e3;
     const HOST = "0.0.0.0";
-    console.log(`Starting server on ${HOST}:${PORT}, NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`[Timeouts] Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
+    console.log(`[Server] Starting on ${HOST}:${PORT}`);
+    console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV || "development"}`);
+    console.log(`[Server] Timeouts - Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
     httpServer.listen(
       {
         port: PORT,
         host: HOST
       },
       () => {
-        log(`serving on port ${PORT}`);
+        console.log(`[Server] \u2705 Running on http://${HOST}:${PORT}`);
       }
     );
   } catch (error) {
-    console.error("Server startup error:", error);
+    console.error("[Server] \u274C Startup error:", error);
     process.exit(1);
   }
 })();

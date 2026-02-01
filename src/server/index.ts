@@ -1,46 +1,73 @@
-// Load environment variables FIRST - before any imports that might use them
+/**
+ * Server Entry Point
+ * 
+ * Environment variables are loaded in the following priority:
+ * 1. System environment variables (set by hosting providers like Hostinger)
+ * 2. .env.production / .env.development files (for local development)
+ * 3. .env file (base fallback)
+ */
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Get directory for resolving paths
+// Get directory for resolving paths (ESM equivalent of __dirname)
 const __serverFilename = fileURLToPath(import.meta.url);
 const __serverDirname = path.dirname(__serverFilename);
-
-// Load .env from project root (try multiple locations for different deployment scenarios)
 const rootDir = path.resolve(__serverDirname, '../..');
-const possibleEnvPaths = [
-  path.join(rootDir, '.env'),
-  path.join(rootDir, '.env.production'),
-  path.join(process.cwd(), '.env'),
-  path.join(process.cwd(), '.env.production'),
-];
 
-// Load base .env first
-dotenv.config({ path: path.join(rootDir, '.env') });
+/**
+ * Load environment variables
+ * Hostinger and other PaaS providers inject env vars directly into process.env
+ * We only use dotenv for local development
+ */
+function loadEnvironment(): void {
+  // Check if critical env vars are already set (by hosting provider)
+  const hasHostingEnvVars = Boolean(
+    process.env.DATABASE_URL || 
+    process.env.SUPABASE_URL
+  );
 
-// In production, try to load .env.production if it exists (Hostinger may set vars via panel)
-if (process.env.NODE_ENV === 'production') {
-  try {
-    dotenv.config({ path: path.join(rootDir, '.env.production'), override: true });
-  } catch (e) {
-    console.log('No .env.production file found, using environment variables from hosting panel');
+  if (hasHostingEnvVars) {
+    console.log('[ENV] Using environment variables from hosting provider');
+    return;
   }
-} else if (process.env.NODE_ENV === 'development') {
-  try {
-    dotenv.config({ path: path.join(rootDir, '.env.development'), override: true });
-  } catch (e) {
-    console.log('No .env.development file found');
+
+  // For local development, load from .env files
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  
+  // Load base .env first
+  dotenv.config({ path: path.join(rootDir, '.env') });
+  
+  // Then load environment-specific file (overrides base)
+  const envFile = nodeEnv === 'production' ? '.env.production' : '.env.development';
+  dotenv.config({ path: path.join(rootDir, envFile), override: true });
+  
+  console.log(`[ENV] Loaded from .env files (${envFile})`);
+}
+
+// Load environment before anything else
+loadEnvironment();
+
+// Validate required environment variables
+function validateEnv(): void {
+  const required = ['DATABASE_URL'];
+  const missing = required.filter(key => !process.env[key]);
+  
+  if (missing.length > 0) {
+    console.error(`[ENV] ❌ Missing required environment variables: ${missing.join(', ')}`);
+    // Don't exit - let the server try to start, it will fail on DB connection if needed
   }
 }
 
-// Log startup info (mask sensitive data)
-console.log('Server starting with configuration:', {
-  NODE_ENV: process.env.NODE_ENV || 'not set',
-  PORT: process.env.PORT || 'not set (will default to 10000)',
-  DATABASE_URL: process.env.DATABASE_URL ? '✅ configured' : '❌ missing',
-  SUPABASE_URL: process.env.SUPABASE_URL ? '✅ configured' : '❌ missing',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ configured' : '❌ missing',
+validateEnv();
+
+// Log startup configuration (mask sensitive data)
+console.log('[Server] Starting with configuration:', {
+  NODE_ENV: process.env.NODE_ENV || 'development',
+  PORT: process.env.PORT || '3000 (default)',
+  DATABASE_URL: process.env.DATABASE_URL ? '✅ set' : '❌ missing',
+  SUPABASE_URL: process.env.SUPABASE_URL ? '✅ set' : '❌ missing',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ set' : '❌ missing',
 });
 
 // Initialize Supabase immediately after loading environment variables
@@ -612,13 +639,16 @@ app.use((req, res, next) => {
       });
     });
 
-    // ALWAYS serve the app on the port specified in the environment variable PORT
-    // Use the provided PORT when available (Render sets this). Fall back to 10000
-    // for local development so the app still runs without additional env config.
-    const PORT = Number(process.env.PORT) || 10000;
-    const HOST = "0.0.0.0";
-    console.log(`Starting server on ${HOST}:${PORT}, NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`[Timeouts] Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
+    // PORT configuration:
+    // - Hostinger typically uses port 3000 for Node.js apps
+    // - Other providers (Render, Railway) set PORT env var
+    // - Local development defaults to 3000
+    const PORT = Number(process.env.PORT) || 3000;
+    const HOST = "0.0.0.0"; // Required for containerized environments
+    
+    console.log(`[Server] Starting on ${HOST}:${PORT}`);
+    console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[Server] Timeouts - Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
     
     httpServer.listen(
       {
@@ -626,11 +656,11 @@ app.use((req, res, next) => {
         host: HOST,
       },
       () => {
-        log(`serving on port ${PORT}`);
+        console.log(`[Server] ✅ Running on http://${HOST}:${PORT}`);
       },
     );
   } catch (error) {
-    console.error('Server startup error:', error);
+    console.error('[Server] ❌ Startup error:', error);
     process.exit(1);
   }
 })();

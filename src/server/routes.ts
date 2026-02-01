@@ -677,40 +677,26 @@ export async function registerRoutes(
   app: Express
 ): Promise<void> {
   // ============================================
-  // HEALTH CHECK - Debug endpoint for deployment issues
+  // HEALTH CHECK - Basic status endpoint
   // ============================================
   app.get("/api/health", async (req, res) => {
     try {
       // Test database connection
       let dbStatus = 'unknown';
-      let dbError = null;
       try {
-        const result = await db.execute(sql`SELECT 1 as test`);
+        await db.execute(sql`SELECT 1 as test`);
         dbStatus = 'connected';
       } catch (e: any) {
         dbStatus = 'error';
-        dbError = e?.message || String(e);
       }
 
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        env: {
-          NODE_ENV: process.env.NODE_ENV || 'not set',
-          DATABASE_URL: process.env.DATABASE_URL ? 'set (hidden)' : 'NOT SET',
-          SUPABASE_URL: process.env.SUPABASE_URL ? 'set (hidden)' : 'NOT SET',
-          SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set (hidden)' : 'NOT SET',
-        },
-        database: {
-          status: dbStatus,
-          error: dbError,
-        }
+        database: dbStatus
       });
     } catch (error: any) {
-      res.status(500).json({ 
-        status: 'error', 
-        error: error?.message || String(error) 
-      });
+      res.status(500).json({ status: 'error' });
     }
   });
 
@@ -6061,8 +6047,7 @@ export async function registerRoutes(
       const settings = await storage.getBreakSettings();
       res.json(settings);
     } catch (error: any) {
-      console.error('[API] /api/break-settings error:', error?.message || error);
-      res.status(500).json({ error: "Failed to load break settings", details: error?.message });
+      res.status(500).json({ error: "Failed to load break settings" });
     }
   });
   // ============================================

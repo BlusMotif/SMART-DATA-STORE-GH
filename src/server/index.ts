@@ -28,7 +28,6 @@ function loadEnvironment(): void {
   );
 
   if (hasHostingEnvVars) {
-    console.log('[ENV] Using environment variables from hosting provider');
     return;
   }
 
@@ -41,8 +40,6 @@ function loadEnvironment(): void {
   // Then load environment-specific file (overrides base)
   const envFile = nodeEnv === 'production' ? '.env.production' : '.env.development';
   dotenv.config({ path: path.join(rootDir, envFile), override: true });
-  
-  console.log(`[ENV] Loaded from .env files (${envFile})`);
 }
 
 // Load environment before anything else
@@ -54,21 +51,11 @@ function validateEnv(): void {
   const missing = required.filter(key => !process.env[key]);
   
   if (missing.length > 0) {
-    console.error(`[ENV] ❌ Missing required environment variables: ${missing.join(', ')}`);
-    // Don't exit - let the server try to start, it will fail on DB connection if needed
+    // Missing env vars - will fail on DB connection
   }
 }
 
 validateEnv();
-
-// Log startup configuration (mask sensitive data)
-console.log('[Server] Starting with configuration:', {
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  PORT: process.env.PORT || '3000 (default)',
-  DATABASE_URL: process.env.DATABASE_URL ? '✅ set' : '❌ missing',
-  SUPABASE_URL: process.env.SUPABASE_URL ? '✅ set' : '❌ missing',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ set' : '❌ missing',
-});
 
 // Initialize Supabase immediately after loading environment variables
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -79,13 +66,6 @@ function initializeSupabase() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  console.log('Supabase initialization:', {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseServiceRoleKey,
-    urlLength: supabaseUrl?.length,
-    keyLength: supabaseServiceRoleKey?.length
-  });
-
   if (supabaseUrl && supabaseServiceRoleKey) {
     supabaseServerInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
@@ -93,9 +73,6 @@ function initializeSupabase() {
         persistSession: false,
       },
     });
-    console.log('✅ Supabase server client initialized successfully');
-  } else {
-    console.error('❌ Supabase server client failed to initialize - missing environment variables');
   }
   
   return supabaseServerInstance;
@@ -109,9 +86,7 @@ export function getSupabaseServer(): SupabaseClient | null {
 export let supabaseServer: SupabaseClient | null = null;
 
 // Allow skipping Supabase initialization for local dev/smoke tests
-if (process.env.SKIP_DB === 'true') {
-  console.log('SKIP_DB=true — skipping Supabase initialization (no DB will be used)');
-} else {
+if (process.env.SKIP_DB !== 'true') {
   initializeSupabase();
 }
 
@@ -139,19 +114,15 @@ const KEEP_ALIVE_TIMEOUT_MS = 65 * 1000; // 65 seconds
 
 function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "../../dist/public");
-  console.log(`Serving static files from: ${distPath}`);
   
   if (!fs.existsSync(distPath)) {
-    console.error(`Could not find the build directory: ${distPath}`);
-    console.error("Static file serving will not work properly. Make sure to build the client first.");
-    // Don't throw error in production - just log and continue
-    if (process.env.NODE_ENV === "production") {
-      return;
-    } else {
+    // Don't throw error in production - just continue
+    if (process.env.NODE_ENV !== "production") {
       throw new Error(
         `Could not find the build directory: ${distPath}, make sure to build the client first`,
       );
     }
+    return;
   }
 
   // Serve static files
@@ -163,7 +134,6 @@ function serveStatic(app: Express) {
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      console.error(`Could not find index.html at: ${indexPath}`);
       res.status(500).send("Application not built properly");
     }
   });
@@ -179,7 +149,6 @@ function serveStatic(app: Express) {
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      console.error(`Could not find index.html at: ${indexPath}`);
       res.status(500).send("Application not built properly");
     }
   });
@@ -187,6 +156,10 @@ function serveStatic(app: Express) {
 
 const app = express();
 const httpServer = createServer(app);
+
+// Export app for Hostinger Express framework compatibility
+export { app };
+export default app;
 
 // ========================
 // ADVANCED RATE LIMITING
@@ -240,7 +213,6 @@ const createRateLimiter = (maxRequests: number, windowMs: number, options?: { bl
       record.count++;
       next();
     } catch (error) {
-      console.error('Rate limiting error:', error);
       // On error, allow request to pass through
       next();
     }
@@ -262,10 +234,10 @@ const startRateLimitCleanup = () => {
       }
       
       if (cleaned > 0) {
-        console.log(`[Rate Limit Cleanup] Removed ${cleaned} expired entries`);
+        // Cleaned expired entries
       }
     } catch (error) {
-      console.error('[Rate Limit Cleanup] Error:', error);
+      // Ignore cleanup errors
     }
   }, 60 * 60 * 1000); // Run every hour
 };
@@ -304,7 +276,6 @@ app.use(async (req, res, next) => {
     res.setHeader('Surrogate-Control', 'no-store');
     next();
   } catch (error) {
-    console.error('Security headers middleware error:', error);
     next();
   }
 });
@@ -367,23 +338,17 @@ app.use(async (req, res, next) => {
       const idleCount = pool.idleCount || 0;
       const totalCount = pool.totalCount || 0;
       
-      if (idleCount === 0 && totalCount > 0) {
-        console.warn(`[DB Pool Warning] All ${totalCount} connections in use`);
-      }
     }
     
     next();
   } catch (error) {
-    console.error('[DB Monitor] Error:', error);
     next(); // Continue anyway
   }
 });
 
 // Optional toggle to disable rate limiting for local testing
 const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true';
-if (disableRateLimit) {
-  console.log('[RateLimit] Disabled for local testing');
-} else {
+if (!disableRateLimit) {
   // Apply advanced rate limiting to sensitive routes
   app.use('/api/auth/login', createRateLimiter(10, 15 * 60 * 1000, { blockDurationMs: 30 * 60 * 1000 })); // 10 req/15min, block for 30min
   app.use('/api/auth/register', createRateLimiter(10, 30 * 60 * 1000, { blockDurationMs: 60 * 60 * 1000 })); // 10 req/30min, block for 1hr
@@ -443,7 +408,7 @@ app.use((req, res, next) => {
           log(logLine);
         }
       } catch (error) {
-        console.error('Logging error:', error);
+        // Ignore logging errors
       }
     });
   });
@@ -459,11 +424,9 @@ const assetsUploadPath = process.env.NODE_ENV === "production"
 try {
   if (!fs.existsSync(assetsUploadPath)) {
     fs.mkdirSync(assetsUploadPath, { recursive: true });
-    console.log(`Created upload directory: ${assetsUploadPath}`);
   }
 } catch (error) {
-  console.error(`Failed to create upload directory ${assetsUploadPath}:`, error);
-  // Don't fail the server startup, just log the error
+  // Don't fail the server startup
 }
 
 const storage = multer.diskStorage({
@@ -529,8 +492,7 @@ app.use(cors({
       return callback(null, true);
     }
     
-    console.log(`CORS blocked origin: ${origin}`);
-    return callback(new Error(`Not allowed by CORS: ${origin}`));
+    return callback(new Error(`Not allowed by CORS`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
@@ -603,14 +565,12 @@ app.use((req, res, next) => {
         try {
           const status = err.status || err.statusCode || 500;
           const message = err.message || "Internal Server Error";
-
-          console.error("Express error:", err);
           
           if (!res.headersSent) {
             res.status(status).json({ message });
           }
         } catch (error) {
-          console.error('Error handler failed:', error);
+          // Ignore error handler failures
         }
       });
     });
@@ -644,11 +604,7 @@ app.use((req, res, next) => {
     // - Other providers (Render, Railway) set PORT env var
     // - Local development defaults to 3000
     const PORT = Number(process.env.PORT) || 3000;
-    const HOST = "0.0.0.0"; // Required for containerized environments
-    
-    console.log(`[Server] Starting on ${HOST}:${PORT}`);
-    console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`[Server] Timeouts - Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
+    const HOST = "0.0.0.0";
     
     httpServer.listen(
       {
@@ -656,11 +612,10 @@ app.use((req, res, next) => {
         host: HOST,
       },
       () => {
-        console.log(`[Server] ✅ Running on http://${HOST}:${PORT}`);
+        // Server running
       },
     );
   } catch (error) {
-    console.error('[Server] ❌ Startup error:', error);
     process.exit(1);
   }
 })();
@@ -669,42 +624,30 @@ app.use((req, res, next) => {
 // GLOBAL ERROR HANDLERS (Non-blocking)
 // ========================
 process.on('uncaughtException', (err) => {
-  console.error('[Uncaught Exception]', err);
-  // Don't exit the process in production, just log the error
+  // Log but don't expose details
   if (process.env.NODE_ENV !== 'production') {
     process.exit(1);
   }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[Unhandled Rejection]', {
-    promise: String(promise),
-    reason: String(reason)
-  });
-  // Don't exit the process, just log the error
+  // Ignore in production to prevent crashes
 });
 
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {
-  console.log('[SIGTERM] Graceful shutdown initiated');
   httpServer.close(() => {
-    console.log('[Server] Closed all connections');
     process.exit(0);
   });
   
   // Force shutdown after 30 seconds
   setTimeout(() => {
-    console.error('[Server] Forced shutdown due to timeout');
     process.exit(1);
   }, 30000);
 });
 
 process.on('SIGINT', async () => {
-  console.log('[SIGINT] Graceful shutdown initiated');
   httpServer.close(() => {
-    console.log('[Server] Closed all connections');
     process.exit(0);
   });
 });
-
-console.log('[Server] Advanced features enabled: Async/Non-blocking, Rate Limiting, Request/Connection Timeouts');

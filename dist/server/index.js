@@ -928,14 +928,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 function initializeDatabase() {
   if (_initialized) return;
-  console.log("[DB] Initializing database connection...");
-  console.log("[DB] DATABASE_URL exists:", !!process.env.DATABASE_URL);
   const usePostgreSQL = process.env.DATABASE_URL && (process.env.DATABASE_URL.startsWith("postgresql://") || process.env.DATABASE_URL.startsWith("postgres://"));
   if (usePostgreSQL) {
     if (!process.env.DATABASE_URL) {
       throw new Error("[DB] DATABASE_URL environment variable is required");
     }
-    console.log("[DB] Using PostgreSQL");
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       max: 20,
@@ -947,18 +944,12 @@ function initializeDatabase() {
       ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
     });
     _pool.on("error", (err) => {
-      console.error("[DB Pool] Unexpected error on idle client:", err);
-    });
-    _pool.on("connect", () => {
-      console.log("[DB Pool] Client connected to database");
+      console.error("[DB Pool] Connection error");
     });
     _db = drizzle(_pool, { schema: schema_exports });
-    console.log("[DB] PostgreSQL connection initialized");
   } else {
-    console.log("[DB] Using SQLite (local development)");
     const sqlite = new Database(path.resolve(__dirname, "../../dev.db"));
     _db = drizzleSqlite(sqlite, { schema: schema_exports });
-    console.log("[DB] SQLite connection initialized");
   }
   _initialized = true;
 }
@@ -3410,33 +3401,19 @@ async function registerRoutes(httpServer2, app2) {
   app2.get("/api/health", async (req, res) => {
     try {
       let dbStatus = "unknown";
-      let dbError = null;
       try {
-        const result = await db.execute(sql2`SELECT 1 as test`);
+        await db.execute(sql2`SELECT 1 as test`);
         dbStatus = "connected";
       } catch (e) {
         dbStatus = "error";
-        dbError = e?.message || String(e);
       }
       res.json({
         status: "ok",
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        env: {
-          NODE_ENV: process.env.NODE_ENV || "not set",
-          DATABASE_URL: process.env.DATABASE_URL ? "set (hidden)" : "NOT SET",
-          SUPABASE_URL: process.env.SUPABASE_URL ? "set (hidden)" : "NOT SET",
-          SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "set (hidden)" : "NOT SET"
-        },
-        database: {
-          status: dbStatus,
-          error: dbError
-        }
+        database: dbStatus
       });
     } catch (error) {
-      res.status(500).json({
-        status: "error",
-        error: error?.message || String(error)
-      });
+      res.status(500).json({ status: "error" });
     }
   });
   app2.post("/api/auth/register", async (req, res) => {
@@ -8074,8 +8051,7 @@ async function registerRoutes(httpServer2, app2) {
       const settings2 = await storage.getBreakSettings();
       res.json(settings2);
     } catch (error) {
-      console.error("[API] /api/break-settings error:", error?.message || error);
-      res.status(500).json({ error: "Failed to load break settings", details: error?.message });
+      res.status(500).json({ error: "Failed to load break settings" });
     }
   });
   app2.get("/api/transactions", requireAuth, async (req, res) => {
@@ -10586,41 +10562,25 @@ function loadEnvironment() {
     process.env.DATABASE_URL || process.env.SUPABASE_URL
   );
   if (hasHostingEnvVars) {
-    console.log("[ENV] Using environment variables from hosting provider");
     return;
   }
   const nodeEnv = process.env.NODE_ENV || "development";
   dotenv.config({ path: path4.join(rootDir, ".env") });
   const envFile = nodeEnv === "production" ? ".env.production" : ".env.development";
   dotenv.config({ path: path4.join(rootDir, envFile), override: true });
-  console.log(`[ENV] Loaded from .env files (${envFile})`);
 }
 loadEnvironment();
 function validateEnv() {
   const required = ["DATABASE_URL"];
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    console.error(`[ENV] \u274C Missing required environment variables: ${missing.join(", ")}`);
   }
 }
 validateEnv();
-console.log("[Server] Starting with configuration:", {
-  NODE_ENV: process.env.NODE_ENV || "development",
-  PORT: process.env.PORT || "3000 (default)",
-  DATABASE_URL: process.env.DATABASE_URL ? "\u2705 set" : "\u274C missing",
-  SUPABASE_URL: process.env.SUPABASE_URL ? "\u2705 set" : "\u274C missing",
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "\u2705 set" : "\u274C missing"
-});
 var supabaseServerInstance = null;
 function initializeSupabase() {
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  console.log("Supabase initialization:", {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseServiceRoleKey,
-    urlLength: supabaseUrl?.length,
-    keyLength: supabaseServiceRoleKey?.length
-  });
   if (supabaseUrl && supabaseServiceRoleKey) {
     supabaseServerInstance = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
@@ -10628,9 +10588,6 @@ function initializeSupabase() {
         persistSession: false
       }
     });
-    console.log("\u2705 Supabase server client initialized successfully");
-  } else {
-    console.error("\u274C Supabase server client failed to initialize - missing environment variables");
   }
   return supabaseServerInstance;
 }
@@ -10638,9 +10595,7 @@ function getSupabaseServer() {
   return supabaseServerInstance;
 }
 var supabaseServer = null;
-if (process.env.SKIP_DB === "true") {
-  console.log("SKIP_DB=true \u2014 skipping Supabase initialization (no DB will be used)");
-} else {
+if (process.env.SKIP_DB !== "true") {
   initializeSupabase();
 }
 var __dirname3 = __serverDirname;
@@ -10649,17 +10604,13 @@ var SOCKET_TIMEOUT_MS = 60 * 1e3;
 var KEEP_ALIVE_TIMEOUT_MS = 65 * 1e3;
 function serveStatic(app2) {
   const distPath = path4.resolve(__dirname3, "../../dist/public");
-  console.log(`Serving static files from: ${distPath}`);
   if (!fs3.existsSync(distPath)) {
-    console.error(`Could not find the build directory: ${distPath}`);
-    console.error("Static file serving will not work properly. Make sure to build the client first.");
-    if (process.env.NODE_ENV === "production") {
-      return;
-    } else {
+    if (process.env.NODE_ENV !== "production") {
       throw new Error(
         `Could not find the build directory: ${distPath}, make sure to build the client first`
       );
     }
+    return;
   }
   app2.use(express.static(distPath));
   app2.get("/", (req, res) => {
@@ -10667,7 +10618,6 @@ function serveStatic(app2) {
     if (fs3.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      console.error(`Could not find index.html at: ${indexPath}`);
       res.status(500).send("Application not built properly");
     }
   });
@@ -10679,13 +10629,13 @@ function serveStatic(app2) {
     if (fs3.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
-      console.error(`Could not find index.html at: ${indexPath}`);
       res.status(500).send("Application not built properly");
     }
   });
 }
 var app = express();
 var httpServer = createServer(app);
+var index_default = app;
 var rateLimitMap = /* @__PURE__ */ new Map();
 var createRateLimiter = (maxRequests, windowMs, options) => {
   const blockDurationMs = options?.blockDurationMs || windowMs;
@@ -10720,7 +10670,6 @@ var createRateLimiter = (maxRequests, windowMs, options) => {
       record.count++;
       next();
     } catch (error) {
-      console.error("Rate limiting error:", error);
       next();
     }
   };
@@ -10737,10 +10686,8 @@ var startRateLimitCleanup = () => {
         }
       }
       if (cleaned > 0) {
-        console.log(`[Rate Limit Cleanup] Removed ${cleaned} expired entries`);
       }
     } catch (error) {
-      console.error("[Rate Limit Cleanup] Error:", error);
     }
   }, 60 * 60 * 1e3);
 };
@@ -10766,7 +10713,6 @@ app.use(async (req, res, next) => {
     res.setHeader("Surrogate-Control", "no-store");
     next();
   } catch (error) {
-    console.error("Security headers middleware error:", error);
     next();
   }
 });
@@ -10816,20 +10762,14 @@ app.use(async (req, res, next) => {
     if (pool2 && pool2.totalCount > 0) {
       const idleCount = pool2.idleCount || 0;
       const totalCount = pool2.totalCount || 0;
-      if (idleCount === 0 && totalCount > 0) {
-        console.warn(`[DB Pool Warning] All ${totalCount} connections in use`);
-      }
     }
     next();
   } catch (error) {
-    console.error("[DB Monitor] Error:", error);
     next();
   }
 });
 var disableRateLimit = process.env.DISABLE_RATE_LIMIT === "true";
-if (disableRateLimit) {
-  console.log("[RateLimit] Disabled for local testing");
-} else {
+if (!disableRateLimit) {
   app.use("/api/auth/login", createRateLimiter(10, 15 * 60 * 1e3, { blockDurationMs: 30 * 60 * 1e3 }));
   app.use("/api/auth/register", createRateLimiter(10, 30 * 60 * 1e3, { blockDurationMs: 60 * 60 * 1e3 }));
   app.use("/api/agent/register", createRateLimiter(10, 30 * 60 * 1e3, { blockDurationMs: 60 * 60 * 1e3 }));
@@ -10871,7 +10811,6 @@ app.use((req, res, next) => {
           log(logLine);
         }
       } catch (error) {
-        console.error("Logging error:", error);
       }
     });
   });
@@ -10881,10 +10820,8 @@ var assetsUploadPath = process.env.NODE_ENV === "production" ? path4.join(proces
 try {
   if (!fs3.existsSync(assetsUploadPath)) {
     fs3.mkdirSync(assetsUploadPath, { recursive: true });
-    console.log(`Created upload directory: ${assetsUploadPath}`);
   }
 } catch (error) {
-  console.error(`Failed to create upload directory ${assetsUploadPath}:`, error);
 }
 var storage2 = multer2.diskStorage({
   destination: (req, file, cb) => {
@@ -10928,8 +10865,7 @@ app.use(cors({
     if (origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:")) {
       return callback(null, true);
     }
-    console.log(`CORS blocked origin: ${origin}`);
-    return callback(new Error(`Not allowed by CORS: ${origin}`));
+    return callback(new Error(`Not allowed by CORS`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
@@ -10992,12 +10928,10 @@ app.use((req, res, next) => {
         try {
           const status = err.status || err.statusCode || 500;
           const message = err.message || "Internal Server Error";
-          console.error("Express error:", err);
           if (!res.headersSent) {
             res.status(status).json({ message });
           }
         } catch (error) {
-          console.error("Error handler failed:", error);
         }
       });
     });
@@ -11017,55 +10951,41 @@ app.use((req, res, next) => {
     });
     const PORT = Number(process.env.PORT) || 3e3;
     const HOST = "0.0.0.0";
-    console.log(`[Server] Starting on ${HOST}:${PORT}`);
-    console.log(`[Server] NODE_ENV: ${process.env.NODE_ENV || "development"}`);
-    console.log(`[Server] Timeouts - Request: ${REQUEST_TIMEOUT_MS}ms, Socket: ${SOCKET_TIMEOUT_MS}ms, Keep-Alive: ${KEEP_ALIVE_TIMEOUT_MS}ms`);
     httpServer.listen(
       {
         port: PORT,
         host: HOST
       },
       () => {
-        console.log(`[Server] \u2705 Running on http://${HOST}:${PORT}`);
       }
     );
   } catch (error) {
-    console.error("[Server] \u274C Startup error:", error);
     process.exit(1);
   }
 })();
 process.on("uncaughtException", (err) => {
-  console.error("[Uncaught Exception]", err);
   if (process.env.NODE_ENV !== "production") {
     process.exit(1);
   }
 });
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("[Unhandled Rejection]", {
-    promise: String(promise),
-    reason: String(reason)
-  });
 });
 process.on("SIGTERM", async () => {
-  console.log("[SIGTERM] Graceful shutdown initiated");
   httpServer.close(() => {
-    console.log("[Server] Closed all connections");
     process.exit(0);
   });
   setTimeout(() => {
-    console.error("[Server] Forced shutdown due to timeout");
     process.exit(1);
   }, 3e4);
 });
 process.on("SIGINT", async () => {
-  console.log("[SIGINT] Graceful shutdown initiated");
   httpServer.close(() => {
-    console.log("[Server] Closed all connections");
     process.exit(0);
   });
 });
-console.log("[Server] Advanced features enabled: Async/Non-blocking, Rate Limiting, Request/Connection Timeouts");
 export {
+  app,
+  index_default as default,
   getSupabaseServer,
   log,
   supabaseServer

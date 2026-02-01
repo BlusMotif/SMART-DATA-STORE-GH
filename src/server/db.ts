@@ -24,9 +24,6 @@ let _initialized = false;
 function initializeDatabase(): void {
   if (_initialized) return;
   
-  console.log('[DB] Initializing database connection...');
-  console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
-  
   const usePostgreSQL = process.env.DATABASE_URL && 
     (process.env.DATABASE_URL.startsWith('postgresql://') || 
      process.env.DATABASE_URL.startsWith('postgres://'));
@@ -35,8 +32,6 @@ function initializeDatabase(): void {
     if (!process.env.DATABASE_URL) {
       throw new Error('[DB] DATABASE_URL environment variable is required');
     }
-
-    console.log('[DB] Using PostgreSQL');
     
     // Connection pool with enhanced settings for stability
     _pool = new Pool({
@@ -50,23 +45,16 @@ function initializeDatabase(): void {
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     });
 
-    // Error handling for the pool
+    // Error handling for the pool (keep this for production debugging)
     _pool.on('error', (err: Error) => {
-      console.error('[DB Pool] Unexpected error on idle client:', err);
-    });
-
-    _pool.on('connect', () => {
-      console.log('[DB Pool] Client connected to database');
+      console.error('[DB Pool] Connection error');
     });
 
     _db = drizzle(_pool, { schema });
-    console.log('[DB] PostgreSQL connection initialized');
   } else {
     // Use SQLite for local development
-    console.log('[DB] Using SQLite (local development)');
     const sqlite = new Database(path.resolve(__dirname, '../../dev.db'));
     _db = drizzleSqlite(sqlite, { schema });
-    console.log('[DB] SQLite connection initialized');
   }
 
   _initialized = true;

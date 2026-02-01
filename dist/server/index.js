@@ -916,6 +916,8 @@ var init_schema = __esm({
 var db_exports = {};
 __export(db_exports, {
   db: () => db,
+  ensureDbInitialized: () => ensureDbInitialized,
+  getPool: () => getPool,
   pool: () => pool
 });
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -924,51 +926,76 @@ import Database from "better-sqlite3";
 import { Pool } from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
-var __filename, __dirname, usePostgreSQL, db, pool;
+function initializeDatabase() {
+  if (_initialized) return;
+  console.log("[DB] Initializing database connection...");
+  console.log("[DB] DATABASE_URL exists:", !!process.env.DATABASE_URL);
+  const usePostgreSQL = process.env.DATABASE_URL && (process.env.DATABASE_URL.startsWith("postgresql://") || process.env.DATABASE_URL.startsWith("postgres://"));
+  if (usePostgreSQL) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("[DB] DATABASE_URL environment variable is required");
+    }
+    console.log("[DB] Using PostgreSQL");
+    _pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 20,
+      min: 2,
+      idleTimeoutMillis: 3e4,
+      connectionTimeoutMillis: 1e4,
+      statement_timeout: 3e4,
+      query_timeout: 3e4,
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+    });
+    _pool.on("error", (err) => {
+      console.error("[DB Pool] Unexpected error on idle client:", err);
+    });
+    _pool.on("connect", () => {
+      console.log("[DB Pool] Client connected to database");
+    });
+    _db = drizzle(_pool, { schema: schema_exports });
+    console.log("[DB] PostgreSQL connection initialized");
+  } else {
+    console.log("[DB] Using SQLite (local development)");
+    const sqlite = new Database(path.resolve(__dirname, "../../dev.db"));
+    _db = drizzleSqlite(sqlite, { schema: schema_exports });
+    console.log("[DB] SQLite connection initialized");
+  }
+  _initialized = true;
+}
+function getPool() {
+  if (!_initialized) {
+    initializeDatabase();
+  }
+  return _pool;
+}
+function ensureDbInitialized() {
+  if (!_initialized) {
+    initializeDatabase();
+  }
+}
+var __filename, __dirname, _db, _pool, _initialized, db, pool;
 var init_db = __esm({
   "src/server/db.ts"() {
     init_schema();
     __filename = fileURLToPath(import.meta.url);
     __dirname = path.dirname(__filename);
-    usePostgreSQL = process.env.DATABASE_URL && (process.env.DATABASE_URL.startsWith("postgresql://") || process.env.DATABASE_URL.startsWith("postgres://"));
-    if (usePostgreSQL) {
-      if (!process.env.DATABASE_URL) {
-        throw new Error("DATABASE_URL environment variable is required");
+    _db = null;
+    _pool = null;
+    _initialized = false;
+    db = new Proxy({}, {
+      get(target, prop) {
+        if (!_initialized) {
+          initializeDatabase();
+        }
+        return _db[prop];
       }
-      pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        max: 20,
-        min: 2,
-        // Keep minimum connections ready ds
-        idleTimeoutMillis: 3e4,
-        connectionTimeoutMillis: 1e4,
-        statement_timeout: 3e4,
-        // 30s statement timeout
-        query_timeout: 3e4,
-        // 30s query timeout
-        ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
-      });
-      pool.on("error", (err) => {
-        console.error("[DB Pool] Unexpected error on idle client:", err);
-      });
-      pool.on("connect", () => {
-        console.log("[DB Pool] Client connected to database");
-      });
-      pool.on("acquire", () => {
-        console.log("[DB Pool] Client acquired from pool");
-      });
-      pool.on("release", () => {
-        console.log("[DB Pool] Client released back to pool");
-      });
-      pool.on("remove", () => {
-        console.log("[DB Pool] Client removed from pool");
-      });
-      db = drizzle(pool, { schema: schema_exports });
-    } else {
-      const sqlite = new Database(path.resolve(__dirname, "../../dev.db"));
-      db = drizzleSqlite(sqlite, { schema: schema_exports });
-      console.log("SQLite database connection established successfully");
-    }
+    });
+    pool = new Proxy({}, {
+      get(target, prop) {
+        const p = getPool();
+        return p ? p[prop] : void 0;
+      }
+    });
   }
 });
 

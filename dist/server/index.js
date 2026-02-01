@@ -3407,6 +3407,38 @@ var ROLE_LABELS = {
   guest: "Guest"
 };
 async function registerRoutes(httpServer2, app2) {
+  app2.get("/api/health", async (req, res) => {
+    try {
+      let dbStatus = "unknown";
+      let dbError = null;
+      try {
+        const result = await db.execute(sql2`SELECT 1 as test`);
+        dbStatus = "connected";
+      } catch (e) {
+        dbStatus = "error";
+        dbError = e?.message || String(e);
+      }
+      res.json({
+        status: "ok",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        env: {
+          NODE_ENV: process.env.NODE_ENV || "not set",
+          DATABASE_URL: process.env.DATABASE_URL ? "set (hidden)" : "NOT SET",
+          SUPABASE_URL: process.env.SUPABASE_URL ? "set (hidden)" : "NOT SET",
+          SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "set (hidden)" : "NOT SET"
+        },
+        database: {
+          status: dbStatus,
+          error: dbError
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        status: "error",
+        error: error?.message || String(error)
+      });
+    }
+  });
   app2.post("/api/auth/register", async (req, res) => {
     try {
       if (!req.body || typeof req.body !== "object") {
@@ -8042,7 +8074,8 @@ async function registerRoutes(httpServer2, app2) {
       const settings2 = await storage.getBreakSettings();
       res.json(settings2);
     } catch (error) {
-      res.status(500).json({ error: "Failed to load break settings" });
+      console.error("[API] /api/break-settings error:", error?.message || error);
+      res.status(500).json({ error: "Failed to load break settings", details: error?.message });
     }
   });
   app2.get("/api/transactions", requireAuth, async (req, res) => {

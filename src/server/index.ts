@@ -1,14 +1,47 @@
 // Load environment variables FIRST - before any imports that might use them
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
 
-if (process.env.NODE_ENV === 'development') {
-  dotenv.config({ path: '.env.development', override: true });
-} else if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: '.env.production', override: true });
+// Get directory for resolving paths
+const __serverFilename = fileURLToPath(import.meta.url);
+const __serverDirname = path.dirname(__serverFilename);
+
+// Load .env from project root (try multiple locations for different deployment scenarios)
+const rootDir = path.resolve(__serverDirname, '../..');
+const possibleEnvPaths = [
+  path.join(rootDir, '.env'),
+  path.join(rootDir, '.env.production'),
+  path.join(process.cwd(), '.env'),
+  path.join(process.cwd(), '.env.production'),
+];
+
+// Load base .env first
+dotenv.config({ path: path.join(rootDir, '.env') });
+
+// In production, try to load .env.production if it exists (Hostinger may set vars via panel)
+if (process.env.NODE_ENV === 'production') {
+  try {
+    dotenv.config({ path: path.join(rootDir, '.env.production'), override: true });
+  } catch (e) {
+    console.log('No .env.production file found, using environment variables from hosting panel');
+  }
+} else if (process.env.NODE_ENV === 'development') {
+  try {
+    dotenv.config({ path: path.join(rootDir, '.env.development'), override: true });
+  } catch (e) {
+    console.log('No .env.development file found');
+  }
 }
 
-console.log('DATABASE_URL after loading:', process.env.DATABASE_URL);
+// Log startup info (mask sensitive data)
+console.log('Server starting with configuration:', {
+  NODE_ENV: process.env.NODE_ENV || 'not set',
+  PORT: process.env.PORT || 'not set (will default to 10000)',
+  DATABASE_URL: process.env.DATABASE_URL ? '✅ configured' : '❌ missing',
+  SUPABASE_URL: process.env.SUPABASE_URL ? '✅ configured' : '❌ missing',
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '✅ configured' : '❌ missing',
+});
 
 // Initialize Supabase immediately after loading environment variables
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -64,13 +97,11 @@ import { createServer } from "http";
 // @ts-ignore
 import cors from "cors";
 import multer from "multer";
-import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 
-// Get the directory path - use import.meta.url for correct path in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Reuse __dirname from top of file
+const __filename = __serverFilename;
+const __dirname = __serverDirname;
 
 // ========================
 // TIMEOUTS & PERFORMANCE

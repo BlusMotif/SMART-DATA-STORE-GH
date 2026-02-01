@@ -2,6 +2,12 @@
 @tailwind components; /* stylelint-disable-line */
 @tailwind utilities; /* stylelint-disable-line */
 
+/* Fix text-size-adjust compatibility */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* Custom animations and utilities */
 @layer utilities {
 
@@ -67,9 +73,10 @@
     }
   }
 
-  @supports (-webkit-backdrop-filter: blur(12px)) {
+  @supports (-webkit-backdrop-filter: blur(12px)) or (backdrop-filter: blur(12px)) {
     .glass-effect {
       -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
     }
   }
 

@@ -174,12 +174,12 @@ export function OrderTracker() {
           const displayStatus = skytechStatus || order.deliveryStatus;
           
           return (
-          <Card className="border-l-4 border-l-blue-500">
+          <Card className="border-l-4 border-l-blue-500 bg-blue-50 dark:bg-blue-950/30">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {getStatusIcon(displayStatus)}
-                  <CardTitle className="text-lg text-foreground">{order.productName}</CardTitle>
+                  <CardTitle className="text-lg text-gray-900 dark:text-white font-bold">{order.productName}</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
                   {getStatusBadge(displayStatus)}
@@ -194,10 +194,10 @@ export function OrderTracker() {
                   </Button>
                 </div>
               </div>
-              <CardDescription className="text-muted-foreground">
+              <CardDescription className="text-gray-700 dark:text-gray-200 font-medium">
                 Order #{order.reference}
                 {refreshedAt && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                  <span className="text-xs text-gray-600 dark:text-gray-300 ml-2">
                     (Updated: {refreshedAt.toLocaleTimeString()})
                   </span>
                 )}
@@ -206,29 +206,29 @@ export function OrderTracker() {
             <CardContent className="space-y-3">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-400">Amount:</span>
-                  <p className="font-semibold text-gray-900 dark:text-white">GHS {order.amount}</p>
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Amount:</span>
+                  <p className="font-bold text-gray-900 dark:text-white">GHS {order.amount}</p>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-400">Date:</span>
-                  <p className="text-gray-900 dark:text-white">{new Date(order.createdAt).toLocaleDateString()}</p>
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Date:</span>
+                  <p className="font-semibold text-gray-900 dark:text-white">{new Date(order.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-400">Customer Phone:</span>
-                  <p className="text-gray-900 dark:text-white">{order.customerPhone}</p>
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Customer Phone:</span>
+                  <p className="font-semibold text-gray-900 dark:text-white">{order.customerPhone}</p>
                 </div>
                 <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-400">Type:</span>
-                  <p className="text-gray-900 dark:text-white">{order.isBulkOrder ? 'Bulk Order' : 'Single Order'}</p>
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Type:</span>
+                  <p className="font-semibold text-gray-900 dark:text-white">{order.isBulkOrder ? 'Bulk Order' : 'Single Order'}</p>
                 </div>
               </div>
 
               {order.isBulkOrder && order.phoneNumbers && (
                 <div>
-                  <span className="font-medium text-gray-600 dark:text-gray-400">Beneficiary Numbers:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Beneficiary Numbers:</span>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {order.phoneNumbers.map((item: any, index: number) => (
-                      <Badge key={index} variant="outline" className="text-xs text-gray-900 dark:text-white">
+                      <Badge key={index} variant="outline" className="text-xs font-semibold text-gray-900 dark:text-white">
                         {item.phone}
                       </Badge>
                     ))}
@@ -238,8 +238,8 @@ export function OrderTracker() {
 
               {order.completedAt && (
                 <div className="pt-2 border-t dark:border-gray-700">
-                  <span className="font-medium text-gray-600 dark:text-gray-400">Completed:</span>
-                  <p className="text-sm text-gray-500 dark:text-gray-300">
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Completed:</span>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
                     {new Date(order.completedAt).toLocaleString()}
                   </p>
                 </div>
@@ -247,8 +247,8 @@ export function OrderTracker() {
 
               <div className="pt-2 border-t dark:border-gray-700">
                 <div className="flex items-center gap-2 text-sm">
-                  <AlertCircle className="h-4 w-4 text-blue-500" />
-                  <span className="text-gray-600 dark:text-gray-400">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-gray-800 dark:text-gray-100">
                     Need help? Contact our support team with your order reference.
                   </span>
                 </div>

@@ -124,12 +124,12 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                     size="sm"
                     variant={isActive ? "default" : "ghost"}
                     className={cn(
-                      "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative text-sidebar-foreground hover:bg-sidebar-accent",
-                      isActive && "bg-yellow-500 text-white font-medium shadow-sm"
+                      "w-full justify-start gap-2 px-2 py-1.5 text-xs font-normal relative text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700 dark:text-yellow-400 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-300",
+                      isActive && "bg-yellow-500 !text-white font-medium shadow-sm hover:bg-yellow-600 hover:!text-white"
                     )}
                     onClick={() => onClose && onClose()}
                   >
-                    <item.icon className="h-4 w-4" />
+                    <item.icon className={cn("h-4 w-4", isActive ? "text-white" : "text-yellow-600 dark:text-yellow-400")} />
                     <span className="flex-1 text-left">{item.title}</span>
                     {isSupport && unreadCount > 0 && (
                       <Badge variant="destructive" className="ml-auto">{unreadCount}</Badge>
@@ -145,11 +145,11 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
           <Button
             size="sm"
             variant="ghost"
-            className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="w-full justify-start gap-2 px-2 py-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
             onClick={() => { onClose && onClose(); logout(); }}
             disabled={isLoggingOut}
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-4 w-4 text-red-600 dark:text-red-400" />
             {isLoggingOut ? "Logging out..." : "Log out"}
           </Button>
         </div>
@@ -199,13 +199,13 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3 font-normal relative text-sidebar-foreground hover:bg-sidebar-accent",
-                    isActive && "bg-yellow-500 text-white font-medium shadow-sm"
+                    "w-full justify-start gap-3 font-normal relative text-yellow-600 hover:bg-yellow-50 hover:text-yellow-700 dark:text-yellow-400 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-300",
+                    isActive && "bg-yellow-500 !text-white font-medium shadow-sm hover:bg-yellow-600 hover:!text-white"
                   )}
                   data-testid={`link-agent-${item.title.toLowerCase().replace(/ /g, "-")}`}
                   onClick={() => onClose && onClose()}
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className={cn("h-4 w-4", isActive ? "text-white" : "text-yellow-600 dark:text-yellow-400")} />
                   <span className="flex-1 text-left">{item.title}</span>
                   {isSupport && unreadCount > 0 && user?.role === 'admin' && (
                     <Badge variant="destructive" className="ml-auto">{unreadCount}</Badge>
@@ -229,11 +229,11 @@ export function AgentSidebarV2({ onClose }: { onClose?: () => void } = {}) {
       <div className="border-t p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
           onClick={() => { onClose && onClose(); logout(); }}
           disabled={isLoggingOut}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 text-red-600 dark:text-red-400" />
           {isLoggingOut ? "Logging out..." : "Log out"}
         </Button>
         

@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, ConfigEnv, UserConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -8,7 +8,7 @@ import autoprefixer from "autoprefixer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig({
+export default defineConfig(({ mode }: ConfigEnv) => ({
   base: "/",
   plugins: [
     react({
@@ -57,18 +57,26 @@ export default defineConfig({
     // PostCSS configured via tailwind.config.js
   },
 
+  // Strip console.log and debugger statements in production
+  esbuild: {
+    drop: mode === 'production' ? ['console', 'debugger'] : [],
+  },
+
   build: {
     outDir: "../dist/public",
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false, // Disabled in production for security
     cssCodeSplit: true,
     chunkSizeWarningLimit: 1200,
+    minify: 'esbuild',
+    target: 'es2020',
     rollupOptions: {
       input: "./index.html",
       output: {
         entryFileNames: "assets/[name].[hash].js",
         chunkFileNames: "assets/[name].[hash].js",
         assetFileNames: "assets/[name].[hash].[ext]",
+        sourcemapExcludeSources: true,
         manualChunks(id: string) {
           if (!id) return;
           if (id.includes("node_modules")) {
@@ -102,4 +110,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ["react", "react-dom", "lodash", "jspdf"],
   },
-});
+}));

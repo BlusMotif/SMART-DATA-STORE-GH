@@ -3,7 +3,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node -e \"const fs=require('fs');const path='../dist/public/assets';fs.readdirSync(path).filter(f=>f.endsWith('.map')).forEach(f=>fs.unlinkSync(path+'/'+f));console.log('Source maps removed for production')\"",
+    "build:dev": "vite build",
     "preview": "vite preview --host --port $PORT"
   },
   "dependencies": {

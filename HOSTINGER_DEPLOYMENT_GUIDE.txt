@@ -1,162 +1,132 @@
+# ============================================
 # Hostinger Business Plan - Deployment Guide
+# ============================================
+# For GitHub-based deployments to Hostinger
+# ============================================
 
 ## Prerequisites
-- Node.js 20.x (available on Hostinger Business Plan)
-- npm 10.x
-- SSH access enabled
-- FTP/SFTP access enabled
+- Hostinger Business Plan (or higher) with Node.js support
+- Node.js 20.x enabled in hPanel
+- GitHub repository connected to Hostinger
 
-## Setup Steps
+## Quick Start (Recommended)
 
-### 1. Environment Variables
-Create `.env` and `.env.production` with:
+### 1. Connect GitHub to Hostinger
+1. Log in to Hostinger hPanel
+2. Go to: Websites → [Your Domain] → Manage
+3. Navigate to: Advanced → Node.js
+4. Click "Connect to GitHub Repository"
+5. Authorize and select your repository
+
+### 2. Configure Node.js Application
+In hPanel → Node.js section, set:
 ```
-DATABASE_URL=postgresql://user:password@host:port/database
-SUPABASE_URL=https://your-instance.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_key
+Node.js Version:    20.x
+Application Root:   / (root directory)
+Entry Point:        index.js
+Build Command:      npm run build
+Start Command:      npm start
+```
+
+### 3. Add Environment Variables
+In hPanel → Node.js → Environment Variables:
+```
 NODE_ENV=production
-PORT=10000
-FRONTEND_URL=https://yourdomain.com
-SESSION_SECRET=your_secret
-PAYSTACK_PUBLIC_KEY=your_key
-PAYSTACK_SECRET_KEY=your_key
-SKYTECH_API_KEY=your_key
-SKYTECH_API_SECRET=your_secret
-SKYTECH_API_ENDPOINT=https://api.endpoint
-```
-
-### 2. GitHub Secrets
-Set these in your GitHub repository settings:
-- `HOSTINGER_FTP_SERVER` - Your FTP server (usually ftp.yourdomain.com)
-- `HOSTINGER_FTP_USER` - Your FTP username
-- `HOSTINGER_FTP_PASSWORD` - Your FTP password
-
-### 3. Deployment Process
-The GitHub Actions workflow will:
-1. Check out code
-2. Install dependencies
-3. Build frontend (React)
-4. Build server (Node.js)
-5. Verify builds are valid
-6. Deploy to Hostinger via FTP
-
-### 4. Manual Deployment (if needed)
-```bash
-# SSH into Hostinger
-ssh user@yourdomain.com
-
-# Navigate to public_html
-cd public_html
-
-# Clone/pull latest code
-git clone https://github.com/your/repo.git .
-# or
-git pull origin main
-
-# Install and build
-npm install --production
-cd client && npm install && npm run build && cd ..
-npm run build
-
-# Set environment variables
-cp .env.production .env
-
-# Start with PM2 (if installed)
-pm2 start dist/server/index.js --name "resellers-hub"
-
-# Or using Node directly
-node dist/server/index.js
-```
-
-### 5. Troubleshooting
-
-**Port Already in Use:**
-```bash
-# Use a different port in .env
 PORT=3000
-
-# Or kill the process using the port
-lsof -i :10000
-kill -9 <PID>
+DATABASE_URL=postgresql://...
+SUPABASE_URL=https://...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SESSION_SECRET=your-secure-secret-32-chars
+FRONTEND_URL=https://yourdomain.com
+PAYSTACK_PUBLIC_KEY=pk_live_...
+PAYSTACK_SECRET_KEY=sk_live_...
 ```
 
-**Database Connection Issues:**
-- Verify DATABASE_URL format
-- Ensure Supabase IP whitelist includes Hostinger server IP
-- Check SSL settings (add ?sslmode=require if needed)
+### 4. Deploy
+1. Click "Deploy" in hPanel
+2. Wait for build to complete (2-5 minutes)
+3. Your app is live!
 
-**Frontend Not Loading:**
-- Verify dist/public exists
-- Check .htaccess is deployed
-- Ensure static files are being served (check .htaccess rules)
+## How It Works
+- Push to `main` branch triggers auto-deploy
+- GitHub Actions builds the app
+- Hostinger pulls and runs the build
+- `index.js` loads environment and starts server
 
-**Out of Memory:**
-- Increase Node memory: `node --max-old-space-size=2048 dist/server/index.js`
-- Optimize database queries
-- Add caching
-
-**High CPU Usage:**
-- Monitor with `top` command
-- Check for infinite loops in routes
-- Profile with `node --prof`
-
-### 6. Performance Optimization
-- Enable gzip compression (.htaccess done)
-- Enable browser caching (.htaccess done)
-- Use CloudFlare for CDN
-- Monitor with Hostinger panel
-- Set up uptime monitoring
-
-### 7. Security
-- Rotate session secrets regularly
-- Update dependencies: `npm update`
-- Review security headers (.htaccess configured)
-- Enable 2FA for GitHub and Hostinger
-- Use HTTPS only (configured in .htaccess)
-
-## File Structure on Hostinger
+## File Structure
 ```
-public_html/
+/
+├── index.js              ← Entry point (loads env, starts server)
+├── package.json          ← npm scripts
+├── .htaccess             ← Apache config for SPA routing
+├── .nvmrc                ← Node version
 ├── dist/
 │   ├── server/
-│   │   ├── index.js (main server)
-│   │   ├── db.js
-│   │   ├── routes.js
-│   │   └── ...
-│   ├── public/ (React frontend)
-│   │   ├── index.html
-│   │   ├── assets/
-│   │   └── ...
-│   └── shared/
-├── node_modules/
-├── .env (production environment)
-├── package.json
-├── .htaccess (Apache configuration)
-└── .git/ (if using git)
+│   │   └── index.js      ← Compiled server
+│   └── public/
+│       ├── index.html    ← React app
+│       └── assets/       ← Static files
+└── node_modules/
 ```
 
-## Auto-Restart on Crash
-Install PM2 globally if available:
+## Troubleshooting
+
+### App Not Starting
+1. Check Node.js logs in hPanel
+2. Verify environment variables are set
+3. Ensure DATABASE_URL is correct
+4. Check if port 3000 is available
+
+### Database Connection Failed
+```
+# Verify your DATABASE_URL format:
+postgresql://user:password@host:port/database?sslmode=require
+```
+
+### Build Failed
+1. Check GitHub Actions workflow log
+2. Run locally: `npm run build`
+3. Fix any TypeScript or build errors
+
+### 504 Gateway Timeout
+1. Check server logs for errors
+2. Verify database is reachable
+3. Increase request timeout if needed
+
+### Frontend Not Loading (Blank Page)
+1. Check dist/public/index.html exists
+2. Verify .htaccess is in dist/public/
+3. Clear browser cache
+
+## Manual Deployment (SSH)
+
+If needed, deploy manually via SSH:
 ```bash
-npm install -g pm2
-pm2 start dist/server/index.js --name "resellers-hub"
-pm2 save
-pm2 startup
+ssh username@yourdomain.com
+cd public_html
+
+# Pull latest code
+git pull origin main
+
+# Install dependencies
+npm ci --legacy-peer-deps
+
+# Build
+npm run build
+
+# Restart (if using PM2)
+pm2 restart all
+
+# Or start fresh
+npm start
 ```
 
-## Database Backups
-Set up automated backups through Hostinger panel or use:
-```bash
-pg_dump $DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
-```
-
-## Monitoring
-- CPU: Check Hostinger resource monitor
-- Memory: Monitor with `free -h`
-- Disk: Check with `df -h`
-- Logs: Check dist/server/logs or console output
+## Performance Tips
+1. Enable CloudFlare CDN
+2. Monitor memory usage in hPanel
+3. Set up uptime monitoring
+4. Enable gzip compression (already in .htaccess)
 
 ## Support
 - Hostinger Help: https://www.hostinger.com/help
-- Node.js Docs: https://nodejs.org/docs
-- Express Docs: https://expressjs.com
+- Check server logs in hPanel → Node.js → Logs

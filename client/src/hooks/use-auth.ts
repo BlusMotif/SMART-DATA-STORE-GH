@@ -70,7 +70,7 @@ export function useAuth() {
 
   /**
    * ------------------------------------------------------
-   * CURRENT USER
+   * CURRENT USER - OPTIMIZED FOR SHARED HOSTING
    * ------------------------------------------------------
    */
   const { data, isLoading: queryLoading } = useQuery<{
@@ -79,9 +79,12 @@ export function useAuth() {
   }>({
     queryKey: ["/api/auth/me"],
     enabled: !!session?.access_token,
-    retry: false,
+    retry: 1,  // Retry once on failure
+    retryDelay: 1000,
     refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000,
+    refetchOnMount: false,  // Don't refetch on every component mount
+    staleTime: 10 * 60 * 1000,  // 10 minutes - user data rarely changes
+    gcTime: 30 * 60 * 1000,  // Keep in cache for 30 minutes
     queryFn: async () => {
       const res = await fetch("/api/auth/me", {
         headers: {

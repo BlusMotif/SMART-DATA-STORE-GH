@@ -147,7 +147,7 @@ export const getQueryFn =
   };
 
 /* --------------------------------------------------
-   Query Client
+   Query Client - OPTIMIZED FOR HOSTINGER SHARED HOSTING (1000+ users)
 -------------------------------------------------- */
 
 export const queryClient = new QueryClient({
@@ -155,12 +155,14 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
 
-      // ✅ sane defaults (NO request storms)
-      staleTime: 60 * 1000,          // 1 minute
-      gcTime: 5 * 60 * 1000,         // 5 minutes
-      retry: false,
+      // ✅ Optimized defaults for high-traffic shared hosting
+      staleTime: 2 * 60 * 1000,      // 2 minutes - reduced API calls
+      gcTime: 10 * 60 * 1000,        // 10 minutes - keep cache longer
+      retry: 1,                       // Retry once on failure
+      retryDelay: 1000,              // 1 second delay between retries
       refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      refetchOnReconnect: true,      // Refetch on reconnect is useful
+      refetchOnMount: false,         // Don't refetch on every mount
     },
     mutations: {
       retry: false,

@@ -91,8 +91,9 @@ export default function AdminTransactions() {
 
   const { data: transactions, isLoading, refetch } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions"],
-    refetchInterval: 15000, // Refetch every 15 seconds for transactions
+    refetchInterval: 45000, // Refresh every 45 seconds - optimized for shared hosting
     refetchOnWindowFocus: true,
+    staleTime: 30000, // Consider data stale after 30 seconds
   });
 
   // Update delivery status mutation

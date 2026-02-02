@@ -3,11 +3,69 @@ import { storage } from "./storage.js";
 
 const PAYSTACK_BASE_URL = "https://api.paystack.co";
 
+// Cache for Paystack key to reduce database calls
+let cachedPaystackKey: string | null = null;
+let keyLastFetched = 0;
+const KEY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Environment detection
+const isProduction = process.env.NODE_ENV === "production";
+const isDevelopment = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+
 async function getPaystackKey(): Promise<string> {
-  const env = process.env.PAYSTACK_SECRET_KEY || "";
-  if (env) return env;
+  // Check cache first
+  const now = Date.now();
+  if (cachedPaystackKey && (now - keyLastFetched) < KEY_CACHE_TTL) {
+    return cachedPaystackKey;
+  }
+  
+  // Priority: Database settings FIRST, then environment variable
+  // This allows admin to override via settings without redeploying
   const stored = await storage.getSetting("paystack.secret_key");
-  return stored || "";
+  if (stored) {
+    const isLive = stored.startsWith("sk_live_");
+    console.log(`[Paystack] Using key from database settings: ${isLive ? "LIVE MODE" : "TEST MODE"} (env: ${process.env.NODE_ENV || 'development'})`);
+    
+    // Warn if using test key in production
+    if (isProduction && !isLive) {
+      console.warn("[Paystack] ⚠️ WARNING: Using TEST key in PRODUCTION environment!");
+    }
+    
+    cachedPaystackKey = stored;
+    keyLastFetched = now;
+    return stored;
+  }
+  
+  // Fallback to environment variable
+  const env = process.env.PAYSTACK_SECRET_KEY || "";
+  if (env) {
+    const isLive = env.startsWith("sk_live_");
+    console.log(`[Paystack] Using key from environment: ${isLive ? "LIVE MODE" : "TEST MODE"} (env: ${process.env.NODE_ENV || 'development'})`);
+    
+    // Warn if using test key in production
+    if (isProduction && !isLive) {
+      console.warn("[Paystack] ⚠️ WARNING: Using TEST key in PRODUCTION environment!");
+    }
+    
+    // Warn if using live key in development
+    if (isDevelopment && isLive) {
+      console.warn("[Paystack] ⚠️ WARNING: Using LIVE key in DEVELOPMENT environment! Consider using test key for safety.");
+    }
+    
+    cachedPaystackKey = env;
+    keyLastFetched = now;
+    return env;
+  }
+  
+  console.warn("[Paystack] No Paystack secret key configured!");
+  return "";
+}
+
+// Function to clear the key cache (useful after admin updates the key)
+export function clearPaystackKeyCache(): void {
+  cachedPaystackKey = null;
+  keyLastFetched = 0;
+  console.log("[Paystack] Key cache cleared");
 }
 
 export async function isPaystackTestMode(): Promise<boolean> {
@@ -59,6 +117,15 @@ export async function initializePayment(params: {
     throw new Error("Paystack secret key not configured");
   }
   
+  console.log("[Paystack] Initializing payment:", {
+    email: params.email,
+    amount: params.amount,
+    reference: params.reference,
+    callbackUrl: params.callbackUrl,
+    mode: PAYSTACK_SECRET_KEY.startsWith("sk_live_") ? "LIVE" : "TEST",
+    keyPrefix: PAYSTACK_SECRET_KEY.substring(0, 15) + "..."
+  });
+  
   // Validate inputs
   if (!params.email || typeof params.email !== 'string' || !params.email.includes('@')) {
     throw new Error("Invalid email address");
@@ -102,6 +169,12 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
     throw new Error("Paystack secret key not configured");
   }
 
+  console.log("[Paystack] Verifying payment:", {
+    reference,
+    mode: PAYSTACK_SECRET_KEY.startsWith("sk_live_") ? "LIVE" : "TEST",
+    keyPrefix: PAYSTACK_SECRET_KEY.substring(0, 15) + "..."
+  });
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
@@ -119,6 +192,13 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
 
     const data = await response.json() as any;
 
+    console.log("[Paystack] Verify response:", {
+      status: response.status,
+      ok: response.ok,
+      paymentStatus: data?.data?.status,
+      gatewayResponse: data?.data?.gateway_response
+    });
+
     if (!response.ok) {
       throw new Error(data.message || "Failed to verify payment");
     }
@@ -126,6 +206,7 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
     return data as PaystackVerifyResponse;
   } catch (error: any) {
     clearTimeout(timeoutId);
+    console.error("[Paystack] Verify error:", error.message);
     if (error.name === 'AbortError') {
       throw new Error('Payment verification timed out. Please try again.');
     }
@@ -135,7 +216,14 @@ export async function verifyPayment(reference: string): Promise<PaystackVerifyRe
 
 export async function validateWebhookSignature(rawBody: string | Buffer, signature: string): Promise<boolean> {
   const PAYSTACK_SECRET_KEY = await getPaystackKey();
+  
+  console.log("[Webhook Validation] Key present:", !!PAYSTACK_SECRET_KEY);
+  console.log("[Webhook Validation] Key mode:", PAYSTACK_SECRET_KEY?.startsWith("sk_live_") ? "LIVE" : "TEST");
+  console.log("[Webhook Validation] Signature present:", !!signature);
+  console.log("[Webhook Validation] Signature length:", signature?.length || 0);
+  
   if (!PAYSTACK_SECRET_KEY || !signature) {
+    console.error("[Webhook Validation] Missing key or signature");
     return false;
   }
 
@@ -144,7 +232,18 @@ export async function validateWebhookSignature(rawBody: string | Buffer, signatu
     .update(rawBody)
     .digest("hex");
 
-  return hash === signature;
+  const isValid = hash === signature;
+  
+  console.log("[Webhook Validation] Computed hash (first 20 chars):", hash.substring(0, 20) + "...");
+  console.log("[Webhook Validation] Received signature (first 20 chars):", signature.substring(0, 20) + "...");
+  console.log("[Webhook Validation] Signature match:", isValid);
+  
+  if (!isValid) {
+    console.error("[Webhook Validation] ⚠️ SIGNATURE MISMATCH - This often means the webhook secret key doesn't match the payment initialization key");
+    console.error("[Webhook Validation] Key prefix being used:", PAYSTACK_SECRET_KEY.substring(0, 15) + "...");
+  }
+
+  return isValid;
 }
 
 export async function isPaystackConfigured(): Promise<boolean> {

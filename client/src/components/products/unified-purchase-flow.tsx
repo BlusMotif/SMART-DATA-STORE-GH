@@ -27,7 +27,9 @@ import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { NetworkBadge } from "@/components/products/network-badge";
-import { Phone, Mail, Loader2, ShieldCheck, Wifi, Clock, Wallet, CreditCard, CheckCircle, AlertCircle, ShoppingCart, ChevronDown, ChevronUp, Package, Layers, FileSpreadsheet, Upload } from "lucide-react";
+import { Phone, Mail, Loader2, ShieldCheck, Wifi, Clock, Wallet, CreditCard, CheckCircle, AlertCircle, ShoppingCart, ChevronDown, ChevronUp, Package, Layers, FileSpreadsheet, Upload, Info } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { PAYSTACK_TAX_PERCENTAGE, calculateTotalWithTax } from "@/lib/tax-config";
 import * as XLSX from 'xlsx';
 import type { DataBundle } from "@shared/schema";
 
@@ -733,6 +735,40 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                         )}
                       />
 
+                      {/* Tax/Fee Breakdown for Paystack - Single Purchase */}
+                      {singleForm.watch("paymentMethod") === 'paystack' && selectedBundle && (() => {
+                        const { subtotal, tax, total } = calculateTotalWithTax(price);
+                        return (
+                          <div className="space-y-3">
+                            <Separator />
+                            <div className="bg-muted rounded-lg p-4 space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Bundle Price</span>
+                                <span>GH₵{subtotal.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                  Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                                  <Info className="h-3 w-3" />
+                                </span>
+                                <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                              </div>
+                              <Separator />
+                              <div className="flex justify-between font-semibold">
+                                <span>Total to Pay</span>
+                                <span className="text-primary">GH₵{total.toFixed(2)}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
+                              <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-orange-700 dark:text-white">
+                                A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {hasInsufficientBalance && singleForm.watch("paymentMethod") === "wallet" && (
                         <Alert variant="default" className="border-destructive/50 bg-white text-destructive">
                           <AlertCircle className="h-4 w-4" />
@@ -915,6 +951,41 @@ export function UnifiedPurchaseFlow({ network, agentSlug }: UnifiedPurchaseFlowP
                           </FormItem>
                         )}
                       />
+
+                      {/* Tax/Fee Breakdown for Paystack - Bulk Purchase */}
+                      {bulkForm.watch("paymentMethod") === 'paystack' && totalAmount > 0 && (() => {
+                        const { subtotal, tax, total } = calculateTotalWithTax(totalAmount);
+                        const phoneCount = bulkForm.watch("phoneNumbers")?.split('\n').filter(line => line.trim()).length || 0;
+                        return (
+                          <div className="space-y-3">
+                            <Separator />
+                            <div className="bg-muted rounded-lg p-4 space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Total Bundle Price ({phoneCount} orders)</span>
+                                <span>GH₵{subtotal.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                  Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                                  <Info className="h-3 w-3" />
+                                </span>
+                                <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                              </div>
+                              <Separator />
+                              <div className="flex justify-between font-semibold">
+                                <span>Total to Pay</span>
+                                <span className="text-primary">GH₵{total.toFixed(2)}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
+                              <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-orange-700 dark:text-white">
+                                A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {walletBalance < totalAmount && bulkForm.watch("paymentMethod") === "wallet" && (
                         <Alert variant="default" className="border-destructive/50 bg-white text-destructive">

@@ -46,23 +46,27 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/stats"],
-    refetchInterval: 10000, // Refresh every 10 seconds for live Paystack balance
+    refetchInterval: 45000, // Refresh every 45 seconds - optimized for shared hosting
     refetchOnWindowFocus: true,
+    staleTime: 30000, // Consider data stale after 30 seconds
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/admin/transactions/recent"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 45000, // Refresh every 45 seconds - optimized for shared hosting
+    staleTime: 30000, // Consider data stale after 30 seconds
   });
 
   const { data: topCustomers, isLoading: rankingsLoading } = useQuery<TopCustomer[]>({
     queryKey: ["/api/admin/rankings/customers"],
     refetchInterval: 60000, // Refresh every minute
+    staleTime: 45000, // Consider data stale after 45 seconds
   });
 
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<Array<{ date: string; revenue: number; transactions: number }>>({
     queryKey: ["/api/admin/analytics/revenue"],
-    refetchInterval: 300000, // Refresh every 5 minutes
+    refetchInterval: 120000, // Refresh every 2 minutes
+    staleTime: 60000, // Consider data stale after 1 minute
   });
 
   // Format chart data for display

@@ -9,9 +9,18 @@
   RewriteCond %{HTTPS} off
   RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
   
-  # Serve React frontend from dist/public
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # Hostinger Node.js - Proxy API requests to Node.js backend
+  # Hostinger handles this automatically when Node.js is enabled in hPanel
+  # API routes are handled by the Node.js server
+  RewriteCond %{REQUEST_URI} ^/api/ [NC]
+  RewriteRule ^(.*)$ - [L]
+  
+  # Serve static files from dist/public if they exist
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  
+  # SPA fallback: Route all other requests to index.html for React Router
   RewriteRule ^(?!api/).*$ /index.html [QSA,L]
 </IfModule>
 

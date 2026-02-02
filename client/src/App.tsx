@@ -198,6 +198,24 @@ function SessionTimeoutManager() {
   return null;
 }
 
+// Conditionally show announcements only on homepage, agent pages, and admin pages
+function ConditionalAnnouncementPopup() {
+  const [location] = useLocation();
+  
+  // Show announcements only on:
+  // - Homepage (/)
+  // - Agent pages (/agent/*)
+  // - Admin pages (/admin/*)
+  const shouldShowAnnouncement = 
+    location === "/" || 
+    location.startsWith("/agent") || 
+    location.startsWith("/admin");
+  
+  if (!shouldShowAnnouncement) return null;
+  
+  return <AnnouncementPopup />;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -209,7 +227,7 @@ function App() {
             <BreakModeGuard>
               <AppRouter />
             </BreakModeGuard>
-            <AnnouncementPopup />
+            <ConditionalAnnouncementPopup />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

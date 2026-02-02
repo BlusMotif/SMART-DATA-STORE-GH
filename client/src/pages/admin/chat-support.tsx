@@ -32,20 +32,20 @@ export default function AdminChatSupport() {
         return 0;
       }
     },
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: 15000, // Poll every 15 seconds - optimized for shared hosting
   });
 
   // Get all chats
   const { data: chats, isLoading } = useQuery<SupportChat[]>({
     queryKey: [`/api/admin/support/chats?status=${filter}`],
-    refetchInterval: 10000, // Poll every 10 seconds
+    refetchInterval: 20000, // Poll every 20 seconds - optimized for shared hosting
   });
 
   // Get selected chat details
   const { data: chatData } = useQuery<{ chat: SupportChat; messages: ChatMessage[] }>({
     queryKey: [`/api/support/chat/${selectedChatId}`],
     enabled: !!selectedChatId,
-    refetchInterval: 5000, // Poll every 5 seconds for new messages
+    refetchInterval: 10000, // Poll every 10 seconds for new messages - optimized
   });
 
   // Send message mutation

@@ -24,7 +24,7 @@ jobs:
         cache: 'npm'
     
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --legacy-peer-deps
     
     - name: Build server
       run: npm run build:server
@@ -42,26 +42,55 @@ jobs:
         test -d dist/public || (echo "❌ Frontend build failed - dist/public not found" && exit 1)
         test -f dist/public/index.html || (echo "❌ Frontend index.html not found" && exit 1)
         echo "✅ Frontend build found"
+        
+        echo "Checking entry point..."
+        test -f index.js || (echo "❌ Entry point index.js not found" && exit 1)
+        echo "✅ Entry point found"
     
     - name: Run syntax check
       run: node --check dist/server/index.js
+    
+    - name: Prepare deployment package
+      run: |
+        echo "📦 Creating deployment package..."
+        
+        # Ensure .htaccess is in dist/public for Hostinger
+        cp .htaccess dist/public/.htaccess 2>/dev/null || true
+        
+        # Create startup verification file
+        echo "Deployed: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" > dist/DEPLOYMENT_INFO.txt
+        echo "Commit: ${{ github.sha }}" >> dist/DEPLOYMENT_INFO.txt
+        echo "Branch: ${{ github.ref_name }}" >> dist/DEPLOYMENT_INFO.txt
+        
+        echo "✅ Deployment package ready"
     
     - name: Deployment Ready
       run: |
         echo "✅ Build successful!"
         echo ""
-        echo "📋 Hostinger Setup Instructions:"
-        echo "================================="
-        echo "1. Go to Hostinger hPanel → Website → Node.js"
-        echo "2. Connect this GitHub repository"
-        echo "3. Set the following:"
-        echo "   - Node Version: 20.x"
-        echo "   - Entry Point: dist/server/index.js"
-        echo "   - Build Command: npm run build"
-        echo "   - Start Command: npm start"
+        echo "📋 Hostinger Business Plan Setup:"
+        echo "=================================="
         echo ""
-        echo "4. Add Environment Variables in Hostinger:"
-        echo "   DATABASE_URL, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY"
-        echo "   NODE_ENV=production, SESSION_SECRET, etc."
+        echo "1️⃣  In Hostinger hPanel → Websites → Manage"
+        echo "2️⃣  Go to Advanced → Node.js"
+        echo "3️⃣  Connect your GitHub repository: ${{ github.repository }}"
         echo ""
-        echo "✅ Hostinger will auto-deploy on each push to main"
+        echo "4️⃣  Configure Node.js Application:"
+        echo "   • Node.js Version: 20.x"
+        echo "   • Application Root: / (root)"
+        echo "   • Entry Point: index.js"
+        echo "   • Build Command: npm run build"
+        echo "   • Start Command: npm start"
+        echo ""
+        echo "5️⃣  Add Environment Variables in hPanel:"
+        echo "   DATABASE_URL=postgresql://..."
+        echo "   SUPABASE_URL=https://..."
+        echo "   SUPABASE_SERVICE_ROLE_KEY=..."
+        echo "   NODE_ENV=production"
+        echo "   SESSION_SECRET=your-secret-key"
+        echo "   PAYSTACK_PUBLIC_KEY=..."
+        echo "   PAYSTACK_SECRET_KEY=..."
+        echo ""
+        echo "6️⃣  Click 'Deploy' in Hostinger hPanel"
+        echo ""
+        echo "✅ Auto-deploy is enabled for pushes to main branch"

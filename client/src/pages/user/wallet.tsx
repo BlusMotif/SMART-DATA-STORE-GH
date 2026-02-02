@@ -92,14 +92,14 @@ export default function WalletDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<WalletStats>({
     queryKey: ["/api/wallet/stats"],
     queryFn: () => apiRequest("/api/wallet/stats", { disableAutoLogout: true }),
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds - optimized for shared hosting
   });
 
   // Fetch all transactions
   const { data: allTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/transactions"],
     queryFn: () => apiRequest("/api/transactions", { disableAutoLogout: true }),
-    refetchInterval: 10000,
+    refetchInterval: 30000, // Refresh every 30 seconds - optimized for shared hosting
   });
 
   // Filter wallet topups

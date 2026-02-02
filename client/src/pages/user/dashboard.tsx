@@ -27,14 +27,14 @@ export default function UserDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/user/stats"],
     queryFn: () => apiRequest("/api/user/stats", { disableAutoLogout: true }),
-    refetchInterval: 10000,
+    refetchInterval: 30000, // Refresh every 30 seconds - optimized for shared hosting
   });
 
   // Fetch recent transactions (last 5)
   const { data: transactions, isLoading: transactionsLoading } = useQuery({
     queryKey: ["/api/transactions"],
     queryFn: () => apiRequest("/api/transactions"),
-    refetchInterval: 10000,
+    refetchInterval: 30000, // Refresh every 30 seconds - optimized for shared hosting
     select: (data) => data.slice(0, 5), // Only show 5 most recent
   });
 

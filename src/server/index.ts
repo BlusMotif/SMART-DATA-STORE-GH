@@ -17,25 +17,14 @@ const rootDir = path.resolve(__serverDirname, '../..');
 
 /**
  * Load environment variables
- * Hostinger and other PaaS providers inject env vars directly into process.env
- * We only use dotenv for local development
+ * Always load from .env files to ensure correct values
+ * Environment-specific files override base .env
  */
 function loadEnvironment(): void {
-  // Check if critical env vars are already set (by hosting provider)
-  const hasHostingEnvVars = Boolean(
-    process.env.DATABASE_URL || 
-    process.env.SUPABASE_URL
-  );
-
-  if (hasHostingEnvVars) {
-    return;
-  }
-
-  // For local development, load from .env files
   const nodeEnv = process.env.NODE_ENV || 'development';
   
   // Load base .env first
-  dotenv.config({ path: path.join(rootDir, '.env') });
+  dotenv.config({ path: path.join(rootDir, '.env'), override: true });
   
   // Then load environment-specific file (overrides base)
   const envFile = nodeEnv === 'production' ? '.env.production' : '.env.development';
@@ -125,8 +114,47 @@ function serveStatic(app: Express) {
     return;
   }
 
-  // Serve static files
-  app.use(express.static(distPath));
+  // Serve static files with optimized caching for shared hosting
+  // Assets with hash in filename get long cache, others get short cache
+  app.use(express.static(distPath, {
+    maxAge: '1d', // 1 day default cache
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      // Long cache for hashed assets (js, css with hash in name)
+      if (filePath.match(/\.(js|css)$/) && filePath.match(/\.[a-f0-9]{8}\./)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+      // Long cache for images and fonts
+      else if (filePath.match(/\.(woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=2592000'); // 30 days
+      }
+      // Short cache for HTML
+      else if (filePath.match(/\.html?$/)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    }
+  }));
+
+  // Explicit manifest.json route (some hosts block direct JSON file access)
+  app.get("/manifest.json", (req: Request, res: Response) => {
+    const manifestPath = path.resolve(distPath, "manifest.json");
+    if (fs.existsSync(manifestPath)) {
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.sendFile(manifestPath);
+    } else {
+      // Return a basic manifest if file doesn't exist
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.json({
+        name: "Resellers Hub Pro GH",
+        short_name: "ResellersHub",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#000000"
+      });
+    }
+  });
 
   // Root route - serve index.html
   app.get("/", (req: Request, res: Response) => {
@@ -219,7 +247,7 @@ const createRateLimiter = (maxRequests: number, windowMs: number, options?: { bl
   };
 };
 
-// Async cleanup for old rate limit entries
+// Async cleanup for old rate limit entries - optimized for shared hosting
 const startRateLimitCleanup = () => {
   setInterval(async () => {
     try {
@@ -233,13 +261,19 @@ const startRateLimitCleanup = () => {
         }
       }
       
-      if (cleaned > 0) {
-        // Cleaned expired entries
+      // Prevent memory bloat on shared hosting - limit to 2000 IPs for 1000+ users
+      if (rateLimitMap.size > 2000) {
+        const entriesToDelete = rateLimitMap.size - 2000;
+        const iterator = rateLimitMap.keys();
+        for (let i = 0; i < entriesToDelete; i++) {
+          const key = iterator.next().value;
+          if (key) rateLimitMap.delete(key);
+        }
       }
     } catch (error) {
       // Ignore cleanup errors
     }
-  }, 60 * 60 * 1000); // Run every hour
+  }, 5 * 60 * 1000); // Run every 5 minutes for shared hosting
 };
 
 // Start cleanup on server init
@@ -349,13 +383,23 @@ app.use(async (req, res, next) => {
 // Optional toggle to disable rate limiting for local testing
 const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true';
 if (!disableRateLimit) {
-  // Apply advanced rate limiting to sensitive routes
+  // Apply advanced rate limiting to sensitive routes (strict)
   app.use('/api/auth/login', createRateLimiter(10, 15 * 60 * 1000, { blockDurationMs: 30 * 60 * 1000 })); // 10 req/15min, block for 30min
   app.use('/api/auth/register', createRateLimiter(10, 30 * 60 * 1000, { blockDurationMs: 60 * 60 * 1000 })); // 10 req/30min, block for 1hr
   app.use('/api/agent/register', createRateLimiter(10, 30 * 60 * 1000, { blockDurationMs: 60 * 60 * 1000 })); // 10 req/30min, block for 1hr
 
-  // General API rate limit (100 req/min)
-  app.use('/api/', createRateLimiter(100, 60 * 1000));
+  // Higher limits for frequently-called read-only endpoints (prevents 429 errors) - OPTIMIZED FOR 1000+ USERS
+  app.use('/api/auth/me', createRateLimiter(600, 60 * 1000)); // 600 req/min - called on every page
+  app.use('/api/announcements', createRateLimiter(500, 60 * 1000)); // 500 req/min - polled frequently
+  app.use('/api/break-settings', createRateLimiter(500, 60 * 1000)); // 500 req/min - checked often
+  app.use('/api/products', createRateLimiter(400, 60 * 1000)); // 400 req/min - product listings
+  app.use('/api/bundles', createRateLimiter(400, 60 * 1000)); // 400 req/min - bundle listings
+  app.use('/api/user/stats', createRateLimiter(500, 60 * 1000)); // 500 req/min - dashboard stats
+  app.use('/api/transactions', createRateLimiter(400, 60 * 1000)); // 400 req/min - transaction history
+  app.use('/api/agent', createRateLimiter(400, 60 * 1000)); // 400 req/min - agent endpoints
+
+  // General API rate limit (300 req/min - significantly increased for shared hosting with 1000+ users)
+  app.use('/api/', createRateLimiter(300, 60 * 1000));
 }
 
 // Development-only endpoint to clear rate limits
@@ -415,6 +459,23 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// Compression middleware for better performance on shared hosting
+// Must be applied before static files and routes
+import compression from "compression";
+app.use(compression({
+  level: 6, // Balanced compression level (1-9)
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    // Don't compress if no-transform is set
+    if (req.headers['cache-control']?.includes('no-transform')) {
+      return false;
+    }
+    // Use default filter for other cases
+    return compression.filter(req, res);
+  }
+}));
+
 // Use different upload target in production (dist/public/assets) vs dev (client/public/assets)
 const assetsUploadPath = process.env.NODE_ENV === "production"
   ? path.join(process.cwd(), "dist", "public", "assets")
@@ -611,11 +672,20 @@ app.use((req, res, next) => {
         port: PORT,
         host: HOST,
       },
-      () => {
-        // Server running
+      async () => {
+        console.log(`Server running on http://${HOST}:${PORT}`);
+        
+        // Warm up database connection pool for faster first queries
+        try {
+          const { warmupDatabaseConnection } = await import('./db.js');
+          await warmupDatabaseConnection();
+        } catch (dbErr: any) {
+          console.error('[Startup] Database warmup failed:', dbErr.message);
+        }
       },
     );
   } catch (error) {
+    console.error('Server failed to start:', error);
     process.exit(1);
   }
 })();

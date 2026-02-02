@@ -12,7 +12,8 @@ import {
   UserRole, TransactionStatus, ProductType, WithdrawalStatus, InsertResultChecker,
   users, walletTopupTransactions, auditLogs, transactions, insertVideoGuideSchema
 } from "../shared/schema.js";
-import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode } from "./paystack.js";
+import { PAYSTACK_TAX_RATE, PAYSTACK_TAX_PERCENTAGE, calculateTax, calculateTotalWithTax } from "../shared/tax-config.js";
+import { initializePayment, verifyPayment, validateWebhookSignature, isPaystackConfigured, isPaystackTestMode, clearPaystackKeyCache } from "./paystack.js";
 import { fulfillDataBundleTransaction, getExternalBalance, getExternalPrices, getExternalOrderStatus } from "./providers.js";
 import { generateSecureApiKey, hasPermissions } from "./utils/api-keys.js";
 import { getSupabaseServer } from "./index.js";
@@ -677,14 +678,17 @@ export async function registerRoutes(
   app: Express
 ): Promise<void> {
   // ============================================
-  // HEALTH CHECK - Basic status endpoint
+  // HEALTH CHECK - Basic status endpoint with DB latency
   // ============================================
   app.get("/api/health", async (req, res) => {
     try {
-      // Test database connection
+      // Test database connection with latency measurement
       let dbStatus = 'unknown';
+      let dbLatency = -1;
       try {
+        const start = Date.now();
         await db.execute(sql`SELECT 1 as test`);
+        dbLatency = Date.now() - start;
         dbStatus = 'connected';
       } catch (e: any) {
         dbStatus = 'error';
@@ -693,7 +697,10 @@ export async function registerRoutes(
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        database: dbStatus
+        database: dbStatus,
+        dbLatencyMs: dbLatency,
+        uptime: Math.floor(process.uptime()),
+        memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
       });
     } catch (error: any) {
       res.status(500).json({ status: 'error' });
@@ -1013,9 +1020,22 @@ export async function registerRoutes(
       // Account will be created after successful payment verification
       // Create a temporary reference for payment tracking
       const activationFee = 60.00; // GHC 60.00
+      
+      // Calculate tax for Paystack payment (2.5%)
+      const taxAmount = calculateTax(activationFee);
+      const totalWithTax = activationFee + taxAmount;
+      
+      console.log("[Agent Registration] Tax calculation:", {
+        activationFee,
+        taxRate: `${PAYSTACK_TAX_PERCENTAGE}%`,
+        taxAmount,
+        totalWithTax,
+        amountInPesewas: Math.round(totalWithTax * 100)
+      });
+      
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
-      // Initialize Paystack payment for agent activation
+      // Initialize Paystack payment for agent activation (with tax included)
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
         method: "POST",
         headers: {
@@ -1024,13 +1044,16 @@ export async function registerRoutes(
         },
         body: JSON.stringify({
           email: data.email,
-          amount: Math.round(activationFee * 100), // Convert to pesewas
+          amount: Math.round(totalWithTax * 100), // Convert to pesewas (includes tax)
           currency: "GHS",
           reference: tempReference,
           callback_url: `${frontendUrl}/agent/activation-complete`,
           metadata: {
             purpose: "agent_activation",
             pending_registration: true,
+            activationFee: activationFee,
+            taxAmount: taxAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
             // Store all registration data in metadata for account creation after payment
             registration_data: {
               email: data.email,
@@ -1053,6 +1076,12 @@ export async function registerRoutes(
         paymentUrl: paystackData.data.authorization_url,
         paymentReference: paystackData.data.reference,
         amount: activationFee,
+        pricing: {
+          activationFee: activationFee,
+          taxRate: PAYSTACK_TAX_PERCENTAGE,
+          taxAmount: taxAmount,
+          total: totalWithTax,
+        },
       });
     } catch (error: any) {
       console.error("Error during agent registration:", error.message);
@@ -1344,8 +1373,8 @@ export async function registerRoutes(
               }
             }
           } else {
-            // Guest users see base price
-            effectivePrice = parseFloat(bundle.basePrice || '0');
+            // Guest users see admin price (same as what checkout expects)
+            effectivePrice = parseFloat(bundle.adminPrice || bundle.basePrice || '0');
             adminBasePriceValue = effectivePrice;
           }
           
@@ -2711,15 +2740,23 @@ export async function registerRoutes(
       // Use frontend URL for callback instead of backend URL
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
       const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
-      console.log("[Checkout] Paystack initialization:", {
-        totalAmount,
-        amountInPesewas: Math.round(totalAmount * 100),
+      
+      // Calculate tax for Paystack payments (2.5%)
+      const taxAmount = calculateTax(totalAmount);
+      const amountWithTax = totalAmount + taxAmount;
+      
+      console.log("[Checkout] Paystack initialization with tax:", {
+        subtotal: totalAmount,
+        taxRate: `${PAYSTACK_TAX_PERCENTAGE}%`,
+        taxAmount,
+        totalWithTax: amountWithTax,
+        amountInPesewas: Math.round(amountWithTax * 100),
         reference
       });
       try {
         const paystackResponse = await initializePayment({
           email: paystackEmail,
-          amount: Math.round(totalAmount * 100), // Convert GHS to pesewas
+          amount: Math.round(amountWithTax * 100), // Convert GHS to pesewas (includes tax)
           reference: reference,
           callbackUrl: callbackUrl,
           metadata: {
@@ -2728,6 +2765,9 @@ export async function registerRoutes(
             customerPhone: normalizedPhone || null,
             isBulkOrder: isBulkOrder || false,
             numberOfRecipients: numberOfRecipients,
+            subtotal: totalAmount,
+            taxAmount: taxAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
           },
         });
         console.log("[Checkout] Paystack response received:", {
@@ -2743,13 +2783,21 @@ export async function registerRoutes(
           },
           paymentUrl: paystackResponse.data.authorization_url,
           accessCode: paystackResponse.data.access_code,
+          pricing: {
+            subtotal: totalAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
+            taxAmount: taxAmount,
+            total: amountWithTax,
+          },
           debug: {
             phoneNumbers: phoneNumbersData,
             isBulkOrder: isBulkOrder,
             numberOfRecipients: numberOfRecipients,
             unitPrice: amount,
             totalAmount: totalAmount,
-            amountSentToPaystack: Math.round(totalAmount * 100),
+            taxAmount: taxAmount,
+            totalWithTax: amountWithTax,
+            amountSentToPaystack: Math.round(amountWithTax * 100),
           }
         });
       } catch (paystackError: any) {
@@ -3673,27 +3721,59 @@ export async function registerRoutes(
   });
   // Paystack Webhook Handler
   app.post("/api/paystack/webhook", async (req, res) => {
+    console.log("[Webhook] ================================");
+    console.log("[Webhook] Received Paystack webhook request");
+    console.log("[Webhook] Timestamp:", new Date().toISOString());
+    console.log("[Webhook] Headers:", JSON.stringify({
+      signature: req.headers["x-paystack-signature"] ? "present (" + String(req.headers["x-paystack-signature"]).length + " chars)" : "missing",
+      contentType: req.headers["content-type"],
+      host: req.headers.host,
+    }));
+    
     try {
       const signature = req.headers["x-paystack-signature"] as string;
       const rawBody = req.rawBody as Buffer;
+      
+      console.log("[Webhook] Raw body present:", !!rawBody);
+      console.log("[Webhook] Raw body length:", rawBody?.length || 0);
+      console.log("[Webhook] Event type:", req.body?.event);
+      console.log("[Webhook] Reference:", req.body?.data?.reference);
+      console.log("[Webhook] Payment status:", req.body?.data?.status);
+      console.log("[Webhook] Amount (pesewas):", req.body?.data?.amount);
+      
       // Validate webhook signature using raw body
-      if (!rawBody || !(await validateWebhookSignature(rawBody, signature))) {
-        console.error("Invalid Paystack webhook signature");
-        return res.status(400).json({ error: "Invalid signature" });
+      const isValidSignature = await validateWebhookSignature(rawBody, signature);
+      
+      if (!rawBody || !isValidSignature) {
+        console.error("[Webhook] ⚠️ SIGNATURE VALIDATION FAILED");
+        console.error("[Webhook] rawBody present:", !!rawBody);
+        console.error("[Webhook] signature present:", !!signature);
+        console.error("[Webhook] isValidSignature:", isValidSignature);
+        console.error("[Webhook] This usually means the secret key used for signing doesn't match the key in database/env");
+        
+        // Still return 200 to prevent Paystack retries, but log the failure
+        return res.status(200).json({ error: "Invalid signature - check logs" });
       }
+      
+      console.log("[Webhook] ✅ Signature validated successfully");
       const event = req.body;
+      
       // Process webhook asynchronously to prevent blocking
       setImmediate(async () => {
         try {
+          console.log("[Webhook] Processing event:", event.event);
           await processWebhookEvent(event);
+          console.log("[Webhook] ✅ Event processed successfully:", event.event);
         } catch (webhookError: any) {
-          console.error("Webhook processing error:", webhookError);
+          console.error("[Webhook] ❌ Processing error:", webhookError.message);
+          console.error("[Webhook] Error stack:", webhookError.stack);
         }
       });
       // Always respond immediately to prevent Paystack retries
       res.sendStatus(200);
     } catch (error: any) {
-      console.error("Webhook handler error:", error);
+      console.error("[Webhook] ❌ Handler error:", error.message);
+      console.error("[Webhook] Error stack:", error.stack);
       res.sendStatus(200); // Always return 200 to prevent Paystack retries
     }
   });
@@ -6738,31 +6818,49 @@ export async function registerRoutes(
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
-      // Create topup transaction
+      
+      // Calculate tax for Paystack payment (2.5%)
+      const topupAmount = parseFloat(amount);
+      const taxAmount = calculateTax(topupAmount);
+      const totalWithTax = topupAmount + taxAmount;
+      
+      // Create topup transaction (store the original topup amount, not with tax)
       const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
       const transaction = await storage.createTransaction({
         reference,
         type: "wallet_topup",
         productName: "Wallet Top-up",
-        amount: parseFloat(amount).toFixed(2),
+        amount: topupAmount.toFixed(2), // Store the amount that will be credited
         profit: "0.00",
         customerPhone: dbUser.phone || "",
         customerEmail: dbUser.email,
         paymentMethod: paymentMethod,
         status: TransactionStatus.PENDING,
       });
-      // Initialize Paystack payment
+      
+      console.log("[Wallet Topup] Tax calculation:", {
+        topupAmount,
+        taxRate: `${PAYSTACK_TAX_PERCENTAGE}%`,
+        taxAmount,
+        totalWithTax,
+        amountInPesewas: Math.round(totalWithTax * 100)
+      });
+      
+      // Initialize Paystack payment (with tax included)
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
       const callbackUrl = `${frontendUrl}/wallet/topup/success`;
       const paystackResponse = await initializePayment({
         email: dbUser.email,
-        amount: Math.round(parseFloat(amount) * 100),
+        amount: Math.round(totalWithTax * 100), // Convert to pesewas (includes tax)
         reference,
         callbackUrl: callbackUrl,
         metadata: {
           type: "wallet_topup",
           userId: dbUser.id,
           customerName: dbUser.name,
+          topupAmount: topupAmount,
+          taxAmount: taxAmount,
+          taxRate: PAYSTACK_TAX_PERCENTAGE,
         },
       });
       if (paystackResponse.status && paystackResponse.data) {
@@ -6770,6 +6868,12 @@ export async function registerRoutes(
           authorizationUrl: paystackResponse.data.authorization_url,
           reference: paystackResponse.data.reference,
           accessCode: paystackResponse.data.access_code,
+          pricing: {
+            topupAmount: topupAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
+            taxAmount: taxAmount,
+            total: totalWithTax,
+          },
         });
       } else {
         const paystackError = paystackResponse as { message: string };
@@ -7380,6 +7484,13 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Value is required" });
       }
       await storage.setSetting(decodedKey, value, description);
+      
+      // Clear Paystack key cache if the Paystack secret key was updated
+      if (decodedKey === "paystack.secret_key") {
+        clearPaystackKeyCache();
+        console.log("[Settings] Paystack secret key updated, cache cleared");
+      }
+      
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to update setting" });

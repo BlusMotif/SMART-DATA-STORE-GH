@@ -1,44 +1,100 @@
 #!/bin/bash
 
-# Hostinger Resellers Hub - Startup Script
-# Run this to start the Node.js server
+# ============================================
+# Hostinger Business Plan - Startup Script
+# ============================================
+# This script starts the Node.js server on Hostinger
+# Run: ./start-server.sh
+# 
+# For Hostinger, typically you set in hPanel:
+#   Entry Point: index.js
+#   Start Command: npm start
+# ============================================
 
-cd "$(dirname "$0")/public_html" || exit 1
+set -e
 
-echo "Starting Resellers Hub Server..."
-echo "Node version: $(node -v)"
-echo "NPM version: $(npm -v)"
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# Check if .env exists
-if [ ! -f .env ]; then
-    echo "❌ ERROR: .env file not found in public_html/"
-    echo "Create .env file with DATABASE_URL and other environment variables"
+echo "============================================"
+echo "  Resellers Hub - Server Startup"
+echo "============================================"
+echo ""
+echo "📍 Working Directory: $(pwd)"
+echo "📦 Node version: $(node -v 2>/dev/null || echo 'Not found')"
+echo "📦 NPM version: $(npm -v 2>/dev/null || echo 'Not found')"
+echo ""
+
+# Check if node is available
+if ! command -v node &> /dev/null; then
+    echo "❌ ERROR: Node.js is not installed or not in PATH"
     exit 1
 fi
 
-# Check if dist/server/index.js exists
-if [ ! -f dist/server/index.js ]; then
-    echo "❌ ERROR: dist/server/index.js not found"
-    echo "Run: npm run build"
-    exit 1
-fi
+# Check for required files
+check_file() {
+    if [ ! -f "$1" ]; then
+        echo "❌ ERROR: $1 not found"
+        echo "   Run: npm run build"
+        exit 1
+    fi
+    echo "✅ Found: $1"
+}
 
-# Kill any existing node process on port 3000
-pkill -f "node dist/server/index.js" 2>/dev/null
+echo "Checking required files..."
+check_file "index.js"
+check_file "dist/server/index.js"
+check_file "dist/public/index.html"
 
-# Start server with nohup (background process)
-echo "Starting server in background..."
-nohup node dist/server/index.js > server.log 2>&1 &
-
-sleep 2
-
-# Check if process is running
-if pgrep -f "node dist/server/index.js" > /dev/null; then
-    echo "✅ Server started successfully!"
-    echo "Log file: public_html/server.log"
-    echo "Check logs: tail -f public_html/server.log"
+# Check for environment files
+echo ""
+echo "Checking environment configuration..."
+if [ -f ".env.production" ]; then
+    echo "✅ Found: .env.production"
+elif [ -f ".env" ]; then
+    echo "✅ Found: .env"
 else
-    echo "❌ Failed to start server"
-    echo "Check error log: cat public_html/server.log"
-    exit 1
+    echo "⚠️  No .env file found"
+    echo "   Environment variables should be set in Hostinger hPanel"
+fi
+
+# Export production mode
+export NODE_ENV=production
+
+echo ""
+echo "============================================"
+echo "  Starting Server..."
+echo "============================================"
+
+# Check if running in background mode
+if [ "$1" = "--daemon" ] || [ "$1" = "-d" ]; then
+    # Kill any existing node process on the configured port
+    if [ -n "$PORT" ]; then
+        echo "Stopping any existing process on port $PORT..."
+        fuser -k "$PORT/tcp" 2>/dev/null || true
+    fi
+    
+    # Start server with nohup (background process)
+    echo "Starting server in background mode..."
+    nohup node index.js > server.log 2>&1 &
+    SERVER_PID=$!
+    
+    sleep 3
+    
+    # Check if process is running
+    if ps -p $SERVER_PID > /dev/null 2>&1; then
+        echo "✅ Server started successfully! PID: $SERVER_PID"
+        echo "📄 Log file: $(pwd)/server.log"
+        echo ""
+        echo "To view logs: tail -f server.log"
+        echo "To stop: kill $SERVER_PID"
+    else
+        echo "❌ Failed to start server"
+        echo "Check logs: cat server.log"
+        exit 1
+    fi
+else
+    # Foreground mode (default for Hostinger)
+    exec node index.js
 fi

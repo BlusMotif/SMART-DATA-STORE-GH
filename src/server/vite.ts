@@ -1,16 +1,13 @@
 import { type Express } from "express";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-// @ts-ignore
-import viteConfig from "../../client/vite.config.js";
-// The client and server may have different installed Vite types; avoid leaking
-// the client vite types into the server build by treating the imported
-// client config as an unknown/any when merging for the dev server setup.
-const clientViteConfig: any = viteConfig as unknown as any;
+import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
 
 const viteLogger = createLogger();
 
@@ -21,10 +18,30 @@ export async function setupVite(server: Server, app: Express) {
     allowedHosts: true as const,
   };
 
+  const clientRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..", "client");
+
   const vite = await createViteServer({
-    ...clientViteConfig,
     configFile: false,
-    root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..", "client"),
+    root: clientRoot,
+    base: "/",
+    plugins: [
+      react({
+        jsxRuntime: "automatic",
+        jsxImportSource: "react",
+      }),
+    ],
+    resolve: {
+      alias: {
+        "@": path.resolve(clientRoot, "src"),
+        "@shared": path.resolve(clientRoot, "..", "src", "shared"),
+        "@assets": path.resolve(clientRoot, "assets"),
+      },
+    },
+    css: {
+      postcss: {
+        plugins: [tailwindcss, autoprefixer],
+      },
+    },
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {

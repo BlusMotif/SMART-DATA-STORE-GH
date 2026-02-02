@@ -224,9 +224,9 @@ export default function AdminRoleBasePrices() {
       </div>
 
       <Dialog open={!!editingPrice} onOpenChange={(open) => !open && setEditingPrice(null)}>
-        <DialogContent className="bg-white text-blue-800">
+        <DialogContent className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
           <DialogHeader>
-            <DialogTitle className="text-blue-800">Edit Role Base Price</DialogTitle>
+            <DialogTitle className="text-gray-900 dark:text-white">Edit Role Base Price</DialogTitle>
           </DialogHeader>
           {editingPrice && (
             <PriceForm
@@ -277,12 +277,12 @@ function PriceForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label>Data Bundle</Label>
+        <Label className="text-gray-900 dark:text-white">Data Bundle</Label>
         <Select
           value={formData.bundleId}
           onValueChange={(value) => setFormData({ ...formData, bundleId: value })}
         >
-          <SelectTrigger>
+          <SelectTrigger className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
             <SelectValue placeholder="Select a data bundle" />
           </SelectTrigger>
           <SelectContent>
@@ -296,12 +296,12 @@ function PriceForm({
       </div>
 
       <div className="space-y-2">
-        <Label>Role</Label>
+        <Label className="text-gray-900 dark:text-white">Role</Label>
         <Select
           value={formData.role}
           onValueChange={(value) => setFormData({ ...formData, role: value })}
         >
-          <SelectTrigger>
+          <SelectTrigger className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -314,7 +314,7 @@ function PriceForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="basePrice">Base Price (GHS)</Label>
+        <Label htmlFor="basePrice" className="text-gray-900 dark:text-white">Base Price (GHS)</Label>
         <Input
           id="basePrice"
           type="number"
@@ -323,6 +323,7 @@ function PriceForm({
           onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
           placeholder="0.00"
           required
+          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600"
         />
       </div>
 

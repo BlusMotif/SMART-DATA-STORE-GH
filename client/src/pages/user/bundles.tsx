@@ -13,7 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Loader2, Smartphone, Upload, Menu, ShoppingCart, Package, AlertCircle, Wallet, CreditCard, CheckCircle } from "lucide-react";
+import { Loader2, Smartphone, Upload, Menu, ShoppingCart, Package, AlertCircle, Wallet, CreditCard, CheckCircle, Info } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { PAYSTACK_TAX_PERCENTAGE, calculateTotalWithTax } from "@/lib/tax-config";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
@@ -704,6 +706,41 @@ export default function UserBundlesPage() {
                       </div>
                     </div>
 
+                    {/* Tax/Fee Breakdown for Paystack - Single Purchase */}
+                    {selectedBundle && paymentMethod === 'paystack' && (() => {
+                      const price = parseFloat(selectedBundle.basePrice);
+                      const { subtotal, tax, total } = calculateTotalWithTax(price);
+                      return (
+                        <div className="space-y-3">
+                          <Separator />
+                          <div className="bg-muted rounded-lg p-4 space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Bundle Price</span>
+                              <span>GH₵{subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground flex items-center gap-1">
+                                Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                                <Info className="h-3 w-3" />
+                              </span>
+                              <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between font-semibold">
+                              <span>Total to Pay</span>
+                              <span className="text-primary">GH₵{total.toFixed(2)}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
+                            <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-orange-700 dark:text-white">
+                              A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Insufficient Balance Alert */}
                     {selectedBundle && paymentMethod === "wallet" && parseFloat(selectedBundle.basePrice) > (stats?.walletBalance ? parseFloat(stats.walletBalance) : 0) && (
                       <Alert variant="default" className="border-destructive bg-background text-destructive dark:bg-red-900/20">
@@ -841,6 +878,40 @@ export default function UserBundlesPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Tax/Fee Breakdown for Paystack - Bulk Purchase */}
+                    {bulkTotal && bulkPaymentMethod === 'paystack' && (() => {
+                      const { subtotal, tax, total } = calculateTotalWithTax(bulkTotal.total);
+                      return (
+                        <div className="space-y-3">
+                          <Separator />
+                          <div className="bg-muted rounded-lg p-4 space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Total Bundle Price ({bulkTotal.count} bundles)</span>
+                              <span>GH₵{subtotal.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground flex items-center gap-1">
+                                Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                                <Info className="h-3 w-3" />
+                              </span>
+                              <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between font-semibold">
+                              <span>Total to Pay</span>
+                              <span className="text-primary">GH₵{total.toFixed(2)}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
+                            <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-orange-700 dark:text-white">
+                              A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                       <Button
                         className="w-full"

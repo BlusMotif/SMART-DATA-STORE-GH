@@ -22,7 +22,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, APP_NAME } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
-import { Phone, Mail, Loader2, ShieldCheck, Lock, CheckCircle, Wifi, Clock, FileCheck, CreditCard, AlertCircle } from "lucide-react";
+import { PAYSTACK_TAX_PERCENTAGE, calculateTotalWithTax } from "@/lib/tax-config";
+import { Phone, Mail, Loader2, ShieldCheck, Lock, CheckCircle, Wifi, Clock, FileCheck, CreditCard, AlertCircle, Info } from "lucide-react";
 import type { DataBundle } from "@shared/schema";
 
 const checkoutSchema = z.object({
@@ -69,6 +70,9 @@ export default function CheckoutPage() {
   const price = isDataBundle 
     ? (bundle?.effective_price ? parseFloat(bundle.effective_price) : 0)
     : (checkerInfo?.price ? parseFloat(String(checkerInfo.price)) : 0);
+
+  // Calculate tax for Paystack payments
+  const { subtotal, tax: taxAmount, total: totalWithTax } = calculateTotalWithTax(price);
 
   const form = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
@@ -226,11 +230,25 @@ export default function CheckoutPage() {
 
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-medium">{formatCurrency(price!)}</span>
+                    <span className="font-medium">{formatCurrency(subtotal)}</span>
                   </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                    </span>
+                    <span className="font-medium text-orange-600">{formatCurrency(taxAmount)}</span>
+                  </div>
+                  <Separator />
                   <div className="flex items-center justify-between text-lg font-bold">
                     <span>Total</span>
-                    <span className="text-primary" data-testid="text-total-price">{formatCurrency(price!)}</span>
+                    <span className="text-primary" data-testid="text-total-price">{formatCurrency(totalWithTax)}</span>
+                  </div>
+
+                  <div className="bg-orange-100 dark:bg-orange-900 rounded-lg p-3 mt-2">
+                    <p className="text-xs text-orange-700 dark:text-white">
+                      A {PAYSTACK_TAX_PERCENTAGE}% processing fee is added to all Paystack payments.
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2 text-xs text-muted-foreground pt-4">
@@ -423,7 +441,7 @@ export default function CheckoutPage() {
                           </>
                         ) : (
                           <>
-                            Pay {formatCurrency(price!)}
+                            Pay {formatCurrency(totalWithTax)}
                           </>
                         )}
                       </Button>

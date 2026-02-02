@@ -106,7 +106,7 @@ export default function UserHistoryPage() {
       console.log('[User History] Fetched transactions:', data);
       return data;
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000, // Refresh every 30 seconds - optimized for shared hosting
   });
 
   // Filter transactions

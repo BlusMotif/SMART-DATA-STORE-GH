@@ -18,14 +18,20 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { APP_NAME } from "@/lib/constants";
+import { PAYSTACK_TAX_PERCENTAGE, calculateTotalWithTax } from "@/lib/tax-config";
 import { Loader2, Mail, Lock, User, Phone, Store, Link2, Eye, EyeOff, ArrowLeft, AlertCircle, CheckCircle2, Info, Copy } from "lucide-react";
 import { getAgentId } from "@/lib/store-context";
 import { useTheme } from "@/components/theme-provider";
 import logoLight from "@assets/logo_1765774201026.png";
 import logoDark from "@assets/darkmode-icon.png";
+
+// Agent activation fee details
+const ACTIVATION_FEE = 60;
+const { subtotal: activationFee, tax: activationTax, total: activationTotal } = calculateTotalWithTax(ACTIVATION_FEE);
 
 const agentRegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -176,7 +182,7 @@ export default function AgentRegisterPage() {
                 <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-semibold text-blue-900">Activation Fee</p>
-                  <p className="text-sm text-blue-800">A one-time payment of <strong>GH₵60.00</strong> is required to activate your agent account.</p>
+                  <p className="text-sm text-blue-800">A one-time payment of <strong>GH₵{activationFee.toFixed(2)}</strong> + {PAYSTACK_TAX_PERCENTAGE}% processing fee = <strong>GH₵{activationTotal.toFixed(2)}</strong> is required to activate your agent account.</p>
                 </div>
               </div>
               
@@ -245,8 +251,24 @@ export default function AgentRegisterPage() {
                 Create your {APP_NAME} agent account and start earning
               </CardDescription>
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
-                <p className="text-sm font-semibold text-yellow-900">Activation Fee: GH₵60.00</p>
-                <p className="text-xs text-yellow-700 mt-1">Payment required after registration</p>
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-yellow-900">Activation Fee Breakdown</p>
+                  <div className="text-xs text-yellow-800 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Activation Fee:</span>
+                      <span>GH₵{activationFee.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%):</span>
+                      <span>GH₵{activationTax.toFixed(2)}</span>
+                    </div>
+                    <Separator className="my-1 bg-yellow-300" />
+                    <div className="flex justify-between font-semibold text-yellow-900">
+                      <span>Total to Pay:</span>
+                      <span>GH₵{activationTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardHeader>
         <CardContent>
@@ -422,7 +444,7 @@ export default function AgentRegisterPage() {
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel className="text-sm font-medium">
-                        I agree to pay the GH₵60.00 activation fee and accept the terms and conditions
+                        I agree to pay the GH₵{activationTotal.toFixed(2)} activation fee (incl. {PAYSTACK_TAX_PERCENTAGE}% processing fee) and accept the terms and conditions
                       </FormLabel>
                       <FormDescription className="text-xs">
                         By checking this box, you confirm that you understand the activation fee is required and agree to our terms of service.
@@ -435,7 +457,7 @@ export default function AgentRegisterPage() {
 
               <Button type="submit" className="w-full" disabled={registerMutation.isPending} data-testid="button-submit">
                 {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Proceed to Payment (GH₵60.00)
+                Proceed to Payment (GH₵{activationTotal.toFixed(2)})
               </Button>
             </form>
           </Form>

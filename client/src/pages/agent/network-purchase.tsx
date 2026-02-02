@@ -19,8 +19,10 @@ import { formatCurrency } from "@/lib/constants";
 import { validatePhoneNetwork, getNetworkPrefixes, normalizePhoneNumber } from "@/lib/network-validator";
 import { 
   Phone, Mail, Loader2, Clock, CreditCard, AlertTriangle, 
-  ArrowLeft, Package, ShoppingCart, Smartphone
+  ArrowLeft, Package, ShoppingCart, Smartphone, Info
 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { PAYSTACK_TAX_PERCENTAGE, calculateTotalWithTax } from "@/lib/tax-config";
 import type { DataBundle } from "@shared/schema";
 import mtnLogo from "@assets/mtn_1765780772203.jpg";
 import telecelLogo from "@assets/telecel_1765780772206.jpg";
@@ -604,12 +606,38 @@ export default function AgentNetworkPurchasePage() {
                       />
 
                       <div className="pt-4">
-                        <div className="flex items-center justify-between mb-4 p-4 bg-muted rounded-lg">
-                          <span className="text-lg font-semibold">Total Amount:</span>
-                          <span className="text-2xl font-bold text-primary">
-                            {formatCurrency(price)}
-                          </span>
-                        </div>
+                        {/* Tax/Fee Breakdown for Single Purchase */}
+                        {(() => {
+                          const { subtotal, tax, total } = calculateTotalWithTax(price);
+                          return (
+                            <div className="space-y-3 mb-4">
+                              <div className="bg-muted rounded-lg p-4 space-y-2">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground">Bundle Price</span>
+                                  <span>GH₵{subtotal.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-muted-foreground flex items-center gap-1">
+                                    Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                                    <Info className="h-3 w-3" />
+                                  </span>
+                                  <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between font-semibold">
+                                  <span>Total to Pay</span>
+                                  <span className="text-primary">GH₵{total.toFixed(2)}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
+                                <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
+                                <p className="text-xs text-orange-700 dark:text-white">
+                                  A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         <Button
                           type="submit"
@@ -695,13 +723,36 @@ export default function AgentNetworkPurchasePage() {
 
                         {bulkTotal && bulkTotal.count > 0 && (
                           <div className="pt-4">
-                            <div className="flex items-center justify-between mb-4 p-4 bg-muted rounded-lg">
-                              <span className="text-lg font-semibold">Total Amount:</span>
-                              <span className="text-2xl font-bold text-primary">
-                                {formatCurrency(bulkTotal.total)}
-                              </span>
-                            </div>
-
+                            {(() => {
+                              const { subtotal, tax, total } = calculateTotalWithTax(bulkTotal.total);
+                              return (
+                                <div className="space-y-3 mb-4">
+                                  <div className="bg-muted rounded-lg p-4 space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                      <span>Bundles Total ({bulkTotal.count} {bulkTotal.count === 1 ? 'bundle' : 'bundles'})</span>
+                                      <span>GH₵{subtotal.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                      <span>Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)</span>
+                                      <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                                    </div>
+                                    <Separator />
+                                    <div className="flex justify-between font-semibold">
+                                      <span>Total to Pay</span>
+                                      <span className="text-primary text-lg">GH₵{total.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                  <div className="bg-orange-100 dark:bg-orange-900 rounded-lg p-3">
+                                    <div className="flex items-start gap-2 text-xs text-orange-800 dark:text-orange-100">
+                                      <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                      <span>
+                                        A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments to cover transaction costs.
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -721,7 +772,7 @@ export default function AgentNetworkPurchasePage() {
                               <CreditCard className="h-5 w-5" />
                               {bulkTotal ? (
                                 <>
-                                  Pay {formatCurrency(bulkTotal.total)} with Paystack
+                                  Pay GH₵{calculateTotalWithTax(bulkTotal.total).total.toFixed(2)} with Paystack
                                 </>
                               ) : (
                                 'Purchase Data Bundles'

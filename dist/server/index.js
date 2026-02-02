@@ -915,10 +915,12 @@ var init_schema = __esm({
 // src/server/db.ts
 var db_exports = {};
 __export(db_exports, {
+  checkDatabaseHealth: () => checkDatabaseHealth,
   db: () => db,
   ensureDbInitialized: () => ensureDbInitialized,
   getPool: () => getPool,
-  pool: () => pool
+  pool: () => pool,
+  warmupDatabaseConnection: () => warmupDatabaseConnection
 });
 import { drizzle } from "drizzle-orm/node-postgres";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
@@ -935,13 +937,25 @@ function initializeDatabase() {
     }
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      max: 20,
-      min: 2,
-      idleTimeoutMillis: 3e4,
+      max: 10,
+      // Increased for 1000+ users - Hostinger allows 10-15 connections
+      min: 3,
+      // Keep 3 connections warm for instant response
+      idleTimeoutMillis: 6e4,
+      // 60s idle timeout - keep connections alive longer
       connectionTimeoutMillis: 1e4,
+      // 10s fast timeout - fail fast if DB unreachable
       statement_timeout: 3e4,
+      // 30s statement timeout
       query_timeout: 3e4,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
+      // 30s query timeout
+      allowExitOnIdle: false,
+      // Keep min connections alive always
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+      // TCP keepalive to prevent Hostinger/Supabase dropping idle connections
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 1e4
+      // Start keepalive after 10s
     });
     _pool.on("error", (err) => {
       console.error("[DB Pool] Connection error");
@@ -964,7 +978,48 @@ function ensureDbInitialized() {
     initializeDatabase();
   }
 }
-var __filename, __dirname, _db, _pool, _initialized, db, pool;
+async function warmupDatabaseConnection() {
+  if (_connectionWarmedUp) return true;
+  try {
+    const pool2 = getPool();
+    if (!pool2) {
+      console.log("[DB] No pool available for warmup (using SQLite)");
+      _connectionWarmedUp = true;
+      return true;
+    }
+    const startTime = Date.now();
+    const warmupPromises = [];
+    const warmupCount = Math.min(3, pool2.options.min || 2);
+    for (let i = 0; i < warmupCount; i++) {
+      warmupPromises.push(pool2.connect());
+    }
+    const clients = await Promise.all(warmupPromises);
+    await Promise.all(clients.map((client) => client.query("SELECT 1")));
+    clients.forEach((client) => client.release());
+    const elapsed = Date.now() - startTime;
+    console.log(`[DB] \u2705 Connection pool warmed up (${warmupCount} connections, ${elapsed}ms)`);
+    _connectionWarmedUp = true;
+    return true;
+  } catch (error) {
+    console.error("[DB] \u274C Warmup failed:", error.message);
+    return false;
+  }
+}
+async function checkDatabaseHealth() {
+  try {
+    const pool2 = getPool();
+    if (!pool2) {
+      return { healthy: true, latency: 0 };
+    }
+    const start = Date.now();
+    await pool2.query("SELECT 1");
+    const latency = Date.now() - start;
+    return { healthy: true, latency };
+  } catch (error) {
+    return { healthy: false, latency: -1 };
+  }
+}
+var __filename, __dirname, _db, _pool, _initialized, _connectionWarmedUp, db, pool;
 var init_db = __esm({
   "src/server/db.ts"() {
     init_schema();
@@ -973,6 +1028,7 @@ var init_db = __esm({
     _db = null;
     _pool = null;
     _initialized = false;
+    _connectionWarmedUp = false;
     db = new Proxy({}, {
       get(target, prop) {
         if (!_initialized) {
@@ -2294,6 +2350,7 @@ var init_storage = __esm({
 // src/server/paystack.ts
 var paystack_exports = {};
 __export(paystack_exports, {
+  clearPaystackKeyCache: () => clearPaystackKeyCache,
   createTransferRecipient: () => createTransferRecipient,
   initializePayment: () => initializePayment,
   initiateTransfer: () => initiateTransfer,
@@ -2306,10 +2363,42 @@ __export(paystack_exports, {
 });
 import crypto from "crypto";
 async function getPaystackKey() {
-  const env = process.env.PAYSTACK_SECRET_KEY || "";
-  if (env) return env;
+  const now = Date.now();
+  if (cachedPaystackKey && now - keyLastFetched < KEY_CACHE_TTL) {
+    return cachedPaystackKey;
+  }
   const stored = await storage.getSetting("paystack.secret_key");
-  return stored || "";
+  if (stored) {
+    const isLive = stored.startsWith("sk_live_");
+    console.log(`[Paystack] Using key from database settings: ${isLive ? "LIVE MODE" : "TEST MODE"} (env: ${process.env.NODE_ENV || "development"})`);
+    if (isProduction && !isLive) {
+      console.warn("[Paystack] \u26A0\uFE0F WARNING: Using TEST key in PRODUCTION environment!");
+    }
+    cachedPaystackKey = stored;
+    keyLastFetched = now;
+    return stored;
+  }
+  const env = process.env.PAYSTACK_SECRET_KEY || "";
+  if (env) {
+    const isLive = env.startsWith("sk_live_");
+    console.log(`[Paystack] Using key from environment: ${isLive ? "LIVE MODE" : "TEST MODE"} (env: ${process.env.NODE_ENV || "development"})`);
+    if (isProduction && !isLive) {
+      console.warn("[Paystack] \u26A0\uFE0F WARNING: Using TEST key in PRODUCTION environment!");
+    }
+    if (isDevelopment && isLive) {
+      console.warn("[Paystack] \u26A0\uFE0F WARNING: Using LIVE key in DEVELOPMENT environment! Consider using test key for safety.");
+    }
+    cachedPaystackKey = env;
+    keyLastFetched = now;
+    return env;
+  }
+  console.warn("[Paystack] No Paystack secret key configured!");
+  return "";
+}
+function clearPaystackKeyCache() {
+  cachedPaystackKey = null;
+  keyLastFetched = 0;
+  console.log("[Paystack] Key cache cleared");
 }
 async function isPaystackTestMode() {
   const key = await getPaystackKey();
@@ -2320,6 +2409,14 @@ async function initializePayment(params) {
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
+  console.log("[Paystack] Initializing payment:", {
+    email: params.email,
+    amount: params.amount,
+    reference: params.reference,
+    callbackUrl: params.callbackUrl,
+    mode: PAYSTACK_SECRET_KEY.startsWith("sk_live_") ? "LIVE" : "TEST",
+    keyPrefix: PAYSTACK_SECRET_KEY.substring(0, 15) + "..."
+  });
   if (!params.email || typeof params.email !== "string" || !params.email.includes("@")) {
     throw new Error("Invalid email address");
   }
@@ -2355,6 +2452,11 @@ async function verifyPayment(reference) {
   if (!PAYSTACK_SECRET_KEY) {
     throw new Error("Paystack secret key not configured");
   }
+  console.log("[Paystack] Verifying payment:", {
+    reference,
+    mode: PAYSTACK_SECRET_KEY.startsWith("sk_live_") ? "LIVE" : "TEST",
+    keyPrefix: PAYSTACK_SECRET_KEY.substring(0, 15) + "..."
+  });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 1e4);
   try {
@@ -2368,12 +2470,19 @@ async function verifyPayment(reference) {
     });
     clearTimeout(timeoutId);
     const data = await response.json();
+    console.log("[Paystack] Verify response:", {
+      status: response.status,
+      ok: response.ok,
+      paymentStatus: data?.data?.status,
+      gatewayResponse: data?.data?.gateway_response
+    });
     if (!response.ok) {
       throw new Error(data.message || "Failed to verify payment");
     }
     return data;
   } catch (error) {
     clearTimeout(timeoutId);
+    console.error("[Paystack] Verify error:", error.message);
     if (error.name === "AbortError") {
       throw new Error("Payment verification timed out. Please try again.");
     }
@@ -2382,11 +2491,24 @@ async function verifyPayment(reference) {
 }
 async function validateWebhookSignature(rawBody, signature) {
   const PAYSTACK_SECRET_KEY = await getPaystackKey();
+  console.log("[Webhook Validation] Key present:", !!PAYSTACK_SECRET_KEY);
+  console.log("[Webhook Validation] Key mode:", PAYSTACK_SECRET_KEY?.startsWith("sk_live_") ? "LIVE" : "TEST");
+  console.log("[Webhook Validation] Signature present:", !!signature);
+  console.log("[Webhook Validation] Signature length:", signature?.length || 0);
   if (!PAYSTACK_SECRET_KEY || !signature) {
+    console.error("[Webhook Validation] Missing key or signature");
     return false;
   }
   const hash2 = crypto.createHmac("sha512", PAYSTACK_SECRET_KEY).update(rawBody).digest("hex");
-  return hash2 === signature;
+  const isValid = hash2 === signature;
+  console.log("[Webhook Validation] Computed hash (first 20 chars):", hash2.substring(0, 20) + "...");
+  console.log("[Webhook Validation] Received signature (first 20 chars):", signature.substring(0, 20) + "...");
+  console.log("[Webhook Validation] Signature match:", isValid);
+  if (!isValid) {
+    console.error("[Webhook Validation] \u26A0\uFE0F SIGNATURE MISMATCH - This often means the webhook secret key doesn't match the payment initialization key");
+    console.error("[Webhook Validation] Key prefix being used:", PAYSTACK_SECRET_KEY.substring(0, 15) + "...");
+  }
+  return isValid;
 }
 async function isPaystackConfigured() {
   const key = await getPaystackKey();
@@ -2503,11 +2625,16 @@ async function verifyTransfer(reference) {
     throw error;
   }
 }
-var PAYSTACK_BASE_URL;
+var PAYSTACK_BASE_URL, cachedPaystackKey, keyLastFetched, KEY_CACHE_TTL, isProduction, isDevelopment;
 var init_paystack = __esm({
   "src/server/paystack.ts"() {
     init_storage();
     PAYSTACK_BASE_URL = "https://api.paystack.co";
+    cachedPaystackKey = null;
+    keyLastFetched = 0;
+    KEY_CACHE_TTL = 5 * 60 * 1e3;
+    isProduction = process.env.NODE_ENV === "production";
+    isDevelopment = process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
   }
 });
 
@@ -2575,131 +2702,48 @@ var init_pdf_generator = __esm({
   }
 });
 
-// client/vite.config.js
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path2 from "path";
-import { fileURLToPath as fileURLToPath2 } from "url";
-var __dirname2, vite_config_default;
-var init_vite_config = __esm({
-  "client/vite.config.js"() {
-    "use strict";
-    __dirname2 = path2.dirname(fileURLToPath2(import.meta.url));
-    vite_config_default = defineConfig({
-      base: "/",
-      plugins: [
-        react({
-          jsxRuntime: "automatic",
-          jsxImportSource: "react"
-        })
-        // VitePWA({
-        //   registerType: 'autoUpdate',
-        //   workbox: {
-        //     globPatterns: ['**/*.{js,css,html,ico,png,svg}']
-        //   },
-        //   includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-        //   manifest: {
-        //     name: 'resellershubprogh.com - Data & Result Checker',
-        //     short_name: 'ResellersHubPro',
-        //     description: 'Buy data bundles and WAEC result checkers instantly. Secure payments via Paystack.',
-        //     theme_color: '#0f172a',
-        //     icons: [
-        //       {
-        //         src: 'pwa-192x192.png',
-        //         sizes: '192x192',
-        //         type: 'image/png'
-        //       },
-        //       {
-        //         src: 'pwa-512x512.png',
-        //         sizes: '512x512',
-        //         type: 'image/png'
-        //       }
-        //     ]
-        //   }
-        // }),
-      ],
-      resolve: {
-        dedupe: ["react", "react-dom"],
-        alias: {
-          "@": path2.resolve(__dirname2, "src"),
-          "@shared": path2.resolve(__dirname2, "../src/shared"),
-          "@assets": path2.resolve(__dirname2, "assets")
-        }
-      },
-      root: ".",
-      css: {
-        // PostCSS configured via tailwind.config.js
-      },
-      build: {
-        outDir: "../dist/public",
-        emptyOutDir: true,
-        sourcemap: true,
-        cssCodeSplit: true,
-        chunkSizeWarningLimit: 1200,
-        rollupOptions: {
-          input: "./index.html",
-          output: {
-            entryFileNames: "assets/[name].[hash].js",
-            chunkFileNames: "assets/[name].[hash].js",
-            assetFileNames: "assets/[name].[hash].[ext]",
-            manualChunks(id) {
-              if (!id)
-                return;
-              if (id.includes("node_modules")) {
-                if (id.includes("jspdf"))
-                  return "vendor_jspdf";
-                return "vendor";
-              }
-            }
-          }
-        }
-      },
-      server: {
-        host: true,
-        // bind to all interfaces
-        port: Number(process.env.CLIENT_PORT) || 5173,
-        strictPort: true,
-        allowedHosts: ["resellershubprogh.com", "localhost"],
-        watch: { usePolling: true },
-        fs: { strict: true, deny: ["**/.*"] },
-        hmr: true,
-        // Enable HMR for better development experience
-        proxy: {
-          "/api": {
-            target: "http://localhost:10000",
-            changeOrigin: true,
-            secure: false
-          }
-        }
-      },
-      cacheDir: "node_modules/.vite",
-      optimizeDeps: {
-        include: ["react", "react-dom", "lodash", "jspdf"]
-      }
-    });
-  }
-});
-
 // src/server/vite.ts
 var vite_exports = {};
 __export(vite_exports, {
   setupVite: () => setupVite
 });
 import { createServer as createViteServer, createLogger } from "vite";
+import react from "@vitejs/plugin-react";
 import fs2 from "fs";
-import path3 from "path";
-import { fileURLToPath as fileURLToPath3 } from "url";
+import path2 from "path";
+import { fileURLToPath as fileURLToPath2 } from "url";
 import { nanoid } from "nanoid";
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
 async function setupVite(server, app2) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server, path: "/vite-hmr" },
     allowedHosts: true
   };
+  const clientRoot = path2.resolve(path2.dirname(fileURLToPath2(import.meta.url)), "../..", "client");
   const vite = await createViteServer({
-    ...clientViteConfig,
     configFile: false,
-    root: path3.resolve(path3.dirname(fileURLToPath3(import.meta.url)), "../..", "client"),
+    root: clientRoot,
+    base: "/",
+    plugins: [
+      react({
+        jsxRuntime: "automatic",
+        jsxImportSource: "react"
+      })
+    ],
+    resolve: {
+      alias: {
+        "@": path2.resolve(clientRoot, "src"),
+        "@shared": path2.resolve(clientRoot, "..", "src", "shared"),
+        "@assets": path2.resolve(clientRoot, "assets")
+      }
+    },
+    css: {
+      postcss: {
+        plugins: [tailwindcss, autoprefixer]
+      }
+    },
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
@@ -2716,8 +2760,8 @@ async function setupVite(server, app2) {
       return next();
     }
     try {
-      const clientTemplate = path3.resolve(
-        path3.dirname(fileURLToPath3(import.meta.url)),
+      const clientTemplate = path2.resolve(
+        path2.dirname(fileURLToPath2(import.meta.url)),
         "../..",
         "client",
         "index.html"
@@ -2735,19 +2779,17 @@ async function setupVite(server, app2) {
     }
   });
 }
-var clientViteConfig, viteLogger;
+var viteLogger;
 var init_vite = __esm({
   "src/server/vite.ts"() {
-    init_vite_config();
-    clientViteConfig = vite_config_default;
     viteLogger = createLogger();
   }
 });
 
 // src/server/index.ts
 import dotenv from "dotenv";
-import path4 from "path";
-import { fileURLToPath as fileURLToPath4 } from "url";
+import path3 from "path";
+import { fileURLToPath as fileURLToPath3 } from "url";
 import { createClient } from "@supabase/supabase-js";
 import express from "express";
 import session from "express-session";
@@ -2757,12 +2799,21 @@ import MemoryStore from "memorystore";
 init_storage();
 init_db();
 init_schema();
-init_paystack();
 import { sql as sql2, and as and2, eq as eq2, or as or2, gte as gte2, lte as lte2, desc as desc2 } from "drizzle-orm";
 import { randomUUID as randomUUID3, randomBytes as randomBytes2 } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import multer from "multer";
+
+// src/shared/tax-config.ts
+var PAYSTACK_TAX_RATE = 0.025;
+var PAYSTACK_TAX_PERCENTAGE = 2.5;
+function calculateTax(subtotal) {
+  return Math.round(subtotal * PAYSTACK_TAX_RATE * 100) / 100;
+}
+
+// src/server/routes.ts
+init_paystack();
 
 // src/server/providers.ts
 init_storage();
@@ -2879,10 +2930,10 @@ async function fulfillDataBundleTransaction(transaction, providerId) {
       console.log(`[Fulfill] API request body:`, body);
       const ts = Math.floor(Date.now() / 1e3).toString();
       const method = "POST";
-      const path5 = "/api/v1/orders";
+      const path4 = "/api/v1/orders";
       const message = `${ts}
 ${method}
-${path5}
+${path4}
 ${body}`;
       const crypto2 = await import("crypto");
       const signature = crypto2.createHmac("sha256", apiSecret).update(message).digest("hex");
@@ -2969,15 +3020,15 @@ async function getExternalBalance(providerId) {
     console.log("[getExternalBalance] Using baseUrl:", baseUrl);
     const ts = Math.floor(Date.now() / 1e3).toString();
     const method = "GET";
-    const path5 = "/api/v1/balance";
+    const path4 = "/api/v1/balance";
     const body = "";
     const message = `${ts}
 ${method}
-${path5}
+${path4}
 ${body}`;
     const crypto2 = await import("crypto");
     const signature = crypto2.createHmac("sha256", apiSecret).update(message).digest("hex");
-    const resp = await fetch(`${baseUrl}${path5}`, {
+    const resp = await fetch(`${baseUrl}${path4}`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -3022,7 +3073,7 @@ async function getExternalPrices(network, minCapacity, maxCapacity, effective, p
     const baseUrl = provider.endpoint.replace("/api/v1/orders", "");
     const ts = Math.floor(Date.now() / 1e3).toString();
     const method = "GET";
-    const path5 = "/api/v1/prices";
+    const path4 = "/api/v1/prices";
     let query = "";
     const params = new URLSearchParams();
     if (network) params.append("network", network);
@@ -3033,11 +3084,11 @@ async function getExternalPrices(network, minCapacity, maxCapacity, effective, p
     const body = "";
     const message = `${ts}
 ${method}
-${path5}
+${path4}
 ${body}`;
     const crypto2 = await import("crypto");
     const signature = crypto2.createHmac("sha256", apiSecret).update(message).digest("hex");
-    const resp = await fetch(`${baseUrl}${path5}${query}`, {
+    const resp = await fetch(`${baseUrl}${path4}${query}`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -3073,15 +3124,15 @@ async function getExternalOrderStatus(ref, providerId) {
     const baseUrl = provider.endpoint.replace("/api/v1/orders", "");
     const ts = Math.floor(Date.now() / 1e3).toString();
     const method = "GET";
-    const path5 = `/api/v1/orders/${ref}`;
+    const path4 = `/api/v1/orders/${ref}`;
     const body = "";
     const message = `${ts}
 ${method}
-${path5}
+${path4}
 ${body}`;
     const crypto2 = await import("crypto");
     const signature = crypto2.createHmac("sha256", apiSecret).update(message).digest("hex");
-    const resp = await fetch(`${baseUrl}${path5}`, {
+    const resp = await fetch(`${baseUrl}${path4}`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
@@ -3401,8 +3452,11 @@ async function registerRoutes(httpServer2, app2) {
   app2.get("/api/health", async (req, res) => {
     try {
       let dbStatus = "unknown";
+      let dbLatency = -1;
       try {
+        const start = Date.now();
         await db.execute(sql2`SELECT 1 as test`);
+        dbLatency = Date.now() - start;
         dbStatus = "connected";
       } catch (e) {
         dbStatus = "error";
@@ -3410,7 +3464,10 @@ async function registerRoutes(httpServer2, app2) {
       res.json({
         status: "ok",
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        database: dbStatus
+        database: dbStatus,
+        dbLatencyMs: dbLatency,
+        uptime: Math.floor(process.uptime()),
+        memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
       });
     } catch (error) {
       res.status(500).json({ status: "error" });
@@ -3694,6 +3751,15 @@ async function registerRoutes(httpServer2, app2) {
         }
       }
       const activationFee = 60;
+      const taxAmount = calculateTax(activationFee);
+      const totalWithTax = activationFee + taxAmount;
+      console.log("[Agent Registration] Tax calculation:", {
+        activationFee,
+        taxRate: `${PAYSTACK_TAX_PERCENTAGE}%`,
+        taxAmount,
+        totalWithTax,
+        amountInPesewas: Math.round(totalWithTax * 100)
+      });
       const tempReference = `agent_pending_${Date.now()}_${data.email.replace(/[^a-zA-Z0-9]/g, "_")}`;
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || "https://resellershubprogh.com";
       const paystackResponse = await fetch("https://api.paystack.co/transaction/initialize", {
@@ -3704,14 +3770,17 @@ async function registerRoutes(httpServer2, app2) {
         },
         body: JSON.stringify({
           email: data.email,
-          amount: Math.round(activationFee * 100),
-          // Convert to pesewas
+          amount: Math.round(totalWithTax * 100),
+          // Convert to pesewas (includes tax)
           currency: "GHS",
           reference: tempReference,
           callback_url: `${frontendUrl}/agent/activation-complete`,
           metadata: {
             purpose: "agent_activation",
             pending_registration: true,
+            activationFee,
+            taxAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
             // Store all registration data in metadata for account creation after payment
             registration_data: {
               email: data.email,
@@ -3733,7 +3802,13 @@ async function registerRoutes(httpServer2, app2) {
         message: "Please complete payment to activate your agent account",
         paymentUrl: paystackData.data.authorization_url,
         paymentReference: paystackData.data.reference,
-        amount: activationFee
+        amount: activationFee,
+        pricing: {
+          activationFee,
+          taxRate: PAYSTACK_TAX_PERCENTAGE,
+          taxAmount,
+          total: totalWithTax
+        }
       });
     } catch (error) {
       console.error("Error during agent registration:", error.message);
@@ -3994,7 +4069,7 @@ async function registerRoutes(httpServer2, app2) {
               }
             }
           } else {
-            effectivePrice = parseFloat(bundle.basePrice || "0");
+            effectivePrice = parseFloat(bundle.adminPrice || bundle.basePrice || "0");
             adminBasePriceValue = effectivePrice;
           }
           return {
@@ -5174,16 +5249,21 @@ async function registerRoutes(httpServer2, app2) {
       const paystackEmail = customerEmail || (normalizedPhone ? `${normalizedPhone}@example.com` : `result-checker-${reference}@example.com`);
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || "https://resellershubprogh.com";
       const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
-      console.log("[Checkout] Paystack initialization:", {
-        totalAmount,
-        amountInPesewas: Math.round(totalAmount * 100),
+      const taxAmount = calculateTax(totalAmount);
+      const amountWithTax = totalAmount + taxAmount;
+      console.log("[Checkout] Paystack initialization with tax:", {
+        subtotal: totalAmount,
+        taxRate: `${PAYSTACK_TAX_PERCENTAGE}%`,
+        taxAmount,
+        totalWithTax: amountWithTax,
+        amountInPesewas: Math.round(amountWithTax * 100),
         reference
       });
       try {
         const paystackResponse = await initializePayment({
           email: paystackEmail,
-          amount: Math.round(totalAmount * 100),
-          // Convert GHS to pesewas
+          amount: Math.round(amountWithTax * 100),
+          // Convert GHS to pesewas (includes tax)
           reference,
           callbackUrl,
           metadata: {
@@ -5191,7 +5271,10 @@ async function registerRoutes(httpServer2, app2) {
             productName,
             customerPhone: normalizedPhone || null,
             isBulkOrder: isBulkOrder || false,
-            numberOfRecipients
+            numberOfRecipients,
+            subtotal: totalAmount,
+            taxAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE
           }
         });
         console.log("[Checkout] Paystack response received:", {
@@ -5207,13 +5290,21 @@ async function registerRoutes(httpServer2, app2) {
           },
           paymentUrl: paystackResponse.data.authorization_url,
           accessCode: paystackResponse.data.access_code,
+          pricing: {
+            subtotal: totalAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
+            taxAmount,
+            total: amountWithTax
+          },
           debug: {
             phoneNumbers: phoneNumbersData,
             isBulkOrder,
             numberOfRecipients,
             unitPrice: amount,
             totalAmount,
-            amountSentToPaystack: Math.round(totalAmount * 100)
+            taxAmount,
+            totalWithTax: amountWithTax,
+            amountSentToPaystack: Math.round(amountWithTax * 100)
           }
         });
       } catch (paystackError) {
@@ -6037,24 +6128,48 @@ async function registerRoutes(httpServer2, app2) {
     }
   });
   app2.post("/api/paystack/webhook", async (req, res) => {
+    console.log("[Webhook] ================================");
+    console.log("[Webhook] Received Paystack webhook request");
+    console.log("[Webhook] Timestamp:", (/* @__PURE__ */ new Date()).toISOString());
+    console.log("[Webhook] Headers:", JSON.stringify({
+      signature: req.headers["x-paystack-signature"] ? "present (" + String(req.headers["x-paystack-signature"]).length + " chars)" : "missing",
+      contentType: req.headers["content-type"],
+      host: req.headers.host
+    }));
     try {
       const signature = req.headers["x-paystack-signature"];
       const rawBody = req.rawBody;
-      if (!rawBody || !await validateWebhookSignature(rawBody, signature)) {
-        console.error("Invalid Paystack webhook signature");
-        return res.status(400).json({ error: "Invalid signature" });
+      console.log("[Webhook] Raw body present:", !!rawBody);
+      console.log("[Webhook] Raw body length:", rawBody?.length || 0);
+      console.log("[Webhook] Event type:", req.body?.event);
+      console.log("[Webhook] Reference:", req.body?.data?.reference);
+      console.log("[Webhook] Payment status:", req.body?.data?.status);
+      console.log("[Webhook] Amount (pesewas):", req.body?.data?.amount);
+      const isValidSignature = await validateWebhookSignature(rawBody, signature);
+      if (!rawBody || !isValidSignature) {
+        console.error("[Webhook] \u26A0\uFE0F SIGNATURE VALIDATION FAILED");
+        console.error("[Webhook] rawBody present:", !!rawBody);
+        console.error("[Webhook] signature present:", !!signature);
+        console.error("[Webhook] isValidSignature:", isValidSignature);
+        console.error("[Webhook] This usually means the secret key used for signing doesn't match the key in database/env");
+        return res.status(200).json({ error: "Invalid signature - check logs" });
       }
+      console.log("[Webhook] \u2705 Signature validated successfully");
       const event = req.body;
       setImmediate(async () => {
         try {
+          console.log("[Webhook] Processing event:", event.event);
           await processWebhookEvent(event);
+          console.log("[Webhook] \u2705 Event processed successfully:", event.event);
         } catch (webhookError) {
-          console.error("Webhook processing error:", webhookError);
+          console.error("[Webhook] \u274C Processing error:", webhookError.message);
+          console.error("[Webhook] Error stack:", webhookError.stack);
         }
       });
       res.sendStatus(200);
     } catch (error) {
-      console.error("Webhook handler error:", error);
+      console.error("[Webhook] \u274C Handler error:", error.message);
+      console.error("[Webhook] Error stack:", error.stack);
       res.sendStatus(200);
     }
   });
@@ -8644,36 +8759,57 @@ async function registerRoutes(httpServer2, app2) {
       if (!dbUser) {
         return res.status(404).json({ error: "User not found" });
       }
+      const topupAmount = parseFloat(amount);
+      const taxAmount = calculateTax(topupAmount);
+      const totalWithTax = topupAmount + taxAmount;
       const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
       const transaction = await storage.createTransaction({
         reference,
         type: "wallet_topup",
         productName: "Wallet Top-up",
-        amount: parseFloat(amount).toFixed(2),
+        amount: topupAmount.toFixed(2),
+        // Store the amount that will be credited
         profit: "0.00",
         customerPhone: dbUser.phone || "",
         customerEmail: dbUser.email,
         paymentMethod,
         status: TransactionStatus.PENDING
       });
+      console.log("[Wallet Topup] Tax calculation:", {
+        topupAmount,
+        taxRate: `${PAYSTACK_TAX_PERCENTAGE}%`,
+        taxAmount,
+        totalWithTax,
+        amountInPesewas: Math.round(totalWithTax * 100)
+      });
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || "https://resellershubprogh.com";
       const callbackUrl = `${frontendUrl}/wallet/topup/success`;
       const paystackResponse = await initializePayment({
         email: dbUser.email,
-        amount: Math.round(parseFloat(amount) * 100),
+        amount: Math.round(totalWithTax * 100),
+        // Convert to pesewas (includes tax)
         reference,
         callbackUrl,
         metadata: {
           type: "wallet_topup",
           userId: dbUser.id,
-          customerName: dbUser.name
+          customerName: dbUser.name,
+          topupAmount,
+          taxAmount,
+          taxRate: PAYSTACK_TAX_PERCENTAGE
         }
       });
       if (paystackResponse.status && paystackResponse.data) {
         res.json({
           authorizationUrl: paystackResponse.data.authorization_url,
           reference: paystackResponse.data.reference,
-          accessCode: paystackResponse.data.access_code
+          accessCode: paystackResponse.data.access_code,
+          pricing: {
+            topupAmount,
+            taxRate: PAYSTACK_TAX_PERCENTAGE,
+            taxAmount,
+            total: totalWithTax
+          }
         });
       } else {
         const paystackError = paystackResponse;
@@ -9198,6 +9334,10 @@ async function registerRoutes(httpServer2, app2) {
         return res.status(400).json({ error: "Value is required" });
       }
       await storage.setSetting(decodedKey, value, description);
+      if (decodedKey === "paystack.secret_key") {
+        clearPaystackKeyCache();
+        console.log("[Settings] Paystack secret key updated, cache cleared");
+      }
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: error.message || "Failed to update setting" });
@@ -10554,20 +10694,15 @@ import { createServer } from "http";
 import cors from "cors";
 import multer2 from "multer";
 import fs3 from "fs";
-var __serverFilename = fileURLToPath4(import.meta.url);
-var __serverDirname = path4.dirname(__serverFilename);
-var rootDir = path4.resolve(__serverDirname, "../..");
+import compression from "compression";
+var __serverFilename = fileURLToPath3(import.meta.url);
+var __serverDirname = path3.dirname(__serverFilename);
+var rootDir = path3.resolve(__serverDirname, "../..");
 function loadEnvironment() {
-  const hasHostingEnvVars = Boolean(
-    process.env.DATABASE_URL || process.env.SUPABASE_URL
-  );
-  if (hasHostingEnvVars) {
-    return;
-  }
   const nodeEnv = process.env.NODE_ENV || "development";
-  dotenv.config({ path: path4.join(rootDir, ".env") });
+  dotenv.config({ path: path3.join(rootDir, ".env"), override: true });
   const envFile = nodeEnv === "production" ? ".env.production" : ".env.development";
-  dotenv.config({ path: path4.join(rootDir, envFile), override: true });
+  dotenv.config({ path: path3.join(rootDir, envFile), override: true });
 }
 loadEnvironment();
 function validateEnv() {
@@ -10598,12 +10733,12 @@ var supabaseServer = null;
 if (process.env.SKIP_DB !== "true") {
   initializeSupabase();
 }
-var __dirname3 = __serverDirname;
+var __dirname2 = __serverDirname;
 var REQUEST_TIMEOUT_MS = 30 * 1e3;
 var SOCKET_TIMEOUT_MS = 60 * 1e3;
 var KEEP_ALIVE_TIMEOUT_MS = 65 * 1e3;
 function serveStatic(app2) {
-  const distPath = path4.resolve(__dirname3, "../../dist/public");
+  const distPath = path3.resolve(__dirname2, "../../dist/public");
   if (!fs3.existsSync(distPath)) {
     if (process.env.NODE_ENV !== "production") {
       throw new Error(
@@ -10612,9 +10747,40 @@ function serveStatic(app2) {
     }
     return;
   }
-  app2.use(express.static(distPath));
+  app2.use(express.static(distPath, {
+    maxAge: "1d",
+    // 1 day default cache
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.match(/\.(js|css)$/) && filePath.match(/\.[a-f0-9]{8}\./)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (filePath.match(/\.(woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico|webp)$/)) {
+        res.setHeader("Cache-Control", "public, max-age=2592000");
+      } else if (filePath.match(/\.html?$/)) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    }
+  }));
+  app2.get("/manifest.json", (req, res) => {
+    const manifestPath = path3.resolve(distPath, "manifest.json");
+    if (fs3.existsSync(manifestPath)) {
+      res.setHeader("Content-Type", "application/manifest+json");
+      res.sendFile(manifestPath);
+    } else {
+      res.setHeader("Content-Type", "application/manifest+json");
+      res.json({
+        name: "Resellers Hub Pro GH",
+        short_name: "ResellersHub",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#000000"
+      });
+    }
+  });
   app2.get("/", (req, res) => {
-    const indexPath = path4.resolve(distPath, "index.html");
+    const indexPath = path3.resolve(distPath, "index.html");
     if (fs3.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
@@ -10625,7 +10791,7 @@ function serveStatic(app2) {
     if (req.path.startsWith("/api")) {
       return res.status(404).json({ error: "API endpoint not found" });
     }
-    const indexPath = path4.resolve(distPath, "index.html");
+    const indexPath = path3.resolve(distPath, "index.html");
     if (fs3.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
@@ -10685,11 +10851,17 @@ var startRateLimitCleanup = () => {
           cleaned++;
         }
       }
-      if (cleaned > 0) {
+      if (rateLimitMap.size > 2e3) {
+        const entriesToDelete = rateLimitMap.size - 2e3;
+        const iterator = rateLimitMap.keys();
+        for (let i = 0; i < entriesToDelete; i++) {
+          const key = iterator.next().value;
+          if (key) rateLimitMap.delete(key);
+        }
       }
     } catch (error) {
     }
-  }, 60 * 60 * 1e3);
+  }, 5 * 60 * 1e3);
 };
 startRateLimitCleanup();
 app.use(async (req, res, next) => {
@@ -10773,7 +10945,15 @@ if (!disableRateLimit) {
   app.use("/api/auth/login", createRateLimiter(10, 15 * 60 * 1e3, { blockDurationMs: 30 * 60 * 1e3 }));
   app.use("/api/auth/register", createRateLimiter(10, 30 * 60 * 1e3, { blockDurationMs: 60 * 60 * 1e3 }));
   app.use("/api/agent/register", createRateLimiter(10, 30 * 60 * 1e3, { blockDurationMs: 60 * 60 * 1e3 }));
-  app.use("/api/", createRateLimiter(100, 60 * 1e3));
+  app.use("/api/auth/me", createRateLimiter(600, 60 * 1e3));
+  app.use("/api/announcements", createRateLimiter(500, 60 * 1e3));
+  app.use("/api/break-settings", createRateLimiter(500, 60 * 1e3));
+  app.use("/api/products", createRateLimiter(400, 60 * 1e3));
+  app.use("/api/bundles", createRateLimiter(400, 60 * 1e3));
+  app.use("/api/user/stats", createRateLimiter(500, 60 * 1e3));
+  app.use("/api/transactions", createRateLimiter(400, 60 * 1e3));
+  app.use("/api/agent", createRateLimiter(400, 60 * 1e3));
+  app.use("/api/", createRateLimiter(300, 60 * 1e3));
 }
 if (process.env.NODE_ENV !== "production") {
   app.post("/api/dev/clear-rate-limits", (req, res) => {
@@ -10792,7 +10972,7 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
   const start = Date.now();
-  const path5 = req.path;
+  const path4 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson, ...args) {
@@ -10803,8 +10983,8 @@ app.use((req, res, next) => {
     setImmediate(() => {
       try {
         const duration = Date.now() - start;
-        if (path5.startsWith("/api")) {
-          let logLine = `${req.method} ${path5} ${res.statusCode} in ${duration}ms`;
+        if (path4.startsWith("/api")) {
+          let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
           if (capturedJsonResponse) {
             logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
           }
@@ -10816,7 +10996,19 @@ app.use((req, res, next) => {
   });
   next();
 });
-var assetsUploadPath = process.env.NODE_ENV === "production" ? path4.join(process.cwd(), "dist", "public", "assets") : path4.join(process.cwd(), "client", "public", "assets");
+app.use(compression({
+  level: 6,
+  // Balanced compression level (1-9)
+  threshold: 1024,
+  // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers["cache-control"]?.includes("no-transform")) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+var assetsUploadPath = process.env.NODE_ENV === "production" ? path3.join(process.cwd(), "dist", "public", "assets") : path3.join(process.cwd(), "client", "public", "assets");
 try {
   if (!fs3.existsSync(assetsUploadPath)) {
     fs3.mkdirSync(assetsUploadPath, { recursive: true });
@@ -10829,7 +11021,7 @@ var storage2 = multer2.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "_" + Math.round(Math.random() * 1e9);
-    cb(null, file.fieldname + "_" + uniqueSuffix + path4.extname(file.originalname));
+    cb(null, file.fieldname + "_" + uniqueSuffix + path3.extname(file.originalname));
   }
 });
 var upload = multer2({
@@ -10901,7 +11093,7 @@ function log(message, source = "express") {
 }
 app.use((req, res, next) => {
   const start = Date.now();
-  const path5 = req.path;
+  const path4 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson, ...args) {
@@ -10910,8 +11102,8 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path5.startsWith("/api")) {
-      let logLine = `${req.method} ${path5} ${res.statusCode} in ${duration}ms`;
+    if (path4.startsWith("/api")) {
+      let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -10956,10 +11148,18 @@ app.use((req, res, next) => {
         port: PORT,
         host: HOST
       },
-      () => {
+      async () => {
+        console.log(`Server running on http://${HOST}:${PORT}`);
+        try {
+          const { warmupDatabaseConnection: warmupDatabaseConnection2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+          await warmupDatabaseConnection2();
+        } catch (dbErr) {
+          console.error("[Startup] Database warmup failed:", dbErr.message);
+        }
       }
     );
   } catch (error) {
+    console.error("Server failed to start:", error);
     process.exit(1);
   }
 })();

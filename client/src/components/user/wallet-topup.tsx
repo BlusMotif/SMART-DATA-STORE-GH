@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormLabelWithoutFor, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/api";
-import { Wallet, Plus, Loader2, CreditCard, CheckCircle } from "lucide-react";
+import { PAYSTACK_TAX_PERCENTAGE, calculateTotalWithTax } from "@/lib/tax-config";
+import { Wallet, Plus, Loader2, CreditCard, CheckCircle, Info } from "lucide-react";
 
 const topupSchema = z.object({
   amount: z.string().refine((val) => {
@@ -175,6 +177,46 @@ export function WalletTopup() {
               </div>
             </div>
 
+            {/* Tax/Fee Breakdown */}
+            {(() => {
+              const watchedAmount = form.watch("amount");
+              const enteredAmount = parseFloat(watchedAmount) || 0;
+              if (enteredAmount > 0) {
+                const { subtotal, tax, total } = calculateTotalWithTax(enteredAmount);
+                return (
+                  <div className="space-y-3">
+                    <Separator />
+                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Topup Amount</span>
+                        <span>GH₵{subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                          <Info className="h-3 w-3" />
+                        </span>
+                        <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between font-semibold">
+                        <span>Total to Pay</span>
+                        <span className="text-primary">GH₵{total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
+                      <Info className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-orange-700 dark:text-orange-400">
+                        A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments. 
+                        You will receive GH₵{subtotal.toFixed(2)} in your wallet.
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <Button
               type="submit"
               className="w-full"
@@ -188,7 +230,15 @@ export function WalletTopup() {
               ) : (
                 <>
                   <CreditCard className="w-4 h-4 mr-2" />
-                  Continue to Payment
+                  {(() => {
+                    const watchedAmount = form.watch("amount");
+                    const enteredAmount = parseFloat(watchedAmount) || 0;
+                    if (enteredAmount > 0) {
+                      const { total } = calculateTotalWithTax(enteredAmount);
+                      return `Pay GH₵${total.toFixed(2)}`;
+                    }
+                    return "Continue to Payment";
+                  })()}
                 </>
               )}
             </Button>

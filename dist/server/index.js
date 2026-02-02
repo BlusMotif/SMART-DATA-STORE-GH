@@ -6043,6 +6043,7 @@ async function registerRoutes(httpServer2, app2) {
       }
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
+        paymentStatus: "paid",
         completedAt: /* @__PURE__ */ new Date(),
         deliveredPin,
         deliveredSerial,
@@ -10888,11 +10889,29 @@ app.use(async (req, res, next) => {
     next();
   }
 });
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
+  let dbStatus = "unknown";
+  let dbLatency = -1;
+  try {
+    const { pool: pool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+    if (pool2) {
+      const start = Date.now();
+      await pool2.query("SELECT 1");
+      dbLatency = Date.now() - start;
+      dbStatus = "connected";
+    } else {
+      dbStatus = "sqlite";
+    }
+  } catch (e) {
+    dbStatus = "error";
+  }
   res.status(200).json({
     status: "ok",
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    uptime: process.uptime(),
+    uptime: Math.floor(process.uptime()),
+    memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+    database: dbStatus,
+    dbLatencyMs: dbLatency,
     rateLimitDisabled: process.env.DISABLE_RATE_LIMIT === "true"
   });
 });

@@ -99,50 +99,34 @@ export function AnnouncementPopup() {
     const userRole = user?.role?.toLowerCase();
     const isLoggedIn = !!user;
 
-    console.log("Filtering announcements:", {
-      isStorefrontView,
-      userRole,
-      isLoggedIn,
-      pathname,
-      totalAnnouncements: announcements.length
-    });
-
     return announcements.filter((announcement) => {
       const audiences = getAudiencesArray(announcement).map((a) => a.toLowerCase());
-      
-      console.log("Announcement:", announcement.title, "audiences:", audiences);
 
       // If "all" is in the audiences, show to everyone
       if (audiences.includes("all")) {
-        console.log("  -> Showing (has 'all')");
         return true;
       }
 
       // "guest" is only shown to non-logged-in users
       if (audiences.includes("guest") && !isLoggedIn) {
-        console.log("  -> Showing (guest match)");
         return true;
       }
 
       // "loggedIn" is only shown to logged-in users
       if (audiences.includes("loggedin") && isLoggedIn) {
-        console.log("  -> Showing (loggedIn match)");
         return true;
       }
 
       // "agent" is only shown to agents
       if (audiences.includes("agent") && userRole === "agent") {
-        console.log("  -> Showing (agent match)");
         return true;
       }
 
       // "storefront" is only shown on storefront pages (guests or agents viewing the store)
       if (audiences.includes("storefront") && isStorefrontView) {
-        console.log("  -> Showing (storefront match)");
         return true;
       }
 
-      console.log("  -> Hiding (no match)");
       return false;
     });
   };

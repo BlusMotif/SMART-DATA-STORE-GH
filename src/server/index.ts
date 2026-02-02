@@ -672,16 +672,8 @@ app.use((req, res, next) => {
         port: PORT,
         host: HOST,
       },
-      async () => {
+      () => {
         console.log(`Server running on http://${HOST}:${PORT}`);
-        
-        // Warm up database connection pool for faster first queries
-        try {
-          const { warmupDatabaseConnection } = await import('./db.js');
-          await warmupDatabaseConnection();
-        } catch (dbErr: any) {
-          console.error('[Startup] Database warmup failed:', dbErr.message);
-        }
       },
     );
   } catch (error) {

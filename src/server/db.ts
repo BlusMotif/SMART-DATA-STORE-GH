@@ -1,9 +1,9 @@
 // Database connection - PostgreSQL with Drizzle ORM
-// Optimized for Hostinger shared hosting with fast connection
+// Uses lazy initialization to ensure env vars are loaded first
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import * as schema from '../shared/schema.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,7 +16,6 @@ const __dirname = path.dirname(__filename);
 let _db: any = null;
 let _pool: Pool | null = null;
 let _initialized = false;
-let _connectionWarmedUp = false;
 
 /**
  * Initialize the database connection
@@ -35,20 +34,17 @@ function initializeDatabase(): void {
     }
     
     // Connection pool optimized for Hostinger shared hosting with 1000+ users
-    // Fast connection with aggressive keepalive for quick response times
+    // Increased pool size for better concurrency while staying within limits
     _pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       max: 10,  // Increased for 1000+ users - Hostinger allows 10-15 connections
-      min: 3,   // Keep 3 connections warm for instant response
-      idleTimeoutMillis: 60000,  // 60s idle timeout - keep connections alive longer
-      connectionTimeoutMillis: 10000,  // 10s fast timeout - fail fast if DB unreachable
-      statement_timeout: 30000,  // 30s statement timeout
-      query_timeout: 30000,  // 30s query timeout
-      allowExitOnIdle: false,  // Keep min connections alive always
+      min: 2,   // Keep 2 connections warm for faster response
+      idleTimeoutMillis: 30000,  // 30s idle timeout - balance between resources and speed
+      connectionTimeoutMillis: 20000,  // 20s to connect on slow shared hosting
+      statement_timeout: 45000,  // 45s statement timeout for complex queries
+      query_timeout: 45000,  // 45s query timeout
+      allowExitOnIdle: true,  // Allow pool to shrink when idle
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      // TCP keepalive to prevent Hostinger/Supabase dropping idle connections
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 10000,  // Start keepalive after 10s
     });
 
     // Error handling for the pool (keep this for production debugging)
@@ -96,69 +92,5 @@ export const pool = new Proxy({} as any, {
 export function ensureDbInitialized(): void {
   if (!_initialized) {
     initializeDatabase();
-  }
-}
-
-/**
- * Warm up database connection pool for faster first queries
- * Call this during server startup to pre-establish connections
- */
-export async function warmupDatabaseConnection(): Promise<boolean> {
-  if (_connectionWarmedUp) return true;
-  
-  try {
-    const pool = getPool();
-    if (!pool) {
-      console.log('[DB] No pool available for warmup (using SQLite)');
-      _connectionWarmedUp = true;
-      return true;
-    }
-    
-    const startTime = Date.now();
-    
-    // Acquire multiple connections to warm up the pool
-    const warmupPromises: Promise<PoolClient>[] = [];
-    const warmupCount = Math.min(3, pool.options.min || 2);
-    
-    for (let i = 0; i < warmupCount; i++) {
-      warmupPromises.push(pool.connect());
-    }
-    
-    const clients = await Promise.all(warmupPromises);
-    
-    // Run a simple query on each connection to verify they work
-    await Promise.all(clients.map(client => client.query('SELECT 1')));
-    
-    // Release all connections back to pool
-    clients.forEach(client => client.release());
-    
-    const elapsed = Date.now() - startTime;
-    console.log(`[DB] ✅ Connection pool warmed up (${warmupCount} connections, ${elapsed}ms)`);
-    
-    _connectionWarmedUp = true;
-    return true;
-  } catch (error: any) {
-    console.error('[DB] ❌ Warmup failed:', error.message);
-    return false;
-  }
-}
-
-/**
- * Health check for database connection
- */
-export async function checkDatabaseHealth(): Promise<{ healthy: boolean; latency: number }> {
-  try {
-    const pool = getPool();
-    if (!pool) {
-      return { healthy: true, latency: 0 }; // SQLite always healthy
-    }
-    
-    const start = Date.now();
-    await pool.query('SELECT 1');
-    const latency = Date.now() - start;
-    
-    return { healthy: true, latency };
-  } catch (error) {
-    return { healthy: false, latency: -1 };
   }
 }

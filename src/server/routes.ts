@@ -678,17 +678,14 @@ export async function registerRoutes(
   app: Express
 ): Promise<void> {
   // ============================================
-  // HEALTH CHECK - Basic status endpoint with DB latency
+  // HEALTH CHECK - Basic status endpoint
   // ============================================
   app.get("/api/health", async (req, res) => {
     try {
-      // Test database connection with latency measurement
+      // Test database connection
       let dbStatus = 'unknown';
-      let dbLatency = -1;
       try {
-        const start = Date.now();
         await db.execute(sql`SELECT 1 as test`);
-        dbLatency = Date.now() - start;
         dbStatus = 'connected';
       } catch (e: any) {
         dbStatus = 'error';
@@ -697,10 +694,7 @@ export async function registerRoutes(
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        database: dbStatus,
-        dbLatencyMs: dbLatency,
-        uptime: Math.floor(process.uptime()),
-        memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
+        database: dbStatus
       });
     } catch (error: any) {
       res.status(500).json({ status: 'error' });

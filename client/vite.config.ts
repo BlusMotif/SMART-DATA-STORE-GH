@@ -57,9 +57,11 @@ export default defineConfig(({ mode }: ConfigEnv) => ({
     // PostCSS configured via tailwind.config.js
   },
 
-  // Strip console.log and debugger statements in production
+  // Strip console.log, console.warn, console.info, console.debug and debugger statements in production
+  // This ensures no sensitive data can be logged to browser console
   esbuild: {
     drop: mode === 'production' ? ['console', 'debugger'] : [],
+    pure: mode === 'production' ? ['console.log', 'console.info', 'console.debug', 'console.warn'] : [],
   },
 
   build: {

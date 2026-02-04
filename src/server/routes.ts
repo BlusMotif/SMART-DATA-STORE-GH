@@ -371,11 +371,11 @@ const requireMaster = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
-// Generate unique transaction reference
-function generateReference(): string {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = randomUUID().split("-")[0].toUpperCase();
-  return `TXN-${timestamp}-${random}`;
+// Generate unique transaction reference using sequential order numbers
+// Format: #114000, #114001, #114002, etc.
+async function generateReference(): Promise<string> {
+  const orderNumber = await storage.getNextOrderNumber();
+  return orderNumber.toString();
 }
 
 // Role labels for storefront display
@@ -1887,7 +1887,7 @@ export async function registerRoutes(
         }
       }
       // Create transaction
-      const reference = generateReference();
+      const reference = await generateReference();
       
       // Determine network from first item (all items have same network due to validation)
       let bulkNetwork: string | undefined;
@@ -2138,6 +2138,7 @@ export async function registerRoutes(
       let agentId: string | undefined;
       let network: string | null = null;
       let authenticatedAgentId: string | undefined;
+      let bulkProcessedOrderItems: Array<{phone: string, bundleName: string, bundleId: string, dataAmount: string, price: number, profit?: number}> | undefined;
       // Handle new bulk format with orderItems
       if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
         console.log("[Checkout] ========== NEW BULK FORMAT DETECTED ==========");
@@ -2194,6 +2195,7 @@ export async function registerRoutes(
         costPrice = 0;
         amount = 0;
         let computedAgentProfit = 0;
+        const processedOrderItems: Array<{phone: string, bundleName: string, bundleId: string, dataAmount: string, price: number, profit?: number}> = [];
         // If this request targets an agent storefront, resolve the agent and enforce explicit agent prices
         let storefrontAgent: any = null;
         if (data.agentSlug) {
@@ -2217,6 +2219,7 @@ export async function registerRoutes(
           }
           // For agent storefront, use resolved price (custom or admin base)
           let itemPrice: number;
+          let itemProfit: number = 0;
           if (storefrontAgent) {
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, storefrontAgent.id, 'agent');
             if (!resolvedPrice) {
@@ -2244,7 +2247,8 @@ export async function registerRoutes(
             if (storedProfit) {
               // Use the stored profit value
               const profitValue = parseFloat(storedProfit);
-              computedAgentProfit += Math.max(0, profitValue);
+              itemProfit = Math.max(0, profitValue);
+              computedAgentProfit += itemProfit;
             } else {
               // Fallback: calculate profit if not stored
               const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, 'agent');
@@ -2255,13 +2259,24 @@ export async function registerRoutes(
                 const basePriceValue = await storage.getAdminBasePrice(bundle.id);
                 basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || '0');
               }
-              const profit = itemPrice - basePrice;
-              computedAgentProfit += Math.max(0, profit);
+              itemProfit = Math.max(0, itemPrice - basePrice);
+              computedAgentProfit += itemProfit;
             }
           }
+          // Store processed item with price and profit
+          processedOrderItems.push({
+            phone: item.phone,
+            bundleName: item.bundleName,
+            bundleId: item.bundleId,
+            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
+            price: itemPrice,
+            profit: itemProfit,
+          });
         }
         // store computed agent profit for later use
         agentProfit = computedAgentProfit;
+        // Store processedOrderItems for later use when creating phoneNumbersData
+        bulkProcessedOrderItems = processedOrderItems;
         console.log("[Checkout] Bulk order total amount (from orderItems):", amount);
         console.log("[Checkout] Bulk order total cost price:", costPrice);
         productName = `Bulk Order - ${data.orderItems.length} items`;
@@ -2424,15 +2439,22 @@ export async function registerRoutes(
           }
         }
       }
-      const reference = generateReference();
-      // Handle bulk orders - store full order items with GB info
-      const phoneNumbersData = data.orderItems
-        ? data.orderItems.map((item: any) => ({
-            phone: item.phone,
-            bundleName: item.bundleName,
-            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
-          }))
-        : data.phoneNumbers;
+      const reference = await generateReference();
+      // Handle bulk orders - use processed order items with prices if available, otherwise fallback
+      console.log("[Checkout] ========== PHONE NUMBERS DATA RESOLUTION ==========");
+      console.log("[Checkout] bulkProcessedOrderItems exists:", !!bulkProcessedOrderItems);
+      console.log("[Checkout] bulkProcessedOrderItems:", bulkProcessedOrderItems);
+      const phoneNumbersData = bulkProcessedOrderItems 
+        ? bulkProcessedOrderItems
+        : data.orderItems
+          ? data.orderItems.map((item: any) => ({
+              phone: item.phone,
+              bundleName: item.bundleName,
+              dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
+            }))
+          : data.phoneNumbers;
+      console.log("[Checkout] Final phoneNumbersData:", phoneNumbersData);
+      console.log("[Checkout] =======================================================");
       const isBulkOrder = !!(data.isBulkOrder || (data.orderItems && data.orderItems.length > 0));
       // Validate that bulk orders are not allowed for AT iShare network
       if (isBulkOrder && network === "at_ishare") {
@@ -2854,13 +2876,80 @@ export async function registerRoutes(
           transaction,
         });
       }
-      if (transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) {
+      // For data bundles, check if Skytech API was actually called (apiResponse exists)
+      // If status is completed but apiResponse is null, we need to fulfill it
+      const needsFulfillment = transaction.type === ProductType.DATA_BUNDLE && !transaction.apiResponse;
+      
+      if ((transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) && !needsFulfillment) {
         console.log("[Verify] Transaction already completed or fulfilled");
         // Return the full transaction record so the client has fields like id/type/customerPhone
         return res.json({
           success: true,
           transaction,
         });
+      }
+      
+      // If transaction is completed but needs fulfillment (no apiResponse for data bundle)
+      if (needsFulfillment && transaction.status === TransactionStatus.COMPLETED) {
+        console.log("[Verify] Transaction completed but needs Skytech fulfillment - processing now");
+        // Skip Paystack verification since payment is already confirmed
+        // Go directly to fulfillment
+        try {
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+          await storage.updateTransaction(transaction.id, { 
+            apiResponse: JSON.stringify(fulfillmentResult),
+            paymentStatus: "paid"
+          });
+
+          if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+            const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+            
+            if (allSuccess) {
+              console.log("[Verify] Skytech fulfillment successful:", fulfillmentResult);
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.PENDING,
+                deliveryStatus: "processing",
+              });
+            } else {
+              const failedItems = fulfillmentResult.results.filter((r: any) => r.status === 'failed');
+              console.error("[Verify] Skytech fulfillment had failures:", failedItems);
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.FAILED,
+                deliveryStatus: "failed",
+                failureReason: `Provider rejected: ${failedItems.map((r: any) => r.error || 'Unknown error').join(', ')}`,
+              });
+            }
+          } else {
+            console.error("[Verify] Skytech fulfillment failed:", fulfillmentResult?.error);
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.FAILED,
+              deliveryStatus: "failed",
+              failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
+            });
+          }
+          
+          // Fetch updated transaction
+          const updatedTransaction = await storage.getTransactionByReference(transaction.reference);
+          clearTimeout(timeoutId);
+          return res.json({
+            success: true,
+            transaction: updatedTransaction,
+          });
+        } catch (error: any) {
+          console.error("[Verify] Fulfillment error:", error);
+          await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.FAILED,
+            deliveryStatus: "failed",
+            failureReason: `Fulfillment error: ${error.message || 'Unknown error'}`,
+          });
+          const updatedTransaction = await storage.getTransactionByReference(transaction.reference);
+          clearTimeout(timeoutId);
+          return res.json({
+            success: false,
+            error: "Fulfillment failed",
+            transaction: updatedTransaction,
+          });
+        }
       }
       // Verify payment with Paystack API with retry logic
       console.log("[Verify] Calling Paystack API for verification");
@@ -4820,6 +4909,45 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update delivery status" });
     }
   });
+
+  // Update payment status for a transaction (admin only)
+  app.patch("/api/admin/transactions/:id/payment-status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { paymentStatus, reason } = req.body;
+      if (!["paid", "pending", "failed", "cancelled"].includes(paymentStatus)) {
+        return res.status(400).json({ error: "Invalid payment status. Use 'paid', 'pending', 'failed', or 'cancelled'" });
+      }
+      
+      const existingTx = await storage.getTransaction(req.params.id);
+      if (!existingTx) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+      
+      // Prepare update data
+      const updateData: any = {
+        paymentStatus,
+        failureReason: reason || (paymentStatus === 'cancelled' ? 'Cancelled by admin' : 
+                                  paymentStatus === 'failed' ? 'Marked as failed by admin' : null)
+      };
+      
+      // If marking as cancelled or failed, also update order status
+      if (paymentStatus === 'cancelled' || paymentStatus === 'failed') {
+        updateData.status = 'failed';
+      }
+      
+      const transaction = await storage.updateTransaction(req.params.id, updateData);
+      if (!transaction) {
+        return res.status(404).json({ error: "Failed to update transaction" });
+      }
+      
+      console.log(`[Admin] Updated payment status for ${req.params.id} to ${paymentStatus} by admin ${req.user?.id}`);
+      res.json(transaction);
+    } catch (error: any) {
+      console.error("Failed to update payment status:", error);
+      res.status(500).json({ error: "Failed to update payment status" });
+    }
+  });
+
   // Export transactions to CSV
   app.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -5255,7 +5383,7 @@ export async function registerRoutes(
 
       // Also create a transaction record so user sees it in their history
       try {
-        const transactionRef = `MANUAL_TOPUP_${walletTopupRecord.id.substring(0, 8)}`;
+        const transactionRef = await generateReference();
         await storage.createTransaction({
           reference: transactionRef,
           type: "wallet_topup" as any,
@@ -6601,9 +6729,29 @@ export async function registerRoutes(
       if (!q || typeof q !== 'string') {
         return res.status(400).json({ error: "Search query is required" });
       }
-      const trimmedQuery = q.trim();
+      let trimmedQuery = q.trim();
+      
+      // Remove # prefix if present
+      if (trimmedQuery.startsWith('#')) {
+        trimmedQuery = trimmedQuery.slice(1);
+      }
+      
+      // Check if searching for a sub-item (e.g., "114003-2")
+      let subItemIndex: number | null = null;
+      const subItemMatch = trimmedQuery.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        trimmedQuery = subItemMatch[1]; // Use the base reference
+        subItemIndex = parseInt(subItemMatch[2]); // Store the sub-item index
+      }
+      
       // Search by transaction ID/reference first
       let transaction = await storage.getTransactionByReference(trimmedQuery);
+      
+      // If not found, try searching by UUID (transaction id)
+      if (!transaction) {
+        transaction = await storage.getTransaction(trimmedQuery);
+      }
+      
       // If not found, search by beneficiary phone number
       if (!transaction) {
         transaction = await storage.getTransactionByBeneficiaryPhone(trimmedQuery);
@@ -6620,7 +6768,9 @@ export async function registerRoutes(
           phoneNumbers = null;
         }
       }
-      res.json({
+      
+      // If searching for a specific sub-item, return only that item's info
+      let responseData: any = {
         id: transaction.id,
         reference: transaction.reference,
         productName: transaction.productName,
@@ -6632,8 +6782,28 @@ export async function registerRoutes(
         completedAt: transaction.completedAt,
         phoneNumbers: phoneNumbers, // For bulk orders
         isBulkOrder: transaction.isBulkOrder,
-          apiResponse: transaction.apiResponse, // Include SkyTech status
-        });
+        apiResponse: transaction.apiResponse, // Include SkyTech status
+        network: transaction.network, // Network/Provider name
+      };
+      
+      // If a sub-item was requested and this is a bulk order
+      if (subItemIndex !== null && transaction.isBulkOrder && Array.isArray(phoneNumbers) && phoneNumbers.length >= subItemIndex) {
+        const subItem = phoneNumbers[subItemIndex - 1]; // 1-indexed
+        if (subItem) {
+          responseData = {
+            ...responseData,
+            reference: `${transaction.reference}-${subItemIndex}`,
+            productName: subItem.bundleName || transaction.productName,
+            customerPhone: subItem.phone,
+            amount: subItem.price || (parseFloat(transaction.amount) / phoneNumbers.length).toFixed(2),
+            phoneNumbers: [subItem], // Only show this sub-item
+            subItemIndex: subItemIndex,
+            totalItems: phoneNumbers.length,
+          };
+        }
+      }
+      
+      res.json(responseData);
     } catch (error: any) {
       console.error('Order tracking error:', error);
       res.status(500).json({ error: "Failed to track order" });
@@ -6819,7 +6989,7 @@ export async function registerRoutes(
       const totalWithTax = topupAmount + taxAmount;
       
       // Create topup transaction (store the original topup amount, not with tax)
-      const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      const reference = await generateReference();
       const transaction = await storage.createTransaction({
         reference,
         type: "wallet_topup",
@@ -7105,15 +7275,43 @@ export async function registerRoutes(
         agentProfit = 0; // Agents pay agent base price with zero profit
       }
       // Create transaction
-      const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-      // Store full order items with GB info for bulk orders, or just phone numbers for simple orders
-      const phoneNumbersData = orderItems
-        ? orderItems.map((item: any) => ({
+      const reference = await generateReference();
+      // Store full order items with GB info and prices for bulk orders
+      let phoneNumbersData: any;
+      if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
+        // Calculate individual prices for each item in bulk order
+        const processedItems = [];
+        for (const item of orderItems) {
+          const bundle = await storage.getDataBundle(item.bundleId);
+          let itemPrice = 0;
+          if (bundle) {
+            // Get appropriate price based on user role or agent
+            if (agentId) {
+              const agent = await storage.getAgent(agentId);
+              if (agent) {
+                const resolvedPrice = await storage.getResolvedPrice(bundle.id, agent.id, 'agent');
+                itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || '0');
+              }
+            } else if (purchasingAgent && purchasingAgent.isApproved) {
+              const resolvedPrice = await storage.getResolvedPrice(bundle.id, purchasingAgent.id, 'agent');
+              itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || '0');
+            } else {
+              const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+              itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
+            }
+          }
+          processedItems.push({
             phone: normalizePhoneNumber(item.phone),
             bundleName: item.bundleName,
+            bundleId: item.bundleId,
             dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
-          }))
-        : (phoneNumbers ? phoneNumbers.map((phone: string) => ({ phone: normalizePhoneNumber(phone) })) : undefined);
+            price: itemPrice,
+          });
+        }
+        phoneNumbersData = processedItems;
+      } else if (phoneNumbers) {
+        phoneNumbersData = phoneNumbers.map((phone: string) => ({ phone: normalizePhoneNumber(phone) }));
+      }
       console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
       console.log("[Wallet] orderItems:", orderItems);
       console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
@@ -9173,5 +9371,56 @@ app.post('/api/cron/cleanup-failed-orders', async (req: Request, res: Response) 
   } catch (error: any) {
     console.error('[Cron] Cleanup failed:', error);
     res.status(500).json({ error: 'Cleanup failed', details: error.message });
+  }
+});
+
+// Cron job endpoint to auto-cancel stale pending payments (payments pending for more than 30 minutes)
+app.post('/api/cron/expire-pending-payments', async (req: Request, res: Response) => {
+  try {
+    console.log('[Cron] Starting stale pending payment expiration');
+
+    // Get transactions that have been in pending payment status for more than 30 minutes
+    const cutoffDate = new Date();
+    cutoffDate.setMinutes(cutoffDate.getMinutes() - 30);
+
+    // Find transactions where paymentStatus is 'pending' and created more than 30 minutes ago
+    const allTransactions = await storage.getTransactions();
+    const stalePendingPayments = allTransactions.filter((tx: any) => {
+      const isPendingPayment = tx.paymentStatus === 'pending' || !tx.paymentStatus;
+      const createdAt = new Date(tx.createdAt);
+      const isStale = createdAt < cutoffDate;
+      return isPendingPayment && isStale;
+    });
+
+    console.log(`[Cron] Found ${stalePendingPayments.length} stale pending payments to expire`);
+
+    let expiredCount = 0;
+    let errorCount = 0;
+
+    for (const transaction of stalePendingPayments) {
+      try {
+        await storage.updateTransaction(transaction.id, {
+          paymentStatus: 'cancelled',
+          status: 'failed',
+          failureReason: 'Payment expired - no payment received within 30 minutes'
+        });
+        expiredCount++;
+        console.log(`[Cron] Expired payment for transaction ${transaction.id}`);
+      } catch (error: any) {
+        console.error(`[Cron] Error expiring transaction ${transaction.id}:`, error.message);
+        errorCount++;
+      }
+    }
+
+    console.log(`[Cron] Pending payment expiration completed. Expired: ${expiredCount}, Errors: ${errorCount}`);
+
+    res.json({
+      success: true,
+      message: `Expired ${expiredCount} stale pending payments, errors: ${errorCount}`
+    });
+
+  } catch (error: any) {
+    console.error('[Cron] Pending payment expiration failed:', error);
+    res.status(500).json({ error: 'Pending payment expiration failed', details: error.message });
   }
 });}

@@ -404,12 +404,12 @@ export default function CheckoutSuccessPage() {
                     <div className="flex justify-between">
                       <span className="text-sm text-white/70">Order ID</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-mono text-white" data-testid="text-reference">{transaction.id.slice(0,8)}</span>
+                        <span className="text-sm font-mono text-white" data-testid="text-reference">#{transaction.reference}</span>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-white hover:bg-white/20"
-                          onClick={() => copyToClipboard(transaction.id.slice(0,8))}
+                          onClick={() => copyToClipboard(transaction.reference)}
                         >
                           <Copy className="h-3 w-3" />
                         </Button>

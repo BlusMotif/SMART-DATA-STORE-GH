@@ -235,7 +235,7 @@ export default function CheckoutPage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground flex items-center gap-1">
                       <Info className="h-3 w-3" />
-                      Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                      Paystack Fee ({PAYSTACK_TAX_PERCENTAGE}%)
                     </span>
                     <span className="font-medium text-orange-600">{formatCurrency(taxAmount)}</span>
                   </div>
@@ -247,7 +247,7 @@ export default function CheckoutPage() {
 
                   <div className="bg-orange-100 dark:bg-orange-900 rounded-lg p-3 mt-2">
                     <p className="text-xs text-orange-700 dark:text-white">
-                      A {PAYSTACK_TAX_PERCENTAGE}% processing fee is added to all Paystack payments.
+                      A {PAYSTACK_TAX_PERCENTAGE}% Paystack fee is added to all Paystack payments.
                     </p>
                   </div>
 

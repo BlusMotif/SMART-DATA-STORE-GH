@@ -1765,6 +1765,43 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  // Get next sequential order number (starting from 114000)
+  async getNextOrderNumber(): Promise<number> {
+    const START_ORDER_NUMBER = 114000;
+    const key = 'next_order_number';
+    
+    // Get current value
+    const result = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+    
+    let currentNumber: number;
+    if (result[0]) {
+      currentNumber = parseInt(result[0].value, 10);
+      // Ensure we don't go below the start number
+      if (currentNumber < START_ORDER_NUMBER) {
+        currentNumber = START_ORDER_NUMBER;
+      }
+    } else {
+      // First time - initialize with start number
+      currentNumber = START_ORDER_NUMBER;
+    }
+    
+    // Increment and save the next number
+    const nextNumber = currentNumber + 1;
+    if (result[0]) {
+      await db.update(settings)
+        .set({ value: nextNumber.toString(), updatedAt: new Date() })
+        .where(eq(settings.key, key));
+    } else {
+      await db.insert(settings).values({
+        key,
+        value: nextNumber.toString(),
+        description: 'Next sequential order number for transaction references'
+      });
+    }
+    
+    return currentNumber;
+  }
+
   // ============================================
   // EXTERNAL API PROVIDERS
   // ============================================

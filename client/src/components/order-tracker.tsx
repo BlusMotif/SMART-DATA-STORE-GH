@@ -21,6 +21,7 @@ interface TrackedOrder {
   apiResponse?: string;
   skytechStatus?: string;
   skytechData?: any;
+  network?: string;
 }
 
 export function OrderTracker() {
@@ -29,7 +30,27 @@ export function OrderTracker() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [order, setOrder] = useState<TrackedOrder | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const { toast } = useToast();
+
+  // Check if order is in a state that needs auto-refresh
+  const needsAutoRefresh = (order: TrackedOrder | null): boolean => {
+    if (!order) return false;
+    const status = (order.skytechStatus || order.deliveryStatus || order.status).toLowerCase();
+    // Auto-refresh for pending, processing, or queued orders
+    return ['pending', 'processing', 'queued'].includes(status);
+  };
+
+  // Auto-refresh effect - refresh every 10 seconds for pending/processing orders
+  useEffect(() => {
+    if (!order || !autoRefreshEnabled || !needsAutoRefresh(order)) return;
+
+    const intervalId = setInterval(() => {
+      refreshOrderStatus(order.id);
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(intervalId);
+  }, [order, autoRefreshEnabled]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -77,6 +98,26 @@ export function OrderTracker() {
       const data = await response.json();
 
       if (response.ok) {
+        // Check if status changed
+        const oldStatus = order?.skytechStatus || order?.deliveryStatus || order?.status;
+        const newStatus = data.skytechStatus || data.deliveryStatus || data.status;
+        
+        if (order && oldStatus !== newStatus) {
+          const statusLower = newStatus?.toLowerCase();
+          if (statusLower === 'completed' || statusLower === 'delivered' || statusLower === 'success') {
+            toast({
+              title: "🎉 Order Delivered!",
+              description: "Your data bundle has been delivered successfully.",
+            });
+          } else if (statusLower === 'failed' || statusLower === 'error' || statusLower === 'cancelled') {
+            toast({
+              title: "❌ Order Failed",
+              description: "Your order could not be processed. Please contact support.",
+              variant: "destructive",
+            });
+          }
+        }
+        
         setOrder(data);
         setRefreshedAt(new Date());
       }
@@ -146,13 +187,13 @@ export function OrderTracker() {
           Track Your Order
         </CardTitle>
         <CardDescription className="text-muted-foreground">
-          Enter your transaction ID or beneficiary phone number to track your order status
+          Enter your order number or beneficiary phone number to track your order status
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="Transaction ID or Phone Number (e.g., TXN-123456789-ABCDEF or 0241234567)"
+            placeholder="Order Number or Phone Number (e.g., #114000 or 0241234567)"
             value={searchQuery}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
             onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearch()}
@@ -188,7 +229,7 @@ export function OrderTracker() {
                     size="sm"
                     onClick={() => refreshOrderStatus(order.id)}
                     disabled={isRefreshing}
-                    className="ml-2"
+                    title="Refresh status"
                   >
                     <RotateCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                   </Button>
@@ -201,6 +242,7 @@ export function OrderTracker() {
                     (Updated: {refreshedAt.toLocaleTimeString()})
                   </span>
                 )}
+{/* Auto-refresh indicator hidden */}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -208,6 +250,10 @@ export function OrderTracker() {
                 <div>
                   <span className="font-semibold text-gray-800 dark:text-gray-100">Amount:</span>
                   <p className="font-bold text-gray-900 dark:text-white">GHS {order.amount}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-gray-800 dark:text-gray-100">Network:</span>
+                  <p className="font-semibold text-gray-900 dark:text-white">{order.network ? order.network.toUpperCase().replace('_', ' ') : '-'}</p>
                 </div>
                 <div>
                   <span className="font-semibold text-gray-800 dark:text-gray-100">Date:</span>

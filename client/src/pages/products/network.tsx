@@ -481,7 +481,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground flex items-center gap-1">
-                          Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                          Paystack Fee ({PAYSTACK_TAX_PERCENTAGE}%)
                           <Info className="h-3 w-3" />
                         </span>
                         <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
@@ -495,7 +495,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                     <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
                       <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
                       <p className="text-xs text-orange-700 dark:text-white">
-                        A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                        A {PAYSTACK_TAX_PERCENTAGE}% Paystack fee is applied to all Paystack payments.
                       </p>
                     </div>
                   </div>
@@ -579,7 +579,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground flex items-center gap-1">
-                          Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                          Paystack Fee ({PAYSTACK_TAX_PERCENTAGE}%)
                           <Info className="h-3 w-3" />
                         </span>
                         <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
@@ -593,7 +593,7 @@ function PublicPurchaseFlow({ network, agentSlug }: { network: string; agentSlug
                     <div className="flex items-start gap-2 p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-200 dark:border-orange-800">
                       <Info className="h-4 w-4 text-orange-600 dark:text-white mt-0.5 flex-shrink-0" />
                       <p className="text-xs text-orange-700 dark:text-white">
-                        A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments.
+                        A {PAYSTACK_TAX_PERCENTAGE}% Paystack fee is applied to all Paystack payments.
                       </p>
                     </div>
                   </div>

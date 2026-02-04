@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { UserSidebar } from "@/components/layout/user-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Loader2, Menu, Search, CheckCircle, XCircle, Clock, Layers, Filter, Download } from "lucide-react";
+import { Loader2, Menu, Search, CheckCircle, XCircle, Clock, Layers, Filter, Download, CreditCard } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -75,6 +75,7 @@ export default function UserHistoryPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
 
   // Helper to extract SkyTech status from API response for real-time tracking
   const getSkytechStatus = (transaction: any): string | null => {
@@ -111,11 +112,18 @@ export default function UserHistoryPage() {
 
   // Filter transactions
   const filteredTransactions = transactions?.filter((transaction: any) => {
+    // Clean up search query - remove # prefix if present
+    const cleanSearch = searchQuery.toLowerCase().replace(/^#/, '');
+    
+    // Check if searching for a sub-item (e.g., "114003-2")
+    const subItemMatch = cleanSearch.match(/^(\d+)-(\d+)$/);
+    
     const matchesSearch = searchQuery === "" || 
-      transaction.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.customerPhone?.includes(searchQuery) ||
-      transaction.reference?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      transaction.id?.toLowerCase().includes(searchQuery.toLowerCase());
+      transaction.productName?.toLowerCase().includes(cleanSearch) ||
+      transaction.customerPhone?.includes(cleanSearch) ||
+      transaction.reference?.toLowerCase().includes(cleanSearch) ||
+      transaction.id?.toLowerCase().includes(cleanSearch) ||
+      (subItemMatch && transaction.reference === subItemMatch[1] && transaction.isBulkOrder);
     
     const providerStatus = getSkytechStatus(transaction);
     const effectiveStatus = providerStatus
@@ -123,8 +131,62 @@ export default function UserHistoryPage() {
       : transaction.status;
     const matchesStatus = statusFilter === "all" || effectiveStatus === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    const matchesPaymentStatus = paymentStatusFilter === "all" || 
+      (transaction.paymentStatus || "pending") === paymentStatusFilter;
+    
+    return matchesSearch && matchesStatus && matchesPaymentStatus;
   });
+
+  // Flatten bulk orders into individual rows for easy tracking
+  const flattenedTransactions = filteredTransactions?.flatMap((transaction: any) => {
+    const isBulkOrder = transaction.isBulkOrder;
+    const phoneNumbers = transaction.phoneNumbers 
+      ? (typeof transaction.phoneNumbers === 'string' 
+          ? (() => { try { return JSON.parse(transaction.phoneNumbers); } catch { return []; } })()
+          : transaction.phoneNumbers) as Array<{phone: string, bundleName: string, dataAmount: string, status?: string, price?: number}>
+      : undefined;
+    
+    // If it's a bulk order with phone numbers, split into individual rows
+    if (isBulkOrder && phoneNumbers && phoneNumbers.length > 0) {
+      const fallbackPrice = parseFloat(transaction.amount) / phoneNumbers.length;
+      return phoneNumbers.map((phoneObj: any, index: number) => ({
+        ...transaction,
+        // Create unique ID for each expanded row
+        id: `${transaction.id}-${index}`,
+        originalId: transaction.id,
+        customerPhone: phoneObj.phone,
+        productName: phoneObj.bundleName || transaction.productName,
+        dataAmount: phoneObj.dataAmount,
+        amount: phoneObj.price ? phoneObj.price.toFixed(2) : fallbackPrice.toFixed(2),
+        // Individual item status (if available from API response)
+        itemStatus: phoneObj.status || transaction.status,
+        isBulkOrder: false, // Mark as non-bulk for display
+        isExpandedBulkItem: true, // Flag to identify this is from a bulk order
+        bulkOrderIndex: index + 1,
+        bulkOrderTotal: phoneNumbers.length,
+        originalReference: transaction.reference,
+      }));
+    }
+    
+    // Return non-bulk orders as-is
+    return [transaction];
+  })?.filter((tx: any) => {
+    // Post-flattening filter for sub-item search (e.g., "114003-2")
+    if (searchQuery) {
+      const cleanSearch = searchQuery.toLowerCase().replace(/^#/, '');
+      const subItemMatch = cleanSearch.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        const [, baseRef, subIndex] = subItemMatch;
+        // Only show the specific sub-item that matches
+        if ((tx.reference === baseRef || tx.originalReference === baseRef) && tx.isExpandedBulkItem) {
+          return tx.bulkOrderIndex === parseInt(subIndex);
+        }
+        // Hide non-matching items when searching for sub-item
+        return false;
+      }
+    }
+    return true;
+  }) || [];
 
   console.log('[User History] Filtered transactions:', filteredTransactions?.length, 'out of', transactions?.length);
 
@@ -197,6 +259,19 @@ export default function UserHistoryPage() {
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Payment status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Payments</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
@@ -206,7 +281,7 @@ export default function UserHistoryPage() {
               <CardHeader>
                 <CardTitle>Transaction History</CardTitle>
                 <CardDescription>
-                  {filteredTransactions?.length || 0} transaction(s) found
+                  {flattenedTransactions?.length || 0} order(s) found
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -214,14 +289,14 @@ export default function UserHistoryPage() {
                   <div className="flex justify-center py-12">
                     <Loader2 className="h-8 w-8 animate-spin" />
                   </div>
-                ) : filteredTransactions && filteredTransactions.length > 0 ? (
+                ) : flattenedTransactions && flattenedTransactions.length > 0 ? (
                   <div className="space-y-4">
-                    {filteredTransactions.map((transaction: any) => {
+                    {flattenedTransactions.map((transaction: any) => {
                       const isWalletDeduction = transaction.type === 'wallet_deduction';
                       const providerStatus = getSkytechStatus(transaction);
-                      const effectiveStatus = providerStatus
+                      const effectiveStatus = transaction.itemStatus || (providerStatus
                         ? mapProviderStatusToOrderStatus(providerStatus)
-                        : transaction.status;
+                        : transaction.status);
                       const statusConfig = isWalletDeduction 
                         ? {
                             variant: 'destructive' as const,
@@ -233,12 +308,6 @@ export default function UserHistoryPage() {
                           }
                         : getStatusConfig(effectiveStatus);
                       const StatusIcon = statusConfig.icon;
-                      const isBulkOrder = transaction.isBulkOrder;
-                      const phoneNumbers = transaction.phoneNumbers 
-                        ? (typeof transaction.phoneNumbers === 'string' 
-                            ? JSON.parse(transaction.phoneNumbers) 
-                            : transaction.phoneNumbers) as Array<{phone: string, bundleName: string, dataAmount: string}>
-                        : undefined;
 
                       return (
                         <div
@@ -249,36 +318,41 @@ export default function UserHistoryPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-2 mb-2">
                                 <p className="font-medium text-sm md:text-base text-white">{transaction.productName}</p>
+                                <Badge 
+                                  variant={
+                                    transaction.paymentStatus === 'paid' ? 'default' :
+                                    transaction.paymentStatus === 'failed' ? 'destructive' :
+                                    transaction.paymentStatus === 'cancelled' ? 'outline' :
+                                    'secondary'
+                                  } 
+                                  className={`flex items-center gap-1 ${
+                                    transaction.paymentStatus === 'paid' ? 'bg-green-600 text-white border-green-500' :
+                                    transaction.paymentStatus === 'failed' ? 'bg-red-700 text-white border-red-600' :
+                                    transaction.paymentStatus === 'cancelled' ? 'bg-orange-600 text-white border-orange-500' :
+                                    'bg-yellow-600 text-white border-yellow-500'
+                                  }`}
+                                >
+                                  {transaction.paymentStatus === 'paid' ? '✓ Paid' :
+                                   transaction.paymentStatus === 'failed' ? '✗ Payment Failed' :
+                                   transaction.paymentStatus === 'cancelled' ? '✗ Cancelled' :
+                                   '⏳ Pending Payment'}
+                                </Badge>
                                 <Badge variant={statusConfig.variant} className="flex items-center gap-1 bg-white text-gray-800">
                                   <StatusIcon className="h-3 w-3" />
                                   {statusConfig.label}
                                 </Badge>
-                                {isBulkOrder && (
-                                  <Badge variant="secondary" className="flex items-center gap-1 bg-gray-200 text-gray-800">
+                                {transaction.isExpandedBulkItem && (
+                                  <Badge variant="secondary" className="flex items-center gap-1 bg-purple-600 text-white border-purple-500">
                                     <Layers className="h-3 w-3" />
-                                    Bulk ({phoneNumbers?.length || 0})
+                                    {transaction.bulkOrderIndex} of {transaction.bulkOrderTotal}
                                   </Badge>
                                 )}
                               </div>
 
                               <div className="text-xs md:text-sm text-gray-200 space-y-1">
-                                {isBulkOrder && phoneNumbers ? (
-                                  <>
-                                    <p className="font-semibold text-white">Recipients: {phoneNumbers.length} numbers</p>
-                                    <details className="cursor-pointer">
-                                      <summary className="text-blue-300 hover:underline">View all numbers</summary>
-                                      <div className="mt-2 ml-2 space-y-1 max-h-32 overflow-y-auto">
-                                        {phoneNumbers.map((phoneObj, idx) => (
-                                          <p key={idx} className="font-mono text-xs text-gray-300">{idx + 1}. {phoneObj.phone} - {phoneObj.bundleName} ({phoneObj.dataAmount})</p>
-                                        ))}
-                                      </div>
-                                    </details>
-                                  </>
-                                ) : (
-                                  <p className="text-gray-200">Phone: {transaction.customerPhone}</p>
-                                )}
+                                <p className="text-gray-200">Phone: {transaction.customerPhone}</p>
                                 {transaction.network && <p className="text-gray-200">Network: {transaction.network.toUpperCase()}</p>}
-                                <p className="text-xs text-gray-300">Order ID: {transaction.id.slice(0,8)}</p>
+                                <p className="text-xs text-gray-300">Order ID: #{transaction.reference || transaction.originalReference}{transaction.isExpandedBulkItem ? `-${transaction.bulkOrderIndex}` : ''}</p>
                                 <p className="text-xs text-gray-300">
                                   {new Date(transaction.createdAt).toLocaleDateString()} at {new Date(transaction.createdAt).toLocaleTimeString()}
                                 </p>
@@ -303,11 +377,6 @@ export default function UserHistoryPage() {
 
                             <div className="text-left sm:text-right shrink-0">
                               <p className="font-medium text-lg text-white">GH₵{transaction.amount}</p>
-                              {isBulkOrder && phoneNumbers && (
-                                <p className="text-xs text-gray-300">
-                                  GH₵{(parseFloat(transaction.amount) / phoneNumbers.length).toFixed(2)} each
-                                </p>
-                              )}
                               <Badge variant="outline" className="mt-1 bg-white text-gray-800 border-white">
                                 {transaction.paymentMethod === 'wallet' ? 'Wallet' : 'MoMo'}
                               </Badge>

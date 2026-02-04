@@ -127,7 +127,7 @@ export function WalletTopupSuccessView({
                 Payment Verification Failed
               </CardTitle>
               <CardDescription>
-                Order ID: {reference?.slice(0,8)}
+                Order ID: #{reference}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -200,7 +200,7 @@ export function WalletTopupSuccessView({
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
-              Order ID: {reference?.slice(0,8)}
+              Order ID: #{reference}
             </p>
           </CardContent>
         </Card>

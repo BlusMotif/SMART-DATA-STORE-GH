@@ -687,13 +687,15 @@ app.use((req, res, next) => {
 // ========================
 process.on('uncaughtException', (err) => {
   // Log but don't expose details
+  console.error('Uncaught Exception:', err);
   if (process.env.NODE_ENV !== 'production') {
     process.exit(1);
   }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  // Ignore in production to prevent crashes
+  // Log the rejection
+  console.error('Unhandled Rejection:', reason);
 });
 
 // Graceful shutdown handler

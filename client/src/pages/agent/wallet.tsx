@@ -272,7 +272,7 @@ export default function AgentWalletPage() {
                         return (
                           <TableRow key={transaction.id}>
                             <TableCell className="font-mono text-sm">
-                              {transaction.id.slice(0,8)}
+                              #{transaction.reference}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="capitalize">

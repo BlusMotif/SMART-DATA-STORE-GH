@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, RotateCw } from "lucide-react";
+import { BarChart3, Search, Menu, Layers, Download, Edit, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, RotateCw, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Transaction } from "@shared/schema";
@@ -126,6 +126,31 @@ export default function AdminTransactions() {
     },
   });
 
+  // Update payment status mutation (for cancelling abandoned payments)
+  const updatePaymentStatusMutation = useMutation({
+    mutationFn: async ({ transactionId, paymentStatus, reason }: { transactionId: string; paymentStatus: string; reason?: string }) => {
+      return apiRequest("PATCH", `/api/admin/transactions/${transactionId}/payment-status`, { paymentStatus, reason });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/transactions"] });
+      toast({ title: "Payment status updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update payment status", description: error?.message || 'Unknown error', variant: "destructive" });
+    },
+  });
+
+  // Handler to mark payment as cancelled
+  const handleCancelPayment = (transactionId: string) => {
+    if (confirm("Are you sure you want to mark this payment as cancelled? This will also update the order status to failed.")) {
+      updatePaymentStatusMutation.mutate({ 
+        transactionId, 
+        paymentStatus: "cancelled", 
+        reason: "Payment cancelled - customer abandoned checkout" 
+      });
+    }
+  };
+
   // Toggle result checker expansion and fetch data if needed
   const toggleResultCheckerExpand = async (transactionId: string) => {
     const newExpanded = new Set(expandedResultCheckers);
@@ -190,7 +215,20 @@ export default function AdminTransactions() {
     if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+      // Clean up search term - remove # prefix if present
+      const term = searchTerm.toLowerCase().replace(/^#/, '');
+      
+      // Check if searching for a sub-item (e.g., "114003-2")
+      const subItemMatch = term.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        const [, baseRef, subIndex] = subItemMatch;
+        // Match the base reference and check if this is a bulk order
+        if (tx.reference === baseRef && tx.isBulkOrder) {
+          // This will be filtered after flattening - for now allow bulk orders with matching reference
+          return true;
+        }
+      }
+      
       const matchesOrderId = tx.id.toLowerCase().includes(term) ||
         (tx.reference && tx.reference.toLowerCase().includes(term)) ||
         ((tx as any).paymentReference && (tx as any).paymentReference.toLowerCase().includes(term));
@@ -292,6 +330,52 @@ export default function AdminTransactions() {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  // Flatten bulk orders into individual rows for display
+  const flattenedTransactions = paginatedTransactions?.flatMap((transaction: any) => {
+    const isBulkOrder = transaction.isBulkOrder;
+    const rawPhoneNumbers = transaction.phoneNumbers;
+    const phoneNumbers = rawPhoneNumbers 
+      ? (typeof rawPhoneNumbers === 'string' 
+          ? (() => { try { return JSON.parse(rawPhoneNumbers); } catch { return []; } })()
+          : rawPhoneNumbers) as Array<{phone: string, bundleName: string, dataAmount: string, price?: number, profit?: number}>
+      : undefined;
+
+    if (isBulkOrder && phoneNumbers && phoneNumbers.length > 0) {
+      const fallbackPrice = parseFloat(transaction.amount) / phoneNumbers.length;
+      const fallbackProfit = parseFloat(transaction.profit || '0') / phoneNumbers.length;
+      return phoneNumbers.map((phoneObj, index) => ({
+        ...transaction,
+        id: `${transaction.id}-${index}`,
+        originalId: transaction.id,
+        customerPhone: phoneObj.phone,
+        productName: phoneObj.bundleName || transaction.productName,
+        amount: phoneObj.price ? phoneObj.price.toFixed(2) : fallbackPrice.toFixed(2),
+        profit: phoneObj.profit ? phoneObj.profit.toFixed(2) : fallbackProfit.toFixed(2),
+        isExpandedBulkItem: true,
+        bulkOrderIndex: index + 1,
+        bulkOrderTotal: phoneNumbers.length,
+        dataAmount: phoneObj.dataAmount,
+      }));
+    }
+    return [{ ...transaction, originalId: transaction.id }];
+  })?.filter((tx: any) => {
+    // Post-flattening filter for sub-item search (e.g., "114003-2")
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase().replace(/^#/, '');
+      const subItemMatch = term.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        const [, baseRef, subIndex] = subItemMatch;
+        // Only show the specific sub-item that matches
+        if (tx.reference === baseRef && tx.isExpandedBulkItem) {
+          return tx.bulkOrderIndex === parseInt(subIndex);
+        }
+        // Hide non-matching items when searching for sub-item
+        return false;
+      }
+    }
+    return true;
+  });
 
   // Helper functions
   const convertToCSV = (data: any[], includeHeaders: boolean = true) => {
@@ -639,22 +723,19 @@ export default function AdminTransactions() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {paginatedTransactions?.map((tx) => {
+                          {flattenedTransactions?.map((tx) => {
                           let network = NETWORKS.find((n) => n.id === tx.network);
                           const providerStatus = getSkytechStatus(tx);
                           const effectiveStatus = providerStatus
                             ? mapProviderStatusToOrderStatus(providerStatus)
                             : tx.status;
-                          const isBulkOrder = (tx as any).isBulkOrder;
-                          const phoneNumbersRaw = (tx as any).phoneNumbers;
-                          const phoneNumbers = phoneNumbersRaw ? (typeof phoneNumbersRaw === 'string' ? (() => { try { return JSON.parse(phoneNumbersRaw); } catch (e) { console.error('Failed to parse phoneNumbers:', e, phoneNumbersRaw); return []; } })() : phoneNumbersRaw) as Array<{phone: string, bundleName: string, dataAmount: string}> : undefined;
                           const deliveryStatus = (tx as any).deliveryStatus || "pending";
                           
-                          // For bulk orders, if network is not found, try to extract from bundle name
-                          if (!network && isBulkOrder && phoneNumbers && phoneNumbers.length > 0) {
-                            const bundleName = phoneNumbers[0].bundleName;
-                            if (bundleName) {
-                              const lower = bundleName.toLowerCase();
+                          // For expanded bulk items, try to extract network from product name
+                          if (!network && tx.isExpandedBulkItem) {
+                            const productName = tx.productName;
+                            if (productName) {
+                              const lower = productName.toLowerCase();
                               if (lower.includes('mtn')) {
                                 network = NETWORKS.find(n => n.id === 'mtn');
                               } else if (lower.includes('telecel')) {
@@ -668,24 +749,30 @@ export default function AdminTransactions() {
                           }
                           
                           const isResultChecker = tx.type === "result_checker";
-                          const isExpanded = expandedResultCheckers.has(tx.id);
-                          const checkerData = resultCheckersData[tx.id];
+                          const isExpanded = expandedResultCheckers.has(tx.originalId);
+                          const checkerData = resultCheckersData[tx.originalId];
                           const quantity = (tx as any).quantity || 1;
                           
                           return (
                             <Fragment key={tx.id}>
                             <TableRow data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-xs md:text-sm">{tx.id.slice(0,8)}</TableCell>
+                              <TableCell className="font-mono text-xs md:text-sm">#{tx.reference}{tx.isExpandedBulkItem ? `-${tx.bulkOrderIndex}` : ''}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
                                 <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
                                 <div className="flex gap-1 mt-1 flex-wrap">
                                   <Badge variant="outline" className="text-xs px-1 py-0">
                                     {tx.type === "data_bundle" ? "Data" : "Result"}
                                   </Badge>
-                                  {(isBulkOrder || (isResultChecker && quantity > 1)) && (
+                                  {tx.isExpandedBulkItem && (
+                                    <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1 bg-purple-100 text-purple-700">
+                                      <Layers className="h-2.5 w-2.5" />
+                                      {tx.bulkOrderIndex} of {tx.bulkOrderTotal}
+                                    </Badge>
+                                  )}
+                                  {(isResultChecker && quantity > 1) && (
                                     <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1">
                                       <Layers className="h-2.5 w-2.5" />
-                                      {phoneNumbers?.length || quantity}
+                                      {quantity}
                                     </Badge>
                                   )}
                                 </div>
@@ -707,27 +794,18 @@ export default function AdminTransactions() {
                               </TableCell>
                               <TableCell className="font-medium tabular-nums text-xs md:text-sm">
                                 <div>{formatCurrency(tx.amount)}</div>
-                                {((isBulkOrder && phoneNumbers) || (isResultChecker && quantity > 1)) && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {formatCurrency(parseFloat(tx.amount) / (phoneNumbers?.length || quantity))} each
-                                  </div>
-                                )}
                               </TableCell>
                               <TableCell className="text-green-600 tabular-nums text-xs md:text-sm">
                                 {formatCurrency(tx.profit)}
                               </TableCell>
                               <TableCell className="text-muted-foreground text-xs md:text-sm">
-                                {isBulkOrder && phoneNumbers ? (
-                                  <div className="text-xs">
-                                    <div className="font-semibold">
-                                      {phoneNumbers.length} items: {phoneNumbers.map(p => p.dataAmount).join(', ')}
-                                    </div>
-                                    <div className="text-muted-foreground truncate max-w-[80px] md:max-w-[120px]">
-                                      {phoneNumbers[0]?.phone || 'Unknown'}
-                                    </div>
+                                <div className="truncate max-w-[80px] md:max-w-[120px]">
+                                  {tx.customerPhone}
+                                </div>
+                                {tx.isExpandedBulkItem && tx.dataAmount && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {tx.dataAmount}
                                   </div>
-                                ) : (
-                                  tx.customerPhone
                                 )}
                               </TableCell>
                               <TableCell>
@@ -747,7 +825,7 @@ export default function AdminTransactions() {
                                 <StatusBadge status={effectiveStatus} />
                               </TableCell>
                               <TableCell className="hidden md:table-cell">
-                                {editingDeliveryStatus === tx.id ? (
+                                {editingDeliveryStatus === tx.originalId ? (
                                   <div className="flex items-center gap-2">
                                     <Select value={deliveryStatusValue} onValueChange={setDeliveryStatusValue}>
                                       <SelectTrigger className="w-24 md:w-32 h-7 md:h-8 text-xs">
@@ -761,7 +839,7 @@ export default function AdminTransactions() {
                                     </Select>
                                     <Button
                                       size="sm"
-                                      onClick={() => handleSaveDeliveryStatus(tx.id)}
+                                      onClick={() => handleSaveDeliveryStatus(tx.originalId)}
                                       disabled={updateDeliveryStatusMutation.isPending}
                                       className="h-7 px-2 text-xs"
                                     >
@@ -815,7 +893,7 @@ export default function AdminTransactions() {
                                             className={`cursor-pointer text-xs ${
                                               isProcessing ? "bg-blue-500 text-white hover:bg-blue-600 animate-pulse" : ""
                                             }`}
-                                            onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
+                                            onClick={() => handleEditDeliveryStatus(tx.originalId, deliveryStatus)}
                                             title={skytechStatus ? `SkyTech: ${skytechStatus} | Internal: ${deliveryStatus}` : `Click to change delivery status (Current: ${deliveryStatus})`}
                                           >
                                             {isProcessing ? "🔄 Processing" : statusToDisplay.charAt(0).toUpperCase() + statusToDisplay.slice(1)}
@@ -843,7 +921,7 @@ export default function AdminTransactions() {
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      onClick={() => toggleResultCheckerExpand(tx.id)}
+                                      onClick={() => toggleResultCheckerExpand(tx.originalId)}
                                       className="h-6 w-6 p-0"
                                       title={isExpanded ? "Collapse PINs" : "View all PINs"}
                                     >
@@ -854,7 +932,7 @@ export default function AdminTransactions() {
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      onClick={() => refreshOrderStatusMutation.mutate(tx.id)}
+                                      onClick={() => refreshOrderStatusMutation.mutate(tx.originalId)}
                                       disabled={refreshOrderStatusMutation.isPending}
                                       className="h-6 w-6 p-0"
                                       title="Refresh SkyTech status"
@@ -862,11 +940,24 @@ export default function AdminTransactions() {
                                       <RotateCw className={`h-3 w-3 ${refreshOrderStatusMutation.isPending ? 'animate-spin' : ''}`} />
                                     </Button>
                                   )}
+                                  {/* Cancel pending payment button */}
+                                  {((tx as any).paymentStatus === "pending" || !(tx as any).paymentStatus) && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleCancelPayment(tx.originalId)}
+                                      disabled={updatePaymentStatusMutation.isPending}
+                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                                      title="Mark payment as cancelled"
+                                    >
+                                      <XCircle className="h-3 w-3" />
+                                    </Button>
+                                  )}
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => handleEditDeliveryStatus(tx.id, deliveryStatus)}
-                                    disabled={editingDeliveryStatus === tx.id}
+                                    onClick={() => handleEditDeliveryStatus(tx.originalId, deliveryStatus)}
+                                    disabled={editingDeliveryStatus === tx.originalId}
                                     className="h-6 w-6 p-0"
                                   >
                                     <Edit className="h-3 w-3" />
@@ -877,7 +968,7 @@ export default function AdminTransactions() {
 
                             {/* Expanded row for result checker details */}
                             {isResultChecker && isExpanded && checkerData && (
-                              <TableRow key={`${tx.id}-expanded-details`}>
+                              <TableRow key={`${tx.originalId}-expanded-details`}>
                                 <TableCell colSpan={11} className="bg-muted/30 p-4">
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between">

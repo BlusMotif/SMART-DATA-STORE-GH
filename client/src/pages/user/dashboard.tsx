@@ -272,9 +272,25 @@ export default function UserDashboard() {
                         </div>
                         <div className="text-right">
                           <p className="font-medium">GH₵{transaction.amount}</p>
-                          <Badge variant={transaction.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                            {transaction.status}
-                          </Badge>
+                          <div className="flex flex-col gap-1 items-end">
+                            <Badge 
+                              variant={
+                                transaction.paymentStatus === 'paid' ? 'default' :
+                                transaction.paymentStatus === 'failed' ? 'destructive' :
+                                transaction.paymentStatus === 'cancelled' ? 'outline' :
+                                'secondary'
+                              } 
+                              className="text-xs"
+                            >
+                              {transaction.paymentStatus === 'paid' ? '✓ Paid' :
+                               transaction.paymentStatus === 'failed' ? '✗ Failed' :
+                               transaction.paymentStatus === 'cancelled' ? '✗ Cancelled' :
+                               transaction.paymentStatus || 'Pending'}
+                            </Badge>
+                            <Badge variant={transaction.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                              {transaction.status}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
                     ))}

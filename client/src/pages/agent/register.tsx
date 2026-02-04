@@ -182,7 +182,7 @@ export default function AgentRegisterPage() {
                 <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="font-semibold text-blue-900">Activation Fee</p>
-                  <p className="text-sm text-blue-800">A one-time payment of <strong>GH₵{activationFee.toFixed(2)}</strong> + {PAYSTACK_TAX_PERCENTAGE}% processing fee = <strong>GH₵{activationTotal.toFixed(2)}</strong> is required to activate your agent account.</p>
+                  <p className="text-sm text-blue-800">A one-time payment of <strong>GH₵{activationFee.toFixed(2)}</strong> + {PAYSTACK_TAX_PERCENTAGE}% Paystack fee = <strong>GH₵{activationTotal.toFixed(2)}</strong> is required to activate your agent account.</p>
                 </div>
               </div>
               
@@ -259,7 +259,7 @@ export default function AgentRegisterPage() {
                       <span>GH₵{activationFee.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%):</span>
+                      <span>Paystack Fee ({PAYSTACK_TAX_PERCENTAGE}%):</span>
                       <span>GH₵{activationTax.toFixed(2)}</span>
                     </div>
                     <Separator className="my-1 bg-yellow-300" />
@@ -444,7 +444,7 @@ export default function AgentRegisterPage() {
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel className="text-sm font-medium">
-                        I agree to pay the GH₵{activationTotal.toFixed(2)} activation fee (incl. {PAYSTACK_TAX_PERCENTAGE}% processing fee) and accept the terms and conditions
+                        I agree to pay the GH₵{activationTotal.toFixed(2)} activation fee (incl. {PAYSTACK_TAX_PERCENTAGE}% Paystack fee) and accept the terms and conditions
                       </FormLabel>
                       <FormDescription className="text-xs">
                         By checking this box, you confirm that you understand the activation fee is required and agree to our terms of service.

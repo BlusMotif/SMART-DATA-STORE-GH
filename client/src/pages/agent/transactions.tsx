@@ -13,10 +13,9 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableSkeleton } from "@/components/ui/loading-spinner";
 import { formatCurrency, formatDate, NETWORKS } from "@/lib/constants";
-import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, Layers, ChevronDown } from "lucide-react";
+import { BarChart3, Search, DollarSign, TrendingUp, ShoppingCart, Menu, Layers } from "lucide-react";
 import type { Transaction } from "@shared/schema";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@radix-ui/react-popover";
 
 // Status display utility
 
@@ -82,12 +81,70 @@ export default function AgentTransactions() {
     if (statusFilter !== "all" && effectiveStatus !== statusFilter) return false;
     if (typeFilter !== "all" && tx.type !== typeFilter) return false;
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
+      // Clean up search term - remove # prefix if present
+      const term = searchTerm.toLowerCase().replace(/^#/, '');
+      
+      // Check if searching for a sub-item (e.g., "114003-2")
+      const subItemMatch = term.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        const [, baseRef, subIndex] = subItemMatch;
+        // Match the base reference for bulk orders
+        if (tx.reference === baseRef && tx.isBulkOrder) {
+          return true;
+        }
+      }
+      
       if (
         !tx.reference.toLowerCase().includes(term) &&
         !tx.productName.toLowerCase().includes(term) &&
         !(tx.customerPhone && tx.customerPhone.toLowerCase().includes(term))
       ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Flatten bulk orders into individual rows for display
+  const flattenedTransactions = filteredTransactions?.flatMap((transaction: any) => {
+    const isBulkOrder = transaction.isBulkOrder;
+    const rawPhoneNumbers = transaction.phoneNumbers;
+    const phoneNumbers = rawPhoneNumbers 
+      ? (typeof rawPhoneNumbers === 'string' 
+          ? (() => { try { return JSON.parse(rawPhoneNumbers); } catch { return []; } })()
+          : rawPhoneNumbers) as Array<{phone: string, bundleName: string, dataAmount: string, price?: number, agentProfit?: number}>
+      : undefined;
+
+    if (isBulkOrder && phoneNumbers && phoneNumbers.length > 0) {
+      const fallbackPrice = parseFloat(transaction.amount) / phoneNumbers.length;
+      const fallbackProfit = parseFloat(transaction.agentProfit || '0') / phoneNumbers.length;
+      return phoneNumbers.map((phoneObj, index) => ({
+        ...transaction,
+        id: `${transaction.id}-${index}`,
+        originalId: transaction.id,
+        customerPhone: phoneObj.phone,
+        productName: phoneObj.bundleName || transaction.productName,
+        amount: phoneObj.price ? phoneObj.price.toFixed(2) : fallbackPrice.toFixed(2),
+        agentProfit: phoneObj.agentProfit ? phoneObj.agentProfit.toFixed(2) : fallbackProfit.toFixed(2),
+        isExpandedBulkItem: true,
+        bulkOrderIndex: index + 1,
+        bulkOrderTotal: phoneNumbers.length,
+        dataAmount: phoneObj.dataAmount,
+      }));
+    }
+    return [{ ...transaction, originalId: transaction.id }];
+  })?.filter((tx: any) => {
+    // Post-flattening filter for sub-item search (e.g., "114003-2")
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase().replace(/^#/, '');
+      const subItemMatch = term.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        const [, baseRef, subIndex] = subItemMatch;
+        // Only show the specific sub-item that matches
+        if (tx.reference === baseRef && tx.isExpandedBulkItem) {
+          return tx.bulkOrderIndex === parseInt(subIndex);
+        }
+        // Hide non-matching items when searching for sub-item
         return false;
       }
     }
@@ -215,7 +272,7 @@ export default function AgentTransactions() {
               <CardContent className="px-3 md:px-6">
                 {isLoading ? (
                   <TableSkeleton rows={5} />
-                ) : filteredTransactions && filteredTransactions.length > 0 ? (
+                ) : flattenedTransactions && flattenedTransactions.length > 0 ? (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -232,19 +289,34 @@ export default function AgentTransactions() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredTransactions.slice(0, 20).map((tx) => {
-                          const network = NETWORKS.find((n) => n.id === tx.network);
+                        {flattenedTransactions.slice(0, 50).map((tx) => {
+                          let network = NETWORKS.find((n) => n.id === tx.network);
                           const providerStatus = getSkytechStatus(tx);
                           const effectiveStatus = providerStatus
                             ? mapProviderStatusToOrderStatus(providerStatus)
                             : tx.status;
-                          const isBulkOrder = (tx as any).isBulkOrder;
-                          const phoneNumbersRaw = (tx as any).phoneNumbers;
-                          const phoneNumbers = phoneNumbersRaw ? (typeof phoneNumbersRaw === 'string' ? JSON.parse(phoneNumbersRaw) : phoneNumbersRaw) as Array<{phone: string, bundleName: string, dataAmount: string}> : undefined;
                           const isWalletTopup = tx.type === "wallet_topup";
+                          
+                          // For expanded bulk items, try to extract network from product name
+                          if (!network && tx.isExpandedBulkItem) {
+                            const productName = tx.productName;
+                            if (productName) {
+                              const lower = productName.toLowerCase();
+                              if (lower.includes('mtn')) {
+                                network = NETWORKS.find(n => n.id === 'mtn');
+                              } else if (lower.includes('telecel')) {
+                                network = NETWORKS.find(n => n.id === 'telecel');
+                              } else if (lower.includes('bigtime')) {
+                                network = NETWORKS.find(n => n.id === 'at_bigtime');
+                              } else if (lower.includes('ishare')) {
+                                network = NETWORKS.find(n => n.id === 'at_ishare');
+                              }
+                            }
+                          }
+                          
                           return (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-xs md:text-sm">{tx.id.slice(0,8)}</TableCell>
+                              <TableCell className="font-mono text-xs md:text-sm">#{tx.reference}{tx.isExpandedBulkItem ? `-${tx.bulkOrderIndex}` : ''}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
                                 <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
                                 <div className="flex gap-1 mt-1 flex-wrap">
@@ -253,10 +325,10 @@ export default function AgentTransactions() {
                                      tx.type === "result_checker" ? "Result" :
                                      tx.type === "wallet_topup" ? "Wallet" : tx.type}
                                   </Badge>
-                                  {isBulkOrder && (
-                                    <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1">
+                                  {tx.isExpandedBulkItem && (
+                                    <Badge variant="secondary" className="text-xs px-1 py-0 flex items-center gap-1 bg-purple-100 text-purple-700">
                                       <Layers className="h-2.5 w-2.5" />
-                                      {phoneNumbers?.length || 0}
+                                      {tx.bulkOrderIndex} of {tx.bulkOrderTotal}
                                     </Badge>
                                   )}
                                 </div>
@@ -280,11 +352,6 @@ export default function AgentTransactions() {
                               </TableCell>
                               <TableCell className="font-medium tabular-nums text-xs md:text-sm">
                                 <div>{formatCurrency(tx.amount)}</div>
-                                {isBulkOrder && phoneNumbers && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {formatCurrency(parseFloat(tx.amount) / phoneNumbers.length)} each
-                                  </div>
-                                )}
                               </TableCell>
                               <TableCell className="hidden md:table-cell text-green-600 tabular-nums font-medium text-xs md:text-sm">
                                 {isWalletTopup ? (
@@ -292,46 +359,19 @@ export default function AgentTransactions() {
                                 ) : (
                                   <div>+{formatCurrency(tx.agentProfit || 0)}</div>
                                 )}
-                                {isBulkOrder && phoneNumbers && !isWalletTopup && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {formatCurrency(parseFloat(tx.agentProfit || "0") / phoneNumbers.length)} each
-                                  </div>
-                                )}
                               </TableCell>
                               <TableCell className="text-muted-foreground text-xs md:text-sm">
                                 {isWalletTopup ? (
                                   <span className="text-muted-foreground">Self</span>
-                                ) : isBulkOrder && phoneNumbers ? (
-                                  <Popover>
-                                    <PopoverTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-auto p-1 text-left justify-start text-muted-foreground hover:text-foreground">
-                                        <div className="text-xs">
-                                          <div className="font-semibold">{phoneNumbers.length} numbers</div>
-                                          <div className="truncate max-w-[80px] md:max-w-[100px]">
-                                            {phoneNumbers[0]?.phone}
-                                          </div>
-                                        </div>
-                                        <ChevronDown className="h-3 w-3 ml-1" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80">
-                                      <div className="space-y-2">
-                                        <h4 className="font-medium">Bulk Order Numbers</h4>
-                                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                                          {phoneNumbers.map((item, index) => (
-                                            <div key={index} className="text-sm">
-                                              <div className="font-mono">{item.phone}</div>
-                                              <div className="text-muted-foreground text-xs">
-                                                {item.bundleName} - {item.dataAmount}
-                                              </div>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
                                 ) : (
-                                  tx.customerPhone
+                                  <div>
+                                    <div className="truncate max-w-[80px] md:max-w-[100px]">
+                                      {tx.customerPhone}
+                                    </div>
+                                    {tx.isExpandedBulkItem && tx.dataAmount && (
+                                      <div className="text-xs text-muted-foreground">{tx.dataAmount}</div>
+                                    )}
+                                  </div>
                                 )}
                               </TableCell>
                               <TableCell>

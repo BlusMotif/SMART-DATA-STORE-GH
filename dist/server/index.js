@@ -915,12 +915,10 @@ var init_schema = __esm({
 // src/server/db.ts
 var db_exports = {};
 __export(db_exports, {
-  checkDatabaseHealth: () => checkDatabaseHealth,
   db: () => db,
   ensureDbInitialized: () => ensureDbInitialized,
   getPool: () => getPool,
-  pool: () => pool,
-  warmupDatabaseConnection: () => warmupDatabaseConnection
+  pool: () => pool
 });
 import { drizzle } from "drizzle-orm/node-postgres";
 import { drizzle as drizzleSqlite } from "drizzle-orm/better-sqlite3";
@@ -939,23 +937,19 @@ function initializeDatabase() {
       connectionString: process.env.DATABASE_URL,
       max: 10,
       // Increased for 1000+ users - Hostinger allows 10-15 connections
-      min: 3,
-      // Keep 3 connections warm for instant response
-      idleTimeoutMillis: 6e4,
-      // 60s idle timeout - keep connections alive longer
-      connectionTimeoutMillis: 1e4,
-      // 10s fast timeout - fail fast if DB unreachable
-      statement_timeout: 3e4,
-      // 30s statement timeout
-      query_timeout: 3e4,
-      // 30s query timeout
-      allowExitOnIdle: false,
-      // Keep min connections alive always
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-      // TCP keepalive to prevent Hostinger/Supabase dropping idle connections
-      keepAlive: true,
-      keepAliveInitialDelayMillis: 1e4
-      // Start keepalive after 10s
+      min: 2,
+      // Keep 2 connections warm for faster response
+      idleTimeoutMillis: 3e4,
+      // 30s idle timeout - balance between resources and speed
+      connectionTimeoutMillis: 2e4,
+      // 20s to connect on slow shared hosting
+      statement_timeout: 45e3,
+      // 45s statement timeout for complex queries
+      query_timeout: 45e3,
+      // 45s query timeout
+      allowExitOnIdle: true,
+      // Allow pool to shrink when idle
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
     });
     _pool.on("error", (err) => {
       console.error("[DB Pool] Connection error");
@@ -978,48 +972,7 @@ function ensureDbInitialized() {
     initializeDatabase();
   }
 }
-async function warmupDatabaseConnection() {
-  if (_connectionWarmedUp) return true;
-  try {
-    const pool2 = getPool();
-    if (!pool2) {
-      console.log("[DB] No pool available for warmup (using SQLite)");
-      _connectionWarmedUp = true;
-      return true;
-    }
-    const startTime = Date.now();
-    const warmupPromises = [];
-    const warmupCount = Math.min(3, pool2.options.min || 2);
-    for (let i = 0; i < warmupCount; i++) {
-      warmupPromises.push(pool2.connect());
-    }
-    const clients = await Promise.all(warmupPromises);
-    await Promise.all(clients.map((client) => client.query("SELECT 1")));
-    clients.forEach((client) => client.release());
-    const elapsed = Date.now() - startTime;
-    console.log(`[DB] \u2705 Connection pool warmed up (${warmupCount} connections, ${elapsed}ms)`);
-    _connectionWarmedUp = true;
-    return true;
-  } catch (error) {
-    console.error("[DB] \u274C Warmup failed:", error.message);
-    return false;
-  }
-}
-async function checkDatabaseHealth() {
-  try {
-    const pool2 = getPool();
-    if (!pool2) {
-      return { healthy: true, latency: 0 };
-    }
-    const start = Date.now();
-    await pool2.query("SELECT 1");
-    const latency = Date.now() - start;
-    return { healthy: true, latency };
-  } catch (error) {
-    return { healthy: false, latency: -1 };
-  }
-}
-var __filename, __dirname, _db, _pool, _initialized, _connectionWarmedUp, db, pool;
+var __filename, __dirname, _db, _pool, _initialized, db, pool;
 var init_db = __esm({
   "src/server/db.ts"() {
     init_schema();
@@ -1028,7 +981,6 @@ var init_db = __esm({
     _db = null;
     _pool = null;
     _initialized = false;
-    _connectionWarmedUp = false;
     db = new Proxy({}, {
       get(target, prop) {
         if (!_initialized) {
@@ -2203,6 +2155,32 @@ var init_storage = __esm({
           description: setting.description || void 0
         }));
       }
+      // Get next sequential order number (starting from 114000)
+      async getNextOrderNumber() {
+        const START_ORDER_NUMBER = 114e3;
+        const key = "next_order_number";
+        const result = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+        let currentNumber;
+        if (result[0]) {
+          currentNumber = parseInt(result[0].value, 10);
+          if (currentNumber < START_ORDER_NUMBER) {
+            currentNumber = START_ORDER_NUMBER;
+          }
+        } else {
+          currentNumber = START_ORDER_NUMBER;
+        }
+        const nextNumber = currentNumber + 1;
+        if (result[0]) {
+          await db.update(settings).set({ value: nextNumber.toString(), updatedAt: /* @__PURE__ */ new Date() }).where(eq(settings.key, key));
+        } else {
+          await db.insert(settings).values({
+            key,
+            value: nextNumber.toString(),
+            description: "Next sequential order number for transaction references"
+          });
+        }
+        return currentNumber;
+      }
       // ============================================
       // EXTERNAL API PROVIDERS
       // ============================================
@@ -2800,7 +2778,7 @@ init_storage();
 init_db();
 init_schema();
 import { sql as sql2, and as and2, eq as eq2, or as or2, gte as gte2, lte as lte2, desc as desc2 } from "drizzle-orm";
-import { randomUUID as randomUUID3, randomBytes as randomBytes2 } from "crypto";
+import { randomBytes as randomBytes2 } from "crypto";
 import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import multer from "multer";
@@ -3434,10 +3412,9 @@ var requireMaster = async (req, res, next) => {
     res.status(403).json({ error: "Master access required" });
   }
 };
-function generateReference() {
-  const timestamp2 = Date.now().toString(36).toUpperCase();
-  const random = randomUUID3().split("-")[0].toUpperCase();
-  return `TXN-${timestamp2}-${random}`;
+async function generateReference() {
+  const orderNumber = await storage.getNextOrderNumber();
+  return orderNumber.toString();
 }
 var ROLE_LABELS = {
   admin: "Admin",
@@ -3452,11 +3429,8 @@ async function registerRoutes(httpServer2, app2) {
   app2.get("/api/health", async (req, res) => {
     try {
       let dbStatus = "unknown";
-      let dbLatency = -1;
       try {
-        const start = Date.now();
         await db.execute(sql2`SELECT 1 as test`);
-        dbLatency = Date.now() - start;
         dbStatus = "connected";
       } catch (e) {
         dbStatus = "error";
@@ -3464,10 +3438,7 @@ async function registerRoutes(httpServer2, app2) {
       res.json({
         status: "ok",
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        database: dbStatus,
-        dbLatencyMs: dbLatency,
-        uptime: Math.floor(process.uptime()),
-        memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024)
+        database: dbStatus
       });
     } catch (error) {
       res.status(500).json({ status: "error" });
@@ -4527,7 +4498,7 @@ async function registerRoutes(httpServer2, app2) {
           });
         }
       }
-      const reference = generateReference();
+      const reference = await generateReference();
       let bulkNetwork;
       if (processedOrderItems.length > 0) {
         const firstBundle = await storage.getDataBundle(processedOrderItems[0].bundleId);
@@ -4743,6 +4714,7 @@ async function registerRoutes(httpServer2, app2) {
       let agentId;
       let network = null;
       let authenticatedAgentId;
+      let bulkProcessedOrderItems;
       if (data.orderItems && Array.isArray(data.orderItems) && data.orderItems.length > 0) {
         console.log("[Checkout] ========== NEW BULK FORMAT DETECTED ==========");
         console.log("[Checkout] orderItems:", data.orderItems);
@@ -4792,6 +4764,7 @@ async function registerRoutes(httpServer2, app2) {
         costPrice = 0;
         amount = 0;
         let computedAgentProfit = 0;
+        const processedOrderItems = [];
         let storefrontAgent = null;
         if (data.agentSlug) {
           storefrontAgent = await storage.getAgentBySlug(data.agentSlug);
@@ -4812,6 +4785,7 @@ async function registerRoutes(httpServer2, app2) {
             return res.status(400).json({ error: `Bundle not found for bundleId: ${item.bundleId}` });
           }
           let itemPrice;
+          let itemProfit = 0;
           if (storefrontAgent) {
             const resolvedPrice = await storage.getResolvedPrice(bundle.id, storefrontAgent.id, "agent");
             if (!resolvedPrice) {
@@ -4836,7 +4810,8 @@ async function registerRoutes(httpServer2, app2) {
             const storedProfit = await storage.getStoredProfit(bundle.id, profitOwnerId, "agent");
             if (storedProfit) {
               const profitValue = parseFloat(storedProfit);
-              computedAgentProfit += Math.max(0, profitValue);
+              itemProfit = Math.max(0, profitValue);
+              computedAgentProfit += itemProfit;
             } else {
               const agentRoleBasePrice = await storage.getRoleBasePrice(bundle.id, "agent");
               let basePrice;
@@ -4846,12 +4821,21 @@ async function registerRoutes(httpServer2, app2) {
                 const basePriceValue = await storage.getAdminBasePrice(bundle.id);
                 basePrice = basePriceValue ? parseFloat(basePriceValue) : parseFloat(bundle.basePrice || "0");
               }
-              const profit = itemPrice - basePrice;
-              computedAgentProfit += Math.max(0, profit);
+              itemProfit = Math.max(0, itemPrice - basePrice);
+              computedAgentProfit += itemProfit;
             }
           }
+          processedOrderItems.push({
+            phone: item.phone,
+            bundleName: item.bundleName,
+            bundleId: item.bundleId,
+            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || "",
+            price: itemPrice,
+            profit: itemProfit
+          });
         }
         agentProfit = computedAgentProfit;
+        bulkProcessedOrderItems = processedOrderItems;
         console.log("[Checkout] Bulk order total amount (from orderItems):", amount);
         console.log("[Checkout] Bulk order total cost price:", costPrice);
         productName = `Bulk Order - ${data.orderItems.length} items`;
@@ -4990,12 +4974,17 @@ async function registerRoutes(httpServer2, app2) {
           }
         }
       }
-      const reference = generateReference();
-      const phoneNumbersData = data.orderItems ? data.orderItems.map((item) => ({
+      const reference = await generateReference();
+      console.log("[Checkout] ========== PHONE NUMBERS DATA RESOLUTION ==========");
+      console.log("[Checkout] bulkProcessedOrderItems exists:", !!bulkProcessedOrderItems);
+      console.log("[Checkout] bulkProcessedOrderItems:", bulkProcessedOrderItems);
+      const phoneNumbersData = bulkProcessedOrderItems ? bulkProcessedOrderItems : data.orderItems ? data.orderItems.map((item) => ({
         phone: item.phone,
         bundleName: item.bundleName,
         dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || ""
       })) : data.phoneNumbers;
+      console.log("[Checkout] Final phoneNumbersData:", phoneNumbersData);
+      console.log("[Checkout] =======================================================");
       const isBulkOrder = !!(data.isBulkOrder || data.orderItems && data.orderItems.length > 0);
       if (isBulkOrder && network === "at_ishare") {
         return res.status(400).json({ error: "Bulk purchases are not available for AT iShare network" });
@@ -5363,12 +5352,68 @@ async function registerRoutes(httpServer2, app2) {
           transaction
         });
       }
-      if (transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) {
+      const needsFulfillment = transaction.type === ProductType.DATA_BUNDLE && !transaction.apiResponse;
+      if ((transaction.status === TransactionStatus.COMPLETED || transaction.apiResponse) && !needsFulfillment) {
         console.log("[Verify] Transaction already completed or fulfilled");
         return res.json({
           success: true,
           transaction
         });
+      }
+      if (needsFulfillment && transaction.status === TransactionStatus.COMPLETED) {
+        console.log("[Verify] Transaction completed but needs Skytech fulfillment - processing now");
+        try {
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? void 0);
+          await storage.updateTransaction(transaction.id, {
+            apiResponse: JSON.stringify(fulfillmentResult),
+            paymentStatus: "paid"
+          });
+          if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
+            const allSuccess = fulfillmentResult.results.every((r) => r.status === "pending" || r.status === "success");
+            if (allSuccess) {
+              console.log("[Verify] Skytech fulfillment successful:", fulfillmentResult);
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.PENDING,
+                deliveryStatus: "processing"
+              });
+            } else {
+              const failedItems = fulfillmentResult.results.filter((r) => r.status === "failed");
+              console.error("[Verify] Skytech fulfillment had failures:", failedItems);
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.FAILED,
+                deliveryStatus: "failed",
+                failureReason: `Provider rejected: ${failedItems.map((r) => r.error || "Unknown error").join(", ")}`
+              });
+            }
+          } else {
+            console.error("[Verify] Skytech fulfillment failed:", fulfillmentResult?.error);
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.FAILED,
+              deliveryStatus: "failed",
+              failureReason: `API fulfillment failed: ${fulfillmentResult?.error || "Unknown error"}`
+            });
+          }
+          const updatedTransaction = await storage.getTransactionByReference(transaction.reference);
+          clearTimeout(timeoutId);
+          return res.json({
+            success: true,
+            transaction: updatedTransaction
+          });
+        } catch (error) {
+          console.error("[Verify] Fulfillment error:", error);
+          await storage.updateTransaction(transaction.id, {
+            status: TransactionStatus.FAILED,
+            deliveryStatus: "failed",
+            failureReason: `Fulfillment error: ${error.message || "Unknown error"}`
+          });
+          const updatedTransaction = await storage.getTransactionByReference(transaction.reference);
+          clearTimeout(timeoutId);
+          return res.json({
+            success: false,
+            error: "Fulfillment failed",
+            transaction: updatedTransaction
+          });
+        }
       }
       console.log("[Verify] Calling Paystack API for verification");
       let paystackVerification;
@@ -6043,7 +6088,6 @@ async function registerRoutes(httpServer2, app2) {
       }
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
-        paymentStatus: "paid",
         completedAt: /* @__PURE__ */ new Date(),
         deliveredPin,
         deliveredSerial,
@@ -7024,6 +7068,34 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ error: "Failed to update delivery status" });
     }
   });
+  app2.patch("/api/admin/transactions/:id/payment-status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { paymentStatus, reason } = req.body;
+      if (!["paid", "pending", "failed", "cancelled"].includes(paymentStatus)) {
+        return res.status(400).json({ error: "Invalid payment status. Use 'paid', 'pending', 'failed', or 'cancelled'" });
+      }
+      const existingTx = await storage.getTransaction(req.params.id);
+      if (!existingTx) {
+        return res.status(404).json({ error: "Transaction not found" });
+      }
+      const updateData = {
+        paymentStatus,
+        failureReason: reason || (paymentStatus === "cancelled" ? "Cancelled by admin" : paymentStatus === "failed" ? "Marked as failed by admin" : null)
+      };
+      if (paymentStatus === "cancelled" || paymentStatus === "failed") {
+        updateData.status = "failed";
+      }
+      const transaction = await storage.updateTransaction(req.params.id, updateData);
+      if (!transaction) {
+        return res.status(404).json({ error: "Failed to update transaction" });
+      }
+      console.log(`[Admin] Updated payment status for ${req.params.id} to ${paymentStatus} by admin ${req.user?.id}`);
+      res.json(transaction);
+    } catch (error) {
+      console.error("Failed to update payment status:", error);
+      res.status(500).json({ error: "Failed to update payment status" });
+    }
+  });
   app2.get("/api/admin/transactions/export", requireAuth, requireAdmin, async (req, res) => {
     try {
       const { paymentStatus = "all" } = req.query;
@@ -7411,7 +7483,7 @@ async function registerRoutes(httpServer2, app2) {
         return res.status(500).json({ error: "Failed to create topup record" });
       }
       try {
-        const transactionRef = `MANUAL_TOPUP_${walletTopupRecord.id.substring(0, 8)}`;
+        const transactionRef = await generateReference();
         await storage.createTransaction({
           reference: transactionRef,
           type: "wallet_topup",
@@ -8575,8 +8647,20 @@ async function registerRoutes(httpServer2, app2) {
       if (!q || typeof q !== "string") {
         return res.status(400).json({ error: "Search query is required" });
       }
-      const trimmedQuery = q.trim();
+      let trimmedQuery = q.trim();
+      if (trimmedQuery.startsWith("#")) {
+        trimmedQuery = trimmedQuery.slice(1);
+      }
+      let subItemIndex = null;
+      const subItemMatch = trimmedQuery.match(/^(\d+)-(\d+)$/);
+      if (subItemMatch) {
+        trimmedQuery = subItemMatch[1];
+        subItemIndex = parseInt(subItemMatch[2]);
+      }
       let transaction = await storage.getTransactionByReference(trimmedQuery);
+      if (!transaction) {
+        transaction = await storage.getTransaction(trimmedQuery);
+      }
       if (!transaction) {
         transaction = await storage.getTransactionByBeneficiaryPhone(trimmedQuery);
       }
@@ -8591,7 +8675,7 @@ async function registerRoutes(httpServer2, app2) {
           phoneNumbers = null;
         }
       }
-      res.json({
+      let responseData = {
         id: transaction.id,
         reference: transaction.reference,
         productName: transaction.productName,
@@ -8604,9 +8688,28 @@ async function registerRoutes(httpServer2, app2) {
         phoneNumbers,
         // For bulk orders
         isBulkOrder: transaction.isBulkOrder,
-        apiResponse: transaction.apiResponse
+        apiResponse: transaction.apiResponse,
         // Include SkyTech status
-      });
+        network: transaction.network
+        // Network/Provider name
+      };
+      if (subItemIndex !== null && transaction.isBulkOrder && Array.isArray(phoneNumbers) && phoneNumbers.length >= subItemIndex) {
+        const subItem = phoneNumbers[subItemIndex - 1];
+        if (subItem) {
+          responseData = {
+            ...responseData,
+            reference: `${transaction.reference}-${subItemIndex}`,
+            productName: subItem.bundleName || transaction.productName,
+            customerPhone: subItem.phone,
+            amount: subItem.price || (parseFloat(transaction.amount) / phoneNumbers.length).toFixed(2),
+            phoneNumbers: [subItem],
+            // Only show this sub-item
+            subItemIndex,
+            totalItems: phoneNumbers.length
+          };
+        }
+      }
+      res.json(responseData);
     } catch (error) {
       console.error("Order tracking error:", error);
       res.status(500).json({ error: "Failed to track order" });
@@ -8763,7 +8866,7 @@ async function registerRoutes(httpServer2, app2) {
       const topupAmount = parseFloat(amount);
       const taxAmount = calculateTax(topupAmount);
       const totalWithTax = topupAmount + taxAmount;
-      const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      const reference = await generateReference();
       const transaction = await storage.createTransaction({
         reference,
         type: "wallet_topup",
@@ -9014,12 +9117,40 @@ async function registerRoutes(httpServer2, app2) {
         agentId = purchasingAgent.id;
         agentProfit = 0;
       }
-      const reference = `WALLET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-      const phoneNumbersData = orderItems ? orderItems.map((item) => ({
-        phone: normalizePhoneNumber(item.phone),
-        bundleName: item.bundleName,
-        dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || ""
-      })) : phoneNumbers ? phoneNumbers.map((phone) => ({ phone: normalizePhoneNumber(phone) })) : void 0;
+      const reference = await generateReference();
+      let phoneNumbersData;
+      if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
+        const processedItems = [];
+        for (const item of orderItems) {
+          const bundle = await storage.getDataBundle(item.bundleId);
+          let itemPrice = 0;
+          if (bundle) {
+            if (agentId) {
+              const agent = await storage.getAgent(agentId);
+              if (agent) {
+                const resolvedPrice = await storage.getResolvedPrice(bundle.id, agent.id, "agent");
+                itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || "0");
+              }
+            } else if (purchasingAgent && purchasingAgent.isApproved) {
+              const resolvedPrice = await storage.getResolvedPrice(bundle.id, purchasingAgent.id, "agent");
+              itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || "0");
+            } else {
+              const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+              itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || "0");
+            }
+          }
+          processedItems.push({
+            phone: normalizePhoneNumber(item.phone),
+            bundleName: item.bundleName,
+            bundleId: item.bundleId,
+            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || "",
+            price: itemPrice
+          });
+        }
+        phoneNumbersData = processedItems;
+      } else if (phoneNumbers) {
+        phoneNumbersData = phoneNumbers.map((phone) => ({ phone: normalizePhoneNumber(phone) }));
+      }
       console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
       console.log("[Wallet] orderItems:", orderItems);
       console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
@@ -10688,6 +10819,45 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ error: "Cleanup failed", details: error.message });
     }
   });
+  app2.post("/api/cron/expire-pending-payments", async (req, res) => {
+    try {
+      console.log("[Cron] Starting stale pending payment expiration");
+      const cutoffDate = /* @__PURE__ */ new Date();
+      cutoffDate.setMinutes(cutoffDate.getMinutes() - 30);
+      const allTransactions = await storage.getTransactions();
+      const stalePendingPayments = allTransactions.filter((tx) => {
+        const isPendingPayment = tx.paymentStatus === "pending" || !tx.paymentStatus;
+        const createdAt = new Date(tx.createdAt);
+        const isStale = createdAt < cutoffDate;
+        return isPendingPayment && isStale;
+      });
+      console.log(`[Cron] Found ${stalePendingPayments.length} stale pending payments to expire`);
+      let expiredCount = 0;
+      let errorCount = 0;
+      for (const transaction of stalePendingPayments) {
+        try {
+          await storage.updateTransaction(transaction.id, {
+            paymentStatus: "cancelled",
+            status: "failed",
+            failureReason: "Payment expired - no payment received within 30 minutes"
+          });
+          expiredCount++;
+          console.log(`[Cron] Expired payment for transaction ${transaction.id}`);
+        } catch (error) {
+          console.error(`[Cron] Error expiring transaction ${transaction.id}:`, error.message);
+          errorCount++;
+        }
+      }
+      console.log(`[Cron] Pending payment expiration completed. Expired: ${expiredCount}, Errors: ${errorCount}`);
+      res.json({
+        success: true,
+        message: `Expired ${expiredCount} stale pending payments, errors: ${errorCount}`
+      });
+    } catch (error) {
+      console.error("[Cron] Pending payment expiration failed:", error);
+      res.status(500).json({ error: "Pending payment expiration failed", details: error.message });
+    }
+  });
 }
 
 // src/server/index.ts
@@ -10889,29 +11059,11 @@ app.use(async (req, res, next) => {
     next();
   }
 });
-app.get("/api/health", async (_req, res) => {
-  let dbStatus = "unknown";
-  let dbLatency = -1;
-  try {
-    const { pool: pool2 } = await Promise.resolve().then(() => (init_db(), db_exports));
-    if (pool2) {
-      const start = Date.now();
-      await pool2.query("SELECT 1");
-      dbLatency = Date.now() - start;
-      dbStatus = "connected";
-    } else {
-      dbStatus = "sqlite";
-    }
-  } catch (e) {
-    dbStatus = "error";
-  }
+app.get("/api/health", (_req, res) => {
   res.status(200).json({
     status: "ok",
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    uptime: Math.floor(process.uptime()),
-    memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    database: dbStatus,
-    dbLatencyMs: dbLatency,
+    uptime: process.uptime(),
     rateLimitDisabled: process.env.DISABLE_RATE_LIMIT === "true"
   });
 });
@@ -11167,14 +11319,8 @@ app.use((req, res, next) => {
         port: PORT,
         host: HOST
       },
-      async () => {
+      () => {
         console.log(`Server running on http://${HOST}:${PORT}`);
-        try {
-          const { warmupDatabaseConnection: warmupDatabaseConnection2 } = await Promise.resolve().then(() => (init_db(), db_exports));
-          await warmupDatabaseConnection2();
-        } catch (dbErr) {
-          console.error("[Startup] Database warmup failed:", dbErr.message);
-        }
       }
     );
   } catch (error) {
@@ -11183,11 +11329,13 @@ app.use((req, res, next) => {
   }
 })();
 process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
   if (process.env.NODE_ENV !== "production") {
     process.exit(1);
   }
 });
 process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection:", reason);
 });
 process.on("SIGTERM", async () => {
   httpServer.close(() => {

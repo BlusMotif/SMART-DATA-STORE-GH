@@ -193,7 +193,7 @@ export function WalletTopup() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground flex items-center gap-1">
-                          Processing Fee ({PAYSTACK_TAX_PERCENTAGE}%)
+                          Paystack Fee ({PAYSTACK_TAX_PERCENTAGE}%)
                           <Info className="h-3 w-3" />
                         </span>
                         <span className="text-orange-600">+GH₵{tax.toFixed(2)}</span>
@@ -207,7 +207,7 @@ export function WalletTopup() {
                     <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
                       <Info className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
                       <p className="text-xs text-orange-700 dark:text-orange-400">
-                        A {PAYSTACK_TAX_PERCENTAGE}% processing fee is applied to all Paystack payments. 
+                        A {PAYSTACK_TAX_PERCENTAGE}% Paystack fee is applied to all Paystack payments. 
                         You will receive GH₵{subtotal.toFixed(2)} in your wallet.
                       </p>
                     </div>

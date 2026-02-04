@@ -302,7 +302,7 @@ export default function AdminDashboard() {
                         <TableBody>
                           {recentTransactions.slice(0, 10).map((tx) => (
                             <TableRow key={tx.id} data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-sm">{tx.id.slice(0,8)}</TableCell>
+                              <TableCell className="font-mono text-sm">#{tx.reference}</TableCell>
                               <TableCell className="max-w-[200px] truncate">{tx.productName}</TableCell>
                               <TableCell className="font-medium tabular-nums">{formatCurrency(tx.amount)}</TableCell>
                               <TableCell><StatusBadge status={tx.status} /></TableCell>

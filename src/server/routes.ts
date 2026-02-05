@@ -5396,6 +5396,8 @@ export async function registerRoutes(
           customerEmail: user.email,
           paymentMethod: "admin" as any,
           status: TransactionStatus.COMPLETED,
+          deliveryStatus: "delivered",
+          paymentStatus: "paid",
           paymentReference: transactionRef,
           agentId: null,
           agentProfit: "0.00",
@@ -5506,6 +5508,8 @@ export async function registerRoutes(
           customerEmail: user.email,
           paymentMethod: "admin" as any,
           status: TransactionStatus.COMPLETED,
+          deliveryStatus: "delivered",
+          paymentStatus: "paid",
           paymentReference: transactionRef,
           agentId: null,
           agentProfit: "0.00",
@@ -6673,7 +6677,8 @@ export async function registerRoutes(
       if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2)) {
         return res.status(400).json({ error: "Name must be at least 2 characters" });
       }
-      if (phone !== undefined && (typeof phone !== 'string' || phone.trim().length < 10)) {
+      // Phone is optional - only validate if provided and not empty
+      if (phone !== undefined && phone !== '' && (typeof phone !== 'string' || phone.trim().length < 10)) {
         return res.status(400).json({ error: "Phone number must be at least 10 digits" });
       }
       // Update user profile
@@ -6693,30 +6698,6 @@ export async function registerRoutes(
           role: updatedUser.role,
         }
       });
-    } catch (error: any) {
-      res.status(500).json({ error: "Failed to update profile" });
-    }
-  });
-  app.put("/api/user/profile", requireAuth, async (req, res) => {
-    try {
-      const { name, email } = req.body;
-      if (!name || typeof name !== 'string' || name.trim().length < 2) {
-        return res.status(400).json({ error: "Name must be at least 2 characters" });
-      }
-      if (!email || typeof email !== 'string' || !email.includes('@')) {
-        return res.status(400).json({ error: "Valid email is required" });
-      }
-      // Get current user
-      const dbUser = await storage.getUserByEmail(req.user!.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      // Update user profile
-      await storage.updateUser(dbUser.id, {
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-      });
-      res.json({ message: "Profile updated successfully" });
     } catch (error: any) {
       console.error('Profile update error:', error);
       res.status(500).json({ error: "Failed to update profile" });
@@ -6759,6 +6740,87 @@ export async function registerRoutes(
       if (!transaction) {
         return res.status(404).json({ error: "Order not found. Please check your transaction ID or beneficiary phone number." });
       }
+      
+      // AUTO-REFRESH: Fetch fresh status from SkyTech for data bundle orders that are not completed/failed
+      let skytechStatus: string | undefined;
+      let skytechData: any;
+      const isDataBundle = transaction.type === 'data_bundle';
+      const needsRefresh = isDataBundle && 
+        transaction.status !== TransactionStatus.COMPLETED && 
+        transaction.status !== TransactionStatus.FAILED &&
+        transaction.deliveryStatus !== 'delivered' &&
+        transaction.deliveryStatus !== 'failed';
+      
+      if (needsRefresh && transaction.apiResponse) {
+        console.log(`[TrackOrder] Auto-refreshing status for transaction ${transaction.reference}`);
+        
+        try {
+          const apiResponse = JSON.parse(transaction.apiResponse);
+          let skytechRef = null;
+          
+          if (apiResponse.results && apiResponse.results.length > 0) {
+            skytechRef = apiResponse.results[0].ref;
+          }
+          
+          if (skytechRef) {
+            // Fetch fresh status from SkyTech
+            const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? undefined);
+            
+            if (statusResult.success && statusResult.order) {
+              const orderData = statusResult.order;
+              skytechStatus = orderData.status?.toLowerCase();
+              skytechData = orderData;
+              console.log(`[TrackOrder] SkyTech returned status: ${skytechStatus}`);
+              
+              // Map SkyTech status to internal status
+              let newStatus = transaction.status;
+              let newDeliveryStatus = transaction.deliveryStatus;
+              
+              switch (skytechStatus) {
+                case 'completed':
+                case 'delivered':
+                case 'success':
+                  newStatus = TransactionStatus.COMPLETED;
+                  newDeliveryStatus = 'delivered';
+                  break;
+                case 'failed':
+                case 'error':
+                  newStatus = TransactionStatus.FAILED;
+                  newDeliveryStatus = 'failed';
+                  break;
+                case 'processing':
+                  newStatus = TransactionStatus.PENDING;
+                  newDeliveryStatus = 'processing';
+                  break;
+                case 'pending':
+                case 'queued':
+                  newStatus = TransactionStatus.PENDING;
+                  newDeliveryStatus = 'processing';
+                  break;
+              }
+              
+              // Update if status changed
+              if (newStatus !== transaction.status || newDeliveryStatus !== transaction.deliveryStatus) {
+                console.log(`[TrackOrder] Updating transaction: ${transaction.deliveryStatus} -> ${newDeliveryStatus}`);
+                await storage.updateTransaction(transaction.id, {
+                  status: newStatus,
+                  deliveryStatus: newDeliveryStatus,
+                  completedAt: (newStatus === TransactionStatus.COMPLETED) ? new Date() : transaction.completedAt
+                });
+                // Update local transaction object with new values
+                transaction.status = newStatus;
+                transaction.deliveryStatus = newDeliveryStatus;
+                if (newStatus === TransactionStatus.COMPLETED) {
+                  transaction.completedAt = new Date();
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[TrackOrder] Failed to auto-refresh status for ${transaction.reference}:`, e);
+        }
+      }
+      
       // Return limited transaction info for tracking
       let phoneNumbers = transaction.phoneNumbers;
       if (typeof phoneNumbers === 'string') {
@@ -6784,6 +6846,8 @@ export async function registerRoutes(
         isBulkOrder: transaction.isBulkOrder,
         apiResponse: transaction.apiResponse, // Include SkyTech status
         network: transaction.network, // Network/Provider name
+        skytechStatus: skytechStatus, // Fresh status from SkyTech
+        skytechData: skytechData, // Full SkyTech order data
       };
       
       // If a sub-item was requested and this is a bulk order
@@ -7082,6 +7146,8 @@ export async function registerRoutes(
       // Update transaction
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
+        deliveryStatus: "delivered",
+        paymentStatus: "paid",
         completedAt: new Date(),
         paymentReference: paystackVerification.data.reference,
       });
@@ -7274,16 +7340,32 @@ export async function registerRoutes(
         agentId = purchasingAgent.id;
         agentProfit = 0; // Agents pay agent base price with zero profit
       }
-      // Create transaction
-      const reference = await generateReference();
-      // Store full order items with GB info and prices for bulk orders
-      let phoneNumbersData: any;
-      if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
-        // Calculate individual prices for each item in bulk order
-        const processedItems = [];
-        for (const item of orderItems) {
+      // Deduct from wallet FIRST (use same precision handling as balance check)
+      const newBalanceCents = walletBalanceCents - purchaseAmountCents;
+      const newBalance = newBalanceCents / 100;
+      await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
+      
+      console.log("[Wallet] ==================== CREATING TRANSACTIONS ====================");
+      console.log("[Wallet] customerPhone (normalized):", normalizedPhone || customerPhone);
+      console.log("[Wallet] paymentStatus: paid (cooldown already checked)");
+      console.log("[Wallet] type:", productType);
+      console.log("[Wallet] isBulkOrder:", isBulkOrder);
+      console.log("[Wallet] orderItems:", orderItems);
+      console.log("[Wallet] =================================================================");
+      
+      // Handle bulk orders - create individual transactions for each item with unique references
+      if ((isBulkOrder || (orderItems && orderItems.length > 1)) && orderItems && Array.isArray(orderItems)) {
+        console.log(`[Wallet] Creating ${orderItems.length} individual transactions for bulk order`);
+        
+        const createdTransactions: any[] = [];
+        const createdReferences: string[] = [];
+        
+        for (let i = 0; i < orderItems.length; i++) {
+          const item = orderItems[i];
           const bundle = await storage.getDataBundle(item.bundleId);
           let itemPrice = 0;
+          let itemAgentProfit = 0;
+          
           if (bundle) {
             // Get appropriate price based on user role or agent
             if (agentId) {
@@ -7299,29 +7381,121 @@ export async function registerRoutes(
               const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
               itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
             }
+            
+            // Calculate agent profit for this item if applicable
+            if (agentId && agentProfit > 0) {
+              itemAgentProfit = agentProfit / orderItems.length;
+            }
           }
-          processedItems.push({
-            phone: normalizePhoneNumber(item.phone),
-            bundleName: item.bundleName,
-            bundleId: item.bundleId,
-            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || '',
-            price: itemPrice,
+          
+          // Generate unique reference for each item
+          const itemReference = await generateReference();
+          createdReferences.push(itemReference);
+          
+          const itemPhone = normalizePhoneNumber(item.phone);
+          const itemProductName = item.bundleName || effectiveProductName;
+          
+          console.log(`[Wallet] Creating transaction ${i + 1}/${orderItems.length}: ref=${itemReference}, phone=${itemPhone}, price=${itemPrice}`);
+          
+          const transaction = await storage.createTransaction({
+            reference: itemReference,
+            type: productType,
+            productId: item.bundleId,
+            productName: itemProductName,
+            network,
+            amount: itemPrice.toFixed(2),
+            profit: itemAgentProfit > 0 ? itemAgentProfit.toFixed(2) : "0",
+            customerPhone: itemPhone,
+            customerEmail: dbUser.email,
+            phoneNumbers: undefined, // No JSON array needed - each item is its own transaction
+            isBulkOrder: false, // Each item is now independent
+            paymentMethod: "wallet",
+            status: TransactionStatus.CONFIRMED,
+            paymentStatus: "paid",
+            agentId,
+            agentProfit: itemAgentProfit > 0 ? itemAgentProfit.toFixed(2) : undefined,
           });
+          
+          createdTransactions.push(transaction);
+          
+          // Process this item through API immediately
+          console.log(`[Wallet] Processing data bundle transaction via API: ${transaction.reference}`);
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
+          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+          if (fulfillmentResult.success) {
+            console.log(`[Wallet] Data bundle API fulfillment successful for ${transaction.reference}`);
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.PENDING,
+              deliveryStatus: "processing",
+            });
+          } else {
+            console.error(`[Wallet] Data bundle API fulfillment failed for ${transaction.reference}:`, fulfillmentResult.error);
+            await storage.updateTransaction(transaction.id, {
+              status: TransactionStatus.FAILED,
+              deliveryStatus: "failed",
+              completedAt: new Date(),
+              failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
+            });
+          }
+          
+          // Credit agent for this item if applicable
+          if (agentId && itemAgentProfit > 0) {
+            await storage.updateAgentBalance(agentId, itemAgentProfit, true);
+            
+            const agent = await storage.getAgent(agentId);
+            if (agent) {
+              let profitWallet = await storage.getProfitWallet(agent.userId);
+              if (!profitWallet) {
+                profitWallet = await storage.createProfitWallet({
+                  userId: agent.userId,
+                  availableBalance: "0.00",
+                  pendingBalance: "0.00",
+                  totalEarned: "0.00",
+                });
+              }
+              const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + itemAgentProfit).toFixed(2);
+              const newTotalEarned = (parseFloat(profitWallet.totalEarned) + itemAgentProfit).toFixed(2);
+              await storage.updateProfitWallet(agent.userId, {
+                availableBalance: newAvailableBalance,
+                totalEarned: newTotalEarned,
+              });
+            }
+            
+            // Record admin revenue for this item
+            const adminRevenue = parseFloat((itemPrice - itemAgentProfit).toFixed(2));
+            const adminRef = `ADMINREV-${transaction.reference}`;
+            await storage.createTransaction({
+              reference: adminRef,
+              type: "admin_revenue",
+              productId: null,
+              productName: `Admin revenue for transaction ${transaction.reference}`,
+              network: null,
+              amount: adminRevenue.toFixed(2),
+              profit: "0.00",
+              customerPhone: "",
+              customerEmail: null,
+              isBulkOrder: false,
+              status: TransactionStatus.COMPLETED,
+              paymentStatus: "paid",
+            });
+          }
         }
-        phoneNumbersData = processedItems;
-      } else if (phoneNumbers) {
-        phoneNumbersData = phoneNumbers.map((phone: string) => ({ phone: normalizePhoneNumber(phone) }));
+        
+        console.log(`[Wallet] Created ${createdTransactions.length} individual transactions for bulk order`);
+        
+        return res.json({
+          success: true,
+          references: createdReferences,
+          reference: createdReferences[0], // Primary reference for backward compatibility
+          newBalance: newBalance.toFixed(2),
+          transactionCount: createdTransactions.length,
+        });
       }
-      console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
-      console.log("[Wallet] orderItems:", orderItems);
-      console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
-      console.log("[Wallet] phoneNumbersData:", phoneNumbersData);
-      console.log("[Wallet] ===================================================");
-      console.log("[Wallet] ==================== CREATING TRANSACTION ====================");
-      console.log("[Wallet] customerPhone (normalized):", normalizedPhone || customerPhone);
-      console.log("[Wallet] paymentStatus: paid (cooldown already checked)");
-      console.log("[Wallet] type:", productType);
-      console.log("[Wallet] =================================================================");
+      
+      // Single order processing (non-bulk)
+      const reference = await generateReference();
+      
       const transaction = await storage.createTransaction({
         reference,
         type: productType,
@@ -7332,8 +7506,8 @@ export async function registerRoutes(
         profit: agentProfit > 0 ? agentProfit.toFixed(2) : "0",
         customerPhone: normalizedPhone || customerPhone,
         customerEmail: dbUser.email,
-        phoneNumbers: (isBulkOrder || (orderItems && orderItems.length > 0)) && phoneNumbersData ? JSON.stringify(phoneNumbersData) : undefined,
-        isBulkOrder: isBulkOrder || (orderItems && orderItems.length > 0) || false,
+        phoneNumbers: undefined,
+        isBulkOrder: false,
         paymentMethod: "wallet",
         status: TransactionStatus.CONFIRMED,
         paymentStatus: "paid",
@@ -7343,10 +7517,6 @@ export async function registerRoutes(
       
       console.log("[Wallet] Transaction created:", transaction.id);
       
-      // Deduct from wallet (use same precision handling as balance check)
-      const newBalanceCents = walletBalanceCents - purchaseAmountCents;
-      const newBalance = newBalanceCents / 100;
-      await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
       // Process the order
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
@@ -9188,9 +9358,14 @@ export async function registerRoutes(
 // Cron job endpoint to update order statuses from external providers
 // Status Flow: Order placed → Pending/Processing (SkyTech queued) → Processing (SkyTech actively processing) → Completed/Failed (SkyTech finished)
 // This ensures real-time status tracking aligned with SkyTech's system
+// Also handles retrying orders that failed to update in previous runs
 app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) => {
   try {
     console.log('[Cron] Starting order status update check');
+
+    // Configuration for retry behavior
+    const MAX_STATUS_CHECK_FAILURES = 20; // Max retries before giving up on an order
+    const RETRY_BACKOFF_MINUTES = 30; // Wait this long before retrying failed orders
 
     // Get data bundle transactions that still need delivery updates
     const pendingTransactions = await storage.getTransactionsByStatusAndDelivery(
@@ -9202,6 +9377,8 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
 
     let updatedCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
+    let retriedCount = 0;
 
     for (const transaction of pendingTransactions) {
       try {
@@ -9210,15 +9387,24 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
           continue;
         }
 
-        // Parse the API response to get the SkyTech order reference
+        // Parse the API response to get the SkyTech order reference and retry info
         let skytechRef = null;
+        let apiResponseData: any = {};
+        let statusCheckFailures = 0;
+        let lastStatusCheckAttempt: Date | null = null;
+
         if (transaction.apiResponse) {
           try {
-            const apiResponse = JSON.parse(transaction.apiResponse);
-            if (apiResponse.results && apiResponse.results.length > 0) {
+            apiResponseData = JSON.parse(transaction.apiResponse);
+            if (apiResponseData.results && apiResponseData.results.length > 0) {
               // For bulk orders, check the first result
-              skytechRef = apiResponse.results[0].ref;
+              skytechRef = apiResponseData.results[0].ref;
             }
+            // Get retry tracking info
+            statusCheckFailures = apiResponseData.statusCheckFailures || 0;
+            lastStatusCheckAttempt = apiResponseData.lastStatusCheckAttempt 
+              ? new Date(apiResponseData.lastStatusCheckAttempt) 
+              : null;
           } catch (e) {
             console.warn(`[Cron] Failed to parse API response for transaction ${transaction.id}`);
           }
@@ -9227,6 +9413,42 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
         if (!skytechRef) {
           console.warn(`[Cron] No SkyTech reference found for transaction ${transaction.id}`);
           continue;
+        }
+
+        // Check if we should skip this order due to retry backoff
+        // If we had failures before, wait before trying again to avoid hammering the API
+        if (statusCheckFailures > 0 && lastStatusCheckAttempt) {
+          const minutesSinceLastAttempt = (Date.now() - lastStatusCheckAttempt.getTime()) / (1000 * 60);
+          // Exponential backoff: wait longer after more failures (capped at 4 hours)
+          const backoffMinutes = Math.min(RETRY_BACKOFF_MINUTES * Math.pow(1.5, Math.min(statusCheckFailures - 1, 5)), 240);
+          
+          if (minutesSinceLastAttempt < backoffMinutes) {
+            console.log(`[Cron] Skipping transaction ${transaction.id} - in backoff period (${Math.round(backoffMinutes - minutesSinceLastAttempt)} min remaining)`);
+            skippedCount++;
+            continue;
+          }
+        }
+
+        // Check if we've exceeded max retries
+        if (statusCheckFailures >= MAX_STATUS_CHECK_FAILURES) {
+          console.warn(`[Cron] Transaction ${transaction.id} exceeded max retry attempts (${statusCheckFailures}), marking for review`);
+          // Update apiResponse to flag for manual review but don't change status
+          await storage.updateTransaction(transaction.id, {
+            apiResponse: JSON.stringify({
+              ...apiResponseData,
+              statusCheckFailures,
+              lastStatusCheckAttempt: new Date().toISOString(),
+              requiresManualReview: true,
+              reviewReason: `Failed to get status after ${statusCheckFailures} attempts`
+            })
+          });
+          continue;
+        }
+
+        // Log if this is a retry attempt
+        if (statusCheckFailures > 0) {
+          console.log(`[Cron] Retrying transaction ${transaction.id} (attempt ${statusCheckFailures + 1})`);
+          retriedCount++;
         }
 
         // Check order status with SkyTech
@@ -9287,8 +9509,10 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
               status: newStatus,
               deliveryStatus: newDeliveryStatus,
               apiResponse: JSON.stringify({
-                ...JSON.parse(transaction.apiResponse || '{}'),
+                ...apiResponseData,
                 lastStatusCheck: new Date().toISOString(),
+                lastStatusCheckAttempt: new Date().toISOString(),
+                statusCheckFailures: 0, // Reset failures on successful status fetch
                 skytechStatus: orderData
               })
             };
@@ -9301,9 +9525,36 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
             await storage.updateTransaction(transaction.id, updateData);
             updatedCount++;
             console.log(`[Cron] Updated transaction ${transaction.id} - status: ${newStatus}, delivery: ${newDeliveryStatus} (from SkyTech: ${orderData.status})`);
+          } else {
+            // Status hasn't changed but we successfully fetched it - reset failure counter
+            if (statusCheckFailures > 0) {
+              await storage.updateTransaction(transaction.id, {
+                apiResponse: JSON.stringify({
+                  ...apiResponseData,
+                  lastStatusCheck: new Date().toISOString(),
+                  lastStatusCheckAttempt: new Date().toISOString(),
+                  statusCheckFailures: 0, // Reset on successful fetch even if status unchanged
+                  skytechStatus: orderData
+                })
+              });
+              console.log(`[Cron] Reset failure counter for transaction ${transaction.id} (status unchanged: ${skytechStatus})`);
+            }
           }
         } else {
+          // Failed to get status - increment failure counter for retry later
           console.warn(`[Cron] Failed to get status for SkyTech ref ${skytechRef}: ${statusResult.error}`);
+          
+          // Track the failure for retry
+          await storage.updateTransaction(transaction.id, {
+            apiResponse: JSON.stringify({
+              ...apiResponseData,
+              lastStatusCheckAttempt: new Date().toISOString(),
+              statusCheckFailures: statusCheckFailures + 1,
+              lastError: statusResult.error,
+              lastErrorTimestamp: new Date().toISOString()
+            })
+          });
+          console.log(`[Cron] Recorded failure for transaction ${transaction.id} (attempt ${statusCheckFailures + 1}, will retry later)`);
           errorCount++;
         }
 
@@ -9312,15 +9563,32 @@ app.post('/api/cron/update-order-statuses', async (req: Request, res: Response) 
 
       } catch (error: any) {
         console.error(`[Cron] Error processing transaction ${transaction.id}:`, error.message);
+        
+        // Also track errors thrown during processing
+        try {
+          const currentApiResponse = transaction.apiResponse ? JSON.parse(transaction.apiResponse) : {};
+          const currentFailures = currentApiResponse.statusCheckFailures || 0;
+          await storage.updateTransaction(transaction.id, {
+            apiResponse: JSON.stringify({
+              ...currentApiResponse,
+              lastStatusCheckAttempt: new Date().toISOString(),
+              statusCheckFailures: currentFailures + 1,
+              lastError: error.message,
+              lastErrorTimestamp: new Date().toISOString()
+            })
+          });
+        } catch (updateError) {
+          console.error(`[Cron] Failed to update failure tracking for ${transaction.id}:`, updateError);
+        }
         errorCount++;
       }
     }
 
-    console.log(`[Cron] Order status update completed. Updated: ${updatedCount}, Errors: ${errorCount}`);
+    console.log(`[Cron] Order status update completed. Updated: ${updatedCount}, Errors: ${errorCount}, Skipped (backoff): ${skippedCount}, Retried: ${retriedCount}`);
 
     res.json({
       success: true,
-      message: `Checked ${pendingTransactions.length} transactions, updated ${updatedCount}, errors ${errorCount}`
+      message: `Checked ${pendingTransactions.length} transactions, updated ${updatedCount}, errors ${errorCount}, skipped ${skippedCount}, retried ${retriedCount}`
     });
 
   } catch (error: any) {

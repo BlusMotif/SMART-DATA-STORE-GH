@@ -7496,6 +7496,8 @@ async function registerRoutes(httpServer2, app2) {
           customerEmail: user.email,
           paymentMethod: "admin",
           status: TransactionStatus.COMPLETED,
+          deliveryStatus: "delivered",
+          paymentStatus: "paid",
           paymentReference: transactionRef,
           agentId: null,
           agentProfit: "0.00"
@@ -7585,6 +7587,8 @@ async function registerRoutes(httpServer2, app2) {
           customerEmail: user.email,
           paymentMethod: "admin",
           status: TransactionStatus.COMPLETED,
+          deliveryStatus: "delivered",
+          paymentStatus: "paid",
           paymentReference: transactionRef,
           agentId: null,
           agentProfit: "0.00"
@@ -8595,7 +8599,7 @@ async function registerRoutes(httpServer2, app2) {
       if (name !== void 0 && (typeof name !== "string" || name.trim().length < 2)) {
         return res.status(400).json({ error: "Name must be at least 2 characters" });
       }
-      if (phone !== void 0 && (typeof phone !== "string" || phone.trim().length < 10)) {
+      if (phone !== void 0 && phone !== "" && (typeof phone !== "string" || phone.trim().length < 10)) {
         return res.status(400).json({ error: "Phone number must be at least 10 digits" });
       }
       const updateData = {};
@@ -8614,28 +8618,6 @@ async function registerRoutes(httpServer2, app2) {
           role: updatedUser.role
         }
       });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update profile" });
-    }
-  });
-  app2.put("/api/user/profile", requireAuth, async (req, res) => {
-    try {
-      const { name, email } = req.body;
-      if (!name || typeof name !== "string" || name.trim().length < 2) {
-        return res.status(400).json({ error: "Name must be at least 2 characters" });
-      }
-      if (!email || typeof email !== "string" || !email.includes("@")) {
-        return res.status(400).json({ error: "Valid email is required" });
-      }
-      const dbUser = await storage.getUserByEmail(req.user.email);
-      if (!dbUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      await storage.updateUser(dbUser.id, {
-        name: name.trim(),
-        email: email.trim().toLowerCase()
-      });
-      res.json({ message: "Profile updated successfully" });
     } catch (error) {
       console.error("Profile update error:", error);
       res.status(500).json({ error: "Failed to update profile" });
@@ -8667,6 +8649,68 @@ async function registerRoutes(httpServer2, app2) {
       if (!transaction) {
         return res.status(404).json({ error: "Order not found. Please check your transaction ID or beneficiary phone number." });
       }
+      let skytechStatus;
+      let skytechData;
+      const isDataBundle = transaction.type === "data_bundle";
+      const needsRefresh = isDataBundle && transaction.status !== TransactionStatus.COMPLETED && transaction.status !== TransactionStatus.FAILED && transaction.deliveryStatus !== "delivered" && transaction.deliveryStatus !== "failed";
+      if (needsRefresh && transaction.apiResponse) {
+        console.log(`[TrackOrder] Auto-refreshing status for transaction ${transaction.reference}`);
+        try {
+          const apiResponse = JSON.parse(transaction.apiResponse);
+          let skytechRef = null;
+          if (apiResponse.results && apiResponse.results.length > 0) {
+            skytechRef = apiResponse.results[0].ref;
+          }
+          if (skytechRef) {
+            const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? void 0);
+            if (statusResult.success && statusResult.order) {
+              const orderData = statusResult.order;
+              skytechStatus = orderData.status?.toLowerCase();
+              skytechData = orderData;
+              console.log(`[TrackOrder] SkyTech returned status: ${skytechStatus}`);
+              let newStatus = transaction.status;
+              let newDeliveryStatus = transaction.deliveryStatus;
+              switch (skytechStatus) {
+                case "completed":
+                case "delivered":
+                case "success":
+                  newStatus = TransactionStatus.COMPLETED;
+                  newDeliveryStatus = "delivered";
+                  break;
+                case "failed":
+                case "error":
+                  newStatus = TransactionStatus.FAILED;
+                  newDeliveryStatus = "failed";
+                  break;
+                case "processing":
+                  newStatus = TransactionStatus.PENDING;
+                  newDeliveryStatus = "processing";
+                  break;
+                case "pending":
+                case "queued":
+                  newStatus = TransactionStatus.PENDING;
+                  newDeliveryStatus = "processing";
+                  break;
+              }
+              if (newStatus !== transaction.status || newDeliveryStatus !== transaction.deliveryStatus) {
+                console.log(`[TrackOrder] Updating transaction: ${transaction.deliveryStatus} -> ${newDeliveryStatus}`);
+                await storage.updateTransaction(transaction.id, {
+                  status: newStatus,
+                  deliveryStatus: newDeliveryStatus,
+                  completedAt: newStatus === TransactionStatus.COMPLETED ? /* @__PURE__ */ new Date() : transaction.completedAt
+                });
+                transaction.status = newStatus;
+                transaction.deliveryStatus = newDeliveryStatus;
+                if (newStatus === TransactionStatus.COMPLETED) {
+                  transaction.completedAt = /* @__PURE__ */ new Date();
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[TrackOrder] Failed to auto-refresh status for ${transaction.reference}:`, e);
+        }
+      }
       let phoneNumbers = transaction.phoneNumbers;
       if (typeof phoneNumbers === "string") {
         try {
@@ -8690,8 +8734,12 @@ async function registerRoutes(httpServer2, app2) {
         isBulkOrder: transaction.isBulkOrder,
         apiResponse: transaction.apiResponse,
         // Include SkyTech status
-        network: transaction.network
+        network: transaction.network,
         // Network/Provider name
+        skytechStatus,
+        // Fresh status from SkyTech
+        skytechData
+        // Full SkyTech order data
       };
       if (subItemIndex !== null && transaction.isBulkOrder && Array.isArray(phoneNumbers) && phoneNumbers.length >= subItemIndex) {
         const subItem = phoneNumbers[subItemIndex - 1];
@@ -8954,6 +9002,8 @@ async function registerRoutes(httpServer2, app2) {
       }
       await storage.updateTransaction(transaction.id, {
         status: TransactionStatus.COMPLETED,
+        deliveryStatus: "delivered",
+        paymentStatus: "paid",
         completedAt: /* @__PURE__ */ new Date(),
         paymentReference: paystackVerification.data.reference
       });
@@ -9117,13 +9167,25 @@ async function registerRoutes(httpServer2, app2) {
         agentId = purchasingAgent.id;
         agentProfit = 0;
       }
-      const reference = await generateReference();
-      let phoneNumbersData;
-      if (orderItems && Array.isArray(orderItems) && orderItems.length > 0) {
-        const processedItems = [];
-        for (const item of orderItems) {
+      const newBalanceCents = walletBalanceCents - purchaseAmountCents;
+      const newBalance = newBalanceCents / 100;
+      await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
+      console.log("[Wallet] ==================== CREATING TRANSACTIONS ====================");
+      console.log("[Wallet] customerPhone (normalized):", normalizedPhone || customerPhone);
+      console.log("[Wallet] paymentStatus: paid (cooldown already checked)");
+      console.log("[Wallet] type:", productType);
+      console.log("[Wallet] isBulkOrder:", isBulkOrder);
+      console.log("[Wallet] orderItems:", orderItems);
+      console.log("[Wallet] =================================================================");
+      if ((isBulkOrder || orderItems && orderItems.length > 1) && orderItems && Array.isArray(orderItems)) {
+        console.log(`[Wallet] Creating ${orderItems.length} individual transactions for bulk order`);
+        const createdTransactions = [];
+        const createdReferences = [];
+        for (let i = 0; i < orderItems.length; i++) {
+          const item = orderItems[i];
           const bundle = await storage.getDataBundle(item.bundleId);
           let itemPrice = 0;
+          let itemAgentProfit = 0;
           if (bundle) {
             if (agentId) {
               const agent = await storage.getAgent(agentId);
@@ -9138,29 +9200,103 @@ async function registerRoutes(httpServer2, app2) {
               const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
               itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || "0");
             }
+            if (agentId && agentProfit > 0) {
+              itemAgentProfit = agentProfit / orderItems.length;
+            }
           }
-          processedItems.push({
-            phone: normalizePhoneNumber(item.phone),
-            bundleName: item.bundleName,
-            bundleId: item.bundleId,
-            dataAmount: item.bundleName.match(/(\d+(?:\.\d+)?\s*(?:GB|MB))/i)?.[1] || "",
-            price: itemPrice
+          const itemReference = await generateReference();
+          createdReferences.push(itemReference);
+          const itemPhone = normalizePhoneNumber(item.phone);
+          const itemProductName = item.bundleName || effectiveProductName;
+          console.log(`[Wallet] Creating transaction ${i + 1}/${orderItems.length}: ref=${itemReference}, phone=${itemPhone}, price=${itemPrice}`);
+          const transaction2 = await storage.createTransaction({
+            reference: itemReference,
+            type: productType,
+            productId: item.bundleId,
+            productName: itemProductName,
+            network,
+            amount: itemPrice.toFixed(2),
+            profit: itemAgentProfit > 0 ? itemAgentProfit.toFixed(2) : "0",
+            customerPhone: itemPhone,
+            customerEmail: dbUser.email,
+            phoneNumbers: void 0,
+            // No JSON array needed - each item is its own transaction
+            isBulkOrder: false,
+            // Each item is now independent
+            paymentMethod: "wallet",
+            status: TransactionStatus.CONFIRMED,
+            paymentStatus: "paid",
+            agentId,
+            agentProfit: itemAgentProfit > 0 ? itemAgentProfit.toFixed(2) : void 0
           });
+          createdTransactions.push(transaction2);
+          console.log(`[Wallet] Processing data bundle transaction via API: ${transaction2.reference}`);
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction2, transaction2.providerId ?? void 0);
+          await storage.updateTransaction(transaction2.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+          if (fulfillmentResult.success) {
+            console.log(`[Wallet] Data bundle API fulfillment successful for ${transaction2.reference}`);
+            await storage.updateTransaction(transaction2.id, {
+              status: TransactionStatus.PENDING,
+              deliveryStatus: "processing"
+            });
+          } else {
+            console.error(`[Wallet] Data bundle API fulfillment failed for ${transaction2.reference}:`, fulfillmentResult.error);
+            await storage.updateTransaction(transaction2.id, {
+              status: TransactionStatus.FAILED,
+              deliveryStatus: "failed",
+              completedAt: /* @__PURE__ */ new Date(),
+              failureReason: `API fulfillment failed: ${fulfillmentResult.error}`
+            });
+          }
+          if (agentId && itemAgentProfit > 0) {
+            await storage.updateAgentBalance(agentId, itemAgentProfit, true);
+            const agent = await storage.getAgent(agentId);
+            if (agent) {
+              let profitWallet = await storage.getProfitWallet(agent.userId);
+              if (!profitWallet) {
+                profitWallet = await storage.createProfitWallet({
+                  userId: agent.userId,
+                  availableBalance: "0.00",
+                  pendingBalance: "0.00",
+                  totalEarned: "0.00"
+                });
+              }
+              const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + itemAgentProfit).toFixed(2);
+              const newTotalEarned = (parseFloat(profitWallet.totalEarned) + itemAgentProfit).toFixed(2);
+              await storage.updateProfitWallet(agent.userId, {
+                availableBalance: newAvailableBalance,
+                totalEarned: newTotalEarned
+              });
+            }
+            const adminRevenue = parseFloat((itemPrice - itemAgentProfit).toFixed(2));
+            const adminRef = `ADMINREV-${transaction2.reference}`;
+            await storage.createTransaction({
+              reference: adminRef,
+              type: "admin_revenue",
+              productId: null,
+              productName: `Admin revenue for transaction ${transaction2.reference}`,
+              network: null,
+              amount: adminRevenue.toFixed(2),
+              profit: "0.00",
+              customerPhone: "",
+              customerEmail: null,
+              isBulkOrder: false,
+              status: TransactionStatus.COMPLETED,
+              paymentStatus: "paid"
+            });
+          }
         }
-        phoneNumbersData = processedItems;
-      } else if (phoneNumbers) {
-        phoneNumbersData = phoneNumbers.map((phone) => ({ phone: normalizePhoneNumber(phone) }));
+        console.log(`[Wallet] Created ${createdTransactions.length} individual transactions for bulk order`);
+        return res.json({
+          success: true,
+          references: createdReferences,
+          reference: createdReferences[0],
+          // Primary reference for backward compatibility
+          newBalance: newBalance.toFixed(2),
+          transactionCount: createdTransactions.length
+        });
       }
-      console.log("[Wallet] ========== PHONE NUMBERS EXTRACTION ==========");
-      console.log("[Wallet] orderItems:", orderItems);
-      console.log("[Wallet] phoneNumbers param:", req.body?.phoneNumbers);
-      console.log("[Wallet] phoneNumbersData:", phoneNumbersData);
-      console.log("[Wallet] ===================================================");
-      console.log("[Wallet] ==================== CREATING TRANSACTION ====================");
-      console.log("[Wallet] customerPhone (normalized):", normalizedPhone || customerPhone);
-      console.log("[Wallet] paymentStatus: paid (cooldown already checked)");
-      console.log("[Wallet] type:", productType);
-      console.log("[Wallet] =================================================================");
+      const reference = await generateReference();
       const transaction = await storage.createTransaction({
         reference,
         type: productType,
@@ -9171,8 +9307,8 @@ async function registerRoutes(httpServer2, app2) {
         profit: agentProfit > 0 ? agentProfit.toFixed(2) : "0",
         customerPhone: normalizedPhone || customerPhone,
         customerEmail: dbUser.email,
-        phoneNumbers: (isBulkOrder || orderItems && orderItems.length > 0) && phoneNumbersData ? JSON.stringify(phoneNumbersData) : void 0,
-        isBulkOrder: isBulkOrder || orderItems && orderItems.length > 0 || false,
+        phoneNumbers: void 0,
+        isBulkOrder: false,
         paymentMethod: "wallet",
         status: TransactionStatus.CONFIRMED,
         paymentStatus: "paid",
@@ -9180,9 +9316,6 @@ async function registerRoutes(httpServer2, app2) {
         agentProfit: agentProfit > 0 ? agentProfit.toFixed(2) : void 0
       });
       console.log("[Wallet] Transaction created:", transaction.id);
-      const newBalanceCents = walletBalanceCents - purchaseAmountCents;
-      const newBalance = newBalanceCents / 100;
-      await storage.updateUser(dbUser.id, { walletBalance: newBalance.toFixed(2) });
       let deliveredPin;
       let deliveredSerial;
       if (productType === ProductType.RESULT_CHECKER && productId) {
@@ -10684,6 +10817,8 @@ async function registerRoutes(httpServer2, app2) {
   app2.post("/api/cron/update-order-statuses", async (req, res) => {
     try {
       console.log("[Cron] Starting order status update check");
+      const MAX_STATUS_CHECK_FAILURES = 20;
+      const RETRY_BACKOFF_MINUTES = 30;
       const pendingTransactions = await storage.getTransactionsByStatusAndDelivery(
         ["pending", "completed"],
         ["processing", "pending"]
@@ -10691,18 +10826,25 @@ async function registerRoutes(httpServer2, app2) {
       console.log(`[Cron] Found ${pendingTransactions.length} transactions to check`);
       let updatedCount = 0;
       let errorCount = 0;
+      let skippedCount = 0;
+      let retriedCount = 0;
       for (const transaction of pendingTransactions) {
         try {
           if (transaction.type !== ProductType.DATA_BUNDLE) {
             continue;
           }
           let skytechRef = null;
+          let apiResponseData = {};
+          let statusCheckFailures = 0;
+          let lastStatusCheckAttempt = null;
           if (transaction.apiResponse) {
             try {
-              const apiResponse = JSON.parse(transaction.apiResponse);
-              if (apiResponse.results && apiResponse.results.length > 0) {
-                skytechRef = apiResponse.results[0].ref;
+              apiResponseData = JSON.parse(transaction.apiResponse);
+              if (apiResponseData.results && apiResponseData.results.length > 0) {
+                skytechRef = apiResponseData.results[0].ref;
               }
+              statusCheckFailures = apiResponseData.statusCheckFailures || 0;
+              lastStatusCheckAttempt = apiResponseData.lastStatusCheckAttempt ? new Date(apiResponseData.lastStatusCheckAttempt) : null;
             } catch (e) {
               console.warn(`[Cron] Failed to parse API response for transaction ${transaction.id}`);
             }
@@ -10710,6 +10852,32 @@ async function registerRoutes(httpServer2, app2) {
           if (!skytechRef) {
             console.warn(`[Cron] No SkyTech reference found for transaction ${transaction.id}`);
             continue;
+          }
+          if (statusCheckFailures > 0 && lastStatusCheckAttempt) {
+            const minutesSinceLastAttempt = (Date.now() - lastStatusCheckAttempt.getTime()) / (1e3 * 60);
+            const backoffMinutes = Math.min(RETRY_BACKOFF_MINUTES * Math.pow(1.5, Math.min(statusCheckFailures - 1, 5)), 240);
+            if (minutesSinceLastAttempt < backoffMinutes) {
+              console.log(`[Cron] Skipping transaction ${transaction.id} - in backoff period (${Math.round(backoffMinutes - minutesSinceLastAttempt)} min remaining)`);
+              skippedCount++;
+              continue;
+            }
+          }
+          if (statusCheckFailures >= MAX_STATUS_CHECK_FAILURES) {
+            console.warn(`[Cron] Transaction ${transaction.id} exceeded max retry attempts (${statusCheckFailures}), marking for review`);
+            await storage.updateTransaction(transaction.id, {
+              apiResponse: JSON.stringify({
+                ...apiResponseData,
+                statusCheckFailures,
+                lastStatusCheckAttempt: (/* @__PURE__ */ new Date()).toISOString(),
+                requiresManualReview: true,
+                reviewReason: `Failed to get status after ${statusCheckFailures} attempts`
+              })
+            });
+            continue;
+          }
+          if (statusCheckFailures > 0) {
+            console.log(`[Cron] Retrying transaction ${transaction.id} (attempt ${statusCheckFailures + 1})`);
+            retriedCount++;
           }
           const statusResult = await getExternalOrderStatus(skytechRef, transaction.providerId ?? void 0);
           if (statusResult.success && statusResult.order) {
@@ -10754,8 +10922,11 @@ async function registerRoutes(httpServer2, app2) {
                 status: newStatus,
                 deliveryStatus: newDeliveryStatus,
                 apiResponse: JSON.stringify({
-                  ...JSON.parse(transaction.apiResponse || "{}"),
+                  ...apiResponseData,
                   lastStatusCheck: (/* @__PURE__ */ new Date()).toISOString(),
+                  lastStatusCheckAttempt: (/* @__PURE__ */ new Date()).toISOString(),
+                  statusCheckFailures: 0,
+                  // Reset failures on successful status fetch
                   skytechStatus: orderData
                 })
               };
@@ -10765,21 +10936,60 @@ async function registerRoutes(httpServer2, app2) {
               await storage.updateTransaction(transaction.id, updateData);
               updatedCount++;
               console.log(`[Cron] Updated transaction ${transaction.id} - status: ${newStatus}, delivery: ${newDeliveryStatus} (from SkyTech: ${orderData.status})`);
+            } else {
+              if (statusCheckFailures > 0) {
+                await storage.updateTransaction(transaction.id, {
+                  apiResponse: JSON.stringify({
+                    ...apiResponseData,
+                    lastStatusCheck: (/* @__PURE__ */ new Date()).toISOString(),
+                    lastStatusCheckAttempt: (/* @__PURE__ */ new Date()).toISOString(),
+                    statusCheckFailures: 0,
+                    // Reset on successful fetch even if status unchanged
+                    skytechStatus: orderData
+                  })
+                });
+                console.log(`[Cron] Reset failure counter for transaction ${transaction.id} (status unchanged: ${skytechStatus})`);
+              }
             }
           } else {
             console.warn(`[Cron] Failed to get status for SkyTech ref ${skytechRef}: ${statusResult.error}`);
+            await storage.updateTransaction(transaction.id, {
+              apiResponse: JSON.stringify({
+                ...apiResponseData,
+                lastStatusCheckAttempt: (/* @__PURE__ */ new Date()).toISOString(),
+                statusCheckFailures: statusCheckFailures + 1,
+                lastError: statusResult.error,
+                lastErrorTimestamp: (/* @__PURE__ */ new Date()).toISOString()
+              })
+            });
+            console.log(`[Cron] Recorded failure for transaction ${transaction.id} (attempt ${statusCheckFailures + 1}, will retry later)`);
             errorCount++;
           }
           await new Promise((resolve) => setTimeout(resolve, 100));
         } catch (error) {
           console.error(`[Cron] Error processing transaction ${transaction.id}:`, error.message);
+          try {
+            const currentApiResponse = transaction.apiResponse ? JSON.parse(transaction.apiResponse) : {};
+            const currentFailures = currentApiResponse.statusCheckFailures || 0;
+            await storage.updateTransaction(transaction.id, {
+              apiResponse: JSON.stringify({
+                ...currentApiResponse,
+                lastStatusCheckAttempt: (/* @__PURE__ */ new Date()).toISOString(),
+                statusCheckFailures: currentFailures + 1,
+                lastError: error.message,
+                lastErrorTimestamp: (/* @__PURE__ */ new Date()).toISOString()
+              })
+            });
+          } catch (updateError) {
+            console.error(`[Cron] Failed to update failure tracking for ${transaction.id}:`, updateError);
+          }
           errorCount++;
         }
       }
-      console.log(`[Cron] Order status update completed. Updated: ${updatedCount}, Errors: ${errorCount}`);
+      console.log(`[Cron] Order status update completed. Updated: ${updatedCount}, Errors: ${errorCount}, Skipped (backoff): ${skippedCount}, Retried: ${retriedCount}`);
       res.json({
         success: true,
-        message: `Checked ${pendingTransactions.length} transactions, updated ${updatedCount}, errors ${errorCount}`
+        message: `Checked ${pendingTransactions.length} transactions, updated ${updatedCount}, errors ${errorCount}, skipped ${skippedCount}, retried ${retriedCount}`
       });
     } catch (error) {
       console.error("[Cron] Order status update failed:", error);

@@ -756,7 +756,7 @@ export default function AdminTransactions() {
                           return (
                             <Fragment key={tx.id}>
                             <TableRow data-testid={`row-transaction-${tx.id}`}>
-                              <TableCell className="font-mono text-xs md:text-sm">#{tx.reference}{tx.isExpandedBulkItem ? `-${tx.bulkOrderIndex}` : ''}</TableCell>
+                              <TableCell className="font-mono text-xs md:text-sm">#{tx.reference}</TableCell>
                               <TableCell className="max-w-[150px] md:max-w-[200px]">
                                 <div className="font-medium truncate text-xs md:text-sm">{tx.productName}</div>
                                 <div className="flex gap-1 mt-1 flex-wrap">

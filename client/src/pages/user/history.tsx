@@ -352,7 +352,7 @@ export default function UserHistoryPage() {
                               <div className="text-xs md:text-sm text-gray-200 space-y-1">
                                 <p className="text-gray-200">Phone: {transaction.customerPhone}</p>
                                 {transaction.network && <p className="text-gray-200">Network: {transaction.network.toUpperCase()}</p>}
-                                <p className="text-xs text-gray-300">Order ID: #{transaction.reference || transaction.originalReference}{transaction.isExpandedBulkItem ? `-${transaction.bulkOrderIndex}` : ''}</p>
+                                <p className="text-xs text-gray-300">Order ID: #{transaction.reference}</p>
                                 <p className="text-xs text-gray-300">
                                   {new Date(transaction.createdAt).toLocaleDateString()} at {new Date(transaction.createdAt).toLocaleTimeString()}
                                 </p>

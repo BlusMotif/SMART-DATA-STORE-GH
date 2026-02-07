@@ -63,7 +63,7 @@ export default function CheckoutSuccessPage() {
 
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
-  const { data: verifyResult } = useQuery<{ success: boolean; transaction: Transaction }>({
+  const { data: verifyResult } = useQuery<{ success: boolean; transaction: Transaction; bulkOrder?: boolean; transactions?: Transaction[] }>({
     queryKey: [`/api/transactions/verify/${reference || paystackReference}`],
     queryFn: async () => {
       try {
@@ -104,7 +104,7 @@ export default function CheckoutSuccessPage() {
       setVerificationComplete(true);
       if (verifyResult.success === false) {
         setPaymentFailed(true);
-      } else if (verifyResult.success && verifyResult.transaction) {
+      } else if (verifyResult.success && (verifyResult.transaction || verifyResult.transactions)) {
         // Invalidate agent transactions and stats queries to refresh the data
         queryClient.invalidateQueries({ queryKey: ["/api/agent/transactions"] });
         queryClient.invalidateQueries({ queryKey: ["/api/agent/transactions/stats"] });
@@ -113,7 +113,9 @@ export default function CheckoutSuccessPage() {
     }
   }, [verifyResult, queryClient]);
 
+  // For bulk orders, use the transactions array; otherwise use single transaction
   const transaction = verifyResult?.transaction;
+  const bulkTransactions = verifyResult?.bulkOrder ? verifyResult.transactions : undefined;
 
   // Auto-download result checker PDF when verification completes
   useEffect(() => {
@@ -433,8 +435,49 @@ export default function CheckoutSuccessPage() {
                     </div>
                   </div>
 
-                  {/* Bulk Order Phone Numbers */}
-                  {(transaction as any).isBulkOrder && (transaction as any).phoneNumbers && (() => {
+                  {/* Display all bulk transactions when available */}
+                  {bulkTransactions && bulkTransactions.length > 1 && (
+                    <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-white flex items-center gap-2">
+                          <PhoneIcon className="h-4 w-4" />
+                          Bulk Order Items ({bulkTransactions.length})
+                        </h4>
+                      </div>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {bulkTransactions.map((t: Transaction, idx: number) => (
+                          <div key={t.id} className="flex items-center justify-between bg-white dark:bg-blue-700 rounded px-3 py-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">{idx + 1}.</span>
+                                <span className="text-sm font-mono font-semibold text-blue-900 dark:text-white">#{t.reference}</span>
+                              </div>
+                              <div className="text-xs text-blue-600 dark:text-blue-200 mt-1">
+                                <span>{t.productName}</span>
+                                <span className="mx-2">|</span>
+                                <span>{t.customerPhone}</span>
+                                <span className="mx-2">|</span>
+                                <span>{formatCurrency(t.amount)}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                t.deliveryStatus === 'delivered' ? 'bg-green-100 text-green-700' :
+                                t.deliveryStatus === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                                t.deliveryStatus === 'failed' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {t.deliveryStatus || 'pending'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bulk Order Phone Numbers (legacy format - for backward compatibility) */}
+                  {!bulkTransactions && (transaction as any).isBulkOrder && (transaction as any).phoneNumbers && (() => {
                     // Parse phoneNumbers - it might be a JSON string or already an array
                     // Items can be strings or objects {phone, bundleName, dataAmount}
                     let phoneNumbersArray: any[] = [];

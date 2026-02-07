@@ -549,9 +549,143 @@ async function processWebhookEvent(event: any) {
         if (transaction.apiResponse || transaction.paymentStatus === "paid") {
           return;
         }
+        
+        // Check if this is a bulk order that needs to be split into individual transactions
+        let orderItems: any[] = [];
+        if (transaction.isBulkOrder && transaction.phoneNumbers) {
+          try {
+            const parsed = JSON.parse(transaction.phoneNumbers);
+            if (Array.isArray(parsed) && parsed.length > 1 && parsed[0]?.phone) {
+              orderItems = parsed;
+              console.log(`[Webhook] Found bulk order with ${orderItems.length} items - splitting into individual transactions`);
+            }
+          } catch (e) {
+            console.log("[Webhook] phoneNumbers is not valid JSON for bulk order split");
+          }
+        }
+        
         const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
         if (autoProcessingEnabled) {
           try {
+            // For bulk orders, create individual transactions for each item
+            if (orderItems.length > 1) {
+              console.log(`[Webhook] Splitting bulk order ${transaction.reference} into ${orderItems.length} individual transactions`);
+              
+              const createdTransactions: any[] = [];
+              const totalAmount = parseFloat(transaction.amount || "0");
+              const totalAgentProfit = parseFloat(transaction.agentProfit || "0");
+              const perItemAgentProfit = totalAgentProfit / orderItems.length;
+              
+              for (let i = 0; i < orderItems.length; i++) {
+                const item = orderItems[i];
+                const itemPhone = normalizePhoneNumber(item.phone);
+                
+                // Get bundle info for this item
+                let itemPrice = totalAmount / orderItems.length;
+                let itemProductName = transaction.productName;
+                let itemBundleId = transaction.productId;
+                
+                if (item.bundleId) {
+                  const bundle = await storage.getDataBundle(item.bundleId);
+                  if (bundle) {
+                    itemBundleId = bundle.id;
+                    itemProductName = item.bundleName || bundle.name;
+                    if (item.price) {
+                      itemPrice = parseFloat(item.price);
+                    }
+                  }
+                }
+                
+                // Generate unique reference for each item
+                const itemReference = await generateReference();
+                
+                console.log(`[Webhook] Creating split transaction ${i + 1}/${orderItems.length}: ref=${itemReference}, phone=${itemPhone}`);
+                
+                const splitTransaction = await storage.createTransaction({
+                  reference: itemReference,
+                  type: ProductType.DATA_BUNDLE,
+                  productId: itemBundleId,
+                  productName: itemProductName,
+                  network: transaction.network,
+                  amount: itemPrice.toFixed(2),
+                  profit: perItemAgentProfit > 0 ? perItemAgentProfit.toFixed(2) : "0",
+                  customerPhone: itemPhone,
+                  customerEmail: transaction.customerEmail,
+                  phoneNumbers: undefined,
+                  isBulkOrder: false,
+                  paymentMethod: "paystack",
+                  status: TransactionStatus.CONFIRMED,
+                  paymentStatus: "paid",
+                  paymentReference: data.reference,
+                  agentId: transaction.agentId,
+                  agentProfit: perItemAgentProfit > 0 ? perItemAgentProfit.toFixed(2) : undefined,
+                  providerId: transaction.providerId,
+                });
+                
+                createdTransactions.push(splitTransaction);
+                
+                // Process this item through API
+                console.log(`[Webhook] Processing split transaction via API: ${splitTransaction.reference}`);
+                const fulfillResult = await fulfillDataBundleTransaction(splitTransaction, splitTransaction.providerId ?? undefined);
+                await storage.updateTransaction(splitTransaction.id, { apiResponse: JSON.stringify(fulfillResult) });
+
+                if (fulfillResult && fulfillResult.success) {
+                  await storage.updateTransaction(splitTransaction.id, {
+                    status: TransactionStatus.PENDING,
+                    deliveryStatus: "processing",
+                  });
+                } else {
+                  await storage.updateTransaction(splitTransaction.id, {
+                    status: TransactionStatus.FAILED,
+                    deliveryStatus: "failed",
+                    completedAt: new Date(),
+                    failureReason: `API fulfillment failed: ${fulfillResult?.error || 'Unknown error'}`,
+                  });
+                }
+                
+                // Credit agent for this item if applicable
+                if (transaction.agentId && perItemAgentProfit > 0) {
+                  await storage.updateAgentBalance(transaction.agentId, perItemAgentProfit, true);
+                  
+                  const agent = await storage.getAgent(transaction.agentId);
+                  if (agent) {
+                    let profitWallet = await storage.getProfitWallet(agent.userId);
+                    if (!profitWallet) {
+                      profitWallet = await storage.createProfitWallet({
+                        userId: agent.userId,
+                        availableBalance: "0.00",
+                        pendingBalance: "0.00",
+                        totalEarned: "0.00",
+                      });
+                    }
+                    const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + perItemAgentProfit).toFixed(2);
+                    const newTotalEarned = (parseFloat(profitWallet.totalEarned) + perItemAgentProfit).toFixed(2);
+                    await storage.updateProfitWallet(agent.userId, {
+                      availableBalance: newAvailableBalance,
+                      totalEarned: newTotalEarned,
+                    });
+                  }
+                }
+              }
+              
+              // Mark original bulk transaction as split
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.COMPLETED,
+                deliveryStatus: "split",
+                paymentStatus: "paid",
+                paymentReference: data.reference,
+                apiResponse: JSON.stringify({
+                  split: true,
+                  splitCount: createdTransactions.length,
+                  splitReferences: createdTransactions.map(t => t.reference),
+                }),
+              });
+              
+              console.log(`[Webhook] Bulk order ${transaction.reference} split into ${createdTransactions.length} individual transactions`);
+              return;
+            }
+            
+            // Single transaction fulfillment (non-bulk)
             const fulfillResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillResult) });
 
@@ -1886,8 +2020,6 @@ export async function registerRoutes(
           });
         }
       }
-      // Create transaction
-      const reference = await generateReference();
       
       // Determine network from first item (all items have same network due to validation)
       let bulkNetwork: string | undefined;
@@ -1908,24 +2040,7 @@ export async function registerRoutes(
         }
       }
       
-      const transaction = await storage.createTransaction({
-        reference,
-        type: "data_bundle",
-        productId: null, // Bulk order
-        productName: `Bulk Data Bundle Purchase (${orderItems.length} items)`,
-        network: bulkNetwork || null,
-        amount: totalAmount.toFixed(2),
-        profit: "0.00", // Will be calculated per item
-        customerPhone: user.phone || "",
-        customerEmail: user.email,
-        phoneNumbers: JSON.stringify(processedOrderItems),
-        isBulkOrder: true,
-        status: "processing",
-        agentId: user.role === 'agent' ? user.id : undefined,
-        agentProfit: user.role === 'agent' ? computedAgentProfit.toFixed(2) : "0.00",
-        providerId,
-      });
-      // Deduct from wallet if registered user
+      // Deduct from wallet FIRST if registered user
       if (user.role !== 'guest') {
         const userData = await storage.getUser(user.id);
         if (userData) {
@@ -1936,95 +2051,120 @@ export async function registerRoutes(
           await storage.updateUser(user.id, { walletBalance: newBalance.toFixed(2) });
         }
       }
-      // Mark transaction payment as completed for wallet payments
-      await storage.updateTransaction(transaction.id, {
-        status: "processing", // Set to processing until SkyTech confirms delivery
-        completedAt: new Date(),
-        paymentReference: "wallet",
-        paymentStatus: "paid",
-      });
-      // Financial integrity: credit agent only their profit, and record admin revenue separately
-      if (user.role === 'agent' && parseFloat(transaction.agentProfit || "0") > 0) {
-        const agentProfitValue = parseFloat(transaction.agentProfit || "0");
-        const adminRevenue = parseFloat((parseFloat(transaction.amount) - agentProfitValue).toFixed(2));
-        // Safety check
-        if (Math.abs(agentProfitValue + adminRevenue - parseFloat(transaction.amount)) > 0.01) {
-          console.error("AGENT_PROFIT_MISMATCH detected for transaction", transaction.id);
-          throw new Error("AGENT_PROFIT_MISMATCH");
-        }
-        // Credit agent balance with PROFIT only
-        await storage.updateAgentBalance(user.id, agentProfitValue, true);
-        // Record admin revenue as its own transaction for accounting
-        const adminRef = `ADMINREV-${transaction.reference}`;
-        await storage.createTransaction({
-          reference: adminRef,
-          type: "admin_revenue",
-          productId: null,
-          productName: `Admin revenue for bulk transaction ${transaction.reference}`,
-          network: null,
-          amount: adminRevenue.toFixed(2),
-          profit: "0.00",
-          customerPhone: "",
-          customerEmail: null,
-          isBulkOrder: false,
-          status: "completed",
-          paymentStatus: "paid",
-        });
-      }
-      // Process delivery for bulk orders
-      const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
-      if (autoProcessingEnabled) {
-        // Process data bundle through external API
-        console.log("[BulkUpload] Processing data bundle transaction via API:", transaction.reference);
-        const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
-        await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
 
-        if (fulfillmentResult && fulfillmentResult.success && fulfillmentResult.results && fulfillmentResult.results.length > 0) {
-          // Check if all items were successful
-          const allSuccess = fulfillmentResult.results.every((r: any) => r.status === 'pending' || r.status === 'success');
+      // Create individual transactions for each item (not a single bulk transaction)
+      console.log(`[BulkUpload] Creating ${processedOrderItems.length} individual transactions`);
+      
+      const createdTransactions: any[] = [];
+      const createdReferences: string[] = [];
+      const autoProcessingEnabled = (await storage.getSetting("data_bundle_auto_processing")) === "true";
+      
+      // Calculate per-item agent profit
+      const perItemAgentProfit = processedOrderItems.length > 0 ? computedAgentProfit / processedOrderItems.length : 0;
+      
+      for (let i = 0; i < processedOrderItems.length; i++) {
+        const item = processedOrderItems[i];
+        const bundle = await storage.getDataBundle(item.bundleId);
+        
+        // Generate unique reference for each item
+        const itemReference = await generateReference();
+        createdReferences.push(itemReference);
+        
+        const itemPhone = normalizePhoneNumber(item.phone);
+        const itemNetwork = bundle?.network?.toLowerCase() || bulkNetwork || null;
+        
+        console.log(`[BulkUpload] Creating transaction ${i + 1}/${processedOrderItems.length}: ref=${itemReference}, phone=${itemPhone}, price=${item.price}`);
+        
+        const transaction = await storage.createTransaction({
+          reference: itemReference,
+          type: "data_bundle",
+          productId: item.bundleId,
+          productName: item.bundleName,
+          network: itemNetwork,
+          amount: item.price.toFixed(2),
+          profit: perItemAgentProfit > 0 ? perItemAgentProfit.toFixed(2) : "0.00",
+          customerPhone: itemPhone,
+          customerEmail: user.email,
+          phoneNumbers: undefined, // No JSON array - each item is its own transaction
+          isBulkOrder: false, // Each item is independent
+          paymentMethod: "wallet",
+          status: TransactionStatus.CONFIRMED,
+          paymentStatus: "paid",
+          agentId: user.role === 'agent' ? user.id : undefined,
+          agentProfit: user.role === 'agent' && perItemAgentProfit > 0 ? perItemAgentProfit.toFixed(2) : undefined,
+          providerId,
+        });
+        
+        createdTransactions.push(transaction);
+        
+        // Financial integrity: credit agent profit and record admin revenue for this item
+        if (user.role === 'agent' && perItemAgentProfit > 0) {
+          const adminRevenue = parseFloat((item.price - perItemAgentProfit).toFixed(2));
           
-          if (allSuccess) {
-            // Order was placed successfully with external provider - set to processing
+          // Credit agent balance with PROFIT only
+          await storage.updateAgentBalance(user.id, perItemAgentProfit, true);
+          
+          // Record admin revenue as its own transaction for accounting
+          const adminRef = `ADMINREV-${itemReference}`;
+          await storage.createTransaction({
+            reference: adminRef,
+            type: "admin_revenue",
+            productId: null,
+            productName: `Admin revenue for transaction ${itemReference}`,
+            network: null,
+            amount: adminRevenue.toFixed(2),
+            profit: "0.00",
+            customerPhone: "",
+            customerEmail: null,
+            isBulkOrder: false,
+            status: "completed",
+            paymentStatus: "paid",
+          });
+        }
+        
+        // Process delivery for this item
+        if (autoProcessingEnabled) {
+          console.log(`[BulkUpload] Processing data bundle transaction via API: ${transaction.reference}`);
+          const fulfillmentResult = await fulfillDataBundleTransaction(transaction, providerId);
+          await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+          if (fulfillmentResult && fulfillmentResult.success) {
+            console.log(`[BulkUpload] Data bundle API fulfillment successful for ${transaction.reference}`);
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.PENDING,
               deliveryStatus: "processing",
             });
           } else {
-            // Some items failed - mark as failed
-            const failedItems = fulfillmentResult.results.filter((r: any) => r.status === 'failed');
+            console.error(`[BulkUpload] Data bundle API fulfillment failed for ${transaction.reference}:`, fulfillmentResult.error);
             await storage.updateTransaction(transaction.id, {
               status: TransactionStatus.FAILED,
               deliveryStatus: "failed",
-              failureReason: `API fulfillment failed: ${failedItems.length} items failed`,
+              failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
             });
           }
         } else {
-          // Fulfillment failed
-          console.error("[BulkUpload] Data bundle API fulfillment failed:", fulfillmentResult.error);
-          await storage.updateTransaction(transaction.id, {
-            status: TransactionStatus.FAILED,
-            deliveryStatus: "failed",
-            failureReason: `API fulfillment failed: ${fulfillmentResult.error}`,
-          });
+          // Manual processing - keep as pending
+          await storage.updateTransactionDeliveryStatus(transaction.id, "pending");
         }
-      } else {
-        // Manual processing - keep as pending
-        await storage.updateTransactionDeliveryStatus(transaction.id, "pending");
       }
+      
+      // Return all created transactions
       res.json({
         success: true,
-        transaction: {
-          id: transaction.id,
-          reference: transaction.reference,
-          amount: transaction.amount,
-          productName: transaction.productName,
-          status: "pending", // Changed from "completed" to "pending"
-          deliveryStatus: autoProcessingEnabled ? "processing" : "pending", // Changed from "delivered"
-        },
+        bulkOrder: true,
+        transactions: createdTransactions.map(t => ({
+          id: t.id,
+          reference: t.reference,
+          amount: t.amount,
+          productName: t.productName,
+          customerPhone: t.customerPhone,
+          status: t.status,
+          deliveryStatus: t.deliveryStatus || (autoProcessingEnabled ? "processing" : "pending"),
+        })),
         totalRows: jsonData.length,
-        processedItems: orderItems.length,
+        processedItems: processedOrderItems.length,
         errors: errors,
-        message: `Bulk purchase completed successfully. ${orderItems.length} items processed${errors.length > 0 ? `. ${errors.length} validation errors found.` : ''}`
+        message: `Bulk purchase completed successfully. ${processedOrderItems.length} items processed with individual order IDs${errors.length > 0 ? `. ${errors.length} validation errors found.` : ''}`
       });
     } catch (error: any) {
       console.error('Excel bulk purchase error:', error);
@@ -2751,11 +2891,103 @@ export async function registerRoutes(
           newBalance: newBalance.toFixed(2),
         });
       }
+      
+      // For Paystack bulk orders, create individual transactions upfront (like wallet does)
+      // This ensures each item has its own unique reference from the start
+      let paystackBulkReferences: string[] = [];
+      let paystackBulkTransactions: any[] = [];
+      
+      if (data.paymentMethod === 'paystack' && isBulkOrder && Array.isArray(phoneNumbersData) && phoneNumbersData.length > 1) {
+        console.log(`[Checkout] Creating ${phoneNumbersData.length} individual transactions for Paystack bulk order`);
+        
+        // Delete the single bulk transaction we created earlier
+        await storage.deleteTransaction(transaction.id);
+        console.log(`[Checkout] Deleted original bulk transaction ${transaction.id}`);
+        
+        for (let i = 0; i < phoneNumbersData.length; i++) {
+          const item = phoneNumbersData[i] as any; // Cast for flexibility with extended properties
+          const itemPhone = normalizePhoneNumber(item.phone);
+          
+          // Get bundle info and price for this item
+          let itemPrice = amount; // default unit price
+          let itemProductName = productName;
+          let itemBundleId = product.id;
+          let itemAgentProfit = agentProfit;
+          
+          if (item.bundleId) {
+            const bundle = await storage.getDataBundle(item.bundleId);
+            if (bundle) {
+              itemBundleId = bundle.id;
+              itemProductName = item.bundleName || bundle.name;
+              
+              // Get appropriate price based on user role or agent
+              if (agentId) {
+                const agent = await storage.getAgent(agentId);
+                if (agent) {
+                  const resolvedPrice = await storage.getResolvedPrice(bundle.id, agent.id, 'agent');
+                  itemPrice = resolvedPrice ? parseFloat(resolvedPrice) : parseFloat(bundle.basePrice || '0');
+                }
+              } else {
+                const adminBasePrice = await storage.getAdminBasePrice(bundle.id);
+                itemPrice = adminBasePrice ? parseFloat(adminBasePrice) : parseFloat(bundle.basePrice || '0');
+              }
+              
+              // Use price from orderItems if available
+              if (item.price) {
+                itemPrice = parseFloat(item.price);
+              }
+              
+              // Calculate agent profit for this item
+              if (item.profit) {
+                itemAgentProfit = parseFloat(item.profit);
+              } else {
+                itemAgentProfit = totalAgentProfit / phoneNumbersData.length;
+              }
+            }
+          }
+          
+          // Generate unique reference for each item
+          const itemReference = await generateReference();
+          paystackBulkReferences.push(itemReference);
+          
+          console.log(`[Checkout] Creating Paystack bulk transaction ${i + 1}/${phoneNumbersData.length}: ref=${itemReference}, phone=${itemPhone}, price=${itemPrice}`);
+          
+          const bulkTransaction = await storage.createTransaction({
+            reference: itemReference,
+            type: data.productType,
+            productId: itemBundleId,
+            productName: itemProductName,
+            network,
+            amount: itemPrice.toFixed(2),
+            profit: itemAgentProfit > 0 ? itemAgentProfit.toFixed(2) : "0",
+            customerPhone: itemPhone,
+            customerEmail: customerEmail,
+            phoneNumbers: undefined, // No JSON array - each item is its own transaction
+            isBulkOrder: false, // Each item is independent
+            paymentMethod: "paystack",
+            status: TransactionStatus.PENDING,
+            paymentStatus: "pending",
+            agentId,
+            agentProfit: itemAgentProfit > 0 ? itemAgentProfit.toFixed(2) : undefined,
+            providerId,
+          });
+          
+          paystackBulkTransactions.push(bulkTransaction);
+        }
+        
+        console.log(`[Checkout] Created ${paystackBulkTransactions.length} individual transactions for Paystack bulk order`);
+      }
+      
       // Initialize Paystack payment
       const paystackEmail = customerEmail || (normalizedPhone ? `${normalizedPhone}@example.com` : `result-checker-${reference}@example.com`);
       // Use frontend URL for callback instead of backend URL
       const frontendUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'https://resellershubprogh.com';
-      const callbackUrl = `${frontendUrl}/checkout/success?reference=${reference}`;
+      
+      // For bulk orders, use the primary (first) reference
+      const primaryReference = paystackBulkReferences.length > 0 ? paystackBulkReferences[0] : reference;
+      const primaryTransaction = paystackBulkTransactions.length > 0 ? paystackBulkTransactions[0] : transaction;
+      
+      const callbackUrl = `${frontendUrl}/checkout/success?reference=${primaryReference}${paystackBulkReferences.length > 1 ? '&bulk=true&refs=' + paystackBulkReferences.join(',') : ''}`;
       
       // Calculate tax for Paystack payments (2.5%)
       const taxAmount = calculateTax(totalAmount);
@@ -2767,20 +2999,23 @@ export async function registerRoutes(
         taxAmount,
         totalWithTax: amountWithTax,
         amountInPesewas: Math.round(amountWithTax * 100),
-        reference
+        reference: primaryReference,
+        bulkReferences: paystackBulkReferences.length > 0 ? paystackBulkReferences : undefined
       });
       try {
         const paystackResponse = await initializePayment({
           email: paystackEmail,
           amount: Math.round(amountWithTax * 100), // Convert GHS to pesewas (includes tax)
-          reference: reference,
+          reference: primaryReference,
           callbackUrl: callbackUrl,
           metadata: {
-            transactionId: transaction.id,
+            transactionId: primaryTransaction.id,
             productName: productName,
             customerPhone: normalizedPhone || null,
-            isBulkOrder: isBulkOrder || false,
-            numberOfRecipients: numberOfRecipients,
+            isBulkOrder: paystackBulkReferences.length > 1,
+            numberOfRecipients: paystackBulkReferences.length > 0 ? paystackBulkReferences.length : numberOfRecipients,
+            bulkReferences: paystackBulkReferences.length > 1 ? paystackBulkReferences : undefined,
+            bulkTransactionIds: paystackBulkTransactions.length > 1 ? paystackBulkTransactions.map(t => t.id) : undefined,
             subtotal: totalAmount,
             taxAmount: taxAmount,
             taxRate: PAYSTACK_TAX_PERCENTAGE,
@@ -2792,10 +3027,10 @@ export async function registerRoutes(
         });
         res.json({
           transaction: {
-            id: transaction.id,
-            reference: transaction.reference,
-            amount: transaction.amount,
-            productName: transaction.productName,
+            id: primaryTransaction.id,
+            reference: primaryReference,
+            amount: primaryTransaction.amount,
+            productName: primaryTransaction.productName,
           },
           paymentUrl: paystackResponse.data.authorization_url,
           accessCode: paystackResponse.data.access_code,
@@ -2805,10 +3040,12 @@ export async function registerRoutes(
             taxAmount: taxAmount,
             total: amountWithTax,
           },
+          // Include bulk references for frontend to track
+          bulkReferences: paystackBulkReferences.length > 1 ? paystackBulkReferences : undefined,
           debug: {
             phoneNumbers: phoneNumbersData,
-            isBulkOrder: isBulkOrder,
-            numberOfRecipients: numberOfRecipients,
+            isBulkOrder: paystackBulkReferences.length > 1,
+            numberOfRecipients: paystackBulkReferences.length > 0 ? paystackBulkReferences.length : numberOfRecipients,
             unitPrice: amount,
             totalAmount: totalAmount,
             taxAmount: taxAmount,
@@ -2824,10 +3061,14 @@ export async function registerRoutes(
           numberOfRecipients: numberOfRecipients,
           totalAmount: totalAmount
         });
-        // If Paystack fails, clean up the transaction
-        await storage.updateTransaction(transaction.id, {
-          status: TransactionStatus.FAILED,
-        });
+        // If Paystack fails, clean up all transactions (bulk or single)
+        if (paystackBulkTransactions.length > 0) {
+          for (const t of paystackBulkTransactions) {
+            await storage.updateTransaction(t.id, { status: TransactionStatus.FAILED });
+          }
+        } else {
+          await storage.updateTransaction(transaction.id, { status: TransactionStatus.FAILED });
+        }
         return res.status(500).json({
           error: paystackError.message || "Payment initialization failed",
           debug: {
@@ -3000,6 +3241,119 @@ export async function registerRoutes(
       }
       // Payment successful - fulfill the order
       console.log("[Verify] Payment successful, fulfilling order");
+      
+      // Check Paystack metadata for bulk references
+      const paystackMetadata = paystackVerification.data.metadata || {};
+      const bulkReferences = paystackMetadata.bulkReferences as string[] | undefined;
+      const bulkTransactionIds = paystackMetadata.bulkTransactionIds as string[] | undefined;
+      
+      // If this is a bulk order payment, verify and fulfill all bulk transactions
+      if (bulkReferences && bulkReferences.length > 1) {
+        console.log(`[Verify] Bulk order detected with ${bulkReferences.length} transactions:`, bulkReferences);
+        
+        const fulfilledTransactions: any[] = [];
+        
+        for (const bulkRef of bulkReferences) {
+          const bulkTransaction = await storage.getTransactionByReference(bulkRef);
+          if (!bulkTransaction) {
+            console.error(`[Verify] Bulk transaction not found: ${bulkRef}`);
+            continue;
+          }
+          
+          // Skip if already processed
+          if (bulkTransaction.paymentStatus === "paid" && bulkTransaction.apiResponse) {
+            console.log(`[Verify] Bulk transaction ${bulkRef} already processed, skipping`);
+            fulfilledTransactions.push(bulkTransaction);
+            continue;
+          }
+          
+          // Update payment status
+          await storage.updateTransaction(bulkTransaction.id, {
+            paymentStatus: "paid",
+            paymentReference: paystackVerification.data.reference,
+          });
+          
+          // Fulfill data bundle
+          if (bulkTransaction.type === ProductType.DATA_BUNDLE && !bulkTransaction.apiResponse) {
+            console.log(`[Verify] Fulfilling bulk transaction: ${bulkRef}`);
+            const fulfillmentResult = await fulfillDataBundleTransaction(bulkTransaction, bulkTransaction.providerId ?? undefined);
+            await storage.updateTransaction(bulkTransaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+            if (fulfillmentResult && fulfillmentResult.success) {
+              await storage.updateTransaction(bulkTransaction.id, {
+                status: TransactionStatus.PENDING,
+                deliveryStatus: "processing",
+              });
+            } else {
+              await storage.updateTransaction(bulkTransaction.id, {
+                status: TransactionStatus.FAILED,
+                deliveryStatus: "failed",
+                completedAt: new Date(),
+                failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
+              });
+            }
+          }
+          
+          // Credit agent for this item if applicable
+          if (bulkTransaction.agentId && parseFloat(bulkTransaction.agentProfit || "0") > 0) {
+            const agentProfitValue = parseFloat(bulkTransaction.agentProfit || "0");
+            await storage.updateAgentBalance(bulkTransaction.agentId, agentProfitValue, true);
+            
+            const agent = await storage.getAgent(bulkTransaction.agentId);
+            if (agent) {
+              let profitWallet = await storage.getProfitWallet(agent.userId);
+              if (!profitWallet) {
+                profitWallet = await storage.createProfitWallet({
+                  userId: agent.userId,
+                  availableBalance: "0.00",
+                  pendingBalance: "0.00",
+                  totalEarned: "0.00",
+                });
+              }
+              const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + agentProfitValue).toFixed(2);
+              const newTotalEarned = (parseFloat(profitWallet.totalEarned) + agentProfitValue).toFixed(2);
+              await storage.updateProfitWallet(agent.userId, {
+                availableBalance: newAvailableBalance,
+                totalEarned: newTotalEarned,
+              });
+            }
+            
+            // Record admin revenue
+            const itemPrice = parseFloat(bulkTransaction.amount || "0");
+            const adminRevenue = parseFloat((itemPrice - agentProfitValue).toFixed(2));
+            const adminRef = `ADMINREV-${bulkTransaction.reference}`;
+            await storage.createTransaction({
+              reference: adminRef,
+              type: "admin_revenue",
+              productId: null,
+              productName: `Admin revenue for transaction ${bulkTransaction.reference}`,
+              network: null,
+              amount: adminRevenue.toFixed(2),
+              profit: "0.00",
+              customerPhone: "",
+              customerEmail: null,
+              isBulkOrder: false,
+              status: TransactionStatus.COMPLETED,
+              paymentStatus: "paid",
+            });
+          }
+          
+          const updatedBulkTransaction = await storage.getTransactionByReference(bulkRef);
+          fulfilledTransactions.push(updatedBulkTransaction);
+        }
+        
+        console.log(`[Verify] Bulk order verification complete, ${fulfilledTransactions.length} transactions processed`);
+        
+        clearTimeout(timeoutId);
+        return res.json({
+          success: true,
+          bulkOrder: true,
+          transactions: fulfilledTransactions,
+          transaction: fulfilledTransactions[0], // Primary transaction for backward compatibility
+        });
+      }
+      
+      // Single transaction processing (non-bulk)
       let deliveredPin: string | undefined;
       let deliveredSerial: string | undefined;
       let pinsData: Array<{pin: string, serialNumber: string}> = [];
@@ -3089,8 +3443,23 @@ export async function registerRoutes(
         });
         console.log("[Verify] Payment marked as paid, awaiting fulfillment");
       }
-      // Credit agent if applicable and record admin revenue
-      if (transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
+      // Check if this is a bulk order that will be split - skip agent commission here if so
+      // (each split transaction will handle its own agent commission)
+      let willBeSplit = false;
+      if (transaction.isBulkOrder && transaction.phoneNumbers && transaction.type === ProductType.DATA_BUNDLE) {
+        try {
+          const parsed = JSON.parse(transaction.phoneNumbers);
+          if (Array.isArray(parsed) && parsed.length > 1 && parsed[0]?.phone) {
+            willBeSplit = true;
+            console.log("[Verify] Bulk order will be split - skipping agent commission here");
+          }
+        } catch (e) {
+          // Not valid JSON, proceed normally
+        }
+      }
+      
+      // Credit agent if applicable and record admin revenue (skip for bulk orders that will be split)
+      if (!willBeSplit && transaction.agentId && parseFloat(transaction.agentProfit || "0") > 0) {
         const agentProfitValue = parseFloat(transaction.agentProfit || "0");
         const totalPaid = parseFloat(transaction.amount || "0");
         const adminRevenue = parseFloat((totalPaid - agentProfitValue).toFixed(2));
@@ -3140,9 +3509,162 @@ export async function registerRoutes(
       // Process data bundle transactions through API (in background, don't block response)
       if (transaction.type === ProductType.DATA_BUNDLE && !transaction.apiResponse) {
         console.log("[Verify] Queuing data bundle fulfillment for background processing:", transaction.reference);
+        
+        // Check if this is a bulk order that needs to be split into individual transactions
+        let orderItems: any[] = [];
+        if (transaction.isBulkOrder && transaction.phoneNumbers) {
+          try {
+            const parsed = JSON.parse(transaction.phoneNumbers);
+            if (Array.isArray(parsed) && parsed.length > 1 && parsed[0]?.phone) {
+              orderItems = parsed;
+              console.log(`[Verify] Found bulk order with ${orderItems.length} items - splitting into individual transactions`);
+            }
+          } catch (e) {
+            console.log("[Verify] phoneNumbers is not valid JSON for bulk order split");
+          }
+        }
+        
         // Fire-and-forget: don't await, just queue it for processing
         (async () => {
           try {
+            // For bulk orders, create individual transactions for each item
+            if (orderItems.length > 1) {
+              console.log(`[Verify] Splitting bulk order ${transaction.reference} into ${orderItems.length} individual transactions`);
+              
+              const createdTransactions: any[] = [];
+              const totalAmount = parseFloat(transaction.amount || "0");
+              const totalAgentProfit = parseFloat(transaction.agentProfit || "0");
+              const perItemAgentProfit = totalAgentProfit / orderItems.length;
+              
+              for (let i = 0; i < orderItems.length; i++) {
+                const item = orderItems[i];
+                const itemPhone = normalizePhoneNumber(item.phone);
+                
+                // Get bundle info for this item
+                let itemPrice = totalAmount / orderItems.length;
+                let itemProductName = transaction.productName;
+                let itemBundleId = transaction.productId;
+                
+                if (item.bundleId) {
+                  const bundle = await storage.getDataBundle(item.bundleId);
+                  if (bundle) {
+                    itemBundleId = bundle.id;
+                    itemProductName = item.bundleName || bundle.name;
+                    // Use the price from orderItems if available
+                    if (item.price) {
+                      itemPrice = parseFloat(item.price);
+                    }
+                  }
+                }
+                
+                // Generate unique reference for each item
+                const itemReference = await generateReference();
+                
+                console.log(`[Verify] Creating split transaction ${i + 1}/${orderItems.length}: ref=${itemReference}, phone=${itemPhone}`);
+                
+                const splitTransaction = await storage.createTransaction({
+                  reference: itemReference,
+                  type: ProductType.DATA_BUNDLE,
+                  productId: itemBundleId,
+                  productName: itemProductName,
+                  network: transaction.network,
+                  amount: itemPrice.toFixed(2),
+                  profit: perItemAgentProfit > 0 ? perItemAgentProfit.toFixed(2) : "0",
+                  customerPhone: itemPhone,
+                  customerEmail: transaction.customerEmail,
+                  phoneNumbers: undefined, // No JSON - this is a single transaction
+                  isBulkOrder: false, // Each item is now independent
+                  paymentMethod: "paystack",
+                  status: TransactionStatus.CONFIRMED,
+                  paymentStatus: "paid",
+                  paymentReference: transaction.paymentReference,
+                  agentId: transaction.agentId,
+                  agentProfit: perItemAgentProfit > 0 ? perItemAgentProfit.toFixed(2) : undefined,
+                  providerId: transaction.providerId,
+                });
+                
+                createdTransactions.push(splitTransaction);
+                
+                // Process this item through API
+                console.log(`[Verify] Processing split transaction via API: ${splitTransaction.reference}`);
+                const fulfillmentResult = await fulfillDataBundleTransaction(splitTransaction, splitTransaction.providerId ?? undefined);
+                await storage.updateTransaction(splitTransaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
+
+                if (fulfillmentResult && fulfillmentResult.success) {
+                  console.log(`[Verify] Split transaction fulfillment successful for ${splitTransaction.reference}`);
+                  await storage.updateTransaction(splitTransaction.id, {
+                    status: TransactionStatus.PENDING,
+                    deliveryStatus: "processing",
+                  });
+                } else {
+                  console.error(`[Verify] Split transaction fulfillment failed for ${splitTransaction.reference}:`, fulfillmentResult?.error);
+                  await storage.updateTransaction(splitTransaction.id, {
+                    status: TransactionStatus.FAILED,
+                    deliveryStatus: "failed",
+                    completedAt: new Date(),
+                    failureReason: `API fulfillment failed: ${fulfillmentResult?.error || 'Unknown error'}`,
+                  });
+                }
+                
+                // Credit agent for this item if applicable
+                if (transaction.agentId && perItemAgentProfit > 0) {
+                  await storage.updateAgentBalance(transaction.agentId, perItemAgentProfit, true);
+                  
+                  const agent = await storage.getAgent(transaction.agentId);
+                  if (agent) {
+                    let profitWallet = await storage.getProfitWallet(agent.userId);
+                    if (!profitWallet) {
+                      profitWallet = await storage.createProfitWallet({
+                        userId: agent.userId,
+                        availableBalance: "0.00",
+                        pendingBalance: "0.00",
+                        totalEarned: "0.00",
+                      });
+                    }
+                    const newAvailableBalance = (parseFloat(profitWallet.availableBalance) + perItemAgentProfit).toFixed(2);
+                    const newTotalEarned = (parseFloat(profitWallet.totalEarned) + perItemAgentProfit).toFixed(2);
+                    await storage.updateProfitWallet(agent.userId, {
+                      availableBalance: newAvailableBalance,
+                      totalEarned: newTotalEarned,
+                    });
+                  }
+                  
+                  // Record admin revenue for this item
+                  const adminRevenue = parseFloat((itemPrice - perItemAgentProfit).toFixed(2));
+                  const adminRef = `ADMINREV-${splitTransaction.reference}`;
+                  await storage.createTransaction({
+                    reference: adminRef,
+                    type: "admin_revenue",
+                    productId: null,
+                    productName: `Admin revenue for transaction ${splitTransaction.reference}`,
+                    network: null,
+                    amount: adminRevenue.toFixed(2),
+                    profit: "0.00",
+                    customerPhone: "",
+                    customerEmail: null,
+                    isBulkOrder: false,
+                    status: TransactionStatus.COMPLETED,
+                    paymentStatus: "paid",
+                  });
+                }
+              }
+              
+              // Mark original bulk transaction as split (completed but with reference to split transactions)
+              await storage.updateTransaction(transaction.id, {
+                status: TransactionStatus.COMPLETED,
+                deliveryStatus: "split",
+                apiResponse: JSON.stringify({
+                  split: true,
+                  splitCount: createdTransactions.length,
+                  splitReferences: createdTransactions.map(t => t.reference),
+                }),
+              });
+              
+              console.log(`[Verify] Bulk order ${transaction.reference} split into ${createdTransactions.length} individual transactions`);
+              return;
+            }
+            
+            // Single transaction fulfillment (non-bulk)
             const fulfillmentResult = await fulfillDataBundleTransaction(transaction, transaction.providerId ?? undefined);
             await storage.updateTransaction(transaction.id, { apiResponse: JSON.stringify(fulfillmentResult) });
 
